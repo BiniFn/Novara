@@ -37,11 +37,13 @@ data class AppearanceSettingsUiState(
     val listMode: ListMode,
     val gridSize: Int,
     val railAnimationIntensityPercent: Int,
+    val isVerticalListRailAnimationEnabled: Boolean,
     val isQuickFilterEnabled: Boolean,
     val progressIndicatorMode: ProgressIndicatorMode,
     val badgesTopLeft: Set<String>,
     val badgesTopRight: Set<String>,
     val badgesBottomLeft: Set<String>,
+    val badgesBottomRight: Set<String>,
     val mangaListBadges: Set<String>, // Keep for compatibility if needed, but we will use the others
     val isDescriptionExpanded: Boolean,
     val isPanoramaCoverEnabled: Boolean,
@@ -88,6 +90,7 @@ data class AppearanceSettingsOptions(
     val listModes: List<SettingsChoiceOption<ListMode>>,
     val progressIndicatorModes: List<SettingsChoiceOption<ProgressIndicatorMode>>,
     val badgeOptions: List<SettingsChoiceOption<String>>,
+    val bottomRightBadgeOptions: List<SettingsChoiceOption<String>>,
     val mangaListBadges: List<SettingsChoiceOption<String>>,
     val detailsTabs: List<SettingsChoiceOption<Int>>,
     val searchSuggestionTypes: List<SettingsChoiceOption<SearchSuggestionType>>,
@@ -114,11 +117,13 @@ fun AppearanceSettingsScreen(
     onListModeChange: (ListMode) -> Unit,
     onGridSizeChange: (Int) -> Unit,
     onRailAnimationIntensityChange: (Int) -> Unit,
+    onVerticalListRailAnimationChange: (Boolean) -> Unit,
     onQuickFilterChange: (Boolean) -> Unit,
     onProgressIndicatorModeChange: (ProgressIndicatorMode) -> Unit,
     onBadgesTopLeftChange: (Set<String>) -> Unit,
     onBadgesTopRightChange: (Set<String>) -> Unit,
     onBadgesBottomLeftChange: (Set<String>) -> Unit,
+    onBadgesBottomRightChange: (Set<String>) -> Unit,
     onMangaListBadgesChange: (Set<String>) -> Unit,
     onDescriptionExpandedChange: (Boolean) -> Unit,
     onPanoramaCoverEnabledChange: (Boolean) -> Unit,
@@ -267,6 +272,13 @@ fun AppearanceSettingsScreen(
                 )
                 SettingsSectionDivider()
                 SettingsSwitchPreference(
+                    title = stringResource(R.string.pref_vertical_list_rail_animation),
+                    checked = state.isVerticalListRailAnimationEnabled,
+                    summary = stringResource(R.string.pref_vertical_list_rail_animation_summary),
+                    onCheckedChange = onVerticalListRailAnimationChange,
+                )
+                SettingsSectionDivider()
+                SettingsSwitchPreference(
                     title = stringResource(R.string.show_quick_filters),
                     checked = state.isQuickFilterEnabled,
                     summary = stringResource(R.string.show_quick_filters_summary),
@@ -303,6 +315,14 @@ fun AppearanceSettingsScreen(
                     options = options.badgeOptions,
                     emptySelectionText = emptySelectionText,
                     onValueChange = onBadgesBottomLeftChange,
+                )
+                SettingsSectionDivider()
+                SettingsMultiChoicePreference(
+                    title = stringResource(R.string.badge_bottom_right),
+                    values = state.badgesBottomRight,
+                    options = options.bottomRightBadgeOptions,
+                    emptySelectionText = emptySelectionText,
+                    onValueChange = onBadgesBottomRightChange,
                 )
             }
         }

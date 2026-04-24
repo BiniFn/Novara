@@ -130,8 +130,8 @@ import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
-import org.skepsun.kototoro.core.ui.glass.GlassBottomBarContainer
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
+import org.skepsun.kototoro.core.ui.glass.GlassStyle
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
 import org.skepsun.kototoro.core.ui.glass.LocalHazeState
 import org.skepsun.kototoro.core.util.ext.isHttpUrl
@@ -1568,18 +1568,19 @@ private fun DetailsPaneContent(
         label = "detailsPaneActionsExpansion",
     )
     val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val isStatusBarHandleVisible = showCollapsedHandle && isSheetFullyExpanded
     val isCollapsedPane = showCollapsedHandle && detailsPaneState.anchor == CompactDetailsPaneAnchor.Collapsed
-    val paneContainerAlpha = when {
-        !showCollapsedHandle -> 0.88f
-        isCollapsedPane -> 0.94f
-        isSheetFullyExpanded -> lerpFloat(0.82f, 0.88f, paneOpacityProgress)
-        else -> lerpFloat(0.68f, 0.86f, paneOpacityProgress)
-    }
-    val opaquePaneOverlayAlpha = when {
-        isCollapsedPane -> 0.18f
-        showCollapsedHandle -> lerpFloat(0f, 0.14f, paneOpacityProgress)
-        else -> 0f
+    val paneGlassStyle = remember(showCollapsedHandle, isCollapsedPane, isSheetFullyExpanded, paneOpacityProgress) {
+        GlassStyle(
+            containerAlpha = when {
+                !showCollapsedHandle -> 0.88f
+                isCollapsedPane -> 0.94f
+                isSheetFullyExpanded -> lerpFloat(0.82f, 0.88f, paneOpacityProgress)
+                else -> lerpFloat(0.68f, 0.86f, paneOpacityProgress)
+            },
+            borderAlpha = if (isCollapsedPane) 0.18f else 0.24f,
+            tonalElevation = 0.dp,
+            shadowElevation = if (isCollapsedPane) 0.dp else 8.dp,
+        )
     }
     val paneShape = if (showCollapsedHandle && isSheetFullyExpanded && paneOpacityProgress >= 0.96f) {
         RoundedCornerShape(0.dp)
@@ -1590,28 +1591,21 @@ private fun DetailsPaneContent(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.TopCenter,
     ) {
-        Surface(
+        GlassSurface(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(modifier),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = paneContainerAlpha),
+            style = paneGlassStyle,
             shape = paneShape,
+            allowRuntimeHaze = true,
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
             ) {
-                if (opaquePaneOverlayAlpha > 0f) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .background(MaterialTheme.colorScheme.surface.copy(alpha = opaquePaneOverlayAlpha)),
-                    )
-                }
                 Column(
                     modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = if (isStatusBarHandleVisible) statusBarTopPadding + 8.dp else 0.dp),
+                        .fillMaxWidth(),
                 ) {
                     DetailsPaneActionsRow(
                         detailsPaneState = detailsPaneState,
@@ -1629,7 +1623,8 @@ private fun DetailsPaneContent(
                         onToggleChaptersGrid = onToggleChaptersGrid,
                         onToggleDownloadedOnly = onToggleDownloadedOnly,
                         onPageGridSizeChange = onPageGridSizeChange,
-                        showCollapsedHandle = showCollapsedHandle && !isStatusBarHandleVisible,
+                        showCollapsedHandle = showCollapsedHandle,
+                        handleTopInset = statusBarTopPadding,
                         contentType = contentType,
                         historyInfo = historyInfo,
                         branches = branches,
@@ -1668,17 +1663,6 @@ private fun DetailsPaneContent(
                         )
                     }
                 }
-                if (isStatusBarHandleVisible) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = (statusBarTopPadding * 0.5f).coerceAtLeast(8.dp)),
-                    ) {
-                        DetailsPaneDragHandle(
-                            modifier = Modifier.alpha(lerpFloat(0.68f, 1f, paneOpacityProgress)),
-                        )
-                    }
-                }
             }
         }
     }
@@ -1703,6 +1687,7 @@ private fun DetailsPaneActionsRow(
     onToggleDownloadedOnly: () -> Unit,
     onPageGridSizeChange: (Float) -> Unit,
     showCollapsedHandle: Boolean,
+    handleTopInset: androidx.compose.ui.unit.Dp,
     contentType: ContentType?,
     historyInfo: HistoryInfo,
     branches: List<ContentBranch>,
@@ -1746,7 +1731,18 @@ private fun DetailsPaneActionsRow(
         horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
     ) {
         if (showCollapsedHandle) {
-            DetailsPaneDragHandle()
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(handleTopInset + 24.dp),
+                contentAlignment = Alignment.TopCenter,
+            ) {
+                DetailsPaneDragHandle(
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .alpha(lerpFloat(0.68f, 1f, paneOpacityProgress)),
+                )
+            }
         }
         when (topBarMode) {
             DetailsPaneTopBarMode.ChapterSelection -> {

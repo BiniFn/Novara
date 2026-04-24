@@ -502,6 +502,7 @@
     <string name="badge_top_left">Top-left badges</string>
     <string name="badge_top_right">Top-right badges</string>
     <string name="badge_bottom_left">Bottom-left badges</string>
+    <string name="badge_bottom_right">Bottom-right badges</string>
     <string name="badge_tracker">Tracking site icons</string>
     <string name="badge_score">Score (from tracker)</string>
     <string name="badge_source_icon">Source icon</string>
@@ -2315,6 +2316,9 @@
     <string name="pref_loading_circle_style_summary">Controls the appearance of loading spinners and progress bars.</string>
     <string name="pref_rail_animation_intensity">List slide animation intensity</string>
     <string name="pref_rail_animation_intensity_summary">Adjusts how strongly horizontal and vertical content cards translate, fade, and scale while sliding.</string>
+    <string name="pref_vertical_list_rail_animation">Vertical list card animation</string>
+    <string name="pref_vertical_list_rail_animation_summary">Applies the slide animation to vertical card lists. Turn it off if scrolling feels janky.</string>
+    <string name="badge_nsfw">18+</string>
     <string name="pref_popup_radius">Popup menu corner radius</string>
     <string name="loading_circle_style_thick_straight">Thick Straight</string>
     <string name="loading_circle_style_thick_wavy">Thick Wavy</string>

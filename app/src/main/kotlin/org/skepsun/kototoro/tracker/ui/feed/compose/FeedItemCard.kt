@@ -35,6 +35,7 @@ import coil3.request.crossfade
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.list.ui.compose.ContentCardNsfwBadge
+import org.skepsun.kototoro.list.ui.compose.contentCardBadgeMetricsFor
 import org.skepsun.kototoro.tracker.ui.feed.model.FeedItem
 
 @Composable
@@ -44,6 +45,7 @@ fun FeedItemCard(
 	modifier: Modifier = Modifier
 ) {
 	var coverBounds by remember(item.id) { mutableStateOf<Rect?>(null) }
+	val badgeMetrics = remember { contentCardBadgeMetricsFor(40.dp) }
 
 	Row(
 		modifier = modifier
@@ -71,9 +73,10 @@ fun FeedItemCard(
 			)
 			if (item.manga.isNsfw()) {
 				ContentCardNsfwBadge(
+					metrics = badgeMetrics,
 					modifier = Modifier
 						.align(Alignment.BottomEnd)
-						.padding(2.dp),
+						.padding(badgeMetrics.outerPadding * 0.6f),
 				)
 			}
 		}

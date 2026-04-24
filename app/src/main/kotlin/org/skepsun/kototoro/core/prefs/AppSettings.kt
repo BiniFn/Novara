@@ -681,6 +681,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getSafeInt(KEY_RAIL_ANIMATION_INTENSITY, 100).coerceIn(0, 300)
 		set(value) = prefs.edit { putInt(KEY_RAIL_ANIMATION_INTENSITY, value.coerceIn(0, 300)) }
 
+	var isVerticalListRailAnimationEnabled: Boolean
+		get() = prefs.getBoolean(KEY_VERTICAL_LIST_RAIL_ANIMATION, false)
+		set(value) = prefs.edit { putBoolean(KEY_VERTICAL_LIST_RAIL_ANIMATION, value) }
+
 	var cornerRadius: Int
 		get() = prefs.getString(KEY_POPUP_RADIUS, "-1")?.toIntOrNull()
 			?.takeIf { it in CORNER_RADIUS_ALLOWED_VALUES } ?: -1
@@ -697,6 +701,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	var badgesBottomLeft: Set<String>
 		get() = prefs.getStringSet(KEY_BADGES_BOTTOM_LEFT, setOf("favorite", "saved")) ?: setOf("favorite", "saved")
 		set(value) = prefs.edit { putStringSet(KEY_BADGES_BOTTOM_LEFT, value) }
+
+	var badgesBottomRight: Set<String>
+		get() = prefs.getStringSet(KEY_BADGES_BOTTOM_RIGHT, setOf("nsfw")) ?: setOf("nsfw")
+		set(value) = prefs.edit { putStringSet(KEY_BADGES_BOTTOM_RIGHT, value) }
 
 	var popupRadius: Int
 		get() = cornerRadius
@@ -1733,6 +1741,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_GRID_SIZE = "grid_size"
 		const val KEY_GRID_SIZE_PAGES = "grid_size_pages"
 		const val KEY_RAIL_ANIMATION_INTENSITY = "rail_animation_intensity"
+		const val KEY_VERTICAL_LIST_RAIL_ANIMATION = "vertical_list_rail_animation"
 		const val KEY_REMOTE_SOURCES = "remote_sources"
 		const val KEY_LOCAL_STORAGE = "local_storage"
 		const val KEY_LOCAL_NOVEL_STORAGE = "local_novel_storage"
@@ -2053,6 +2062,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_BADGES_TOP_LEFT = "badges_top_left"
 		const val KEY_BADGES_TOP_RIGHT = "badges_top_right"
 		const val KEY_BADGES_BOTTOM_LEFT = "badges_bottom_left"
+		const val KEY_BADGES_BOTTOM_RIGHT = "badges_bottom_right"
 		const val KEY_TAGS_WARNINGS = "tags_warnings"
 		const val KEY_DISCORD_RPC = "discord_rpc"
 		const val KEY_DISCORD_RPC_SKIP_NSFW = "discord_rpc_skip_nsfw"

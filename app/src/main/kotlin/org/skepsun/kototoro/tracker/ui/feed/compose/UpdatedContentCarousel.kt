@@ -45,7 +45,10 @@ import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
 import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
 import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.list.ui.compose.ContentCardCornerBadges
 import org.skepsun.kototoro.list.ui.compose.ContentCardNsfwBadge
+import org.skepsun.kototoro.list.ui.compose.asBadgeModel
+import org.skepsun.kototoro.list.ui.compose.contentCardBadgeMetricsFor
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.tracker.ui.feed.model.UpdatedContentHeader
 
@@ -124,12 +127,15 @@ private fun FeedUpdatedPosterCard(
 	modifier: Modifier = Modifier,
 ) {
 	val context = LocalContext.current
+	val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+	val badgesBottomRight = settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_RIGHT) { badgesBottomRight }.value
 	val imageRequest = remember(model.id, model.coverUrl) {
 		ImageRequest.Builder(context)
 			.data(model.coverUrl)
 			.crossfade(true)
 			.build()
 	}
+	val badgeMetrics = remember(posterStyle.itemWidth) { contentCardBadgeMetricsFor(posterStyle.itemWidth) }
 	var coverBounds by remember(model.id) { mutableStateOf<Rect?>(null) }
 
 	Column(
@@ -154,13 +160,25 @@ private fun FeedUpdatedPosterCard(
 				modifier = Modifier.fillMaxSize(),
 				contentScale = ContentScale.Crop,
 			)
-            if (model.manga.isNsfw()) {
-                ContentCardNsfwBadge(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(6.dp),
-                )
-            }
+			if ("nsfw" in badgesBottomRight) {
+				ContentCardCornerBadges(
+					badges = badgesBottomRight,
+					item = model.asBadgeModel(),
+					corner = Alignment.BottomEnd,
+					cardRadius = 12.dp,
+					metrics = badgeMetrics,
+					modifier = Modifier
+						.align(Alignment.BottomEnd)
+						.padding(badgeMetrics.outerPadding),
+				)
+			} else if (model.manga.isNsfw()) {
+				ContentCardNsfwBadge(
+					metrics = badgeMetrics,
+					modifier = Modifier
+						.align(Alignment.BottomEnd)
+						.padding(badgeMetrics.outerPadding),
+				)
+			}
 		}
 		Text(
 			text = model.title,

@@ -310,6 +310,7 @@
     <string name="badge_top_left">左上角标记</string>
     <string name="badge_top_right">右上角标记</string>
     <string name="badge_bottom_left">左下角标记</string>
+    <string name="badge_bottom_right">右下角标记</string>
     <string name="badge_tracker">追踪网站图标</string>
     <string name="badge_score">打分</string>
     <string name="badge_source_icon">内容源图标</string>
@@ -1977,6 +1978,9 @@
     <string name="pref_loading_circle_style_summary">控制加载圆圈与进度条的外观。</string>
     <string name="pref_rail_animation_intensity">列表滑动动画强度</string>
     <string name="pref_rail_animation_intensity_summary">调节横向与纵向作品卡片在滑动时的位移、淡入淡出与缩放强度。</string>
+    <string name="pref_vertical_list_rail_animation">纵向列表卡片动画</string>
+    <string name="pref_vertical_list_rail_animation_summary">控制纵向卡片列表是否应用滑动动画；如果滚动发卡，可以关闭。</string>
+    <string name="badge_nsfw">18+</string>
     <string name="pref_popup_radius">弹出菜单圆角</string>
     <string name="loading_circle_style_thick_straight">粗直线 (MD3 默认)</string>
     <string name="loading_circle_style_thick_wavy">粗波浪 (MD3 Expressive)</string>

@@ -12,7 +12,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -42,7 +41,6 @@ import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
 import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
-import org.skepsun.kototoro.core.ui.compose.VerticalGridAnimatedVisibility
 import org.skepsun.kototoro.core.ui.compose.VerticalRailAnimatedVisibility
 import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
 import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
@@ -85,6 +83,10 @@ fun KototoroContentListScreen(
     val context = LocalContext.current
     val settings = androidx.compose.runtime.remember(context.applicationContext) { AppSettings(context.applicationContext) }
     val showSourceOnCards = settings.observeAsState(AppSettings.KEY_SHOW_SOURCE_ON_CARDS) { isShowSourceOnCards }.value
+    val isVerticalCardListAnimationEnabled =
+        settings.observeAsState(AppSettings.KEY_VERTICAL_LIST_RAIL_ANIMATION) {
+            isVerticalListRailAnimationEnabled
+        }.value
 
     Box(modifier = modifier.fillMaxSize()) {
         KototoroPullToRefreshBox(
@@ -103,10 +105,8 @@ fun KototoroContentListScreen(
                 when (listMode) {
                     ListMode.GRID -> {
                         val posterStyle = compactPosterCardStyle(gridScale)
-                        val gridState = rememberLazyGridState()
                         LazyVerticalGrid(
                             columns = GridCells.Adaptive(minSize = posterStyle.itemWidth + 12.dp),
-                            state = gridState,
                             contentPadding = contentPadding,
                             modifier = Modifier.fillMaxSize()
                         ) {
@@ -135,24 +135,17 @@ fun KototoroContentListScreen(
                             ) { index ->
                                 val listModel = items[index]
                                 if (listModel is ContentGridModel) {
-                                    VerticalGridAnimatedVisibility(
-                                        animationKey = "${listModel::class.java.name}:${listModel.id}",
-                                        index = index,
-                                        gridState = gridState,
-                                    ) { animatedModifier ->
-                                        KototoroContentCardGrid(
-                                            item = listModel,
-                                            isSelected = listModel.id in selectedItemsIds,
-                                            onClick = { coverBounds ->
-                                                onPrepareItemTransition(listModel, coverBounds)
-                                                onItemClick(listModel)
-                                            },
-                                            onLongClick = { onItemLongClick(listModel) },
-                                            showSourceInfo = showSourceOnCards,
-                                            gridScale = gridScale,
-                                            modifier = animatedModifier,
-                                        )
-                                    }
+                                    KototoroContentCardGrid(
+                                        item = listModel,
+                                        isSelected = listModel.id in selectedItemsIds,
+                                        onClick = { coverBounds ->
+                                            onPrepareItemTransition(listModel, coverBounds)
+                                            onItemClick(listModel)
+                                        },
+                                        onLongClick = { onItemLongClick(listModel) },
+                                        showSourceInfo = showSourceOnCards,
+                                        gridScale = gridScale,
+                                    )
                                 } else {
                                     SupplementaryListItem(
                                         item = listModel,
@@ -191,6 +184,7 @@ fun KototoroContentListScreen(
                                     animationKey = animationKey,
                                     index = index,
                                     listState = listState,
+                                    isAnimationEnabled = isVerticalCardListAnimationEnabled,
                                 ) { animatedModifier ->
                                     if (listModel is ContentCompactListModel) {
                                         KototoroContentCardList(
@@ -243,6 +237,7 @@ fun KototoroContentListScreen(
                                     animationKey = animationKey,
                                     index = index,
                                     listState = listState,
+                                    isAnimationEnabled = isVerticalCardListAnimationEnabled,
                                 ) { animatedModifier ->
                                     if (listModel is ContentDetailedListModel) {
                                         KototoroContentCardDetailedList(

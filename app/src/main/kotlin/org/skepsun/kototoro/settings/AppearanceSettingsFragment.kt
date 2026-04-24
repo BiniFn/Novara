@@ -88,6 +88,8 @@ class AppearanceSettingsFragment : Fragment() {
             val gridSize = settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize }.value
             val railAnimationIntensityPercent =
                 settings.observeAsState(AppSettings.KEY_RAIL_ANIMATION_INTENSITY) { railAnimationIntensityPercent }.value
+            val isVerticalListRailAnimationEnabled =
+                settings.observeAsState(AppSettings.KEY_VERTICAL_LIST_RAIL_ANIMATION) { isVerticalListRailAnimationEnabled }.value
             val isQuickFilterEnabled = settings.observeAsState(AppSettings.KEY_QUICK_FILTER) { isQuickFilterEnabled }.value
             val progressIndicatorMode = settings.observeAsState(AppSettings.KEY_PROGRESS_INDICATORS) { progressIndicatorMode }.value
             val mangaListBadges = settings.observeAsState(AppSettings.KEY_MANGA_LIST_BADGES) { mangaListBadges }.value
@@ -164,6 +166,7 @@ class AppearanceSettingsFragment : Fragment() {
                 listModes = buildListModeOptions(),
                 progressIndicatorModes = buildProgressIndicatorModeOptions(),
                 badgeOptions = buildBadgeOptions(),
+                bottomRightBadgeOptions = buildBottomRightBadgeOptions(),
                 mangaListBadges = buildMangaListBadgeOptions(),
                 detailsTabs = buildDetailsTabOptions(),
                 searchSuggestionTypes = buildSearchSuggestionTypeOptions(),
@@ -187,11 +190,13 @@ class AppearanceSettingsFragment : Fragment() {
                 listMode = listMode,
                 gridSize = gridSize,
                 railAnimationIntensityPercent = railAnimationIntensityPercent,
+                isVerticalListRailAnimationEnabled = isVerticalListRailAnimationEnabled,
                 isQuickFilterEnabled = isQuickFilterEnabled,
                 progressIndicatorMode = progressIndicatorMode,
                 badgesTopLeft = settings.observeAsState(AppSettings.KEY_BADGES_TOP_LEFT) { badgesTopLeft }.value,
                 badgesTopRight = settings.observeAsState(AppSettings.KEY_BADGES_TOP_RIGHT) { badgesTopRight }.value,
                 badgesBottomLeft = settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_LEFT) { badgesBottomLeft }.value,
+                badgesBottomRight = settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_RIGHT) { badgesBottomRight }.value,
                 mangaListBadges = mangaListBadges,
                 isDescriptionExpanded = isDescriptionExpanded,
                 isPanoramaCoverEnabled = isPanoramaCoverEnabled,
@@ -244,11 +249,13 @@ class AppearanceSettingsFragment : Fragment() {
                     onListModeChange = { settings.listMode = it },
                     onGridSizeChange = { settings.gridSize = it },
                     onRailAnimationIntensityChange = { settings.railAnimationIntensityPercent = it },
+                    onVerticalListRailAnimationChange = { settings.isVerticalListRailAnimationEnabled = it },
                     onQuickFilterChange = { settings.isQuickFilterEnabled = it },
                     onProgressIndicatorModeChange = { settings.progressIndicatorMode = it },
                     onBadgesTopLeftChange = { settings.badgesTopLeft = it },
                     onBadgesTopRightChange = { settings.badgesTopRight = it },
                     onBadgesBottomLeftChange = { settings.badgesBottomLeft = it },
+                    onBadgesBottomRightChange = { settings.badgesBottomRight = it },
                     onMangaListBadgesChange = { settings.mangaListBadges = it },
                     onDescriptionExpandedChange = { settings.isDescriptionExpanded = it },
                     onPanoramaCoverEnabledChange = { settings.isPanoramaCoverEnabled = it },
@@ -402,6 +409,12 @@ class AppearanceSettingsFragment : Fragment() {
     private fun buildBadgeOptions(): List<SettingsChoiceOption<String>> {
         val labels = resources.getStringArray(R.array.badge_options)
         val values = resources.getStringArray(R.array.values_badge_options)
+        return labels.zip(values).map { (label, value) -> SettingsChoiceOption(value, label) }
+    }
+
+    private fun buildBottomRightBadgeOptions(): List<SettingsChoiceOption<String>> {
+        val labels = resources.getStringArray(R.array.bottom_right_badge_options)
+        val values = resources.getStringArray(R.array.values_bottom_right_badge_options)
         return labels.zip(values).map { (label, value) -> SettingsChoiceOption(value, label) }
     }
 

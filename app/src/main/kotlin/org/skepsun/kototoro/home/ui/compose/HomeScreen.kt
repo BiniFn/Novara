@@ -53,6 +53,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.boundsInRoot
@@ -68,6 +69,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
@@ -90,8 +92,9 @@ import org.skepsun.kototoro.home.ui.HomeRecentItem
 import org.skepsun.kototoro.home.ui.HomeRecommendationItem
 import org.skepsun.kototoro.home.ui.HomeSummaryState
 import org.skepsun.kototoro.home.ui.HomeUpdateItem
-import org.skepsun.kototoro.list.ui.compose.ContentCardNsfwBadge
 import org.skepsun.kototoro.list.ui.compose.ContentCardCornerBadges
+import org.skepsun.kototoro.list.ui.compose.ContentCardNsfwBadge
+import org.skepsun.kototoro.list.ui.compose.contentCardBadgeMetricsFor
 import org.skepsun.kototoro.list.ui.model.ContentGridModel
 import org.skepsun.kototoro.parsers.model.Content
 
@@ -361,11 +364,14 @@ private fun HomeHeroCarousel(
             .fillMaxWidth()
             .padding(bottom = 4.dp),
     ) {
-        val sidePeek = 18.dp
-        val pageSpacing = 2.dp
-        val horizontalContentPadding = 8.dp
+        val density = LocalDensity.current
+        val sidePeek = 26.dp
+        val pageSpacing = 10.dp
+        val horizontalContentPadding = 14.dp
         val cardWidth = (maxWidth - (horizontalContentPadding * 2) - (sidePeek * 2) - pageSpacing)
             .coerceAtLeast(264.dp)
+        val sidePeekPx = with(density) { sidePeek.toPx() }
+        val liftPx = with(density) { 18.dp.toPx() }
 
         Box(modifier = Modifier.fillMaxWidth()) {
             HorizontalPager(
@@ -376,22 +382,37 @@ private fun HomeHeroCarousel(
                 contentPadding = PaddingValues(horizontal = horizontalContentPadding),
                 modifier = Modifier.fillMaxWidth(),
             ) { page ->
-                val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction)
+                val signedPageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction)
+                    .coerceIn(-1f, 1f)
+                val pageOffset = signedPageOffset
                     .absoluteValue
                     .coerceIn(0f, 1f)
                 val focusProgress = 1f - pageOffset
                 val pageScale = 0.9f + (0.1f * focusProgress)
-                val pageAlpha = 0.72f + (0.28f * focusProgress)
+                val pageAlpha = 0.64f + (0.36f * focusProgress)
+                val pageTranslationX = signedPageOffset * sidePeekPx * 0.52f
+                val pageTranslationY = (1f - focusProgress) * liftPx
+                val horizontalTransformOrigin = when {
+                    signedPageOffset < -0.02f -> 0f
+                    signedPageOffset > 0.02f -> 1f
+                    else -> 0.5f
+                }
                 HomeHeroCard(
                     entry = entries[page],
                     bottomInset = if (hasPagerIndicator) 42.dp else 16.dp,
+                    focusProgress = focusProgress,
+                    signedOffset = signedPageOffset,
                     onClick = onClick,
-                    modifier = Modifier.graphicsLayer {
-                        scaleX = pageScale
-                        scaleY = pageScale
-                        alpha = pageAlpha
-                        translationY = (1f - focusProgress) * 16f
-                    },
+                    modifier = Modifier
+                        .zIndex(focusProgress)
+                        .graphicsLayer {
+                            scaleX = pageScale
+                            scaleY = pageScale
+                            alpha = pageAlpha
+                            translationX = pageTranslationX
+                            translationY = pageTranslationY
+                            transformOrigin = TransformOrigin(horizontalTransformOrigin, 0.5f)
+                        },
                 )
             }
             if (hasPagerIndicator) {
@@ -420,6 +441,8 @@ private fun HomeHeroCarousel(
 private fun HomeHeroCard(
     entry: HomeHeroEntry,
     bottomInset: androidx.compose.ui.unit.Dp,
+    focusProgress: Float,
+    signedOffset: Float,
     onClick: (Content, Rect?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -435,6 +458,12 @@ private fun HomeHeroCard(
             .build()
     }
     var coverBounds by remember(entry.kind, content.id) { mutableStateOf<Rect?>(null) }
+    val edgeScrimAlpha = 0.12f + ((1f - focusProgress) * 0.18f)
+    val contentAlpha = 0.84f + (0.16f * focusProgress)
+    val contentParallaxX = -signedOffset * 18f
+    val backgroundParallaxX = -signedOffset * 28f
+    val backgroundScale = 1.02f + ((1f - focusProgress) * 0.06f)
+    val posterScale = 0.96f + (0.04f * focusProgress)
 
     Box(
         modifier = modifier
@@ -450,12 +479,23 @@ private fun HomeHeroCard(
                 model = imageRequest,
                 contentAlpha = 0.94f,
                 backgroundColor = MaterialTheme.colorScheme.surface,
+                modifier = Modifier.graphicsLayer {
+                    scaleX = backgroundScale
+                    scaleY = backgroundScale
+                    translationX = backgroundParallaxX
+                },
             )
         } else {
             AsyncImage(
                 model = imageRequest,
                 contentDescription = content.title,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = backgroundScale
+                        scaleY = backgroundScale
+                        translationX = backgroundParallaxX
+                    },
                 contentScale = ContentScale.Crop,
             )
         }
@@ -472,6 +512,19 @@ private fun HomeHeroCard(
                     ),
                 ),
         )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color.Black.copy(alpha = edgeScrimAlpha),
+                            Color.Transparent,
+                            Color.Black.copy(alpha = edgeScrimAlpha * 0.86f),
+                        ),
+                    ),
+                ),
+        )
         Row(
             modifier = Modifier
                 .fillMaxSize()
@@ -479,8 +532,15 @@ private fun HomeHeroCard(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
+            val heroBadgeMetrics = remember { contentCardBadgeMetricsFor(88.dp) }
             Box(
                 modifier = Modifier
+                    .graphicsLayer {
+                        scaleX = posterScale
+                        scaleY = posterScale
+                        translationX = contentParallaxX * 0.45f
+                        alpha = contentAlpha
+                    }
                     .size(width = 88.dp, height = 122.dp)
                     .onGloballyPositioned { coordinates ->
                         coverBounds = coordinates.boundsInRoot()
@@ -496,14 +556,20 @@ private fun HomeHeroCard(
                 )
                 if (content.isNsfw()) {
                     ContentCardNsfwBadge(
+                        metrics = heroBadgeMetrics,
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .padding(6.dp),
+                            .padding(heroBadgeMetrics.outerPadding),
                     )
                 }
             }
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .graphicsLayer {
+                        translationX = contentParallaxX
+                        alpha = contentAlpha
+                    },
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 val supportingText = when (entry.kind) {
@@ -716,6 +782,7 @@ private fun HomeCoverRowItem(
             .build()
     }
     var coverBounds by remember(content.id) { mutableStateOf<Rect?>(null) }
+    val badgeMetrics = remember(posterStyle.itemWidth) { contentCardBadgeMetricsFor(posterStyle.itemWidth) }
 
     Column(
         modifier = modifier
@@ -739,19 +806,13 @@ private fun HomeCoverRowItem(
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
             )
-            if (content.isNsfw()) {
-                ContentCardNsfwBadge(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(6.dp),
-                )
-            }
             item.cardModel?.let { cardModel ->
                 ContentCardCornerBadges(
                     badges = rememberHomeBadgesTopLeft(),
                     item = cardModel,
                     corner = Alignment.TopStart,
                     cardRadius = cardRadius,
+                    metrics = badgeMetrics,
                     modifier = Modifier.align(Alignment.TopStart),
                 )
                 ContentCardCornerBadges(
@@ -759,6 +820,7 @@ private fun HomeCoverRowItem(
                     item = cardModel,
                     corner = Alignment.TopEnd,
                     cardRadius = cardRadius,
+                    metrics = badgeMetrics,
                     modifier = Modifier.align(Alignment.TopEnd),
                 )
                 ContentCardCornerBadges(
@@ -766,8 +828,26 @@ private fun HomeCoverRowItem(
                     item = cardModel,
                     corner = Alignment.BottomStart,
                     cardRadius = cardRadius,
+                    metrics = badgeMetrics,
                     modifier = Modifier.align(Alignment.BottomStart),
                 )
+                ContentCardCornerBadges(
+                    badges = rememberHomeBadgesBottomRight(),
+                    item = cardModel,
+                    corner = Alignment.BottomEnd,
+                    cardRadius = cardRadius,
+                    metrics = badgeMetrics,
+                    modifier = Modifier.align(Alignment.BottomEnd),
+                )
+            } ?: run {
+                if (content.isNsfw()) {
+                    ContentCardNsfwBadge(
+                        metrics = badgeMetrics,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(badgeMetrics.outerPadding),
+                    )
+                }
             }
         }
         Text(
@@ -797,6 +877,13 @@ private fun rememberHomeBadgesBottomLeft(): Set<String> {
     val context = LocalContext.current
     val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
     return settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_LEFT) { badgesBottomLeft }.value
+}
+
+@Composable
+private fun rememberHomeBadgesBottomRight(): Set<String> {
+    val context = LocalContext.current
+    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+    return settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_RIGHT) { badgesBottomRight }.value
 }
 
 @Composable

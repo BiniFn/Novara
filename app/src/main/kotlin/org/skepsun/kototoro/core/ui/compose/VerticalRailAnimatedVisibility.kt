@@ -32,6 +32,7 @@ fun VerticalRailAnimatedVisibility(
     animationKey: Any,
     index: Int,
     listState: LazyListState,
+    isAnimationEnabled: Boolean = true,
     modifier: Modifier = Modifier,
     content: @Composable (Modifier) -> Unit,
 ) {
@@ -42,6 +43,10 @@ fun VerticalRailAnimatedVisibility(
     val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
     val animationIntensityPercent by settings.observeAsState(AppSettings.KEY_RAIL_ANIMATION_INTENSITY) {
         railAnimationIntensityPercent
+    }
+    if (!isAnimationEnabled) {
+        content(modifier)
+        return
     }
     val animationFactor = (animationIntensityPercent / 100f).coerceIn(0f, 3f)
     val initialOffsetPx = with(density) { 28.dp.toPx() } * animationFactor

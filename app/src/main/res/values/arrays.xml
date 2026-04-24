@@ -384,6 +384,12 @@
 		<item>source</item>
 		<item>language</item>
 	</string-array>
+	<string-array name="bottom_right_badge_options" translatable="false">
+		<item>@string/badge_nsfw</item>
+	</string-array>
+	<string-array name="values_bottom_right_badge_options" translatable="false">
+		<item>nsfw</item>
+	</string-array>
 	<string-array name="incognito_nsfw_options" translatable="false">
 		<item>@string/enable</item>
 		<item>@string/ask_every_time</item>

@@ -569,7 +569,7 @@ fun DetailsHeader(
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     content?.tags.orEmpty().forEach { tag ->
                         val isSensitiveTag = isSensitiveDetailsTag(tag)

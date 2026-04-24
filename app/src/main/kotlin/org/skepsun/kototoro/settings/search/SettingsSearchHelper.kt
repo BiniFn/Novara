@@ -70,6 +70,7 @@ class SettingsSearchHelper @Inject constructor(
 			"nav_pinned" to R.string.pin_navigation_ui,
 			"blur_mode" to R.string.pref_blur_mode,
 			"rail_animation_intensity" to R.string.pref_rail_animation_intensity,
+			"vertical_list_rail_animation" to R.string.pref_vertical_list_rail_animation,
 			"nav_floating" to R.string.pref_nav_floating,
 			"nav_height" to R.string.pref_nav_height,
 			"nav_floating_height" to R.string.pref_nav_floating_height,
