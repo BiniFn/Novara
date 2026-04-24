@@ -381,6 +381,8 @@ fun AppNavGraph(
             val viewModel = hiltViewModel<org.skepsun.kototoro.tracker.ui.feed.FeedViewModel>()
             val items by viewModel.content.collectAsStateWithLifecycle(initialValue = emptyList())
             val isRunning by viewModel.isRunning.collectAsStateWithLifecycle()
+            val categories by viewModel.categories.collectAsStateWithLifecycle(initialValue = emptyList())
+            val selectedCategoryId by viewModel.currentCategoryId.collectAsStateWithLifecycle(initialValue = org.skepsun.kototoro.core.model.FavouriteCategory.NO_ID)
             val selectedGroupTab by viewModel.currentGroupTab.collectAsStateWithLifecycle(initialValue = BrowseGroupTab.All)
             val selectedSourceTags by viewModel.currentSourceTags.collectAsStateWithLifecycle(initialValue = emptySet())
 
@@ -448,12 +450,9 @@ fun AppNavGraph(
                 onUpdatedContentMoreClick = {
                     navController.navigate("updated")
                 },
-                selectedGroupTab = selectedGroupTab,
-                selectedSourceTags = selectedSourceTags,
-                onGroupTabSelected = { tab ->
-                    viewModel.setSelectedGroupTab(if (selectedGroupTab == tab) BrowseGroupTab.All else tab)
-                },
-                onSourceTagToggled = viewModel::toggleSourceTag,
+                categories = categories,
+                selectedCategoryId = selectedCategoryId,
+                onCategorySelected = viewModel::selectCategory,
             )
         }
         composable("local") { 

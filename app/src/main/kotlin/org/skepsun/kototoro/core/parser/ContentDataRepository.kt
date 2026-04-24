@@ -192,6 +192,12 @@ class ContentDataRepository @Inject constructor(
 			.distinctUntilChanged()
 	}
 
+	fun observeDisplayPreferencesChanges(): Flow<Int> {
+		return db.getPreferencesDao().observeAll()
+			.map { it.hashCode() }
+			.distinctUntilChanged()
+	}
+
 	suspend fun findContentById(mangaId: Long, withChapters: Boolean): Content? {
 		val chapters = if (withChapters) {
 			db.getChaptersDao().findAll(mangaId).takeUnless { it.isEmpty() }

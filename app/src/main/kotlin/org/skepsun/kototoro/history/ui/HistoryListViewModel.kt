@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
@@ -129,6 +130,7 @@ class HistoryListViewModel @Inject constructor(
 		settings.observeAsFlow(AppSettings.KEY_INCOGNITO_MODE) { isIncognitoModeEnabled },
 		this.currentGroupTab,
 		this.currentSourceTags,
+		mangaListMapper.observeDisplayChanges().onStart { emit(Unit) },
 		settings.observeAsFlow(AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID) { activeSourcePresetId }
 			.flatMapLatest { id ->
 				if (id == -1L) flowOf(null)
@@ -142,7 +144,7 @@ class HistoryListViewModel @Inject constructor(
 		val incognito = values[4] as Boolean
 		val groupTab = values[5] as BrowseGroupTab
 		val sourceTags = values[6] as Set<SourceTag>
-		val preset = values[7] as? org.skepsun.kototoro.explore.data.SourcePreset
+		val preset = values[8] as? org.skepsun.kototoro.explore.data.SourcePreset
 		mapList(list, grouped, mode, filters, incognito, groupTab, sourceTags, preset)
 	}.onEach {
 		isPaginationReady.set(true)

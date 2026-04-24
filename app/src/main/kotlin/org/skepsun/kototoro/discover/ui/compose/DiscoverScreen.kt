@@ -14,9 +14,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.runtime.Composable
@@ -34,6 +32,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
+import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
 import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
 import org.skepsun.kototoro.list.ui.compose.KototoroContentCard
 import org.skepsun.kototoro.list.ui.model.ContentListModel
@@ -62,12 +62,12 @@ fun DiscoverScreen(
 ) {
 	if (isLoadingOnly) {
 		Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-			CircularProgressIndicator()
+			KototoroLoadingIndicator()
 		}
 		return
 	}
 
-	PullToRefreshBox(
+	KototoroPullToRefreshBox(
 		isRefreshing = isRefreshing,
 		onRefresh = onRefresh,
 		modifier = modifier.fillMaxSize()
@@ -95,7 +95,7 @@ fun DiscoverScreen(
 					availableServices = availableServices,
 					onSelectService = onSelectService,
 				)
-				return@PullToRefreshBox
+				return@KototoroPullToRefreshBox
 			}
 
 			val listState = rememberLazyListState()
@@ -162,7 +162,7 @@ fun DiscoverScreen(
 					availableServices = availableServices,
 					onSelectService = onSelectService,
 				)
-				return@PullToRefreshBox
+				return@KototoroPullToRefreshBox
 			}
 
 			LazyVerticalGrid(

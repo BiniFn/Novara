@@ -63,6 +63,7 @@ class PagePickerFragment :
 		viewModel.gridScale.observe(viewLifecycleOwner, ::onGridScaleChanged) // before rv initialization
 		with(binding.recyclerView) {
 			addItemDecoration(TypedListSpacingDecoration(context, false))
+			layoutManager = GridLayoutManager(context, checkNotNull(spanResolver).spanCount)
 			adapter = thumbnailsAdapter
 			setHasFixedSize(true)
 			PagerNestedScrollHelper(this).bind(viewLifecycleOwner)
@@ -73,6 +74,7 @@ class PagePickerFragment :
 				it.spanCount = checkNotNull(spanResolver).spanCount
 			}
 		}
+		onGridScaleChanged(viewModel.gridScale.value)
 		viewModel.thumbnails.observe(viewLifecycleOwner, ::onThumbnailsChanged)
 		viewModel.isNoChapters.observe(viewLifecycleOwner, ::onNoChaptersChanged)
 		viewModel.onError.observeEvent(viewLifecycleOwner, SnackbarErrorObserver(binding.recyclerView, this))

@@ -28,7 +28,7 @@ import kotlin.math.abs
 import kotlin.math.sign
 
 @Composable
-fun HorizontalRailAnimatedVisibility(
+fun VerticalRailAnimatedVisibility(
     animationKey: Any,
     index: Int,
     listState: LazyListState,
@@ -44,7 +44,7 @@ fun HorizontalRailAnimatedVisibility(
         railAnimationIntensityPercent
     }
     val animationFactor = (animationIntensityPercent / 100f).coerceIn(0f, 3f)
-    val initialOffsetPx = with(density) { 34.dp.toPx() } * animationFactor
+    val initialOffsetPx = with(density) { 28.dp.toPx() } * animationFactor
     var velocityTarget by remember(listState) { mutableFloatStateOf(0f) }
     val scrollIntensity by animateFloatAsState(
         targetValue = velocityTarget,
@@ -52,12 +52,12 @@ fun HorizontalRailAnimatedVisibility(
             durationMillis = if (listState.isScrollInProgress) 90 else 220,
             easing = FastOutSlowInEasing,
         ),
-        label = "horizontal_rail_scroll_intensity",
+        label = "vertical_rail_scroll_intensity",
     )
 
     LaunchedEffect(animationKey) {
         if (hasPlayed) return@LaunchedEffect
-        delay((index.coerceAtMost(6) * 30L))
+        delay((index.coerceAtMost(8) * 26L))
         entryProgress.animateTo(
             targetValue = 1f,
             animationSpec = tween(
@@ -85,7 +85,7 @@ fun HorizontalRailAnimatedVisibility(
             val deltaPx = ((currentIndex - lastIndex) * estimatedItemSize) + (currentOffset - lastOffset)
             val pixelsPerSecond = (abs(deltaPx) * 1000f) / dt.toFloat()
             velocityTarget = if (isScrolling) {
-                (pixelsPerSecond / 3200f).coerceIn(0f, 1f)
+                (pixelsPerSecond / 3600f).coerceIn(0f, 1f)
             } else {
                 0f
             }
@@ -98,26 +98,26 @@ fun HorizontalRailAnimatedVisibility(
     val itemInfo = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
     val viewportStart = listState.layoutInfo.viewportStartOffset.toFloat()
     val viewportEnd = listState.layoutInfo.viewportEndOffset.toFloat()
-    val viewportWidth = (viewportEnd - viewportStart).coerceAtLeast(1f)
-    val viewportCenter = viewportStart + viewportWidth / 2f
+    val viewportHeight = (viewportEnd - viewportStart).coerceAtLeast(1f)
+    val viewportCenter = viewportStart + viewportHeight / 2f
     val itemCenter = itemInfo?.let { it.offset + (it.size / 2f) }?.toFloat() ?: viewportCenter
-    val distanceFraction = ((itemCenter - viewportCenter).absoluteValue / (viewportWidth * 0.55f)).coerceIn(0f, 1f)
+    val distanceFraction = ((itemCenter - viewportCenter).absoluteValue / (viewportHeight * 0.58f)).coerceIn(0f, 1f)
     val focusProgress = 1f - distanceFraction
     val edgeProgress = 1f - focusProgress
     val direction = sign(itemCenter - viewportCenter)
-    val linkedScale = 1f - (edgeProgress * (0.10f + 0.16f * scrollIntensity) * animationFactor)
-    val linkedAlpha = 1f - (edgeProgress * (0.14f + 0.20f * scrollIntensity) * animationFactor)
-    val linkedTranslationX = direction * edgeProgress * (12f + 34f * scrollIntensity) * animationFactor
-    val linkedTranslationY = edgeProgress * (5f + 16f * scrollIntensity) * animationFactor
+    val linkedScale = 1f - (edgeProgress * (0.04f + 0.08f * scrollIntensity) * animationFactor)
+    val linkedAlpha = 1f - (edgeProgress * (0.08f + 0.16f * scrollIntensity) * animationFactor)
+    val linkedTranslationY = direction * edgeProgress * (10f + 28f * scrollIntensity) * animationFactor
+    val linkedTranslationX = edgeProgress * (4f + 10f * scrollIntensity) * animationFactor
 
     val animatedModifier = modifier.graphicsLayer {
         val entry = entryProgress.value
-        alpha = (1f - ((1f - entry) * 0.62f * animationFactor.coerceIn(0f, 1f))) * linkedAlpha
-        val entryScale = 1f - ((1f - entry) * 0.08f * animationFactor.coerceIn(0f, 1f))
+        alpha = (1f - ((1f - entry) * 0.58f * animationFactor.coerceIn(0f, 1f))) * linkedAlpha
+        val entryScale = 1f - ((1f - entry) * 0.04f * animationFactor.coerceIn(0f, 1f))
         scaleX = entryScale * linkedScale
         scaleY = scaleX
-        translationX = ((1f - entry) * initialOffsetPx) + linkedTranslationX
-        translationY = linkedTranslationY
+        translationY = ((1f - entry) * initialOffsetPx) + linkedTranslationY
+        translationX = linkedTranslationX
     }
     content(animatedModifier)
 }

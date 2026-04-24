@@ -39,7 +39,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -78,6 +77,7 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.iconResId
+import org.skepsun.kototoro.core.model.containsAdultTagKeyword
 import org.skepsun.kototoro.core.model.titleResId
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.model.getContentType
@@ -86,6 +86,7 @@ import org.skepsun.kototoro.core.model.FavouriteCategory
 import org.skepsun.kototoro.core.model.ContentSourceInfo
 import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
 import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
+import org.skepsun.kototoro.core.ui.compose.KototoroLinearProgressIndicator
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
@@ -492,9 +493,6 @@ fun DetailsHeader(
                     // Reading progress bar at bottom of info card
                     if (historyInfo.history != null && historyInfo.percent > 0f) {
                         val progressPercent = (historyInfo.percent * 100f).roundToInt()
-                        val isThick = settings.loadingCircleStyle == AppSettings.LoadingCircleStyle.THICK_STRAIGHT ||
-                            settings.loadingCircleStyle == AppSettings.LoadingCircleStyle.THICK_WAVY
-                        val barHeight = if (isThick) 6.dp else 3.dp
                         HorizontalDivider(
                             modifier = Modifier.padding(vertical = 4.dp),
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
@@ -504,14 +502,12 @@ fun DetailsHeader(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
-                            LinearProgressIndicator(
+                            KototoroLinearProgressIndicator(
                                 progress = { historyInfo.percent.coerceIn(0f, 1f) },
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(barHeight)
+                                    .height(8.dp)
                                     .clip(RoundedCornerShape(999.dp)),
-                                color = MaterialTheme.colorScheme.primary,
-                                trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                             )
                             Text(
                                 text = "$progressPercent%",
@@ -569,22 +565,42 @@ fun DetailsHeader(
         }
 
         if (!content?.tags.isNullOrEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     content?.tags.orEmpty().forEach { tag ->
+                        val isSensitiveTag = isSensitiveDetailsTag(tag)
                         SuggestionChip(
                             onClick = { onTagClick(tag) },
-                            label = { Text(tag.title) },
+                            modifier = Modifier.heightIn(min = 28.dp),
+                            label = {
+                                Text(
+                                    text = tag.title,
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                            },
                             colors = SuggestionChipDefaults.suggestionChipColors(
-                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.48f),
+                                containerColor = if (isSensitiveTag) {
+                                    Color(0xFFE3B341).copy(alpha = 0.22f)
+                                } else {
+                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.48f)
+                                },
+                                labelColor = if (isSensitiveTag) {
+                                    MaterialTheme.colorScheme.onSurface
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                },
                             ),
                             border = SuggestionChipDefaults.suggestionChipBorder(
                                 enabled = true,
-                                borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                                borderColor = if (isSensitiveTag) {
+                                    Color(0xFFE3B341).copy(alpha = 0.68f)
+                                } else {
+                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)
+                                },
                             ),
                         )
                     }
@@ -724,20 +740,22 @@ private fun DetailsSourceSelectorButton(
 
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Surface(
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.18f),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.34f)),
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 42.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(
@@ -750,20 +768,23 @@ private fun DetailsSourceSelectorButton(
                                 Modifier
                             },
                         )
-                        .padding(start = 12.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
+                        .padding(start = 10.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     when {
                         currentOption?.source != null -> {
-                            ContentSourceIcon(source = currentOption.source)
+                            ContentSourceIcon(
+                                source = currentOption.source,
+                                modifier = Modifier.size(14.dp),
+                            )
                         }
                         currentOption?.trackingService != null -> {
                             Icon(
                                 painter = painterResource(currentOption.trackingService.iconResId),
                                 contentDescription = null,
                                 tint = Color.Unspecified,
-                                modifier = Modifier.size(16.dp),
+                                modifier = Modifier.size(14.dp),
                             )
                         }
                         else -> {
@@ -771,13 +792,13 @@ private fun DetailsSourceSelectorButton(
                                 painter = painterResource(R.drawable.ic_manga_source),
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                modifier = Modifier.size(16.dp),
+                                modifier = Modifier.size(14.dp),
                             )
                         }
                     }
                     Text(
                         text = currentTitle,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                         color = if (isPrimaryEnabled) {
                             MaterialTheme.colorScheme.onSurface
                         } else {
@@ -791,13 +812,13 @@ private fun DetailsSourceSelectorButton(
                 Box(
                     modifier = Modifier
                         .width(1.dp)
-                        .height(28.dp)
+                        .height(22.dp)
                         .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)),
                 )
                 Box(
                     modifier = Modifier
                         .clickable(enabled = isMenuEnabled, onClick = onMenuClick)
-                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                        .padding(horizontal = 10.dp, vertical = 10.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -808,12 +829,16 @@ private fun DetailsSourceSelectorButton(
                         } else {
                             MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
                         },
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(16.dp),
                     )
                 }
             }
         }
     }
+}
+
+private fun isSensitiveDetailsTag(tag: ContentTag): Boolean {
+    return tag.title.containsAdultTagKeyword()
 }
 
 @Composable

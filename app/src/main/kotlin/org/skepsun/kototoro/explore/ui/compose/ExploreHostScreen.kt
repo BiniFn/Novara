@@ -31,7 +31,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -39,7 +38,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -88,6 +86,8 @@ import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
 import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
 import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
+import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
+import org.skepsun.kototoro.core.ui.compose.VerticalRailAnimatedVisibility
 import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.discover.ui.DiscoverViewModel
@@ -287,7 +287,7 @@ fun KototoroExploreHostRoute(
         )
     }
 
-    PullToRefreshBox(
+    KototoroPullToRefreshBox(
         isRefreshing = isDiscoverLoading && !isLoadingOnly,
         onRefresh = { discoverViewModel.refresh() },
         modifier = Modifier.fillMaxSize(),
@@ -363,18 +363,24 @@ fun KototoroExploreHostRoute(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp),
                         )
                     }
-                    items(
+                    itemsIndexed(
                         items = popularItems,
-                        key = { "popular_${it.id}" },
-                    ) { item ->
-                        BrowsePopularListItem(
-                            item = item,
-                            posterStyle = posterStyle,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp),
-                            onClick = {
-                                openTrackingItem(appRouter, discoverViewModel, availableServices, item)
-                            },
-                        )
+                        key = { _, item -> "popular_${item.id}" },
+                    ) { index, item ->
+                        VerticalRailAnimatedVisibility(
+                            animationKey = "explore_popular_${item.id}",
+                            index = index + showcaseRows.size + 1,
+                            listState = listState,
+                        ) { animatedModifier ->
+                            BrowsePopularListItem(
+                                item = item,
+                                posterStyle = posterStyle,
+                                modifier = animatedModifier.padding(horizontal = 16.dp, vertical = 5.dp),
+                                onClick = {
+                                    openTrackingItem(appRouter, discoverViewModel, availableServices, item)
+                                },
+                            )
+                        }
                     }
                 }
 
@@ -489,7 +495,7 @@ private fun BrowseHeroBlock(
             contentAlignment = Alignment.Center,
         ) {
             if (isLoadingOnly) {
-                CircularProgressIndicator()
+                KototoroLoadingIndicator()
             }
         }
     }
@@ -541,7 +547,7 @@ private fun DetachedBottomContent(
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    CircularProgressIndicator()
+                    KototoroLoadingIndicator()
                 }
             }
         }

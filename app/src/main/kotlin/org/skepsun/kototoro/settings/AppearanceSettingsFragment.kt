@@ -86,6 +86,8 @@ class AppearanceSettingsFragment : Fragment() {
             val popupRadius = settings.observeAsState(AppSettings.KEY_POPUP_RADIUS) { popupRadius }.value
             val listMode = settings.observeAsState(AppSettings.KEY_LIST_MODE) { listMode }.value
             val gridSize = settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize }.value
+            val railAnimationIntensityPercent =
+                settings.observeAsState(AppSettings.KEY_RAIL_ANIMATION_INTENSITY) { railAnimationIntensityPercent }.value
             val isQuickFilterEnabled = settings.observeAsState(AppSettings.KEY_QUICK_FILTER) { isQuickFilterEnabled }.value
             val progressIndicatorMode = settings.observeAsState(AppSettings.KEY_PROGRESS_INDICATORS) { progressIndicatorMode }.value
             val mangaListBadges = settings.observeAsState(AppSettings.KEY_MANGA_LIST_BADGES) { mangaListBadges }.value
@@ -100,6 +102,12 @@ class AppearanceSettingsFragment : Fragment() {
                 settings.observeAsState(AppSettings.KEY_PANORAMA_EXTRA_HEIGHT) { panoramaCoverExtraHeight }.value
             val panoramaBottomGradientAlpha =
                 settings.observeAsState(AppSettings.KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA) { panoramaBottomGradientAlpha }.value
+            val browsePanoramaBlendHeight =
+                settings.observeAsState(AppSettings.KEY_BROWSE_PANORAMA_BLEND_HEIGHT) { browsePanoramaBlendHeight }.value
+            val browsePanoramaBottomGradientAlpha =
+                settings.observeAsState(AppSettings.KEY_BROWSE_PANORAMA_BOTTOM_GRADIENT_ALPHA) {
+                    browsePanoramaBottomGradientAlpha
+                }.value
             val isPagesTabEnabled = settings.observeAsState(AppSettings.KEY_PAGES_TAB) { isPagesTabEnabled }.value
             val isDetailsTranslateButtonVisible =
                 settings.observeAsState(AppSettings.KEY_DETAILS_TRANSLATE_BUTTON) { isDetailsTranslateButtonVisible }.value
@@ -178,6 +186,7 @@ class AppearanceSettingsFragment : Fragment() {
                 popupRadius = popupRadius,
                 listMode = listMode,
                 gridSize = gridSize,
+                railAnimationIntensityPercent = railAnimationIntensityPercent,
                 isQuickFilterEnabled = isQuickFilterEnabled,
                 progressIndicatorMode = progressIndicatorMode,
                 badgesTopLeft = settings.observeAsState(AppSettings.KEY_BADGES_TOP_LEFT) { badgesTopLeft }.value,
@@ -191,6 +200,8 @@ class AppearanceSettingsFragment : Fragment() {
                 panoramaAnimationSpeed = panoramaAnimationSpeed,
                 panoramaCoverExtraHeight = panoramaCoverExtraHeight,
                 panoramaBottomGradientAlpha = panoramaBottomGradientAlpha,
+                browsePanoramaBlendHeight = browsePanoramaBlendHeight,
+                browsePanoramaBottomGradientAlpha = browsePanoramaBottomGradientAlpha,
                 isPagesTabEnabled = isPagesTabEnabled,
                 isDetailsTranslateButtonVisible = isDetailsTranslateButtonVisible,
                 defaultDetailsTab = defaultDetailsTab,
@@ -232,6 +243,7 @@ class AppearanceSettingsFragment : Fragment() {
                     onPopupRadiusChange = { updateAndRestart { settings.popupRadius = it } },
                     onListModeChange = { settings.listMode = it },
                     onGridSizeChange = { settings.gridSize = it },
+                    onRailAnimationIntensityChange = { settings.railAnimationIntensityPercent = it },
                     onQuickFilterChange = { settings.isQuickFilterEnabled = it },
                     onProgressIndicatorModeChange = { settings.progressIndicatorMode = it },
                     onBadgesTopLeftChange = { settings.badgesTopLeft = it },
@@ -245,6 +257,8 @@ class AppearanceSettingsFragment : Fragment() {
                     onPanoramaAnimationSpeedChange = { settings.panoramaAnimationSpeed = it },
                     onPanoramaExtraHeightChange = { settings.panoramaCoverExtraHeight = it },
                     onPanoramaGradientAlphaChange = { settings.panoramaBottomGradientAlpha = it },
+                    onBrowsePanoramaBlendHeightChange = { settings.browsePanoramaBlendHeight = it },
+                    onBrowsePanoramaGradientAlphaChange = { settings.browsePanoramaBottomGradientAlpha = it },
                     onPagesTabEnabledChange = { settings.isPagesTabEnabled = it },
                     onDetailsTranslateButtonVisibleChange = { settings.isDetailsTranslateButtonVisible = it },
                     onDefaultDetailsTabChange = { settings.defaultDetailsTab = it },

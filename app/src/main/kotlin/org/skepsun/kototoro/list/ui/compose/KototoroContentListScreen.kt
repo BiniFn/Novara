@@ -6,20 +6,21 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,6 +41,9 @@ import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
+import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
+import org.skepsun.kototoro.core.ui.compose.VerticalGridAnimatedVisibility
+import org.skepsun.kototoro.core.ui.compose.VerticalRailAnimatedVisibility
 import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
 import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
 import org.skepsun.kototoro.list.ui.model.ContentDetailedListModel
@@ -77,17 +81,15 @@ fun KototoroContentListScreen(
     contentPadding: PaddingValues = PaddingValues(0.dp),
     listHeader: (@Composable () -> Unit)? = null
 ) {
-    val pullRefreshState = rememberPullToRefreshState()
     val lastContentItem = items.lastOrNull { it is ContentListModel }
     val context = LocalContext.current
     val settings = androidx.compose.runtime.remember(context.applicationContext) { AppSettings(context.applicationContext) }
     val showSourceOnCards = settings.observeAsState(AppSettings.KEY_SHOW_SOURCE_ON_CARDS) { isShowSourceOnCards }.value
 
     Box(modifier = modifier.fillMaxSize()) {
-        PullToRefreshBox(
+        KototoroPullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = onRefresh,
-            state = pullRefreshState,
             modifier = Modifier.fillMaxSize()
         ) {
             if (items.isEmpty() && !isRefreshing) {
@@ -101,38 +103,56 @@ fun KototoroContentListScreen(
                 when (listMode) {
                     ListMode.GRID -> {
                         val posterStyle = compactPosterCardStyle(gridScale)
+                        val gridState = rememberLazyGridState()
                         LazyVerticalGrid(
                             columns = GridCells.Adaptive(minSize = posterStyle.itemWidth + 12.dp),
+                            state = gridState,
                             contentPadding = contentPadding,
                             modifier = Modifier.fillMaxSize()
                         ) {
                             if (listHeader != null) {
-                                item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                                item(span = { GridItemSpan(maxLineSpan) }) {
                                     listHeader()
                                 }
                             }
                             items(
-                                items = items,
-                                span = { listModel ->
-                                    if (listModel is ContentGridModel) {
-                                        androidx.compose.foundation.lazy.grid.GridItemSpan(1)
-                                    } else {
-                                        androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan)
+                                count = items.size,
+                                key = { index ->
+                                    val listModel = items[index]
+                                    when (listModel) {
+                                        is ContentListModel -> "${listModel::class.java.name}:${listModel.id}"
+                                        else -> "${listModel::class.java.name}:$index"
                                     }
                                 },
-                            ) { listModel ->
+                                span = { index ->
+                                    val listModel = items[index]
+                                    if (listModel is ContentGridModel) {
+                                        GridItemSpan(1)
+                                    } else {
+                                        GridItemSpan(maxLineSpan)
+                                    }
+                                },
+                            ) { index ->
+                                val listModel = items[index]
                                 if (listModel is ContentGridModel) {
-                                    KototoroContentCardGrid(
-                                        item = listModel,
-                                        isSelected = listModel.id in selectedItemsIds,
-                                        onClick = { coverBounds ->
-                                            onPrepareItemTransition(listModel, coverBounds)
-                                            onItemClick(listModel)
-                                        },
-                                        onLongClick = { onItemLongClick(listModel) },
-                                        showSourceInfo = showSourceOnCards,
-                                        gridScale = gridScale,
-                                    )
+                                    VerticalGridAnimatedVisibility(
+                                        animationKey = "${listModel::class.java.name}:${listModel.id}",
+                                        index = index,
+                                        gridState = gridState,
+                                    ) { animatedModifier ->
+                                        KototoroContentCardGrid(
+                                            item = listModel,
+                                            isSelected = listModel.id in selectedItemsIds,
+                                            onClick = { coverBounds ->
+                                                onPrepareItemTransition(listModel, coverBounds)
+                                                onItemClick(listModel)
+                                            },
+                                            onLongClick = { onItemLongClick(listModel) },
+                                            showSourceInfo = showSourceOnCards,
+                                            gridScale = gridScale,
+                                            modifier = animatedModifier,
+                                        )
+                                    }
                                 } else {
                                     SupplementaryListItem(
                                         item = listModel,
@@ -151,7 +171,9 @@ fun KototoroContentListScreen(
                         }
                     }
                     ListMode.LIST -> {
+                        val listState = rememberLazyListState()
                         LazyColumn(
+                            state = listState,
                             contentPadding = contentPadding,
                             modifier = Modifier.fillMaxSize()
                         ) {
@@ -160,24 +182,37 @@ fun KototoroContentListScreen(
                                     listHeader()
                                 }
                             }
-                            items(items) { listModel ->
-                                if (listModel is ContentCompactListModel) {
-                                    KototoroContentCardList(
-                                        item = listModel,
-                                        isSelected = listModel.id in selectedItemsIds,
-                                        onClick = { coverBounds ->
-                                            onPrepareItemTransition(listModel, coverBounds)
-                                            onItemClick(listModel)
-                                        },
-                                        onLongClick = { onItemLongClick(listModel) }
-                                    )
-                                } else {
-                                    SupplementaryListItem(
-                                        item = listModel,
-                                        onQuickFilterOptionClick = onQuickFilterOptionClick,
-                                        onEmptyActionClick = onEmptyActionClick,
-                                        onRetry = onRetry,
-                                    )
+                            itemsIndexed(items) { index, listModel ->
+                                val animationKey = when (listModel) {
+                                    is ContentListModel -> "${listModel::class.java.name}:${listModel.id}"
+                                    else -> "${listModel::class.java.name}:$index"
+                                }
+                                VerticalRailAnimatedVisibility(
+                                    animationKey = animationKey,
+                                    index = index,
+                                    listState = listState,
+                                ) { animatedModifier ->
+                                    if (listModel is ContentCompactListModel) {
+                                        KototoroContentCardList(
+                                            item = listModel,
+                                            isSelected = listModel.id in selectedItemsIds,
+                                            onClick = { coverBounds ->
+                                                onPrepareItemTransition(listModel, coverBounds)
+                                                onItemClick(listModel)
+                                            },
+                                            onLongClick = { onItemLongClick(listModel) },
+                                            modifier = animatedModifier,
+                                        )
+                                    } else {
+                                        Box(modifier = animatedModifier) {
+                                            SupplementaryListItem(
+                                                item = listModel,
+                                                onQuickFilterOptionClick = onQuickFilterOptionClick,
+                                                onEmptyActionClick = onEmptyActionClick,
+                                                onRetry = onRetry,
+                                            )
+                                        }
+                                    }
                                 }
                                 if (listModel == lastContentItem) {
                                     LaunchedEffect(listModel) {
@@ -188,7 +223,9 @@ fun KototoroContentListScreen(
                         }
                     }
                     ListMode.DETAILED_LIST -> {
+                        val listState = rememberLazyListState()
                         LazyColumn(
+                            state = listState,
                             contentPadding = contentPadding,
                             modifier = Modifier.fillMaxSize()
                         ) {
@@ -197,24 +234,37 @@ fun KototoroContentListScreen(
                                     listHeader()
                                 }
                             }
-                            items(items) { listModel ->
-                                if (listModel is ContentDetailedListModel) {
-                                    KototoroContentCardDetailedList(
-                                        item = listModel,
-                                        isSelected = listModel.id in selectedItemsIds,
-                                        onClick = { coverBounds ->
-                                            onPrepareItemTransition(listModel, coverBounds)
-                                            onItemClick(listModel)
-                                        },
-                                        onLongClick = { onItemLongClick(listModel) }
-                                    )
-                                } else {
-                                    SupplementaryListItem(
-                                        item = listModel,
-                                        onQuickFilterOptionClick = onQuickFilterOptionClick,
-                                        onEmptyActionClick = onEmptyActionClick,
-                                        onRetry = onRetry,
-                                    )
+                            itemsIndexed(items) { index, listModel ->
+                                val animationKey = when (listModel) {
+                                    is ContentListModel -> "${listModel::class.java.name}:${listModel.id}"
+                                    else -> "${listModel::class.java.name}:$index"
+                                }
+                                VerticalRailAnimatedVisibility(
+                                    animationKey = animationKey,
+                                    index = index,
+                                    listState = listState,
+                                ) { animatedModifier ->
+                                    if (listModel is ContentDetailedListModel) {
+                                        KototoroContentCardDetailedList(
+                                            item = listModel,
+                                            isSelected = listModel.id in selectedItemsIds,
+                                            onClick = { coverBounds ->
+                                                onPrepareItemTransition(listModel, coverBounds)
+                                                onItemClick(listModel)
+                                            },
+                                            onLongClick = { onItemLongClick(listModel) },
+                                            modifier = animatedModifier,
+                                        )
+                                    } else {
+                                        Box(modifier = animatedModifier) {
+                                            SupplementaryListItem(
+                                                item = listModel,
+                                                onQuickFilterOptionClick = onQuickFilterOptionClick,
+                                                onEmptyActionClick = onEmptyActionClick,
+                                                onRetry = onRetry,
+                                            )
+                                        }
+                                    }
                                 }
                                 if (listModel == lastContentItem) {
                                     LaunchedEffect(listModel) {

@@ -15,6 +15,9 @@ abstract class PreferencesDao {
 	@Query("SELECT * FROM preferences WHERE manga_id = :mangaId")
 	abstract fun observe(mangaId: Long): Flow<MangaPrefsEntity?>
 
+	@Query("SELECT * FROM preferences")
+	abstract fun observeAll(): Flow<List<MangaPrefsEntity>>
+
 	@Query("SELECT * FROM preferences WHERE title_override IS NOT NULL OR cover_override IS NOT NULL OR content_rating_override IS NOT NULL")
 	abstract suspend fun getOverrides(): List<MangaPrefsEntity>
 

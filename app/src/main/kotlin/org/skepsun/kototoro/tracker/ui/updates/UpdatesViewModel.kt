@@ -87,6 +87,7 @@ class UpdatesViewModel @Inject constructor(
 		observeListModeWithTriggers(),
 		selectedGroupTab,
 		selectedSourceTags,
+		mangaListMapper.observeDisplayChanges().onStart { emit(Unit) },
 	) { values: Array<Any?> ->
 		val mangaList = values[0] as List<ContentTracking>
 		val filters = values[1] as Set<ListFilterOption>

@@ -324,7 +324,12 @@ class TrackWorker @AssistedInject constructor(
 			val query = WorkQuery.Builder.fromTags(listOf(TAG, TAG_ONESHOT)).build()
 			return workManager.getWorkInfosFlow(query)
 				.map { works ->
-					works.any { x -> x.state == WorkInfo.State.RUNNING }
+					works.any { work ->
+						when {
+							TAG_ONESHOT in work.tags -> !work.state.isFinished
+							else -> work.state == WorkInfo.State.RUNNING
+						}
+					}
 				}
 		}
 

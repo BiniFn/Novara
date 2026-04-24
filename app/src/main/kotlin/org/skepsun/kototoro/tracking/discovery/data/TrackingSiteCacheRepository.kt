@@ -3,7 +3,11 @@ package org.skepsun.kototoro.tracking.discovery.data
 import android.content.Context
 import androidx.room.withTransaction
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -23,6 +27,10 @@ class TrackingSiteCacheRepository @Inject constructor(
 ) {
 
 	private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+	private val detailsUpdates = MutableSharedFlow<Long>(
+		extraBufferCapacity = 32,
+		onBufferOverflow = BufferOverflow.DROP_OLDEST,
+	)
 
 	private data class CachedCategory(
 		val items: List<TrackingSiteItem>,
@@ -101,7 +109,10 @@ class TrackingSiteCacheRepository @Inject constructor(
 			dao.upsertItem(existing.mergeWith(details, cachedAt = now, updatedAt = now))
 		}
 		persistDetailsPayload(details)
+		detailsUpdates.tryEmit(now)
 	}
+
+	fun observeDetailsUpdates(): Flow<Long> = detailsUpdates.asSharedFlow()
 
 	private fun TrackingSiteItemEntity?.mergeWith(
 		item: TrackingSiteItem,

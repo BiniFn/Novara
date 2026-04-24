@@ -476,6 +476,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 player.initialize()
                 player.addListener(mpvListener)
             }
+            applySubtitleOverlayStyle()
         }.onFailure { error ->
             Log.e("VideoPlayerActivity", "Failed to initialize mpv runtime", error)
             MaterialAlertDialogBuilder(this)
@@ -505,6 +506,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         viewBinding.toolbarProgress.bringToFront()
         // Ensure the entire toolbar container is on top
         viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.toolbar_container)?.bringToFront()
+        applySubtitleOverlayStyle()
         applyPlaybackBackground()
         mpvView = findViewById(org.skepsun.kototoro.R.id.player_view)
         if (!initializeMpvRuntime()) {
@@ -1420,6 +1422,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         rearrangeBottomToolbarForOrientation()
 
 		applyControlsAlpha()
+        applySubtitleOverlayStyle()
         
         // Update title/subtitle after configuration change to ensure they persist
         updateTitleAndSubtitle()
@@ -2034,6 +2037,18 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             it.setMargins(marginH, 0, marginH, marginV)
             overlay.layoutParams = it
         }
+
+        mpvPlayer?.applySubtitleStyle(
+            fontSizeSp = settings.videoSubtitleFontSize,
+            isBold = settings.videoSubtitleBold,
+            isItalic = settings.videoSubtitleItalic,
+            textColor = settings.videoSubtitleTextColor,
+            borderColor = settings.videoSubtitleBorderColor,
+            borderSize = settings.videoSubtitleBorderSize,
+            backgroundColor = settings.videoSubtitleBgColor,
+            alignX = settings.videoSubtitleAlignX,
+            position = settings.videoSubtitlePosition,
+        )
     }
 
     private fun updateSubtitleOverlay(text: String?) {
@@ -2046,11 +2061,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 overlay.visibility = android.view.View.GONE
                 overlay.text = ""
             } else {
-                // Ensure style is applied at least once
-                if (overlay.textSize == 18f && overlay.tag == null) {
-                    overlay.tag = true
-                    applySubtitleOverlayStyle()
-                }
+                applySubtitleOverlayStyle()
                 overlay.text = text
                 overlay.visibility = android.view.View.VISIBLE
                 overlay.bringToFront()
@@ -3241,4 +3252,3 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         }
     }
 }
-

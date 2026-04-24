@@ -1316,6 +1316,8 @@
     <string name="pref_panorama_blur">封面模糊度</string>
     <string name="pref_panorama_extra_height">额外封面高度 (dp)</string>
     <string name="pref_panorama_gradient_alpha">边缘渐变效果</string>
+    <string name="pref_browse_panorama_blend_height">浏览页全景封面过渡高度</string>
+    <string name="pref_browse_panorama_gradient_alpha">浏览页全景封面渐变强度</string>
     <string name="reader_translation_manage_ocr_models">模型下载与管理</string>
     <string name="reader_translation_manage_ocr_models_summary">下载并管理文字检测识别、本地翻译和可选的气泡检测模型</string>
     <string name="reader_translation_ocr_models_title">本地模型管理</string>
@@ -1971,7 +1973,10 @@
     <string name="pref_nav_floating_summary">在底部导航栏周围添加边距，使其呈现悬浮效果</string>
     <string name="pref_reader_toolbar_floating">悬浮阅读器工具栏</string>
     <string name="pref_reader_toolbar_floating_summary">使阅读器底部工具栏悬浮在屏幕边缘上方</string>
-    <string name="pref_loading_circle_style">加载圆圈样式</string>
+    <string name="pref_loading_circle_style">加载圆圈与进度条样式</string>
+    <string name="pref_loading_circle_style_summary">控制加载圆圈与进度条的外观。</string>
+    <string name="pref_rail_animation_intensity">列表滑动动画强度</string>
+    <string name="pref_rail_animation_intensity_summary">调节横向与纵向作品卡片在滑动时的位移、淡入淡出与缩放强度。</string>
     <string name="pref_popup_radius">弹出菜单圆角</string>
     <string name="loading_circle_style_thick_straight">粗直线 (MD3 默认)</string>
     <string name="loading_circle_style_thick_wavy">粗波浪 (MD3 Expressive)</string>

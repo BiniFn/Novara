@@ -17,7 +17,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -29,8 +28,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
-import org.skepsun.kototoro.explore.ui.model.SourceTag
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.FavouriteCategory
+import org.skepsun.kototoro.core.model.FavouriteCategory.Companion.NO_ID
+import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.ListHeader
@@ -50,17 +51,13 @@ fun FeedScreen(
 	onFeedItemClick: (FeedItem, Rect?) -> Unit,
 	onUpdatedContentItemClick: (ContentListModel, Rect?) -> Unit,
 	onUpdatedContentMoreClick: (UpdatedContentHeader) -> Unit,
-	selectedGroupTab: BrowseGroupTab,
-	selectedSourceTags: Set<SourceTag>,
-	onGroupTabSelected: (BrowseGroupTab) -> Unit,
-	onSourceTagToggled: (SourceTag) -> Unit,
+	categories: List<FavouriteCategory>,
+	selectedCategoryId: Long,
+	onCategorySelected: (Long) -> Unit,
 	modifier: Modifier = Modifier
 ) {
 	val listState = rememberLazyListState()
 	val context = LocalContext.current
-	val visibleSourceTags = remember(selectedGroupTab) {
-		SourceTag.quickFilterEntries.filter(selectedGroupTab::supportsSourceTag)
-	}
 	
 	// Trigger pagination threshold
 	val shouldLoadMore by remember {
@@ -78,7 +75,7 @@ fun FeedScreen(
 		}
 	}
 
-	PullToRefreshBox(
+	KototoroPullToRefreshBox(
 		isRefreshing = isRefreshing,
 		onRefresh = onRefresh,
 		modifier = modifier.fillMaxSize()
@@ -95,11 +92,9 @@ fun FeedScreen(
 		) {
 			item(key = "feed_filters") {
 				FeedFilterBar(
-					selectedGroupTab = selectedGroupTab,
-					selectedSourceTags = selectedSourceTags,
-					visibleSourceTags = visibleSourceTags,
-					onGroupTabSelected = onGroupTabSelected,
-					onSourceTagToggled = onSourceTagToggled,
+					categories = categories,
+					selectedCategoryId = selectedCategoryId,
+					onCategorySelected = onCategorySelected,
 				)
 			}
 			items(
@@ -149,11 +144,9 @@ fun FeedScreen(
 
 @Composable
 private fun FeedFilterBar(
-	selectedGroupTab: BrowseGroupTab,
-	selectedSourceTags: Set<SourceTag>,
-	visibleSourceTags: List<SourceTag>,
-	onGroupTabSelected: (BrowseGroupTab) -> Unit,
-	onSourceTagToggled: (SourceTag) -> Unit,
+	categories: List<FavouriteCategory>,
+	selectedCategoryId: Long,
+	onCategorySelected: (Long) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	LazyRow(
@@ -163,36 +156,24 @@ private fun FeedFilterBar(
 		contentPadding = PaddingValues(horizontal = 12.dp),
 		horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
 	) {
-		items(BrowseGroupTab.getAllTabs(), key = { "group_${it.id}" }) { tab ->
+		items(categories, key = { "category_${it.id}" }) { category ->
 			FilterChip(
-				selected = selectedGroupTab == tab,
-				onClick = { onGroupTabSelected(tab) },
-				label = { Text(stringResource(tab.titleRes)) },
-				leadingIcon = {
-					androidx.compose.material3.Icon(
-						painter = painterResource(tab.iconRes),
-						contentDescription = null,
+				selected = selectedCategoryId == category.id,
+				onClick = { onCategorySelected(category.id) },
+				label = {
+					Text(
+						if (category.id == NO_ID) {
+							stringResource(R.string.all_favourites)
+						} else {
+							category.title
+						},
 					)
 				},
-			)
-		}
-		if (visibleSourceTags.isNotEmpty()) {
-			item(key = "filters_divider") {
-				Text(
-					text = "·",
-					color = MaterialTheme.colorScheme.onSurfaceVariant,
-					modifier = Modifier.padding(horizontal = 2.dp, vertical = 10.dp),
-				)
-			}
-		}
-		items(visibleSourceTags, key = { "tag_${it.id}" }) { tag ->
-			FilterChip(
-				selected = tag in selectedSourceTags,
-				onClick = { onSourceTagToggled(tag) },
-				label = { Text(stringResource(tag.titleRes)) },
 				leadingIcon = {
 					androidx.compose.material3.Icon(
-						painter = painterResource(tag.iconRes),
+						painter = painterResource(
+							if (category.id == NO_ID) R.drawable.ic_heart else R.drawable.ic_bookmark
+						),
 						contentDescription = null,
 					)
 				},

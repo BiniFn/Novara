@@ -36,6 +36,7 @@ data class AppearanceSettingsUiState(
     val popupRadius: Int,
     val listMode: ListMode,
     val gridSize: Int,
+    val railAnimationIntensityPercent: Int,
     val isQuickFilterEnabled: Boolean,
     val progressIndicatorMode: ProgressIndicatorMode,
     val badgesTopLeft: Set<String>,
@@ -49,6 +50,8 @@ data class AppearanceSettingsUiState(
     val panoramaAnimationSpeed: Int,
     val panoramaCoverExtraHeight: Int,
     val panoramaBottomGradientAlpha: Int,
+    val browsePanoramaBlendHeight: Int,
+    val browsePanoramaBottomGradientAlpha: Int,
     val isPagesTabEnabled: Boolean,
     val isDetailsTranslateButtonVisible: Boolean,
     val defaultDetailsTab: Int,
@@ -110,6 +113,7 @@ fun AppearanceSettingsScreen(
     onPopupRadiusChange: (Int) -> Unit,
     onListModeChange: (ListMode) -> Unit,
     onGridSizeChange: (Int) -> Unit,
+    onRailAnimationIntensityChange: (Int) -> Unit,
     onQuickFilterChange: (Boolean) -> Unit,
     onProgressIndicatorModeChange: (ProgressIndicatorMode) -> Unit,
     onBadgesTopLeftChange: (Set<String>) -> Unit,
@@ -123,6 +127,8 @@ fun AppearanceSettingsScreen(
     onPanoramaAnimationSpeedChange: (Int) -> Unit,
     onPanoramaExtraHeightChange: (Int) -> Unit,
     onPanoramaGradientAlphaChange: (Int) -> Unit,
+    onBrowsePanoramaBlendHeightChange: (Int) -> Unit,
+    onBrowsePanoramaGradientAlphaChange: (Int) -> Unit,
     onPagesTabEnabledChange: (Boolean) -> Unit,
     onDetailsTranslateButtonVisibleChange: (Boolean) -> Unit,
     onDefaultDetailsTabChange: (Int) -> Unit,
@@ -219,6 +225,7 @@ fun AppearanceSettingsScreen(
                     title = stringResource(R.string.pref_loading_circle_style),
                     value = state.loadingCircleStyle,
                     options = options.loadingCircleStyles,
+                    summary = stringResource(R.string.pref_loading_circle_style_summary),
                     onValueChange = onLoadingCircleStyleChange,
                 )
                 SettingsSectionDivider()
@@ -247,6 +254,16 @@ fun AppearanceSettingsScreen(
                     step = 5,
                     valueText = { "$it%" },
                     onValueChange = onGridSizeChange,
+                )
+                SettingsSectionDivider()
+                SettingsSliderPreference(
+                    title = stringResource(R.string.pref_rail_animation_intensity),
+                    value = state.railAnimationIntensityPercent,
+                    valueRange = 0..300,
+                    step = 10,
+                    summary = stringResource(R.string.pref_rail_animation_intensity_summary),
+                    valueText = { "$it%" },
+                    onValueChange = onRailAnimationIntensityChange,
                 )
                 SettingsSectionDivider()
                 SettingsSwitchPreference(
@@ -349,6 +366,24 @@ fun AppearanceSettingsScreen(
                         step = 5,
                         valueText = { "$it%" },
                         onValueChange = onPanoramaGradientAlphaChange,
+                    )
+                    SettingsSectionDivider()
+                    SettingsSliderPreference(
+                        title = stringResource(R.string.pref_browse_panorama_blend_height),
+                        value = state.browsePanoramaBlendHeight,
+                        valueRange = 48..220,
+                        step = 4,
+                        valueText = { "${it}dp" },
+                        onValueChange = onBrowsePanoramaBlendHeightChange,
+                    )
+                    SettingsSectionDivider()
+                    SettingsSliderPreference(
+                        title = stringResource(R.string.pref_browse_panorama_gradient_alpha),
+                        value = state.browsePanoramaBottomGradientAlpha,
+                        valueRange = 0..100,
+                        step = 5,
+                        valueText = { "$it%" },
+                        onValueChange = onBrowsePanoramaGradientAlphaChange,
                     )
                 }
                 SettingsSectionDivider()

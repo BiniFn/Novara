@@ -4,6 +4,7 @@ import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
+import org.skepsun.kototoro.core.model.isAdultTagKeyword
 import org.skepsun.kototoro.parsers.model.ContentRating
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentChapter
@@ -46,8 +47,7 @@ fun SAnime.toKotoContent(
         publicUrl = if (publicUrl.isNotBlank()) publicUrl else absolutePublicUrl,
         rating = RATING_UNKNOWN,
         contentRating = run {
-            val adultGenres = setOf("adult", "hentai", "18+", "nsfw", "mature", "ecchi")
-            val isNsfw = source.isNsfw || safeGenres?.any { it.lowercase() in adultGenres } == true
+            val isNsfw = source.isNsfw || safeGenres?.any { it.isAdultTagKeyword() } == true
             if (isNsfw) ContentRating.ADULT else null
         },
         coverUrl = absoluteThumbnailUrl,

@@ -11,9 +11,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -220,6 +221,7 @@ class HomeViewModel @Inject constructor(
 	private val recentUpdatesFlow = trackingRepository.observeUpdatedContent(limit = HOME_COVER_PREVIEW_LIMIT * 12, filterOptions = emptySet())
 	private val recommendationsFlow = suggestionRepository.observeAll()
 	private val recentSearchesFlow = contentSearchRepository.observeRecentQueries(HOME_COVER_PREVIEW_LIMIT)
+	private val displayChangesFlow = contentListMapper.observeDisplayChanges().onStart { emit(Unit) }
 	private val isTrackerNsfwDisabledFlow = settings.observeAsFlow(AppSettings.KEY_TRACKER_NO_NSFW) { isTrackerNsfwDisabled }
 	private val isSuggestionNsfwDisabledFlow = settings.observeAsFlow(AppSettings.KEY_SUGGESTIONS_EXCLUDE_NSFW) { isSuggestionsExcludeNsfw }
 	private val enabledSourcesCountFlow = contentSourcesRepository.observeEnabledSourcesCount()
@@ -297,7 +299,13 @@ class HomeViewModel @Inject constructor(
 		) { tracker, suggestion, history ->
 			Triple(tracker, suggestion, history)
 		},
-	) { selectedTab, tagsAndPreset, left, right, nsfwFlags ->
+		displayChangesFlow,
+	) { values: Array<Any?> ->
+		val selectedTab = values[0] as HomeContentTab?
+		val tagsAndPreset = values[1] as Pair<Set<org.skepsun.kototoro.explore.ui.model.SourceTag>, org.skepsun.kototoro.explore.data.SourcePreset?>
+		val left = values[2] as Octuple<HomeResumeState, List<Content>, Int, Int, Int, List<ContentTracking>, List<Content>, List<String>>
+		val right = values[3] as Triple<Int, List<HomeSourceBreakdown>, HomeSyncState>
+		val nsfwFlags = values[4] as Triple<Boolean, Boolean, Boolean>
 		val selectedSourceTags = tagsAndPreset.first
 		val preset = tagsAndPreset.second
 		val isTrackerNsfwDisabled = nsfwFlags.first
@@ -757,7 +765,13 @@ private suspend fun List<HomeRecentItem>.withHomeRecentGridModels(
 		.toListModelList(map { it.content }, ListMode.GRID)
 		.filterIsInstance<ContentGridModel>()
 		.associateBy { it.manga.id }
-	return map { item -> item.copy(cardModel = modelsById[item.content.id]) }
+	return map { item ->
+		val model = modelsById[item.content.id]
+		item.copy(
+			content = model?.toContentWithOverride() ?: item.content,
+			cardModel = model,
+		)
+	}
 }
 
 private suspend fun List<HomeUpdateItem>.withHomeUpdateGridModels(
@@ -768,7 +782,13 @@ private suspend fun List<HomeUpdateItem>.withHomeUpdateGridModels(
 		.toListModelList(map { it.content }, ListMode.GRID)
 		.filterIsInstance<ContentGridModel>()
 		.associateBy { it.manga.id }
-	return map { item -> item.copy(cardModel = modelsById[item.content.id]) }
+	return map { item ->
+		val model = modelsById[item.content.id]
+		item.copy(
+			content = model?.toContentWithOverride() ?: item.content,
+			cardModel = model,
+		)
+	}
 }
 
 private suspend fun List<HomeRecommendationItem>.withHomeRecommendationGridModels(
@@ -779,7 +799,13 @@ private suspend fun List<HomeRecommendationItem>.withHomeRecommendationGridModel
 		.toListModelList(map { it.content }, ListMode.GRID)
 		.filterIsInstance<ContentGridModel>()
 		.associateBy { it.manga.id }
-	return map { item -> item.copy(cardModel = modelsById[item.content.id]) }
+	return map { item ->
+		val model = modelsById[item.content.id]
+		item.copy(
+			content = model?.toContentWithOverride() ?: item.content,
+			cardModel = model,
+		)
+	}
 }
 
 private fun Long.toHomeGroupKey(): Long = -this

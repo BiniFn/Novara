@@ -81,6 +81,7 @@ import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
 import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
 import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
 import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.details.ui.compose.AnimatedPanoramaBackdrop
 import org.skepsun.kototoro.home.ui.HOME_HERO_SECTION_LIMIT
@@ -89,6 +90,7 @@ import org.skepsun.kototoro.home.ui.HomeRecentItem
 import org.skepsun.kototoro.home.ui.HomeRecommendationItem
 import org.skepsun.kototoro.home.ui.HomeSummaryState
 import org.skepsun.kototoro.home.ui.HomeUpdateItem
+import org.skepsun.kototoro.list.ui.compose.ContentCardNsfwBadge
 import org.skepsun.kototoro.list.ui.compose.ContentCardCornerBadges
 import org.skepsun.kototoro.list.ui.model.ContentGridModel
 import org.skepsun.kototoro.parsers.model.Content
@@ -492,6 +494,13 @@ private fun HomeHeroCard(
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
                 )
+                if (content.isNsfw()) {
+                    ContentCardNsfwBadge(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(6.dp),
+                    )
+                }
             }
             Column(
                 modifier = Modifier.weight(1f),
@@ -659,8 +668,8 @@ private fun HomeContentRowSection(
         LazyRow(
             state = rowState,
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(horizontal = 0.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp),
         ) {
             itemsIndexed(
                 items = items.take(12),
@@ -670,11 +679,12 @@ private fun HomeContentRowSection(
                     animationKey = "home_row_${title}_${item.content.id}",
                     index = index,
                     listState = rowState,
-                ) {
+                ) { animatedModifier ->
                     HomeCoverRowItem(
                         item = item,
                         posterStyle = posterStyle,
                         onClick = { coverBounds -> onItemClick(item.content, coverBounds) },
+                        modifier = animatedModifier,
                     )
                 }
             }
@@ -687,6 +697,7 @@ private fun HomeCoverRowItem(
     item: HomeCoverDisplayItem,
     posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
     onClick: (Rect?) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -707,10 +718,10 @@ private fun HomeCoverRowItem(
     var coverBounds by remember(content.id) { mutableStateOf<Rect?>(null) }
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .width(posterStyle.itemWidth)
             .clickable { onClick(coverBounds) },
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(
             modifier = Modifier
@@ -728,6 +739,13 @@ private fun HomeCoverRowItem(
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
             )
+            if (content.isNsfw()) {
+                ContentCardNsfwBadge(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(6.dp),
+                )
+            }
             item.cardModel?.let { cardModel ->
                 ContentCardCornerBadges(
                     badges = rememberHomeBadgesTopLeft(),

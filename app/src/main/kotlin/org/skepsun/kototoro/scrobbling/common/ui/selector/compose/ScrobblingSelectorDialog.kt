@@ -119,7 +119,15 @@ private fun ScrobblerHeader(
                     onClick = { viewModel.setScrobblerIndex(index) },
                     text = { 
                         Text(
-                            text = if (isAuth) stringResource(titleRes) else stringResource(R.string.scrobbler_search_requires_login_label, stringResource(titleRes)),
+                            text = if (isAuth) {
+                                stringResource(titleRes)
+                            } else {
+                                stringResource(
+                                    R.string.scrobbler_search_requires_login_label,
+                                    stringResource(titleRes),
+                                    stringResource(R.string.filter_need_login),
+                                )
+                            },
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         ) 

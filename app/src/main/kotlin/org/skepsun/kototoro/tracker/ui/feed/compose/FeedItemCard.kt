@@ -33,6 +33,8 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.list.ui.compose.ContentCardNsfwBadge
 import org.skepsun.kototoro.tracker.ui.feed.model.FeedItem
 
 @Composable
@@ -50,20 +52,31 @@ fun FeedItemCard(
 			.padding(horizontal = 16.dp, vertical = 16.dp),
 		verticalAlignment = Alignment.CenterVertically
 	) {
-		AsyncImage(
-			model = ImageRequest.Builder(LocalContext.current)
-				.data(item.imageUrl)
-				.crossfade(true)
-				.build(),
-			contentDescription = item.title,
-			contentScale = ContentScale.Crop,
+		Box(
 			modifier = Modifier
 				.size(40.dp)
 				.onGloballyPositioned { coordinates ->
 					coverBounds = coordinates.boundsInRoot()
 				}
 				.clip(MaterialTheme.shapes.medium)
-		)
+		) {
+			AsyncImage(
+				model = ImageRequest.Builder(LocalContext.current)
+					.data(item.imageUrl)
+					.crossfade(true)
+					.build(),
+				contentDescription = item.title,
+				contentScale = ContentScale.Crop,
+				modifier = Modifier.matchParentSize()
+			)
+			if (item.manga.isNsfw()) {
+				ContentCardNsfwBadge(
+					modifier = Modifier
+						.align(Alignment.BottomEnd)
+						.padding(2.dp),
+				)
+			}
+		}
 
 		Spacer(modifier = Modifier.width(16.dp))
 

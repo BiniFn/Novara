@@ -268,12 +268,6 @@ class DetailsActivity :
             DetailsAction.Download -> Unit
             DetailsAction.OpenStatistics -> Unit
 
-            DetailsAction.OpenTracking -> {
-                viewModel.getContentOrNull()?.let { manga ->
-                    router.showScrobblingSelectorSheet(manga, null)
-                }
-            }
-
             DetailsAction.ToggleList,
             DetailsAction.ToggleGrid,
             DetailsAction.ToggleBookmarkView -> Unit

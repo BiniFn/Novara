@@ -2058,6 +2058,8 @@
     <string name="pref_panorama_animation_speed">Panorama animation speed</string>
     <string name="pref_panorama_extra_height">Extra cover height (dp)</string>
     <string name="pref_panorama_gradient_alpha">Edge gradient intensity</string>
+    <string name="pref_browse_panorama_blend_height">Browse panorama transition height</string>
+    <string name="pref_browse_panorama_gradient_alpha">Browse panorama gradient intensity</string>
 	<string name="reader_translation_ocr_model_selection_not_downloaded_suffix">" (⚠️ Not Downloaded)"</string>
     <string name="reader_translation_ocr_model_rec_selection">Recognition model selection</string>
     <string name="reader_translation_ocr_model_rec_autodetect">Auto Select</string>
@@ -2309,7 +2311,10 @@
     <string name="pref_nav_floating_height">Floating navigation bar height</string>
     <string name="pref_reader_toolbar_floating">Floating bottom toolbar</string>
     <string name="pref_reader_toolbar_floating_summary">Make the reader bottom toolbar float above the screen edge</string>
-    <string name="pref_loading_circle_style">Loading circle style</string>
+    <string name="pref_loading_circle_style">Loading indicator and progress bar style</string>
+    <string name="pref_loading_circle_style_summary">Controls the appearance of loading spinners and progress bars.</string>
+    <string name="pref_rail_animation_intensity">List slide animation intensity</string>
+    <string name="pref_rail_animation_intensity_summary">Adjusts how strongly horizontal and vertical content cards translate, fade, and scale while sliding.</string>
     <string name="pref_popup_radius">Popup menu corner radius</string>
     <string name="loading_circle_style_thick_straight">Thick Straight</string>
     <string name="loading_circle_style_thick_wavy">Thick Wavy</string>

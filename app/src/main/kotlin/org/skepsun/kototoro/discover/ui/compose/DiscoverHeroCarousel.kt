@@ -76,9 +76,7 @@ import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 private val DiscoverHeroHeight = 340.dp
 private val DiscoverHeroHeightDetached = 232.dp
 private val DiscoverHeroHeightLandscape = 220.dp
-private val DiscoverHeroBottomBlendHeight = 156.dp
 private val DiscoverHeroBottomBlendHeightLandscape = 128.dp
-private val DiscoverHeroBottomBlendHeightDetached = 84.dp
 private val DiscoverHeroBottomBlendHeightDetachedLandscape = 64.dp
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -104,20 +102,23 @@ fun DiscoverHeroCarousel(
         detachedBottomContent -> DiscoverHeroHeightDetached
         else -> DiscoverHeroHeight
     }
+    val context = LocalContext.current
+    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+    val browsePanoramaBlendHeight by settings.observeAsState(AppSettings.KEY_BROWSE_PANORAMA_BLEND_HEIGHT) {
+        browsePanoramaBlendHeight
+    }
     val heroBottomBlendHeight = when {
         detachedBottomContent && isLandscape -> DiscoverHeroBottomBlendHeightDetachedLandscape
-        detachedBottomContent -> DiscoverHeroBottomBlendHeightDetached
+        detachedBottomContent -> ((browsePanoramaBlendHeight * 0.54f).toInt()).dp
         isLandscape -> DiscoverHeroBottomBlendHeightLandscape
-        else -> DiscoverHeroBottomBlendHeight
+        else -> browsePanoramaBlendHeight.dp
     }
     val pageBackground = MaterialTheme.colorScheme.background
 
-    val context = LocalContext.current
-    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
     val isPanoramaCoverEnabled by settings.observeAsState(AppSettings.KEY_PANORAMA_ENABLED) { isPanoramaCoverEnabled }
     val panoramaBlur by settings.observeAsState(AppSettings.KEY_PANORAMA_BLUR) { panoramaCoverBlur }
-    val panoramaBottomAlpha by settings.observeAsState(AppSettings.KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA) {
-        panoramaBottomGradientAlpha
+    val panoramaBottomAlpha by settings.observeAsState(AppSettings.KEY_BROWSE_PANORAMA_BOTTOM_GRADIENT_ALPHA) {
+        browsePanoramaBottomGradientAlpha
     }
     val isPanoramaCoverAnimationEnabled by settings.observeAsState(AppSettings.KEY_PANORAMA_ANIMATION_ENABLED) {
         isPanoramaCoverAnimationEnabled

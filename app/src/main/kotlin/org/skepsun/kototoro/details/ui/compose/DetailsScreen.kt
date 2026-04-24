@@ -48,8 +48,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -129,6 +127,7 @@ import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.ui.glass.GlassBottomBarContainer
@@ -166,8 +165,6 @@ import org.skepsun.kototoro.reader.ui.PageSaveHelper
 import org.skepsun.kototoro.favourites.ui.categories.select.compose.FavoriteCategoryDialog
 import org.skepsun.kototoro.stats.ui.sheet.compose.ContentStatsDialog
 import org.skepsun.kototoro.stats.ui.sheet.ContentStatsViewModel
-import org.skepsun.kototoro.scrobbling.common.ui.selector.compose.ScrobblingSelectorDialog
-import org.skepsun.kototoro.scrobbling.common.ui.selector.ScrobblingSelectorViewModel
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
@@ -271,7 +268,6 @@ fun DetailsScreen(
     var showFavoriteDialog by remember { mutableStateOf(false) }
     var showDownloadDialog by remember { mutableStateOf(false) }
     var showStatsDialog by remember { mutableStateOf(false) }
-    var showScrobblingDialog by remember { mutableStateOf(false) }
     var showCommentsDialog by remember { mutableStateOf(false) }
     var showReviewsDialog by remember { mutableStateOf(false) }
     var showMetadataSourceDialog by remember { mutableStateOf(false) }
@@ -603,7 +599,6 @@ fun DetailsScreen(
                         hasTranslationCache = hasTranslationCache,
                         isShowingTranslation = isShowingTranslation,
                         isTranslating = isTranslating,
-                        isScrobblingAvailable = viewModel.isScrobblingAvailable,
                         isStatsAvailable = isStatsAvailable,
                         hasMetadataBrowserTarget = metadataBrowserTarget != null,
                         hasLocalBrowserTarget = localBrowserTarget != null,
@@ -624,9 +619,6 @@ fun DetailsScreen(
                                     localBrowserTarget?.let {
                                         handleActionClick(DetailsAction.OpenBrowserPage(it.publicUrl, it.source, it.title))
                                     }
-                                }
-                                DetailsAction.OpenTracking -> {
-                                    showScrobblingDialog = true
                                 }
                                 DetailsAction.OpenStatistics -> {
                                     showStatsDialog = true
@@ -664,7 +656,7 @@ fun DetailsScreen(
                     snackbarHost = { SnackbarHost(snackbarHostState) },
                     topBar = commonTopBar,
                 ) { paddingValues ->
-                    PullToRefreshBox(
+                    KototoroPullToRefreshBox(
                         isRefreshing = isLoading,
                         onRefresh = { viewModel.reload() },
                         modifier = Modifier.fillMaxSize(),
@@ -788,7 +780,7 @@ fun DetailsScreen(
                     containerColor = Color.Transparent,
                     snackbarHost = { SnackbarHost(snackbarHostState) },
                 ) { paddingValues ->
-                    PullToRefreshBox(
+                    KototoroPullToRefreshBox(
                         isRefreshing = isLoading,
                         onRefresh = { viewModel.reload() },
                         modifier = Modifier
@@ -1020,15 +1012,6 @@ fun DetailsScreen(
                     onOpenDetails = {
                         showStatsDialog = false
                     },
-                )
-            }
-
-            if (showScrobblingDialog && content != null) {
-                val scrobblingViewModel: ScrobblingSelectorViewModel = hiltViewModel()
-                scrobblingViewModel.initialize(content)
-                ScrobblingSelectorDialog(
-                    viewModel = scrobblingViewModel,
-                    onDismissRequest = { showScrobblingDialog = false },
                 )
             }
 
@@ -1586,10 +1569,17 @@ private fun DetailsPaneContent(
     )
     val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val isStatusBarHandleVisible = showCollapsedHandle && isSheetFullyExpanded
-    val opaquePaneOverlayAlpha = if (showCollapsedHandle) {
-        lerpFloat(0f, 0.14f, paneOpacityProgress)
-    } else {
-        0f
+    val isCollapsedPane = showCollapsedHandle && detailsPaneState.anchor == CompactDetailsPaneAnchor.Collapsed
+    val paneContainerAlpha = when {
+        !showCollapsedHandle -> 0.88f
+        isCollapsedPane -> 0.94f
+        isSheetFullyExpanded -> lerpFloat(0.82f, 0.88f, paneOpacityProgress)
+        else -> lerpFloat(0.68f, 0.86f, paneOpacityProgress)
+    }
+    val opaquePaneOverlayAlpha = when {
+        isCollapsedPane -> 0.18f
+        showCollapsedHandle -> lerpFloat(0f, 0.14f, paneOpacityProgress)
+        else -> 0f
     }
     val paneShape = if (showCollapsedHandle && isSheetFullyExpanded && paneOpacityProgress >= 0.96f) {
         RoundedCornerShape(0.dp)
@@ -1604,9 +1594,7 @@ private fun DetailsPaneContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(modifier),
-            color = MaterialTheme.colorScheme.surface.copy(
-                alpha = if (showCollapsedHandle) lerpFloat(0.12f, 0.85f, paneOpacityProgress) else 0.85f
-            ),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = paneContainerAlpha),
             shape = paneShape,
         ) {
             Box(
@@ -2160,7 +2148,6 @@ sealed interface DetailsAction {
     ) : DetailsAction
     data object OpenMetadataInBrowser : DetailsAction
     data object OpenLocalSourceInBrowser : DetailsAction
-    data object OpenTracking : DetailsAction
     data object OpenStatistics : DetailsAction
     data object ToggleSafe : DetailsAction
     data object ToggleList : DetailsAction
@@ -2380,7 +2367,6 @@ private fun DetailsOverflowMenu(
     hasTranslationCache: Boolean,
     isShowingTranslation: Boolean,
     isTranslating: Boolean,
-    isScrobblingAvailable: Boolean,
     isStatsAvailable: Boolean,
     hasMetadataBrowserTarget: Boolean,
     hasLocalBrowserTarget: Boolean,
@@ -2502,15 +2488,6 @@ private fun DetailsOverflowMenu(
                     onClick = {
                         expanded = false
                         onActionClick(DetailsAction.OpenLocalSourceInBrowser)
-                    },
-                )
-            }
-            if (isScrobblingAvailable) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.tracking)) },
-                    onClick = {
-                        expanded = false
-                        onActionClick(DetailsAction.OpenTracking)
                     },
                 )
             }

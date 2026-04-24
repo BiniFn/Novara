@@ -59,6 +59,7 @@ import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle
 import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
+import org.skepsun.kototoro.core.model.isNsfw
 
 @Composable
 fun KototoroContentCard(
@@ -209,30 +210,45 @@ fun KototoroContentCardGrid(
 
             // Bottom Right Progress (Always shown if progress exists)
             if (item.progress != null) {
-                Box(
+                Column(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(6.dp)
-                        .size(26.dp)
-                        .background(
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
-                            shape = androidx.compose.foundation.shape.CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
+                        .padding(6.dp),
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    KototoroLoadingIndicator(
-                        progress = { item.progress.percent },
-                        modifier = Modifier.fillMaxSize(),
-                        style = loadingStyle,
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                    )
-                    Text(
-                        text = "${(item.progress.percent * 100).toInt()}%",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
+                    if (item.manga.isNsfw()) {
+                        ContentCardNsfwBadge()
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(26.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                                shape = androidx.compose.foundation.shape.CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        KototoroLoadingIndicator(
+                            progress = { item.progress.percent },
+                            modifier = Modifier.fillMaxSize(),
+                            style = loadingStyle,
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
+                        )
+                        Text(
+                            text = "${(item.progress.percent * 100).toInt()}%",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
                 }
+            } else if (item.manga.isNsfw()) {
+                ContentCardNsfwBadge(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(6.dp),
+                )
             }
         }
         
@@ -261,7 +277,20 @@ fun KototoroContentCardList(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+    val badgesTopLeft by settings.observeAsState(AppSettings.KEY_BADGES_TOP_LEFT) { badgesTopLeft }
+    val badgesTopRight by settings.observeAsState(AppSettings.KEY_BADGES_TOP_RIGHT) { badgesTopRight }
+    val badgesBottomLeft by settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_LEFT) { badgesBottomLeft }
     var coverBounds by remember { mutableStateOf<Rect?>(null) }
+    val badgeModel = remember(item) { item.asBadgeModel() }
+    val effectiveTopRightBadges = remember(badgesTopRight, item.counter) {
+        if (item.counter > 0 && "counter" !in badgesTopRight) {
+            badgesTopRight + "counter"
+        } else {
+            badgesTopRight
+        }
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -285,13 +314,33 @@ fun KototoroContentCardList(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.matchParentSize()
             )
-            if (item.counter > 0) {
-                Badge(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)
-                ) {
-                    Text(text = item.counter.toString(), color = MaterialTheme.colorScheme.onPrimary)
-                }
+            ContentCardCornerBadges(
+                badges = badgesTopLeft,
+                item = badgeModel,
+                corner = Alignment.TopStart,
+                cardRadius = 8.dp,
+                modifier = Modifier.align(Alignment.TopStart),
+            )
+            ContentCardCornerBadges(
+                badges = effectiveTopRightBadges,
+                item = badgeModel,
+                corner = Alignment.TopEnd,
+                cardRadius = 8.dp,
+                modifier = Modifier.align(Alignment.TopEnd),
+            )
+            ContentCardCornerBadges(
+                badges = badgesBottomLeft,
+                item = badgeModel,
+                corner = Alignment.BottomStart,
+                cardRadius = 8.dp,
+                modifier = Modifier.align(Alignment.BottomStart),
+            )
+            if (item.manga.isNsfw()) {
+                ContentCardNsfwBadge(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(4.dp),
+                )
             }
         }
 
@@ -440,7 +489,25 @@ fun KototoroContentCardDetailedList(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+    val badgesTopLeft by settings.observeAsState(AppSettings.KEY_BADGES_TOP_LEFT) { badgesTopLeft }
+    val badgesTopRight by settings.observeAsState(AppSettings.KEY_BADGES_TOP_RIGHT) { badgesTopRight }
+    val badgesBottomLeft by settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_LEFT) { badgesBottomLeft }
     var coverBounds by remember { mutableStateOf<Rect?>(null) }
+    val badgeModel = remember(item) {
+        item.asBadgeModel(
+            isFavorite = item.isFavorite,
+            isSaved = item.isSaved,
+        )
+    }
+    val effectiveTopRightBadges = remember(badgesTopRight, item.counter) {
+        if (item.counter > 0 && "counter" !in badgesTopRight) {
+            badgesTopRight + "counter"
+        } else {
+            badgesTopRight
+        }
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -463,13 +530,33 @@ fun KototoroContentCardDetailedList(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.matchParentSize()
             )
-            if (item.counter > 0) {
-                Badge(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)
-                ) {
-                    Text(text = item.counter.toString(), color = MaterialTheme.colorScheme.onPrimary)
-                }
+            ContentCardCornerBadges(
+                badges = badgesTopLeft,
+                item = badgeModel,
+                corner = Alignment.TopStart,
+                cardRadius = 12.dp,
+                modifier = Modifier.align(Alignment.TopStart),
+            )
+            ContentCardCornerBadges(
+                badges = effectiveTopRightBadges,
+                item = badgeModel,
+                corner = Alignment.TopEnd,
+                cardRadius = 12.dp,
+                modifier = Modifier.align(Alignment.TopEnd),
+            )
+            ContentCardCornerBadges(
+                badges = badgesBottomLeft,
+                item = badgeModel,
+                corner = Alignment.BottomStart,
+                cardRadius = 12.dp,
+                modifier = Modifier.align(Alignment.BottomStart),
+            )
+            if (item.manga.isNsfw()) {
+                ContentCardNsfwBadge(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(6.dp),
+                )
             }
         }
 
@@ -510,5 +597,43 @@ fun KototoroContentCardDetailedList(
                 )
             }
         }
+    }
+}
+
+private fun ContentListModel.asBadgeModel(
+    isFavorite: Boolean = false,
+    isSaved: Boolean = false,
+): ContentGridModel {
+    return ContentGridModel(
+        manga = manga,
+        override = override,
+        counter = counter,
+        id = id,
+        progress = null,
+        isFavorite = isFavorite,
+        isSaved = isSaved,
+        isPinned = isPinned,
+        metadataTrackingService = metadataTrackingService,
+    )
+}
+
+@Composable
+fun ContentCardNsfwBadge(
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .background(
+                color = Color(0xFFD4322C),
+                shape = RoundedCornerShape(10.dp),
+            )
+            .padding(horizontal = 6.dp, vertical = 3.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "18+",
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            color = Color.White,
+        )
     }
 }

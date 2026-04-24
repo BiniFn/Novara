@@ -77,6 +77,7 @@ class SuggestionsViewModel @Inject constructor(
 		observeListModeWithTriggers(),
 		currentGroupTab,
 		currentSourceTags,
+		mangaListMapper.observeDisplayChanges().onStart { emit(Unit) },
 		settings.observeAsFlow(AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID) { activeSourcePresetId }
 			.flatMapLatest { id ->
 				if (id == -1L) kotlinx.coroutines.flow.flowOf(null)
@@ -88,7 +89,7 @@ class SuggestionsViewModel @Inject constructor(
 		val mode = values[2] as ListMode
 		val groupTab = values[3] as BrowseGroupTab
 		val sourceTags = values[4] as Set<SourceTag>
-		val preset = values[5] as? SourcePreset
+		val preset = values[6] as? SourcePreset
 		val filteredList = list.filter { manga ->
 			val source = manga.source
 			if (!preset.matches(source)) {

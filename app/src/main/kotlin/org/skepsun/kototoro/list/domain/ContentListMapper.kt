@@ -8,6 +8,9 @@ import androidx.collection.MutableScatterSet
 import androidx.collection.ScatterSet
 import dagger.Reusable
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -24,6 +27,8 @@ import org.skepsun.kototoro.local.data.index.LocalContentIndex
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
+import org.skepsun.kototoro.tracking.discovery.data.TrackingSiteCacheRepository
+import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails
 import org.skepsun.kototoro.tracker.domain.TrackingRepository
 import org.skepsun.kototoro.tracker.domain.model.TrackingLogItem
 import org.skepsun.kototoro.tracker.ui.feed.model.FeedItem
@@ -38,9 +43,15 @@ class ContentListMapper @Inject constructor(
 	private val favouritesRepository: FavouritesRepository,
 	private val localContentIndex: LocalContentIndex,
 	private val dataRepository: ContentDataRepository,
+	private val trackingSiteCacheRepository: TrackingSiteCacheRepository,
 ) {
 
 	private val dict by lazy { readTagsDict(context) }
+
+	fun observeDisplayChanges(): Flow<Unit> = merge(
+		dataRepository.observeDisplayPreferencesChanges().map { Unit },
+		trackingSiteCacheRepository.observeDetailsUpdates().map { Unit },
+	)
 
 	suspend fun toListModelList(
 		manga: Collection<Content>,
@@ -62,9 +73,21 @@ class ContentListMapper @Inject constructor(
 		@Flags flags: Int = DEFAULTS,
 	) {
 		val options = getOptions(flags)
-		val overrides = dataRepository.getOverrides()
+		val manualOverrides = dataRepository.getOverrides()
+		val metadataSelectionCache = HashMap<Long, ContentDataRepository.MetadataSourceSelection?>()
+		val trackingDetailsCache = HashMap<Pair<Int, Long>, TrackingSiteItemDetails?>()
 		manga.mapTo(destination) {
-			toListModelImpl(it, mode, options, overrides[it.id])
+			toListModelImpl(
+				manga = it,
+				mode = mode,
+				options = options,
+				override = resolveDisplayOverride(
+					manga = it,
+					manualOverride = manualOverrides[it.id],
+					metadataSelectionCache = metadataSelectionCache,
+					trackingDetailsCache = trackingDetailsCache,
+				),
+			)
 		}
 	}
 
@@ -76,12 +99,22 @@ class ContentListMapper @Inject constructor(
 		manga = manga,
 		mode = mode,
 		options = getOptions(flags),
-		override = dataRepository.getOverride(manga.id),
+		override = resolveDisplayOverride(
+			manga = manga,
+			manualOverride = dataRepository.getOverride(manga.id),
+			metadataSelectionCache = HashMap(1),
+			trackingDetailsCache = HashMap(1),
+		),
 	)
 
 	suspend fun toFeedItem(logItem: TrackingLogItem) = FeedItem(
 		id = logItem.id,
-		override = dataRepository.getOverride(logItem.manga.id),
+		override = resolveDisplayOverride(
+			manga = logItem.manga,
+			manualOverride = dataRepository.getOverride(logItem.manga.id),
+			metadataSelectionCache = HashMap(1),
+			trackingDetailsCache = HashMap(1),
+		),
 		count = logItem.chapters.size,
 		manga = logItem.manga,
 		isNew = logItem.isNew,
@@ -182,6 +215,45 @@ class ContentListMapper @Inject constructor(
 			as? ContentDataRepository.MetadataSourceSelection.Tracking
 			?: return null
 		return ScrobblerService.entries.firstOrNull { it.id == selection.serviceId }
+	}
+
+	private suspend fun resolveDisplayOverride(
+		manga: Content,
+		manualOverride: ContentOverride?,
+		metadataSelectionCache: MutableMap<Long, ContentDataRepository.MetadataSourceSelection?>,
+		trackingDetailsCache: MutableMap<Pair<Int, Long>, TrackingSiteItemDetails?>,
+	): ContentOverride? {
+		val selection = metadataSelectionCache.getOrPut(manga.id) {
+			dataRepository.getMetadataSourceSelection(manga.id)
+		}
+		val trackingOverride = (selection as? ContentDataRepository.MetadataSourceSelection.Tracking)
+			?.let { trackingSelection ->
+				val service = ScrobblerService.entries.firstOrNull { it.id == trackingSelection.serviceId }
+					?: return@let null
+				val cacheKey = trackingSelection.serviceId to trackingSelection.remoteId
+				val details = trackingDetailsCache.getOrPut(cacheKey) {
+					trackingSiteCacheRepository.readDetails(service, trackingSelection.remoteId)
+				}
+				ContentOverride(
+					coverUrl = details?.coverUrl?.takeIf { it.isNotBlank() },
+					title = details?.title?.takeIf { it.isNotBlank() },
+					contentRating = null,
+				)
+			}
+		val merged = ContentOverride(
+			coverUrl = manualOverride?.coverUrl ?: trackingOverride?.coverUrl,
+			title = manualOverride?.title ?: trackingOverride?.title,
+			contentRating = manualOverride?.contentRating,
+		)
+		return if (
+			merged.coverUrl == null &&
+			merged.title == null &&
+			merged.contentRating == null
+		) {
+			null
+		} else {
+			merged
+		}
 	}
 
 	@ColorRes

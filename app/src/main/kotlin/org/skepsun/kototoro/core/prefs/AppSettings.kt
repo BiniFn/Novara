@@ -237,6 +237,15 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getSafeInt(KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA, 100).coerceIn(0, 100)
 		set(value) = prefs.edit { putInt(KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA, value.coerceIn(0, 100)) }
 
+	var browsePanoramaBottomGradientAlpha: Int
+		get() = prefs.getSafeInt(KEY_BROWSE_PANORAMA_BOTTOM_GRADIENT_ALPHA, panoramaBottomGradientAlpha)
+			.coerceIn(0, 100)
+		set(value) = prefs.edit { putInt(KEY_BROWSE_PANORAMA_BOTTOM_GRADIENT_ALPHA, value.coerceIn(0, 100)) }
+
+	var browsePanoramaBlendHeight: Int
+		get() = prefs.getSafeInt(KEY_BROWSE_PANORAMA_BLEND_HEIGHT, 156).coerceIn(48, 220)
+		set(value) = prefs.edit { putInt(KEY_BROWSE_PANORAMA_BLEND_HEIGHT, value.coerceIn(48, 220)) }
+
 	var historyListMode: ListMode
 		get() = prefs.getEnumValue(KEY_LIST_MODE_HISTORY, listMode)
 		set(value) = prefs.edit { putEnumValue(KEY_LIST_MODE_HISTORY, value) }
@@ -667,6 +676,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	var loadingCircleStyle: LoadingCircleStyle
 		get() = LoadingCircleStyle.fromValue(prefs.getString(KEY_LOADING_CIRCLE_STYLE, LoadingCircleStyle.THICK_STRAIGHT.value))
 		set(value) = prefs.edit { putString(KEY_LOADING_CIRCLE_STYLE, value.value) }
+
+	var railAnimationIntensityPercent: Int
+		get() = prefs.getSafeInt(KEY_RAIL_ANIMATION_INTENSITY, 100).coerceIn(0, 300)
+		set(value) = prefs.edit { putInt(KEY_RAIL_ANIMATION_INTENSITY, value.coerceIn(0, 300)) }
 
 	var cornerRadius: Int
 		get() = prefs.getString(KEY_POPUP_RADIUS, "-1")?.toIntOrNull()
@@ -1551,6 +1564,8 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 			putInt(KEY_PANORAMA_ANIMATION_SPEED, panoramaAnimationSpeed)
 			putInt(KEY_PANORAMA_EXTRA_HEIGHT, panoramaCoverExtraHeight)
 			putInt(KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA, panoramaBottomGradientAlpha)
+			putInt(KEY_BROWSE_PANORAMA_BOTTOM_GRADIENT_ALPHA, browsePanoramaBottomGradientAlpha)
+			putInt(KEY_BROWSE_PANORAMA_BLEND_HEIGHT, browsePanoramaBlendHeight)
 			putString(KEY_POPUP_RADIUS, popupRadius.toString())
 			putInt(KEY_HAZE_OPACITY, hazeOpacityPercent)
 			putStringSet(KEY_SEARCH_SUGGESTION_TYPES, sanitizedSearchSuggestionTypes.mapToSet { it.name })
@@ -1717,6 +1732,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_UPDATES_FEED_CLEAR = "updates_feed_clear"
 		const val KEY_GRID_SIZE = "grid_size"
 		const val KEY_GRID_SIZE_PAGES = "grid_size_pages"
+		const val KEY_RAIL_ANIMATION_INTENSITY = "rail_animation_intensity"
 		const val KEY_REMOTE_SOURCES = "remote_sources"
 		const val KEY_LOCAL_STORAGE = "local_storage"
 		const val KEY_LOCAL_NOVEL_STORAGE = "local_novel_storage"
@@ -2005,6 +2021,8 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_PANORAMA_ANIMATION_SPEED = "panorama_animation_speed"
 		const val KEY_PANORAMA_EXTRA_HEIGHT = "panorama_extra_height"
 		const val KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA = "panorama_bottom_gradient_alpha"
+		const val KEY_BROWSE_PANORAMA_BOTTOM_GRADIENT_ALPHA = "browse_panorama_bottom_gradient_alpha"
+		const val KEY_BROWSE_PANORAMA_BLEND_HEIGHT = "browse_panorama_blend_height"
 		const val KEY_BACKUP_TG_ENABLED = "backup_periodic_tg_enabled"
 		const val KEY_BACKUP_TG_CHAT = "backup_periodic_tg_chat_id"
 		// WebDAV backup keys

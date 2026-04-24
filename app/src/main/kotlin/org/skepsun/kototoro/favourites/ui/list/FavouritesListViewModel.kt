@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
@@ -123,6 +124,7 @@ class FavouritesListViewModel @dagger.assisted.AssistedInject constructor(
 		currentGroupTab,
 		currentSourceTags,
 		selectedCategoryIds,
+		mangaListMapper.observeDisplayChanges().onStart { emit(Unit) },
 		settings.observeAsFlow(AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID) { activeSourcePresetId }
 			.flatMapLatest { id ->
 				if (id == -1L) flowOf(null)
@@ -136,7 +138,7 @@ class FavouritesListViewModel @dagger.assisted.AssistedInject constructor(
 		val groupTab = values[4] as BrowseGroupTab
 		val sourceTags = values[5] as Set<SourceTag>
 		val categoryIds = values[6] as Set<Long>
-		val preset = values[7] as? org.skepsun.kototoro.explore.data.SourcePreset
+		val preset = values[8] as? org.skepsun.kototoro.explore.data.SourcePreset
 		mapList(list, filters, mode, groupTab, sourceTags, categoryIds, preset)
 	}.onEach {
 		isPaginationReady.set(true)

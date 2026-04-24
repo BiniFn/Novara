@@ -44,6 +44,8 @@ import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
 import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
+import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.list.ui.compose.ContentCardNsfwBadge
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.tracker.ui.feed.model.UpdatedContentHeader
 
@@ -152,6 +154,13 @@ private fun FeedUpdatedPosterCard(
 				modifier = Modifier.fillMaxSize(),
 				contentScale = ContentScale.Crop,
 			)
+            if (model.manga.isNsfw()) {
+                ContentCardNsfwBadge(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(6.dp),
+                )
+            }
 		}
 		Text(
 			text = model.title,
