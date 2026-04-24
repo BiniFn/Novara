@@ -57,6 +57,7 @@ import java.util.Locale
 import androidx.compose.foundation.layout.Arrangement
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle
 import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
 
 @Composable
@@ -65,6 +66,7 @@ fun KototoroContentCard(
     isListLayout: Boolean = false,
     isSelected: Boolean = false,
     selectionModeActive: Boolean = false,
+    cardStyle: CompactPosterCardStyle? = null,
     onClick: (Rect?) -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -92,6 +94,7 @@ fun KototoroContentCard(
             KototoroContentCardGrid(
                 item = model,
                 isSelected = isSelected,
+                cardStyle = cardStyle,
                 onClick = onClick,
                 onLongClick = onLongClick,
                 modifier = modifier
@@ -107,6 +110,7 @@ fun KototoroContentCardGrid(
     isSelected: Boolean = false,
     showSourceInfo: Boolean = false, // Ignored in favor of new badge settings
     gridScale: Float = 1f,
+    cardStyle: CompactPosterCardStyle? = null,
     onClick: (Rect?) -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -120,7 +124,7 @@ fun KototoroContentCardGrid(
 
     val manga = item.manga
     val coverUrl = manga.coverUrl
-    val posterStyle = compactPosterCardStyle(gridScale)
+    val posterStyle = cardStyle ?: compactPosterCardStyle(gridScale)
     var coverBounds by remember { mutableStateOf<Rect?>(null) }
     
     val cardShape = MaterialTheme.shapes.medium

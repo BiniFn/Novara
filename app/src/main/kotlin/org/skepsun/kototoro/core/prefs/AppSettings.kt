@@ -777,6 +777,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getBoolean(KEY_PAGES_TAB, true)
 		set(value) = prefs.edit { putBoolean(KEY_PAGES_TAB, value) }
 
+	var isDetailsTranslateButtonVisible: Boolean
+		get() = prefs.getBoolean(KEY_DETAILS_TRANSLATE_BUTTON, true)
+		set(value) = prefs.edit { putBoolean(KEY_DETAILS_TRANSLATE_BUTTON, value) }
+
 	var defaultDetailsTab: Int
 		get() = if (isPagesTabEnabled) {
 			val raw = prefs.getString(KEY_DETAILS_TAB, null)?.toIntOrNull() ?: -1
@@ -1975,6 +1979,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_CF_GRAYSCALE = "cf_grayscale"
 		const val KEY_CF_BOOK = "cf_book"
 		const val KEY_PAGES_TAB = "pages_tab"
+		const val KEY_DETAILS_TRANSLATE_BUTTON = "details_translate_button"
 		const val KEY_DETAILS_TAB = "details_tab"
 		const val KEY_DETAILS_LAST_TAB = "details_last_tab"
 		const val KEY_READING_TIME = "reading_time"

@@ -1,0 +1,12 @@
+package org.skepsun.kototoro.details.ui.pager.chapters.compose
+
+data class ChapterSelectionUiState(
+    val selectedCount: Int,
+    val canSelectAll: Boolean,
+    val canDownload: Boolean,
+    val isSingleSelection: Boolean,
+    val onClearSelection: () -> Unit,
+    val onSelectAll: () -> Unit,
+    val onDownload: () -> Unit,
+    val onMarkCurrent: () -> Unit,
+)

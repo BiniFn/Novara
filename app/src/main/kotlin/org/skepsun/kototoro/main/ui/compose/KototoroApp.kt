@@ -134,7 +134,7 @@ fun KototoroApp(
     var topBarOffset by remember { mutableFloatStateOf(0f) }
     var bottomNavOffset by remember { mutableFloatStateOf(0f) }
     var isSearchOverlayVisible by rememberSaveable { mutableStateOf(false) }
-    var topBarOverrideState by remember { mutableStateOf<ExploreSourceSelectionTopBarState?>(null) }
+    var topBarOverrideState by remember { mutableStateOf<TopBarOverrideState?>(null) }
 
     val nestedScrollConnection = remember(isNavBarPinned, topBarHeightPx, bottomNavHeightPx, isSearchOverlayVisible) {
         object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
@@ -268,33 +268,63 @@ fun KototoroApp(
 
                 if (shouldShowChrome) {
                     if (topBarOverrideState != null) {
-                        ExploreSelectionTopBar(
-                            selectedCount = topBarOverrideState!!.selectedCount,
-                            isSingleSelection = topBarOverrideState!!.isSingleSelection,
-                            canPin = topBarOverrideState!!.canPin,
-                            canUnpin = topBarOverrideState!!.canUnpin,
-                            canDisable = topBarOverrideState!!.canDisable,
-                            canDelete = topBarOverrideState!!.canDelete,
-                            onClearSelection = topBarOverrideState!!.onClearSelection,
-                            onSettings = topBarOverrideState!!.onSettings,
-                            onDisable = topBarOverrideState!!.onDisable,
-                            onDelete = topBarOverrideState!!.onDelete,
-                            onShortcut = topBarOverrideState!!.onShortcut,
-                            onPin = topBarOverrideState!!.onPin,
-                            onUnpin = topBarOverrideState!!.onUnpin,
-                            modifier = Modifier
-                                .align(if (isLandscapeNavigation) Alignment.TopStart else Alignment.TopCenter)
-                                .then(if (isLandscapeNavigation) Modifier.fillMaxWidth() else Modifier)
-                                .padding(start = visibleStartInsetDp)
-                                .offset { androidx.compose.ui.unit.IntOffset(0, topBarOffset.toInt()) }
-                                .onGloballyPositioned { coords ->
-                                    val newHeight = coords.size.height
-                                    if (topBarHeightPx != newHeight) {
-                                        topBarHeightPx = newHeight
-                                        onTopBarHeightChanged(newHeight)
-                                    }
-                                },
-                        )
+                        when (val overrideState = topBarOverrideState) {
+                            is ExploreSourceSelectionTopBarState -> {
+                                ExploreSelectionTopBar(
+                                    selectedCount = overrideState.selectedCount,
+                                    isSingleSelection = overrideState.isSingleSelection,
+                                    canPin = overrideState.canPin,
+                                    canUnpin = overrideState.canUnpin,
+                                    canDisable = overrideState.canDisable,
+                                    canDelete = overrideState.canDelete,
+                                    onClearSelection = overrideState.onClearSelection,
+                                    onSettings = overrideState.onSettings,
+                                    onDisable = overrideState.onDisable,
+                                    onDelete = overrideState.onDelete,
+                                    onShortcut = overrideState.onShortcut,
+                                    onPin = overrideState.onPin,
+                                    onUnpin = overrideState.onUnpin,
+                                    modifier = Modifier
+                                        .align(if (isLandscapeNavigation) Alignment.TopStart else Alignment.TopCenter)
+                                        .then(if (isLandscapeNavigation) Modifier.fillMaxWidth() else Modifier)
+                                        .padding(start = visibleStartInsetDp)
+                                        .offset { androidx.compose.ui.unit.IntOffset(0, topBarOffset.toInt()) }
+                                        .onGloballyPositioned { coords ->
+                                            val newHeight = coords.size.height
+                                            if (topBarHeightPx != newHeight) {
+                                                topBarHeightPx = newHeight
+                                                onTopBarHeightChanged(newHeight)
+                                            }
+                                        },
+                                )
+                            }
+
+                            is ContentSelectionTopBarOverrideState -> {
+                                org.skepsun.kototoro.list.ui.compose.KototoroSelectionTopBar(
+                                    selectedCount = overrideState.selectedCount,
+                                    isAllNonLocal = overrideState.isAllNonLocal,
+                                    isSingleSelection = overrideState.isSingleSelection,
+                                    showRemoveOption = overrideState.showRemoveOption,
+                                    supportedActions = overrideState.supportedActions,
+                                    onClearSelection = overrideState.onClearSelection,
+                                    onActionClick = overrideState.onActionClick,
+                                    modifier = Modifier
+                                        .align(if (isLandscapeNavigation) Alignment.TopStart else Alignment.TopCenter)
+                                        .then(if (isLandscapeNavigation) Modifier.fillMaxWidth() else Modifier)
+                                        .padding(start = visibleStartInsetDp)
+                                        .offset { androidx.compose.ui.unit.IntOffset(0, topBarOffset.toInt()) }
+                                        .onGloballyPositioned { coords ->
+                                            val newHeight = coords.size.height
+                                            if (topBarHeightPx != newHeight) {
+                                                topBarHeightPx = newHeight
+                                                onTopBarHeightChanged(newHeight)
+                                            }
+                                        },
+                                )
+                            }
+
+                            null -> Unit
+                        }
                     } else {
                         KototoroTopBar(
                             query = query,

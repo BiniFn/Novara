@@ -50,6 +50,7 @@ data class AppearanceSettingsUiState(
     val panoramaCoverExtraHeight: Int,
     val panoramaBottomGradientAlpha: Int,
     val isPagesTabEnabled: Boolean,
+    val isDetailsTranslateButtonVisible: Boolean,
     val defaultDetailsTab: Int,
     val searchSuggestionTypes: Set<SearchSuggestionType>,
     val isSharedElementTransitionsEnabled: Boolean,
@@ -123,6 +124,7 @@ fun AppearanceSettingsScreen(
     onPanoramaExtraHeightChange: (Int) -> Unit,
     onPanoramaGradientAlphaChange: (Int) -> Unit,
     onPagesTabEnabledChange: (Boolean) -> Unit,
+    onDetailsTranslateButtonVisibleChange: (Boolean) -> Unit,
     onDefaultDetailsTabChange: (Int) -> Unit,
     onSearchSuggestionTypesChange: (Set<SearchSuggestionType>) -> Unit,
     onNavConfigClick: () -> Unit,
@@ -355,6 +357,13 @@ fun AppearanceSettingsScreen(
                     checked = state.isPagesTabEnabled,
                     summary = stringResource(R.string.show_pages_thumbs_summary),
                     onCheckedChange = onPagesTabEnabledChange,
+                )
+                SettingsSectionDivider()
+                SettingsSwitchPreference(
+                    title = stringResource(R.string.details_translate_button_visible),
+                    checked = state.isDetailsTranslateButtonVisible,
+                    summary = stringResource(R.string.details_translate_button_visible_summary),
+                    onCheckedChange = onDetailsTranslateButtonVisibleChange,
                 )
                 if (state.isPagesTabEnabled) {
                     SettingsSectionDivider()

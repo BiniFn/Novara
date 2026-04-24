@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -15,15 +16,18 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.details.ui.pager.pages.PageThumbnail
+import org.skepsun.kototoro.list.ui.model.ListHeader
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -119,17 +123,28 @@ fun PagesScreen(
 	onSelectionActionClick: (Int) -> Unit,
 	onClearSelection: () -> Unit,
 ) {
+    val context = LocalContext.current
 	Box(modifier = Modifier.fillMaxSize()) {
 		if (isLoading) {
 			CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
 		} else if (items.isEmpty()) {
-			// Optional empty state
+            emptyMessageResId?.let {
+                Text(
+                    text = stringResource(it),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(16.dp),
+                )
+            }
 		} else {
 			val listState = rememberLazyGridState()
-			val thumbnails = items.filterIsInstance<PageThumbnail>()
 
-			LaunchedEffect(thumbnails) {
-				val currentIndex = thumbnails.indexOfFirst { it.isCurrent }
+			LaunchedEffect(items) {
+				val currentIndex = items.indexOfFirst { item ->
+                    item is PageThumbnail && item.isCurrent
+                }
 				if (currentIndex >= 0 && listState.firstVisibleItemIndex == 0) {
 					listState.animateScrollToItem(currentIndex)
 				}
@@ -143,14 +158,45 @@ fun PagesScreen(
 				verticalArrangement = Arrangement.spacedBy(8.dp),
 				modifier = Modifier.fillMaxSize(),
 			) {
-				items(thumbnails, key = { it.page.id }) { thumbnail ->
-					PageThumbnailCard(
-						thumbnail = thumbnail,
-						isSelected = selectedItemIds.contains(thumbnail.page.id),
-						onClick = { onItemClick(thumbnail) },
-						onLongClick = { onItemLongClick(thumbnail) },
-					)
-				}
+                items(
+                    count = items.size,
+                    key = { index ->
+                        when (val item = items[index]) {
+                            is PageThumbnail -> "page_${item.page.id}"
+                            is ListHeader -> "header_${item.getText(context)}_$index"
+                            else -> "item_${item::class.java.simpleName}_$index"
+                        }
+                    },
+                    span = { index ->
+                        if (items[index] is ListHeader) {
+                            GridItemSpan(maxLineSpan)
+                        } else {
+                            GridItemSpan(1)
+                        }
+                    },
+                ) { index ->
+                    when (val item = items[index]) {
+                        is PageThumbnail -> {
+                            PageThumbnailCard(
+                                thumbnail = item,
+                                isSelected = selectedItemIds.contains(item.page.id),
+                                onClick = { onItemClick(item) },
+                                onLongClick = { onItemLongClick(item) },
+                            )
+                        }
+
+                        is ListHeader -> {
+                            Text(
+                                text = item.getText(context)?.toString().orEmpty(),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 12.dp, bottom = 4.dp),
+                            )
+                        }
+                    }
+                }
 			}
 		}
 

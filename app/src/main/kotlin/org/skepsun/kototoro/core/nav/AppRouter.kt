@@ -6,10 +6,16 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.DialogInterface
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.View
+import android.view.PixelCopy
+import android.util.Log
 import androidx.annotation.CheckResult
 import androidx.annotation.UiContext
 import androidx.core.app.ShareCompat
@@ -187,13 +193,29 @@ class AppRouter private constructor(
     }
 
     fun openDetails(manga: Content, anchor: View? = null) {
-        if (settings.isSharedElementTransitionsEnabled) {
-            DetailsCoverTransitionStore.captureBackground(manga, anchor)
+        val context = contextOrNull() ?: return
+        val intent = detailsIntent(context, DetailsOrigin.LocalMangaContent(ParcelableContent(manga)))
+        val launchActivity: FragmentActivity? = activity ?: fragment?.activity
+        val startDetailsActivity = {
+            startActivity(intent, null)
+            launchActivity?.overridePendingTransition(0, 0)
+            Unit
         }
-        startActivity(
-            detailsIntent(contextOrNull() ?: return, DetailsOrigin.LocalMangaContent(ParcelableContent(manga))),
-            if (settings.isSharedElementTransitionsEnabled) anchor?.let { sceneTransitionOptionsOf(it) } else null
-        )
+        if (!settings.isSharedElementTransitionsEnabled) {
+            startDetailsActivity()
+            return
+        }
+        val activityForCopy = anchor?.context?.findActivity()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && activityForCopy != null) {
+            captureDetailsBackgroundWithPixelCopy(
+                manga = manga,
+                activity = activityForCopy,
+                onComplete = startDetailsActivity,
+            )
+        } else {
+            DetailsCoverTransitionStore.captureBackground(manga, anchor)
+            startDetailsActivity()
+        }
     }
 
     fun openDetails(mangaId: Long) {
@@ -952,6 +974,41 @@ class AppRouter private constructor(
         true
     } catch (_: ActivityNotFoundException) {
         false
+    }
+
+    private fun captureDetailsBackgroundWithPixelCopy(
+        manga: Content,
+        activity: Activity,
+        onComplete: () -> Unit,
+    ) {
+        val decorView = activity.window?.decorView
+        val width = decorView?.width ?: 0
+        val height = decorView?.height ?: 0
+        if (width <= 0 || height <= 0) {
+            Log.d("HeroTransition", "pixelCopy: skip key=${manga.source.name}|${manga.url} reason=invalid_window_size")
+            onComplete()
+            return
+        }
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        runCatching {
+            PixelCopy.request(
+                activity.window,
+                bitmap,
+                { result ->
+                    if (result == PixelCopy.SUCCESS) {
+                        DetailsCoverTransitionStore.setBackgroundSnapshot(manga, bitmap)
+                        Log.d("HeroTransition", "pixelCopy: success key=${manga.source.name}|${manga.url} size=${bitmap.width}x${bitmap.height}")
+                    } else {
+                        Log.d("HeroTransition", "pixelCopy: failed key=${manga.source.name}|${manga.url} code=$result")
+                    }
+                    onComplete()
+                },
+                Handler(Looper.getMainLooper()),
+            )
+        }.onFailure {
+            Log.d("HeroTransition", "pixelCopy: exception key=${manga.source.name}|${manga.url} error=${it.javaClass.simpleName}:${it.message}")
+            onComplete()
+        }
     }
 
     private fun startActivity(activityClass: Class<out Activity>) {

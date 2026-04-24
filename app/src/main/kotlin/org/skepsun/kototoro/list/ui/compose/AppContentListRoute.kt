@@ -3,10 +3,10 @@ package org.skepsun.kototoro.list.ui.compose
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.activity.compose.BackHandler
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
@@ -14,12 +14,19 @@ import org.skepsun.kototoro.list.ui.ContentListViewModel
 import org.skepsun.kototoro.main.ui.MainActivity
 import androidx.compose.runtime.saveable.rememberSaveable
 import org.skepsun.kototoro.details.ui.DetailsCoverTransitionStore
+import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
+import org.skepsun.kototoro.alternatives.ui.AutoFixService
+import org.skepsun.kototoro.core.util.ShareHelper
+import org.skepsun.kototoro.core.model.isLocal
+import org.skepsun.kototoro.main.ui.compose.ContentSelectionTopBarOverrideState
+import org.skepsun.kototoro.main.ui.compose.TopBarOverrideState
 
 @Composable
 fun <VM : ContentListViewModel> AppContentListRoute(
     viewModel: VM,
     contentPadding: PaddingValues,
     appRouter: AppRouter,
+    onTopBarOverrideChanged: (TopBarOverrideState?) -> Unit = {},
     showRemoveOption: Boolean = false,
     isContentTypeFilterVisible: Boolean = true,
     isSourceTagFilterVisible: Boolean = true,
@@ -38,8 +45,99 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     var composeSelectionIds by rememberSaveable { mutableStateOf(emptySet<Long>()) }
 
     val activity = LocalContext.current as? androidx.activity.ComponentActivity
+    val context = LocalContext.current
     val rootView = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val selectedModels = remember(items, composeSelectionIds) {
+        items
+            .filterIsInstance<org.skepsun.kototoro.list.ui.model.ContentListModel>()
+            .filter { it.id in composeSelectionIds }
+    }
+
+    BackHandler(enabled = composeSelectionIds.isNotEmpty()) {
+        composeSelectionIds = emptySet()
+    }
+
+    SideEffect {
+        if (composeSelectionIds.isNotEmpty()) {
+            val supportedActions = buildSet {
+                add(SelectionAction.SELECT_ALL)
+                add(SelectionAction.SHARE)
+                add(SelectionAction.FAVOURITE)
+                add(SelectionAction.SAVE)
+                if (showRemoveOption || onRemoveSelection != null) {
+                    add(SelectionAction.REMOVE)
+                }
+            }
+            onTopBarOverrideChanged(
+                ContentSelectionTopBarOverrideState(
+                    selectedCount = composeSelectionIds.size,
+                    isAllNonLocal = selectedModels.none { it.manga.isLocal },
+                    isSingleSelection = composeSelectionIds.size == 1,
+                    showRemoveOption = showRemoveOption,
+                    supportedActions = supportedActions,
+                    onClearSelection = { composeSelectionIds = emptySet() },
+                    onActionClick = { action ->
+                        when (action) {
+                            SelectionAction.SELECT_ALL -> {
+                                composeSelectionIds = items
+                                    .filterIsInstance<org.skepsun.kototoro.list.ui.model.ContentListModel>()
+                                    .mapTo(linkedSetOf()) { it.id }
+                            }
+
+                            SelectionAction.REMOVE -> {
+                                onRemoveSelection?.invoke(composeSelectionIds)
+                                composeSelectionIds = emptySet()
+                            }
+
+                            SelectionAction.SHARE -> {
+                                if (onShareSelection != null) {
+                                    onShareSelection(composeSelectionIds)
+                                } else {
+                                    ShareHelper(context).shareContentLinks(selectedModels.map { it.manga })
+                                }
+                                composeSelectionIds = emptySet()
+                            }
+
+                            SelectionAction.FAVOURITE -> {
+                                appRouter.showFavoriteDialog(selectedModels.map { it.manga })
+                                composeSelectionIds = emptySet()
+                            }
+
+                            SelectionAction.SAVE -> {
+                                appRouter.showDownloadDialog(selectedModels.map { it.manga }, rootView)
+                                composeSelectionIds = emptySet()
+                            }
+
+                            SelectionAction.EDIT_OVERRIDE -> {
+                                selectedModels.singleOrNull()?.manga?.let(appRouter::openContentOverrideConfig)
+                                composeSelectionIds = emptySet()
+                            }
+
+                            SelectionAction.FIX -> {
+                                buildAlertDialog(context, isCentered = true) {
+                                    setTitle(org.skepsun.kototoro.R.string.fix)
+                                    setMessage(org.skepsun.kototoro.R.string.manga_fix_prompt)
+                                    setNegativeButton(android.R.string.cancel, null)
+                                    setPositiveButton(org.skepsun.kototoro.R.string.fix) { _, _ ->
+                                        AutoFixService.start(context, composeSelectionIds)
+                                    }
+                                }.show()
+                            }
+                        }
+                    },
+                ),
+            )
+        } else {
+            onTopBarOverrideChanged(null)
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            onTopBarOverrideChanged(null)
+        }
+    }
 
     // Error observation
     LaunchedEffect(viewModel.onError) {
@@ -166,5 +264,6 @@ fun <VM : ContentListViewModel> AppContentListRoute(
             onEmptyActionClick?.invoke() ?: viewModel.onRetry()
         },
         onRetry = viewModel::onRetry,
+        showInlineSelectionTopBar = false,
     )
 }

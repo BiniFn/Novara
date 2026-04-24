@@ -40,6 +40,7 @@ fun HistoryScreen(
     onSelectionAction: (SelectionAction) -> Unit,
     onClearHistoryClick: () -> Unit,
     onStatsClick: () -> Unit,
+    showInlineSelectionTopBar: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier) {
@@ -58,6 +59,7 @@ fun HistoryScreen(
             onItemLongClick = onItemLongClick,
             onClearSelection = onClearSelection,
             onSelectionAction = onSelectionAction,
+            showInlineSelectionTopBar = showInlineSelectionTopBar,
             listHeader = {
                 Row(
                     modifier = Modifier

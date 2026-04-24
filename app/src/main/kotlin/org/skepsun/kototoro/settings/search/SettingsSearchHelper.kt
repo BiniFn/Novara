@@ -60,6 +60,7 @@ class SettingsSearchHelper @Inject constructor(
 			"panorama_extra_height" to R.string.pref_panorama_extra_height,
 			"panorama_bottom_gradient_alpha" to R.string.pref_panorama_gradient_alpha,
 			"pages_tab" to R.string.show_pages_thumbs,
+			"details_translate_button" to R.string.details_translate_button_visible,
 			"details_tab" to R.string.default_tab,
 			"search_suggest_types" to R.string.search_suggestions,
 			"nav_main" to R.string.main_screen_sections,

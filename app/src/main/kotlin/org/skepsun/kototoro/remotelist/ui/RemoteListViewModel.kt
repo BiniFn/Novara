@@ -61,10 +61,10 @@ open class RemoteListViewModel @Inject constructor(
 	private val exploreRepository: ExploreRepository,
 	sourcesRepository: ContentSourcesRepository,
 	mangaDataRepository: ContentDataRepository,
-	@LocalStorageChanges localStorageChanges: SharedFlow<LocalContent?>
+	@LocalStorageChanges localStorageChanges: SharedFlow<LocalContent?>,
 ) : ContentListViewModel(settings, mangaDataRepository, localStorageChanges), FilterCoordinator.Owner {
 
-	private val initialSource = ContentSource(savedStateHandle[org.skepsun.kototoro.core.nav.AppRouter.KEY_SOURCE])
+	private val initialSource = resolveInitialSource(savedStateHandle)
 	val isRandomLoading = MutableStateFlow(false)
 	val onOpenContent = MutableEventFlow<Content>()
     val onSourceBroken = MutableEventFlow<Unit>()
@@ -211,6 +211,10 @@ open class RemoteListViewModel @Inject constructor(
 		textSecondary = 0,
 		actionStringRes = if (canResetFilter) R.string.reset_filter else 0,
 	)
+
+	protected open fun resolveInitialSource(savedStateHandle: SavedStateHandle): ParserContentSource {
+		return ContentSource(savedStateHandle[org.skepsun.kototoro.core.nav.AppRouter.KEY_SOURCE])
+	}
 
 	protected open suspend fun onBuildList(list: MutableList<ListModel>) = Unit
 

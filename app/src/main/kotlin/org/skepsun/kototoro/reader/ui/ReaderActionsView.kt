@@ -57,6 +57,7 @@ class ReaderActionsView @JvmOverloads constructor(
 	private var isSliderChanged = false
 	private var isSliderTracking = false
 	private var pageLabelFormatter: ((Int, Int) -> String)? = null
+	private var translateButtonRequestedVisible = false
 
 	var isSliderEnabled: Boolean
 		get() = binding.slider.isEnabled
@@ -218,10 +219,9 @@ class ReaderActionsView @JvmOverloads constructor(
 	 * 显示/隐藏翻译按钮（仅在小说阅读器中显示）
 	 */
 	fun setTranslateButtonVisible(visible: Boolean) {
-		binding.buttonTranslate.isVisible = visible
-		// 按钮在 FrameLayout 容器内，adjustLayoutParams() 仅在 init 时执行一次
-		// 此处手动同步父容器可见性，避免父容器仍处于 GONE 状态
-		(binding.buttonTranslate.parent as? android.view.View)?.isVisible = visible
+		translateButtonRequestedVisible = visible
+		applyTranslateButtonVisibility()
+		adjustLayoutParams()
 	}
 
 	/**
@@ -258,7 +258,14 @@ class ReaderActionsView @JvmOverloads constructor(
 		binding.buttonTimer.isVisible = ReaderControl.TIMER in controls
 		binding.buttonBookmark.isVisible = ReaderControl.BOOKMARK in controls
 		binding.slider.isVisible = ReaderControl.SLIDER in controls
+		applyTranslateButtonVisibility()
 		adjustLayoutParams()
+	}
+
+	private fun applyTranslateButtonVisibility() {
+		val visible = translateButtonRequestedVisible && ReaderControl.TRANSLATE in settings.readerControls
+		binding.buttonTranslate.isVisible = visible
+		(binding.buttonTranslate.parent as? android.view.View)?.isVisible = visible
 	}
 
 	private fun updatePagesSheetButton() {

@@ -17,6 +17,7 @@ import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.firstNotNull
 import org.skepsun.kototoro.core.util.ext.requireValue
 import org.skepsun.kototoro.details.data.ContentDetails
+import org.skepsun.kototoro.local.data.input.LocalContentParser
 import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.reader.domain.ChaptersLoader
@@ -101,6 +102,10 @@ class PagesViewModel @Inject constructor(
 
 	private suspend fun doInit(state: State) {
 		chaptersLoader.init(state.details)
+        loadAllLocalChapterThumbnails(state)?.let {
+            thumbnails.value = it
+            return
+        }
 		val initialChapterId = state.readerState?.chapterId?.takeIf {
 			chaptersLoader.peekChapter(it) != null
 		} ?: state.details.allChapters.firstOrNull()?.id ?: return
@@ -115,7 +120,39 @@ class PagesViewModel @Inject constructor(
 			}
 		}
 		updateList(state.readerState)
-	}
+    }
+
+    private suspend fun loadAllLocalChapterThumbnails(state: State): List<ListModel>? {
+        val localChapters = state.details.allChapters
+            .filter { chapter ->
+                state.branch == null || chapter.branch == state.branch
+            }
+            .filter { chapter ->
+                chapter.url.startsWith("file://") ||
+                    chapter.url.startsWith("zip://") ||
+                    chapter.url.startsWith("file+zip://") ||
+                    chapter.url.startsWith("content://")
+            }
+        if (localChapters.isEmpty()) {
+            return null
+        }
+        return buildList {
+            localChapters.forEach { chapter ->
+                add(ListHeader(chapter))
+                val pages = LocalContentParser(android.net.Uri.parse(chapter.url)).getPages(chapter)
+                addAll(
+                    pages.mapIndexed { index, page ->
+                        PageThumbnail(
+                            isCurrent = state.readerState?.let { readerState ->
+                                chapter.id == readerState.chapterId && index == readerState.page
+                            } == true,
+                            page = ReaderPage(page, index, chapter.id),
+                        )
+                    },
+                )
+            }
+        }
+    }
 
 	private fun loadPrevNextChapter(isNext: Boolean): Job = launchJob(Dispatchers.Default) {
 		val indicator = if (isNext) isLoadingDown else isLoadingUp

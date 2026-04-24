@@ -1020,6 +1020,10 @@ class DetailsViewModel @Inject constructor(
 	}
 
 	private fun refreshTranslateActionVisibility(metadataLanguage: String?) {
+		if (!settings.isDetailsTranslateButtonVisible) {
+			showTranslateAction.value = false
+			return
+		}
 		val targetLanguage = currentTargetLang().takeIf { it.isNotBlank() }?.normalizedLanguageCode()
 		if (targetLanguage.isNullOrBlank()) {
 			showTranslateAction.value = false
@@ -1095,11 +1099,19 @@ class DetailsViewModel @Inject constructor(
 				)
 			}
 		} else {
-			val source = currentDisplayedDetails?.local?.manga?.source
-				?: baseLoadedDetails
+			val source = baseLoadedDetails
+				?.toContent()
+				?.source
+				?.takeUnless { it.name.startsWith("TRACKING_") }
+				?: currentDisplayedDetails
 					?.toContent()
 					?.source
 					?.takeUnless { it.name.startsWith("TRACKING_") }
+				?: currentDisplayedDetails
+					?.takeIf { it.isLocal }
+					?.local
+					?.manga
+					?.source
 			source?.let {
 				listOf(
 					DetailsSourceOption(

@@ -72,6 +72,7 @@ fun KototoroContentListScreen(
     onQuickFilterOptionClick: (ListFilterOption) -> Unit = {},
     onEmptyActionClick: () -> Unit = {},
     onRetry: () -> Unit = {},
+    showInlineSelectionTopBar: Boolean = true,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     listHeader: (@Composable () -> Unit)? = null
@@ -229,14 +230,14 @@ fun KototoroContentListScreen(
 
         // Selection Contextual TopBar overlay
         AnimatedVisibility(
-            visible = selectedItemsIds.isNotEmpty(),
+            visible = showInlineSelectionTopBar && selectedItemsIds.isNotEmpty(),
             enter = slideInVertically(initialOffsetY = { -it }),
             exit = slideOutVertically(targetOffsetY = { -it }),
             modifier = Modifier.align(Alignment.TopCenter)
         ) {
             val selectedModels = items.mapNotNull { it as? ContentListModel }.filter { it.id in selectedItemsIds }
             val isAllNonLocal = selectedModels.none { it.manga.isLocal }
-            
+
             KototoroSelectionTopBar(
                 selectedCount = selectedItemsIds.size,
                 isAllNonLocal = isAllNonLocal,

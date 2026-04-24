@@ -2347,4 +2347,6 @@
     <string name="clear_translation">Clear translation</string>
     <string name="details_show_original">Show original</string>
     <string name="details_show_translation">Show translation</string>
+    <string name="details_translate_button_visible">Show translate button in details</string>
+    <string name="details_translate_button_visible_summary">Show the translation action on the work details page when translation is available</string>
 </resources>

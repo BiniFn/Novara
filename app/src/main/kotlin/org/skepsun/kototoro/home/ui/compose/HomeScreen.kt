@@ -158,8 +158,8 @@ fun HomeScreen(
             .nestedScroll(rememberNestedScrollInteropConnection())
             .verticalScroll(scrollState)
             .padding(
-                start = systemBarsPadding.calculateLeftPadding(layoutDirection) + 12.dp,
-                end = systemBarsPadding.calculateRightPadding(layoutDirection) + 12.dp,
+                start = systemBarsPadding.calculateLeftPadding(layoutDirection) + 8.dp,
+                end = systemBarsPadding.calculateRightPadding(layoutDirection) + 8.dp,
                 top = contentPadding.calculateTopPadding(),
                 bottom = contentPadding.calculateBottomPadding(),
             )
@@ -250,7 +250,7 @@ private fun HomeHighlightsSections(
                 )
                 if (historyItems.isNotEmpty() || updateItems.isNotEmpty() || recommendationItems.isNotEmpty() || recentSearches.isNotEmpty()) {
                     androidx.compose.material3.HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
                     )
                 }
@@ -259,8 +259,8 @@ private fun HomeHighlightsSections(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(
-                        start = 14.dp,
-                        end = 14.dp,
+                        start = 10.dp,
+                        end = 10.dp,
                         top = if (heroEntries.isNotEmpty()) 0.dp else 10.dp,
                         bottom = 10.dp,
                     ),
@@ -359,9 +359,11 @@ private fun HomeHeroCarousel(
             .fillMaxWidth()
             .padding(bottom = 4.dp),
     ) {
-        val trailingPeek = 52.dp
-        val pageSpacing = 6.dp
-        val cardWidth = (maxWidth - trailingPeek).coerceAtLeast(264.dp)
+        val sidePeek = 18.dp
+        val pageSpacing = 2.dp
+        val horizontalContentPadding = 8.dp
+        val cardWidth = (maxWidth - (horizontalContentPadding * 2) - (sidePeek * 2) - pageSpacing)
+            .coerceAtLeast(264.dp)
 
         Box(modifier = Modifier.fillMaxWidth()) {
             HorizontalPager(
@@ -369,6 +371,7 @@ private fun HomeHeroCarousel(
                 pageSize = PageSize.Fixed(cardWidth),
                 pageSpacing = pageSpacing,
                 beyondViewportPageCount = 2,
+                contentPadding = PaddingValues(horizontal = horizontalContentPadding),
                 modifier = Modifier.fillMaxWidth(),
             ) { page ->
                 val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction)
@@ -393,7 +396,7 @@ private fun HomeHeroCarousel(
                 Row(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
@@ -434,7 +437,7 @@ private fun HomeHeroCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(216.dp)
+            .height(196.dp)
             .clip(MaterialTheme.shapes.large)
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable { onClick(content, coverBounds) },
@@ -470,13 +473,13 @@ private fun HomeHeroCard(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = bottomInset),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                .padding(start = 14.dp, top = 14.dp, end = 14.dp, bottom = bottomInset),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
             Box(
                 modifier = Modifier
-                    .size(width = 96.dp, height = 132.dp)
+                    .size(width = 88.dp, height = 122.dp)
                     .onGloballyPositioned { coordinates ->
                         coverBounds = coordinates.boundsInRoot()
                     }
@@ -656,8 +659,8 @@ private fun HomeContentRowSection(
         LazyRow(
             state = rowState,
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            contentPadding = PaddingValues(horizontal = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 0.dp),
         ) {
             itemsIndexed(
                 items = items.take(12),

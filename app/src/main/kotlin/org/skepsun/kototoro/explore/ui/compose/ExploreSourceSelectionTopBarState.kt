@@ -1,5 +1,7 @@
 package org.skepsun.kototoro.explore.ui.compose
 
+import org.skepsun.kototoro.main.ui.compose.TopBarOverrideState
+
 data class ExploreSourceSelectionTopBarState(
     val selectedCount: Int,
     val isSingleSelection: Boolean,
@@ -14,4 +16,4 @@ data class ExploreSourceSelectionTopBarState(
     val onShortcut: () -> Unit,
     val onPin: () -> Unit,
     val onUnpin: () -> Unit,
-)
+) : TopBarOverrideState

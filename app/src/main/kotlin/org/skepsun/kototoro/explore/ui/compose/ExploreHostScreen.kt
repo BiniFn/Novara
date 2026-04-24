@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.explore.ui.compose
 
 import androidx.annotation.DrawableRes
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -204,6 +205,10 @@ fun KototoroExploreHostRoute(
         sources
             .filter { it.id in selectedSourceIds }
             .map { it.source }
+    }
+
+    BackHandler(enabled = selectedSourceIds.isNotEmpty()) {
+        selectedSourceIds = emptySet()
     }
 
     SideEffect {

@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.SideEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.compose.KototoroExploreHostRoute
@@ -32,16 +33,18 @@ import androidx.fragment.app.FragmentActivity
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import org.skepsun.kototoro.core.util.ShareHelper
+import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.search.ui.compose.SearchNavigation
 import org.skepsun.kototoro.search.ui.compose.SearchNavigationRequest
 import org.skepsun.kototoro.search.ui.compose.SearchResultsRoute
+import androidx.activity.compose.BackHandler
 
 @Composable
 fun AppNavGraph(
     navController: NavHostController,
     contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp),
     modifier: Modifier = Modifier,
-    onExploreSourceSelectionTopBarChanged: (ExploreSourceSelectionTopBarState?) -> Unit = {},
+    onExploreSourceSelectionTopBarChanged: (TopBarOverrideState?) -> Unit = {},
     onOpenSearch: (SearchNavigationRequest) -> Unit = {},
 ) {
     val activity = LocalContext.current as FragmentActivity
@@ -201,6 +204,57 @@ fun AppNavGraph(
             val selectedSourceTags by viewModel.currentSourceTags.collectAsStateWithLifecycle(initialValue = emptySet())
             var selectedItemsIds by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(emptySet<Long>()) }
             var showClearDialog by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+            val selectedModels = remember(items, selectedItemsIds) {
+                items
+                    .filterIsInstance<org.skepsun.kototoro.list.ui.model.ContentListModel>()
+                    .filter { it.id in selectedItemsIds }
+            }
+
+            BackHandler(enabled = selectedItemsIds.isNotEmpty()) {
+                selectedItemsIds = emptySet()
+            }
+
+            SideEffect {
+                if (selectedItemsIds.isNotEmpty()) {
+                    onExploreSourceSelectionTopBarChanged(
+                        ContentSelectionTopBarOverrideState(
+                            selectedCount = selectedItemsIds.size,
+                            isAllNonLocal = selectedModels.none { it.manga.isLocal },
+                            isSingleSelection = selectedItemsIds.size == 1,
+                            showRemoveOption = true,
+                            supportedActions = setOf(
+                                org.skepsun.kototoro.list.ui.compose.SelectionAction.SELECT_ALL,
+                                org.skepsun.kototoro.list.ui.compose.SelectionAction.REMOVE,
+                            ),
+                            onClearSelection = { selectedItemsIds = emptySet() },
+                            onActionClick = { action ->
+                                when (action) {
+                                    org.skepsun.kototoro.list.ui.compose.SelectionAction.SELECT_ALL -> {
+                                        selectedItemsIds = items
+                                            .filterIsInstance<org.skepsun.kototoro.list.ui.model.ContentListModel>()
+                                            .mapTo(linkedSetOf()) { it.id }
+                                    }
+
+                                    org.skepsun.kototoro.list.ui.compose.SelectionAction.REMOVE -> {
+                                        viewModel.removeFromHistory(selectedItemsIds)
+                                        selectedItemsIds = emptySet()
+                                    }
+
+                                    else -> Unit
+                                }
+                            },
+                        ),
+                    )
+                } else {
+                    onExploreSourceSelectionTopBarChanged(null)
+                }
+            }
+
+            DisposableEffect(Unit) {
+                onDispose {
+                    onExploreSourceSelectionTopBarChanged(null)
+                }
+            }
 
             DisposableEffect(mainActivity, viewModel, selectedGroupTab, selectedSourceTags) {
                 val callback = object : SearchBarFilterViewController.Callback {
@@ -261,7 +315,8 @@ fun AppNavGraph(
                     }
                 },
                 onClearHistoryClick = { showClearDialog = true },
-                onStatsClick = { appRouter.openStatistic() }
+                onStatsClick = { appRouter.openStatistic() },
+                showInlineSelectionTopBar = false,
             )
 
             if (showClearDialog) {
@@ -392,7 +447,13 @@ fun AppNavGraph(
                 },
                 onUpdatedContentMoreClick = {
                     navController.navigate("updated")
-                }
+                },
+                selectedGroupTab = selectedGroupTab,
+                selectedSourceTags = selectedSourceTags,
+                onGroupTabSelected = { tab ->
+                    viewModel.setSelectedGroupTab(if (selectedGroupTab == tab) BrowseGroupTab.All else tab)
+                },
+                onSourceTagToggled = viewModel::toggleSourceTag,
             )
         }
         composable("local") { 
@@ -402,6 +463,7 @@ fun AppNavGraph(
                 viewModel = viewModel,
                 contentPadding = contentPadding,
                 appRouter = appRouter,
+                onTopBarOverrideChanged = onExploreSourceSelectionTopBarChanged,
                 showRemoveOption = true,
                 isContentTypeFilterVisible = false,
                 isSourceTagFilterVisible = false,
@@ -432,6 +494,7 @@ fun AppNavGraph(
                 viewModel = viewModel,
                 contentPadding = contentPadding,
                 appRouter = appRouter,
+                onTopBarOverrideChanged = onExploreSourceSelectionTopBarChanged,
                 showRemoveOption = false,
                 isContentTypeFilterVisible = true,
                 isSourceTagFilterVisible = true,
@@ -490,6 +553,7 @@ fun AppNavGraph(
                 viewModel = viewModel,
                 contentPadding = contentPadding,
                 appRouter = appRouter,
+                onTopBarOverrideChanged = onExploreSourceSelectionTopBarChanged,
                 showRemoveOption = true,
                 isContentTypeFilterVisible = true,
                 isSourceTagFilterVisible = true,

@@ -101,6 +101,8 @@ class AppearanceSettingsFragment : Fragment() {
             val panoramaBottomGradientAlpha =
                 settings.observeAsState(AppSettings.KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA) { panoramaBottomGradientAlpha }.value
             val isPagesTabEnabled = settings.observeAsState(AppSettings.KEY_PAGES_TAB) { isPagesTabEnabled }.value
+            val isDetailsTranslateButtonVisible =
+                settings.observeAsState(AppSettings.KEY_DETAILS_TRANSLATE_BUTTON) { isDetailsTranslateButtonVisible }.value
             val defaultDetailsTab =
                 settings.observeAsState(AppSettings.KEY_PAGES_TAB, AppSettings.KEY_DETAILS_TAB) { defaultDetailsTab }.value
             val searchSuggestionTypes =
@@ -190,6 +192,7 @@ class AppearanceSettingsFragment : Fragment() {
                 panoramaCoverExtraHeight = panoramaCoverExtraHeight,
                 panoramaBottomGradientAlpha = panoramaBottomGradientAlpha,
                 isPagesTabEnabled = isPagesTabEnabled,
+                isDetailsTranslateButtonVisible = isDetailsTranslateButtonVisible,
                 defaultDetailsTab = defaultDetailsTab,
                 searchSuggestionTypes = searchSuggestionTypes,
                 isSharedElementTransitionsEnabled = isSharedElementTransitionsEnabled,
@@ -243,6 +246,7 @@ class AppearanceSettingsFragment : Fragment() {
                     onPanoramaExtraHeightChange = { settings.panoramaCoverExtraHeight = it },
                     onPanoramaGradientAlphaChange = { settings.panoramaBottomGradientAlpha = it },
                     onPagesTabEnabledChange = { settings.isPagesTabEnabled = it },
+                    onDetailsTranslateButtonVisibleChange = { settings.isDetailsTranslateButtonVisible = it },
                     onDefaultDetailsTabChange = { settings.defaultDetailsTab = it },
                     onSearchSuggestionTypesChange = { settings.searchSuggestionTypes = it },
                     onNavConfigClick = {

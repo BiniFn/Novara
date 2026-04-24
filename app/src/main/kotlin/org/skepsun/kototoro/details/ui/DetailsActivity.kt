@@ -1,30 +1,17 @@
 package org.skepsun.kototoro.details.ui
 
-import android.animation.ValueAnimator
 import android.app.Activity
 import android.app.assist.AssistContent
 import android.content.Context
-import android.graphics.Outline
 import android.os.Bundle
 import android.view.View
-import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.ui.geometry.Rect
-import androidx.core.view.updateLayoutParams
-import androidx.core.view.doOnLayout
-import androidx.core.animation.doOnEnd
-import androidx.core.animation.doOnCancel
-import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
@@ -52,10 +39,6 @@ class DetailsActivity :
     BaseActivity<ActivityDetailsBinding>(),
     BottomSheetOwner {
 
-    override fun onApplyWindowInsets(v: android.view.View, insets: androidx.core.view.WindowInsetsCompat): androidx.core.view.WindowInsetsCompat {
-        return insets
-    }
-
     @Inject
     lateinit var settings: AppSettings
 
@@ -70,77 +53,40 @@ class DetailsActivity :
     private val bookmarksViewModel: BookmarksViewModel by viewModels()
 
     private lateinit var pageSaveHelper: org.skepsun.kototoro.reader.ui.PageSaveHelper
-    private var shouldRenderTransitionCover = true
-    private var pendingCoverStartBounds: Rect? = null
-    private var entryCoverStartBounds: Rect? = null
-    private var latestCoverBounds: Rect? = null
-    private var latestCoverAlpha: Float = 1f
-    private var hasPlayedPendingCoverIntro = false
-    private var hasPlayedContentEnterMotion = false
-    private var isExitHeroRunning = false
-    private var isFadeOutQueued = false
-    private var isHeroOverlayVisible by mutableStateOf(false)
-    private val pendingIntroStarter = Runnable {
-        val startBounds = pendingCoverStartBounds ?: return@Runnable
-        val endBounds = latestCoverBounds ?: return@Runnable
-        pendingCoverStartBounds = null
-        hasPlayedPendingCoverIntro = true
-        animateCoverIntro(
-            startBounds = startBounds,
-            endBounds = endBounds,
-            endAlpha = latestCoverAlpha,
-        ) {
-            if (isFadeOutQueued) {
-                isFadeOutQueued = false
-                scheduleTransitionCoverFadeOutInternal()
+    private lateinit var heroTransitionController: DetailsHeroTransitionController
+
+    private val overrideEditLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                viewModel.reload()
             }
         }
-    }
-    private val transitionCoverFadeOutRunnable = Runnable {
-        shouldRenderTransitionCover = false
-        isHeroOverlayVisible = false
-        viewBinding.imageViewCover.alpha = 0f
-        viewBinding.imageViewCover.visibility = View.GONE
-    }
-    private val overrideEditLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            viewModel.reload()
-        }
-    }
 
     override val bottomSheet: View?
         get() = null
 
+    override fun onApplyWindowInsets(
+        v: View,
+        insets: androidx.core.view.WindowInsetsCompat,
+    ): androidx.core.view.WindowInsetsCompat {
+        return insets
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Restore transition cover state across configuration changes
-        if (savedInstanceState != null) {
-            shouldRenderTransitionCover = savedInstanceState.getBoolean(KEY_SHOULD_RENDER_TRANSITION_COVER, true)
-        }
-        isHeroOverlayVisible = false
 
         pageSaveHelper = pageSaveHelperFactory.create(this)
 
         if (settings.isSharedElementTransitionsEnabled) {
             window.requestFeature(android.view.Window.FEATURE_ACTIVITY_TRANSITIONS)
             val interpolator = androidx.interpolator.view.animation.FastOutSlowInInterpolator()
+            window.enterTransition = null
+            window.returnTransition = null
+            window.exitTransition = null
+            window.reenterTransition = null
 
-            val slideEnter = android.transition.Slide(android.view.Gravity.END)
-            slideEnter.duration = 350L
-            slideEnter.interpolator = interpolator
-            slideEnter.excludeTarget(android.R.id.statusBarBackground, true)
-            slideEnter.excludeTarget(android.R.id.navigationBarBackground, true)
-            window.enterTransition = slideEnter
-
-            val slideReturn = android.transition.Slide(android.view.Gravity.END)
-            slideReturn.duration = 275L
-            slideReturn.interpolator = interpolator
-            slideReturn.excludeTarget(android.R.id.statusBarBackground, true)
-            slideReturn.excludeTarget(android.R.id.navigationBarBackground, true)
-            window.returnTransition = slideReturn
-
-            val sharedTransition = android.transition.TransitionInflater.from(this).inflateTransition(android.R.transition.move)
+            val sharedTransition =
+                android.transition.TransitionInflater.from(this).inflateTransition(android.R.transition.move)
             sharedTransition.duration = 350L
             sharedTransition.interpolator = interpolator
             window.sharedElementEnterTransition = sharedTransition
@@ -152,50 +98,22 @@ class DetailsActivity :
 
         setContentView(ActivityDetailsBinding.inflate(layoutInflater))
 
-        if (settings.isSharedElementTransitionsEnabled) {
-            val manga = viewModel.getContentOrNull()
-            if (manga != null) {
-                val pendingTransition = DetailsCoverTransitionStore.consume(manga)
-                pendingCoverStartBounds = pendingTransition?.bounds
-                entryCoverStartBounds = pendingCoverStartBounds
-                viewBinding.imageViewTransitionBackground.apply {
-                    if (pendingTransition?.backgroundSnapshot != null) {
-                        setImageBitmap(pendingTransition.backgroundSnapshot)
-                        visibility = View.VISIBLE
-                    } else {
-                        setImageDrawable(null)
-                        visibility = View.GONE
-                    }
-                }
-                androidx.core.view.ViewCompat.setTransitionName(viewBinding.imageViewCover, "cover_${manga.source.name}_${manga.url}")
-                viewBinding.imageViewCover.outlineProvider = object : android.view.ViewOutlineProvider() {
-                    override fun getOutline(view: View, outline: Outline) {
-                        outline.setRoundRect(0, 0, view.width, view.height, resources.displayMetrics.density * 22f)
-                    }
-                }
-                viewBinding.imageViewCover.clipToOutline = true
-                pendingCoverStartBounds?.let { startBounds ->
-                    applyCoverBounds(startBounds, alpha = 1f)
-                }
-                isHeroOverlayVisible = pendingCoverStartBounds != null && shouldRenderTransitionCover
-                if (savedInstanceState == null) {
-                    viewBinding.composeView.doOnLayout {
-                        playContentEnterMotionIfNeeded()
-                    }
-                }
-                supportPostponeEnterTransition()
-                window.decorView.postDelayed({ supportStartPostponedEnterTransition() }, 1200L)
-            }
-        } else {
-            viewBinding.imageViewTransitionBackground.setImageDrawable(null)
-            viewBinding.imageViewTransitionBackground.visibility = View.GONE
-        }
+        heroTransitionController = DetailsHeroTransitionController(
+            activity = this,
+            binding = viewBinding,
+            settings = settings,
+        )
+        heroTransitionController.restoreState(savedInstanceState)
+        heroTransitionController.prepareOnCreate(
+            manga = viewModel.getContentOrNull(),
+            isFreshLaunch = savedInstanceState == null,
+        )
 
         onBackPressedDispatcher.addCallback(
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
-                    if (!playExitHeroIfNeeded()) {
+                    if (!heroTransitionController.playExitHeroIfNeeded()) {
                         isEnabled = false
                         finishAfterTransition()
                     }
@@ -206,7 +124,7 @@ class DetailsActivity :
         setDisplayHomeAsUp(isEnabled = true, showUpAsClose = false)
         supportActionBar?.setDisplayShowTitleEnabled(false)
 
-        viewBinding.composeView?.setContent {
+        viewBinding.composeView.setContent {
             KototoroTheme {
                 DetailsScreen(
                     viewModel = viewModel,
@@ -216,208 +134,26 @@ class DetailsActivity :
                     appRouter = router,
                     pageSaveHelper = pageSaveHelper,
                     onBackClick = { onBackPressedDispatcher.onBackPressed() },
-                    onCoverBoundsSync = { rect, alpha ->
-                        syncCoverBounds(rect, alpha)
-                    },
-                    isHeroOverlayVisible = isHeroOverlayVisible,
-                    onActionClick = { action ->
-                        when (action) {
-                            DetailsAction.OpenCover -> {
-                                viewModel.getContentOrNull()?.let { content ->
-                                    content.coverUrl?.let { url ->
-                                        router.openImage(
-                                            url = url,
-                                            source = content.source,
-                                            anchor = viewBinding.imageViewCover,
-                                        )
-                                    }
-                                }
-                            }
-
-                            DetailsAction.Resume -> {
-                                openReader()
-                            }
-
-                            DetailsAction.ResumeIncognito -> {
-                                openReader(isIncognitoMode = true)
-                            }
-
-                            DetailsAction.ManageDownloads -> {
-                                router.openDownloads()
-                            }
-
-                            DetailsAction.Favorite -> {
-                                viewModel.getContentOrNull()?.let(this@DetailsActivity.router::showFavoriteDialog)
-                            }
-
-                            DetailsAction.Share -> {
-                                viewModel.getContentOrNull()?.let(this@DetailsActivity.router::showShareDialog)
-                            }
-
-                            DetailsAction.ForgetHistory -> {
-                                viewModel.removeFromHistory()
-                            }
-
-                            DetailsAction.ManageCategories -> {
-                                this@DetailsActivity.router.openFavoriteCategories()
-                            }
-
-                            is DetailsAction.OpenSource -> {
-                                this@DetailsActivity.router.openList(action.source, null, null)
-                            }
-
-                            is DetailsAction.OpenTrackingDiscover -> {
-                                this@DetailsActivity.router.openTrackingDiscover(action.service)
-                            }
-
-                            is DetailsAction.SearchAuthorOnSource -> {
-                                this@DetailsActivity.router.openSearch(action.source, action.author)
-                            }
-
-                            is DetailsAction.SearchAuthorEverywhere -> {
-                                this@DetailsActivity.router.openSearch(action.author, SearchKind.AUTHOR)
-                            }
-
-                            is DetailsAction.SearchTagOnSource -> {
-                                this@DetailsActivity.router.openSearch(action.tag.source, action.tag.title)
-                            }
-
-                            is DetailsAction.SearchTagEverywhere -> {
-                                this@DetailsActivity.router.openSearch(action.tagTitle, SearchKind.TAG)
-                            }
-
-                            is DetailsAction.OpenWebUrl -> {
-                                router.openBrowser(action.url, null, null)
-                            }
-
-                            is DetailsAction.SelectBranch -> {
-                                viewModel.setSelectedBranch(action.branch)
-                            }
-
-                            is DetailsAction.ShareLink -> {
-                                router.shareLink(action.link, action.title)
-                            }
-
-                            DetailsAction.Translate -> {
-                                val hasCache = viewModel.hasTranslationCache.value
-                                viewModel.translateTitleAndDescription(forceRefresh = hasCache)
-                                com.google.android.material.snackbar.Snackbar.make(
-                                    viewBinding.root,
-                                    if (hasCache) R.string.reader_translation_retranslate_started else R.string.translating,
-                                    com.google.android.material.snackbar.Snackbar.LENGTH_SHORT,
-                                ).show()
-                            }
-
-                            DetailsAction.ToggleTranslation -> {
-                                viewModel.toggleTranslationDisplay()
-                            }
-
-                            DetailsAction.FindSimilar -> {
-                                viewModel.getContentOrNull()?.let {
-                                    this@DetailsActivity.router.openSearch(it.title)
-                                }
-                            }
-
-                            DetailsAction.OpenAlternatives -> {
-                                viewModel.getContentOrNull()?.let(this@DetailsActivity.router::openAlternatives)
-                            }
-
-                            DetailsAction.OpenOnlineVariant -> {
-                                viewModel.remoteContent.value?.let(this@DetailsActivity.router::openDetails)
-                            }
-
-                            is DetailsAction.OpenBrowserPage -> {
-                                router.openBrowser(action.url, action.source, action.title)
-                            }
-
-                            DetailsAction.OpenMetadataInBrowser,
-                            DetailsAction.OpenLocalSourceInBrowser -> {
-                            }
-
-                            is DetailsAction.OpenTrackingDetails -> {
-                                router.openTrackingSiteDetails(action.service, action.remoteId, action.url)
-                            }
-
-                            is DetailsAction.ManageTrackingBinding -> {
-                                router.openScrobblerBinding(
-                                    scrobbler = action.service,
-                                    remoteId = action.remoteId,
-                                    title = action.title,
-                                    url = action.url,
-                                )
-                            }
-
-                            is DetailsAction.BindTrackingMatch -> {
-                                viewModel.bindTrackingMatch(action.match)
-                            }
-
-                            is DetailsAction.IgnoreTrackingSuggestion -> {
-                                viewModel.ignoreTrackingSuggestion(action.match)
-                            }
-
-                            is DetailsAction.RemoveTrackingMatch -> {
-                                viewModel.removeTrackingMatch(action.match)
-                            }
-
-                            DetailsAction.Download -> {
-                            }
-
-                            DetailsAction.OpenStatistics -> {
-                            }
-
-                            DetailsAction.OpenTracking -> {
-                                viewModel.getContentOrNull()?.let { manga ->
-                                    router.showScrobblingSelectorSheet(manga, null)
-                                }
-                            }
-
-                            DetailsAction.ToggleList,
-                            DetailsAction.ToggleGrid,
-                            DetailsAction.ToggleBookmarkView -> {
-                            }
-
-                            DetailsAction.ToggleSafe -> {
-                                viewModel.toggleMarkSafe()
-                            }
-
-                            DetailsAction.DeleteLocal -> {
-                                viewModel.deleteLocal()
-                            }
-
-                            DetailsAction.EditOverride -> {
-                                viewModel.getContentOrNull()?.let {
-                                    overrideEditLauncher.launch(AppRouter.overrideEditIntent(this@DetailsActivity, it))
-                                }
-                            }
-
-                            DetailsAction.CreateShortcut -> {
-                                viewModel.getContentOrNull()?.let { manga ->
-                                    lifecycleScope.launch {
-                                        if (!appShortcutManager.requestPinShortcut(manga)) {
-                                            com.google.android.material.snackbar.Snackbar.make(
-                                                viewBinding.root,
-                                                R.string.operation_not_supported,
-                                                com.google.android.material.snackbar.Snackbar.LENGTH_SHORT,
-                                            ).show()
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
+                    onCoverBoundsSync = heroTransitionController::syncCoverBounds,
+                    isHeroOverlayVisible = heroTransitionController.isHeroOverlayVisible,
+                    onActionClick = ::handleActionClick,
                 )
             }
         }
 
         viewBinding.imageViewCover.addImageRequestListener(object : coil3.request.ImageRequest.Listener {
-            override fun onSuccess(request: coil3.request.ImageRequest, result: coil3.request.SuccessResult) {
-                supportStartPostponedEnterTransition()
-                scheduleTransitionCoverFadeOut()
+            override fun onSuccess(
+                request: coil3.request.ImageRequest,
+                result: coil3.request.SuccessResult,
+            ) {
+                heroTransitionController.onCoverImageLoadSettled()
             }
 
-            override fun onError(request: coil3.request.ImageRequest, result: coil3.request.ErrorResult) {
-                supportStartPostponedEnterTransition()
-                scheduleTransitionCoverFadeOut()
+            override fun onError(
+                request: coil3.request.ImageRequest,
+                result: coil3.request.ErrorResult,
+            ) {
+                heroTransitionController.onCoverImageLoadSettled()
             }
         })
 
@@ -440,6 +176,24 @@ class DetailsActivity :
         viewModel.onContentRemoved.observeEvent(this, ::onContentRemoved)
     }
 
+    override fun dispatchNavigateUp() {
+        if (!heroTransitionController.playExitHeroIfNeeded()) {
+            super.dispatchNavigateUp()
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        heroTransitionController.saveState(outState)
+    }
+
+    override fun onProvideAssistContent(outContent: AssistContent) {
+        super.onProvideAssistContent(outContent)
+        viewModel.getContentOrNull()?.publicUrl?.toUriOrNull()?.let { outContent.webUri = it }
+    }
+
+    override fun isNsfwContent(): Flow<Boolean> = viewModel.manga.map { it?.contentRating == ContentRating.ADULT }
+
     private fun openReader(isIncognitoMode: Boolean = false) {
         openDetailsReader(
             context = this,
@@ -450,194 +204,103 @@ class DetailsActivity :
         )
     }
 
-    private fun syncCoverBounds(rect: Rect, alpha: Float) {
-        latestCoverBounds = rect
-        latestCoverAlpha = alpha.coerceIn(0f, 1f)
-        if (!shouldRenderTransitionCover) {
-            // Transition is done — keep the XML cover fully hidden to prevent flashes
-            viewBinding.imageViewCover.visibility = View.GONE
-            return
-        }
-        if (pendingCoverStartBounds != null && !hasPlayedPendingCoverIntro) {
-            viewBinding.imageViewCover.removeCallbacks(pendingIntroStarter)
-            viewBinding.imageViewCover.postDelayed(pendingIntroStarter, 32L)
-            return
-        }
-        applyCoverBounds(rect, alpha)
-    }
-
-    private fun applyCoverBounds(rect: Rect, alpha: Float) {
-        if (rect.width > 0 && rect.height > 0) {
-            viewBinding.imageViewCover.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-                width = rect.width.toInt()
-                height = rect.height.toInt()
-                topMargin = rect.top.toInt()
-                leftMargin = rect.left.toInt()
-            }
-        }
-        viewBinding.imageViewCover.alpha = alpha.coerceIn(0f, 1f)
-        viewBinding.imageViewCover.visibility = View.VISIBLE
-    }
-
-    private fun animateCoverIntro(
-        startBounds: Rect,
-        endBounds: Rect,
-        endAlpha: Float,
-        onEnd: (() -> Unit)? = null,
-    ) {
-        applyCoverBounds(startBounds, alpha = 1f)
-        ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 320L
-            interpolator = FastOutSlowInInterpolator()
-            addUpdateListener { animator ->
-                val fraction = animator.animatedValue as Float
-                applyCoverBounds(
-                    rect = Rect(
-                        left = lerp(startBounds.left, endBounds.left, fraction),
-                        top = lerp(startBounds.top, endBounds.top, fraction),
-                        right = lerp(startBounds.right, endBounds.right, fraction),
-                        bottom = lerp(startBounds.bottom, endBounds.bottom, fraction),
-                    ),
-                    alpha = lerp(1f, endAlpha.coerceIn(0f, 1f), fraction),
-                )
-            }
-            doOnAnimationEndCompat(onEnd)
-            start()
-        }
-    }
-
-    private fun playContentEnterMotionIfNeeded() {
-        if (!settings.isSharedElementTransitionsEnabled || hasPlayedContentEnterMotion) {
-            return
-        }
-        if (entryCoverStartBounds == null) {
-            return
-        }
-        val contentView = viewBinding.composeView
-        val travelDistance = resolveContentTravelDistancePx()
-        if (travelDistance <= 0f) {
-            return
-        }
-        hasPlayedContentEnterMotion = true
-        contentView.animate().cancel()
-        contentView.translationX = travelDistance
-        contentView.alpha = 0.92f
-        contentView.animate()
-            .translationX(0f)
-            .alpha(1f)
-            .setDuration(320L)
-            .setInterpolator(FastOutSlowInInterpolator())
-            .start()
-    }
-
-    private fun resolveContentTravelDistancePx(): Float {
-        val widthPx = viewBinding.root.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
-        if (widthPx <= 0) {
-            return 0f
-        }
-        return widthPx.toFloat()
-    }
-
-    private fun scheduleTransitionCoverFadeOut() {
-        if (!shouldRenderTransitionCover) {
-            return
-        }
-        if (pendingCoverStartBounds != null && !hasPlayedPendingCoverIntro) {
-            isFadeOutQueued = true
-            return
-        }
-        scheduleTransitionCoverFadeOutInternal()
-    }
-
-    private fun scheduleTransitionCoverFadeOutInternal() {
-        viewBinding.imageViewCover.removeCallbacks(transitionCoverFadeOutRunnable)
-        val delayMs = if (settings.isSharedElementTransitionsEnabled) 380L else 0L
-        viewBinding.imageViewCover.postDelayed({
-            transitionCoverFadeOutRunnable.run()
-        }, delayMs)
-    }
-
-    private fun playExitHeroIfNeeded(): Boolean {
-        if (!settings.isSharedElementTransitionsEnabled || isExitHeroRunning) {
-            return false
-        }
-        val startBounds = entryCoverStartBounds ?: return false
-        val currentBounds = latestCoverBounds ?: return false
-        if (latestCoverAlpha < 0.35f) {
-            return false
-        }
-        isExitHeroRunning = true
-        shouldRenderTransitionCover = true
-        isHeroOverlayVisible = true
-        viewBinding.imageViewCover.removeCallbacks(pendingIntroStarter)
-        viewBinding.imageViewCover.removeCallbacks(transitionCoverFadeOutRunnable)
-        if (viewBinding.imageViewTransitionBackground.drawable != null) {
-            viewBinding.imageViewTransitionBackground.apply {
-                alpha = 1f
-                visibility = View.VISIBLE
-                bringToFront()
-            }
-        }
-        viewBinding.imageViewCover.bringToFront()
-        
-        applyCoverBounds(currentBounds, alpha = 1f)
-        viewBinding.imageViewCover.visibility = View.VISIBLE
-        
-        val travelDistance = resolveContentTravelDistancePx()
-        val contentView = viewBinding.composeView
-
-        ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 320L
-            interpolator = FastOutSlowInInterpolator()
-            var isFinished = false
-            addUpdateListener { animator ->
-                val fraction = animator.animatedFraction
-                val interpolatedBounds = Rect(
-                    left = lerp(currentBounds.left, startBounds.left, fraction),
-                    top = lerp(currentBounds.top, startBounds.top, fraction),
-                    right = lerp(currentBounds.right, startBounds.right, fraction),
-                    bottom = lerp(currentBounds.bottom, startBounds.bottom, fraction),
-                )
-                applyCoverBounds(interpolatedBounds, alpha = 1f)
-                contentView.translationX = lerp(0f, travelDistance, fraction)
-                contentView.alpha = lerp(1f, 0f, fraction)
-            }
-            doOnEnd {
-                if (!isFinished) {
-                    isFinished = true
-                    finishAfterTransition()
-                    overridePendingTransition(0, 0)
+    private fun handleActionClick(action: DetailsAction) {
+        when (action) {
+            DetailsAction.OpenCover -> {
+                viewModel.getContentOrNull()?.let { content ->
+                    content.coverUrl?.let { url ->
+                        router.openImage(
+                            url = url,
+                            source = content.source,
+                            anchor = viewBinding.imageViewCover,
+                        )
+                    }
                 }
             }
-            doOnCancel {
-                if (!isFinished) {
-                    isFinished = true
-                    finishAfterTransition()
-                    overridePendingTransition(0, 0)
+
+            DetailsAction.Resume -> openReader()
+            DetailsAction.ResumeIncognito -> openReader(isIncognitoMode = true)
+            DetailsAction.ManageDownloads -> router.openDownloads()
+            DetailsAction.Favorite -> viewModel.getContentOrNull()?.let(this.router::showFavoriteDialog)
+            DetailsAction.Share -> viewModel.getContentOrNull()?.let(this.router::showShareDialog)
+            DetailsAction.ForgetHistory -> viewModel.removeFromHistory()
+            DetailsAction.ManageCategories -> this.router.openFavoriteCategories()
+            is DetailsAction.OpenSource -> this.router.openList(action.source, null, null)
+            is DetailsAction.OpenTrackingDiscover -> this.router.openTrackingDiscover(action.service)
+            is DetailsAction.SearchAuthorOnSource -> this.router.openSearch(action.source, action.author)
+            is DetailsAction.SearchAuthorEverywhere -> this.router.openSearch(action.author, SearchKind.AUTHOR)
+            is DetailsAction.SearchTagOnSource -> this.router.openSearch(action.tag.source, action.tag.title)
+            is DetailsAction.SearchTagEverywhere -> this.router.openSearch(action.tagTitle, SearchKind.TAG)
+            is DetailsAction.OpenWebUrl -> router.openBrowser(action.url, null, null)
+            is DetailsAction.SelectBranch -> viewModel.setSelectedBranch(action.branch)
+            is DetailsAction.ShareLink -> router.shareLink(action.link, action.title)
+
+            DetailsAction.Translate -> {
+                val hasCache = viewModel.hasTranslationCache.value
+                viewModel.translateTitleAndDescription(forceRefresh = hasCache)
+                com.google.android.material.snackbar.Snackbar.make(
+                    viewBinding.root,
+                    if (hasCache) R.string.reader_translation_retranslate_started else R.string.translating,
+                    com.google.android.material.snackbar.Snackbar.LENGTH_SHORT,
+                ).show()
+            }
+
+            DetailsAction.ToggleTranslation -> viewModel.toggleTranslationDisplay()
+            DetailsAction.FindSimilar -> viewModel.getContentOrNull()?.let { this.router.openSearch(it.title) }
+            DetailsAction.OpenAlternatives -> viewModel.getContentOrNull()?.let(this.router::openAlternatives)
+            DetailsAction.OpenOnlineVariant -> viewModel.remoteContent.value?.let(this.router::openDetails)
+            is DetailsAction.OpenBrowserPage -> router.openBrowser(action.url, action.source, action.title)
+            DetailsAction.OpenMetadataInBrowser, DetailsAction.OpenLocalSourceInBrowser -> Unit
+            is DetailsAction.OpenTrackingDetails -> router.openTrackingSiteDetails(action.service, action.remoteId, action.url)
+
+            is DetailsAction.ManageTrackingBinding -> {
+                router.openScrobblerBinding(
+                    scrobbler = action.service,
+                    remoteId = action.remoteId,
+                    title = action.title,
+                    url = action.url,
+                )
+            }
+
+            is DetailsAction.BindTrackingMatch -> viewModel.bindTrackingMatch(action.match)
+            is DetailsAction.IgnoreTrackingSuggestion -> viewModel.ignoreTrackingSuggestion(action.match)
+            is DetailsAction.RemoveTrackingMatch -> viewModel.removeTrackingMatch(action.match)
+            DetailsAction.Download -> Unit
+            DetailsAction.OpenStatistics -> Unit
+
+            DetailsAction.OpenTracking -> {
+                viewModel.getContentOrNull()?.let { manga ->
+                    router.showScrobblingSelectorSheet(manga, null)
                 }
             }
-            start()
+
+            DetailsAction.ToggleList,
+            DetailsAction.ToggleGrid,
+            DetailsAction.ToggleBookmarkView -> Unit
+            DetailsAction.ToggleSafe -> viewModel.toggleMarkSafe()
+            DetailsAction.DeleteLocal -> viewModel.deleteLocal()
+
+            DetailsAction.EditOverride -> {
+                viewModel.getContentOrNull()?.let {
+                    overrideEditLauncher.launch(AppRouter.overrideEditIntent(this, it))
+                }
+            }
+
+            DetailsAction.CreateShortcut -> {
+                viewModel.getContentOrNull()?.let { manga ->
+                    lifecycleScope.launch {
+                        if (!appShortcutManager.requestPinShortcut(manga)) {
+                            com.google.android.material.snackbar.Snackbar.make(
+                                viewBinding.root,
+                                R.string.operation_not_supported,
+                                com.google.android.material.snackbar.Snackbar.LENGTH_SHORT,
+                            ).show()
+                        }
+                    }
+                }
+            }
         }
-        return true
     }
-
-    override fun dispatchNavigateUp() {
-        if (!playExitHeroIfNeeded()) {
-            super.dispatchNavigateUp()
-        }
-    }
-
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        outState.putBoolean(KEY_SHOULD_RENDER_TRANSITION_COVER, shouldRenderTransitionCover)
-    }
-
-    override fun onProvideAssistContent(outContent: AssistContent) {
-        super.onProvideAssistContent(outContent)
-        viewModel.getContentOrNull()?.publicUrl?.toUriOrNull()?.let { outContent.webUri = it }
-    }
-
-    override fun isNsfwContent(): Flow<Boolean> = viewModel.manga.map { it?.contentRating == ContentRating.ADULT }
 
     private fun onContentRemoved(manga: Content) {
         Toast.makeText(
@@ -647,24 +310,4 @@ class DetailsActivity :
         ).show()
         finishAfterTransition()
     }
-
-    private companion object {
-        private const val KEY_SHOULD_RENDER_TRANSITION_COVER = "should_render_transition_cover"
-    }
-}
-
-private fun lerp(start: Float, stop: Float, fraction: Float): Float {
-    return start + (stop - start) * fraction.coerceIn(0f, 1f)
-}
-
-private fun ValueAnimator.doOnAnimationEndCompat(onEnd: (() -> Unit)?) {
-    if (onEnd == null) {
-        return
-    }
-    addListener(object : android.animation.Animator.AnimatorListener {
-        override fun onAnimationStart(animation: android.animation.Animator) = Unit
-        override fun onAnimationEnd(animation: android.animation.Animator) = onEnd()
-        override fun onAnimationCancel(animation: android.animation.Animator) = onEnd()
-        override fun onAnimationRepeat(animation: android.animation.Animator) = Unit
-    })
 }

@@ -16,7 +16,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -26,7 +25,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -52,6 +50,7 @@ import org.skepsun.kototoro.details.ui.model.DetailsChapterSourceTab
 import org.skepsun.kototoro.details.ui.model.toListItem
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
 import org.skepsun.kototoro.details.ui.pager.bookmarks.BookmarksViewModel
+import org.skepsun.kototoro.details.ui.pager.chapters.compose.ChapterSelectionUiState
 import org.skepsun.kototoro.details.ui.pager.bookmarks.compose.BookmarksScreenRoot
 import org.skepsun.kototoro.details.ui.pager.chapters.compose.ChaptersScreen
 import org.skepsun.kototoro.details.ui.pager.chapters.compose.ChaptersScreenRoot
@@ -91,16 +90,17 @@ fun ChaptersPagesTabsContent(
 	showTabStrip: Boolean = true,
 	isSheetFullyExpanded: Boolean = true,
 	isChapterListScrollEnabled: Boolean = true,
+	handleSelectionBackPressInternally: Boolean = true,
     chapterQuery: String = "",
     isChapterSearchVisible: Boolean = false,
     onChapterQueryChange: ((String) -> Unit)? = null,
+    onChapterSelectionStateChange: (ChapterSelectionUiState?) -> Unit = {},
 	onSelectedTabIdChange: ((Int) -> Unit)? = null,
 ) {
 	val mangaDetails by viewModel.mangaDetails.collectAsState()
 	val source = mangaDetails?.toContent()?.source
 	val contentType = source?.getContentType()
 	val emptyReason by viewModel.emptyReason.collectAsState(initial = null)
-	val pagesGridScale by pagesViewModel.gridScale.collectAsState(initial = settings.gridSizePages / 100f)
 
 	val isNovel = contentType == ContentType.NOVEL || contentType == ContentType.HENTAI_NOVEL
 	val isVideo = contentType == ContentType.VIDEO || contentType == ContentType.HENTAI_VIDEO
@@ -126,11 +126,6 @@ fun ChaptersPagesTabsContent(
 	val viewForSnackbar = LocalView.current
 	val lifecycleOwner = LocalLifecycleOwner.current
 	val coroutineScope = rememberCoroutineScope()
-	var gridSizeValue by remember { mutableFloatStateOf(settings.gridSizePages.toFloat()) }
-
-	LaunchedEffect(pagesGridScale) {
-		gridSizeValue = (pagesGridScale * 100f).coerceIn(50f, 150f)
-	}
 
 	Surface(
 		modifier = Modifier.fillMaxSize(),
@@ -199,11 +194,6 @@ fun ChaptersPagesTabsContent(
 				onChapterQueryChange = onChapterQueryChange ?: {},
 				isChapterSearchVisible = isChapterSearchVisible,
 				isSearchVisible = emptyReason == null,
-				gridSizeValue = gridSizeValue,
-				onGridSizeChange = { value ->
-					gridSizeValue = value
-					settings.gridSizePages = value.toInt()
-				},
 			)
 
 			HorizontalPager(
@@ -225,6 +215,8 @@ fun ChaptersPagesTabsContent(
 						onSelectMetadataChapterTab = onSelectMetadataChapterTab,
 						onSelectReadingChapterTab = onSelectReadingChapterTab,
 						isScrollEnabled = isChapterListScrollEnabled,
+                        handleSelectionBackPressInternally = handleSelectionBackPressInternally,
+                        onChapterSelectionStateChange = onChapterSelectionStateChange,
 					)
 					DETAILS_TAB_PAGES -> PagesScreenRoot(
 						activityViewModel = viewModel,
@@ -265,6 +257,8 @@ private fun DetailsChapterPanels(
 	onSelectMetadataChapterTab: (DetailsChapterSourceTab) -> Unit,
 	onSelectReadingChapterTab: (DetailsChapterSourceTab) -> Unit,
 	isScrollEnabled: Boolean,
+    handleSelectionBackPressInternally: Boolean,
+    onChapterSelectionStateChange: (ChapterSelectionUiState?) -> Unit,
 ) {
 	val availableModes = remember(metadataChapterTabs, readingChapterTabs) {
 		buildList {
@@ -331,6 +325,8 @@ private fun DetailsChapterPanels(
 					viewForSnackbar = viewForSnackbar,
 					lifecycleOwner = lifecycleOwner,
 					isScrollEnabled = isScrollEnabled,
+                    handleSelectionBackPressInternally = handleSelectionBackPressInternally,
+                    onSelectionStateChange = onChapterSelectionStateChange,
 				)
 			}
 		}
@@ -517,44 +513,18 @@ private fun ChaptersPagesToolbar(
 	onChapterQueryChange: (String) -> Unit,
 	isChapterSearchVisible: Boolean,
 	isSearchVisible: Boolean,
-	gridSizeValue: Float,
-	onGridSizeChange: (Float) -> Unit,
 ) {
 	Column(modifier = Modifier.fillMaxWidth()) {
-		when (currentTabId) {
-			DETAILS_TAB_CHAPTERS -> {
-				if (isSearchVisible && isChapterSearchVisible) {
-					OutlinedTextField(
-						value = chapterQuery,
-						onValueChange = onChapterQueryChange,
-						modifier = Modifier
-							.fillMaxWidth()
-							.padding(horizontal = 16.dp, vertical = 12.dp),
-						singleLine = true,
-						label = { Text(stringResource(R.string.search_chapters)) },
-					)
-				}
-			}
-
-			DETAILS_TAB_PAGES,
-			DETAILS_TAB_BOOKMARKS -> {
-				Column(
-					modifier = Modifier
-						.fillMaxWidth()
-						.padding(horizontal = 16.dp, vertical = 12.dp),
-					verticalArrangement = Arrangement.spacedBy(8.dp),
-				) {
-					Text(
-						text = stringResource(R.string.grid_size),
-						style = MaterialTheme.typography.labelLarge,
-					)
-					Slider(
-						value = gridSizeValue,
-						onValueChange = onGridSizeChange,
-						valueRange = 50f..150f,
-					)
-				}
-			}
+		if (currentTabId == DETAILS_TAB_CHAPTERS && isSearchVisible && isChapterSearchVisible) {
+			OutlinedTextField(
+				value = chapterQuery,
+				onValueChange = onChapterQueryChange,
+				modifier = Modifier
+					.fillMaxWidth()
+					.padding(horizontal = 16.dp, vertical = 12.dp),
+				singleLine = true,
+				label = { Text(stringResource(R.string.search_chapters)) },
+			)
 		}
 		if (currentTabId != DETAILS_TAB_CHAPTERS || (isSearchVisible && isChapterSearchVisible)) {
 			HorizontalDivider()
