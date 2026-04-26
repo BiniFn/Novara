@@ -20,7 +20,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -46,8 +45,6 @@ import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
-import org.skepsun.kototoro.core.ui.glass.GlassDefaults
-import org.skepsun.kototoro.core.ui.glass.GlassSurface
 import org.skepsun.kototoro.details.ui.model.DetailsChapterSourceTab
 import org.skepsun.kototoro.details.ui.model.toListItem
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
@@ -167,32 +164,28 @@ fun ChaptersPagesTabsContent(
 			}
 
 			if (showTabStrip && tabsList.size > 1) {
-				GlassSurface(
+				TabRow(
+					selectedTabIndex = pagerState.currentPage,
+					containerColor = Color.Transparent,
 					modifier = Modifier
 						.fillMaxWidth()
 						.padding(horizontal = 12.dp, vertical = 8.dp),
-					style = GlassDefaults.subtleStyle(),
 				) {
-					TabRow(
-						selectedTabIndex = pagerState.currentPage,
-						containerColor = Color.Transparent,
-					) {
-						tabsList.forEachIndexed { index, tab ->
-							Tab(
-								selected = pagerState.currentPage == index,
-								onClick = {
-									coroutineScope.launch {
-										pagerState.animateScrollToPage(index)
-									}
-								},
-								icon = {
-									Icon(
-										painter = painterResource(tab.iconResId),
-										contentDescription = stringResource(tab.titleResId),
-									)
-								},
-							)
-						}
+					tabsList.forEachIndexed { index, tab ->
+						Tab(
+							selected = pagerState.currentPage == index,
+							onClick = {
+								coroutineScope.launch {
+									pagerState.animateScrollToPage(index)
+								}
+							},
+							icon = {
+								Icon(
+									painter = painterResource(tab.iconResId),
+									contentDescription = stringResource(tab.titleResId),
+								)
+							},
+						)
 					}
 				}
 			}
@@ -288,35 +281,31 @@ private fun DetailsChapterPanels(
 
 	Column(modifier = Modifier.fillMaxSize()) {
 		if (availableModes.size > 1) {
-			GlassSurface(
+			TabRow(
+				selectedTabIndex = availableModes.indexOf(selectedMode),
+				containerColor = Color.Transparent,
 				modifier = Modifier
 					.fillMaxWidth()
 					.padding(horizontal = 12.dp, vertical = 8.dp),
-				style = GlassDefaults.subtleStyle(),
 			) {
-				TabRow(
-					selectedTabIndex = availableModes.indexOf(selectedMode),
-					containerColor = Color.Transparent,
-				) {
-					availableModes.forEachIndexed { index, mode ->
-						Tab(
-							selected = mode == selectedMode,
-							onClick = { selectedModeName = mode.name },
-							text = {
-								Text(
-									stringResource(
-										if (index == 0 && mode == ChapterPanelMode.METADATA) {
-											R.string.details_metadata_chapters
-										} else if (mode == ChapterPanelMode.READING) {
-											R.string.details_reading_chapters
-										} else {
-											R.string.details_metadata_chapters
-										},
-									),
-								)
-							},
-						)
-					}
+				availableModes.forEachIndexed { index, mode ->
+					Tab(
+						selected = mode == selectedMode,
+						onClick = { selectedModeName = mode.name },
+						text = {
+							Text(
+								stringResource(
+									if (index == 0 && mode == ChapterPanelMode.METADATA) {
+										R.string.details_metadata_chapters
+									} else if (mode == ChapterPanelMode.READING) {
+										R.string.details_reading_chapters
+									} else {
+										R.string.details_metadata_chapters
+									},
+								),
+							)
+						},
+					)
 				}
 			}
 		}

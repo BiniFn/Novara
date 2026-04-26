@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.compose.KototoroExploreHostRoute
@@ -26,7 +27,6 @@ import org.skepsun.kototoro.main.ui.MainActivity
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.nav.AppRouter
-import org.skepsun.kototoro.details.ui.DetailsCoverTransitionStore
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.fragment.app.FragmentActivity
@@ -38,11 +38,25 @@ import org.skepsun.kototoro.search.ui.compose.SearchNavigation
 import org.skepsun.kototoro.search.ui.compose.SearchNavigationRequest
 import org.skepsun.kototoro.search.ui.compose.SearchResultsRoute
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.runtime.CompositionLocalProvider
+import org.skepsun.kototoro.core.nav.PendingDetailsNavigation
+import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
+import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
+import org.skepsun.kototoro.details.ui.compose.DetailsScreen
+import org.skepsun.kototoro.details.ui.DetailsViewModel
+import org.skepsun.kototoro.details.ui.compose.handleDetailsAction
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun AppNavGraph(
     navController: NavHostController,
     contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp),
+    pageSaveHelper: org.skepsun.kototoro.reader.ui.PageSaveHelper? = null,
     modifier: Modifier = Modifier,
     onExploreSourceSelectionTopBarChanged: (TopBarOverrideState?) -> Unit = {},
     onOpenSearch: (SearchNavigationRequest) -> Unit = {},
@@ -51,6 +65,7 @@ fun AppNavGraph(
     val appRouter = activity.router
     val mainActivity = activity as? MainActivity
     val rootView = LocalView.current
+    val hasPendingSharedElement = remember { { PendingDetailsNavigation.lastSharedElementKey() != null } }
 
     NavHost(
         navController = navController,
@@ -101,13 +116,14 @@ fun AppNavGraph(
                 }
             }
 
-            HomeScreen(
-                contentPadding = contentPadding,
-                state = state,
-                onContentClick = { content, coverBounds ->
-                    DetailsCoverTransitionStore.set(content, coverBounds)
-                    appRouter.openDetails(content, rootView)
-                },
+            CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
+                HomeScreen(
+                    contentPadding = contentPadding,
+                    state = state,
+                    onContentClick = { content, coverBounds, sharedElementKey ->
+                        PendingDetailsNavigation.set(content, sharedElementKey)
+                        navController.navigate("details")
+                    },
                 onSettingsClick = { appRouter.openSettings() },
                 onReaderSettingsClick = { appRouter.openReaderSettings() },
                 onSyncSettingsClick = { appRouter.openSyncSettings() },
@@ -154,7 +170,8 @@ fun AppNavGraph(
                 onRandomClick = { viewModel.openRandom() },
                 onAutoTranslateClick = { appRouter.openTranslationSettings() },
                 isRandomLoading = isRandomLoading
-            )
+                )
+            }
         }
         composable("discover") {
             val exploreViewModel = hiltViewModel<org.skepsun.kototoro.explore.ui.ExploreViewModel>()
@@ -187,12 +204,14 @@ fun AppNavGraph(
                 }
             }
 
-            org.skepsun.kototoro.explore.ui.compose.KototoroExploreHostRoute(
-                appRouter = appRouter,
-                contentPadding = contentPadding,
-                exploreViewModel = exploreViewModel,
-                onSourceSelectionTopBarChanged = onExploreSourceSelectionTopBarChanged,
-            )
+            CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
+                org.skepsun.kototoro.explore.ui.compose.KototoroExploreHostRoute(
+                    appRouter = appRouter,
+                    contentPadding = contentPadding,
+                    exploreViewModel = exploreViewModel,
+                    onSourceSelectionTopBarChanged = onExploreSourceSelectionTopBarChanged,
+                )
+            }
         }
         composable("history") {
             val viewModel = hiltViewModel<org.skepsun.kototoro.history.ui.HistoryListViewModel>()
@@ -282,62 +301,72 @@ fun AppNavGraph(
                 }
             }
 
-            org.skepsun.kototoro.history.ui.compose.HistoryScreen(
-                contentPadding = contentPadding,
-                items = items,
-                listMode = listMode,
-                isRefreshing = false,
-                isStatsEnabled = isStatsEnabled,
-                gridScale = gridScale,
-                selectedItemsIds = selectedItemsIds,
-                onRefresh = { viewModel.onRefresh() },
-                onLoadMore = { viewModel.requestMoreItems() },
-                onPrepareItemTransition = { item, coverBounds ->
-                    if (selectedItemsIds.isEmpty()) {
-                        DetailsCoverTransitionStore.set(item.toContentWithOverride(), coverBounds)
-                    }
-                },
-                onItemClick = { item ->
-                    if (selectedItemsIds.isNotEmpty()) {
-                        selectedItemsIds = if (item.id in selectedItemsIds) selectedItemsIds - item.id else selectedItemsIds + item.id
-                    } else {
-                        appRouter.openDetails(item.toContentWithOverride(), rootView)
-                    }
-                },
-                onItemLongClick = { item ->
-                    selectedItemsIds = if (item.id in selectedItemsIds) selectedItemsIds - item.id else selectedItemsIds + item.id
-                },
-                onClearSelection = { selectedItemsIds = emptySet() },
-                onSelectionAction = { action ->
-                    if (action == org.skepsun.kototoro.list.ui.compose.SelectionAction.REMOVE) {
-                        viewModel.removeFromHistory(selectedItemsIds)
-                        selectedItemsIds = emptySet()
-                    }
-                },
-                onClearHistoryClick = { showClearDialog = true },
-                onStatsClick = { appRouter.openStatistic() },
-                showInlineSelectionTopBar = false,
-            )
-
-            if (showClearDialog) {
-                org.skepsun.kototoro.history.ui.compose.ClearHistoryDialog(
-                    onDismissRequest = { showClearDialog = false },
-                    onConfirm = { option ->
-                        when(option) {
-                            org.skepsun.kototoro.history.ui.compose.ClearHistoryOption.LAST_2_HOURS -> viewModel.clearHistory(java.time.Instant.now().minus(2, java.time.temporal.ChronoUnit.HOURS))
-                            org.skepsun.kototoro.history.ui.compose.ClearHistoryOption.TODAY -> viewModel.clearHistory(java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant())
-                            org.skepsun.kototoro.history.ui.compose.ClearHistoryOption.NOT_IN_FAVORITES -> viewModel.removeNotFavorite()
-                            org.skepsun.kototoro.history.ui.compose.ClearHistoryOption.CLEAR_ALL -> viewModel.clearHistory(null)
+            CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
+                org.skepsun.kototoro.history.ui.compose.HistoryScreen(
+                    contentPadding = contentPadding,
+                    items = items,
+                    listMode = listMode,
+                    isRefreshing = false,
+                    isStatsEnabled = isStatsEnabled,
+                    gridScale = gridScale,
+                    selectedItemsIds = selectedItemsIds,
+                    onRefresh = { viewModel.onRefresh() },
+                    onLoadMore = { viewModel.requestMoreItems() },
+                    onPrepareItemTransition = { item, coverBounds ->
+                    },
+                    onItemClick = { item ->
+                        if (selectedItemsIds.isNotEmpty()) {
+                            selectedItemsIds = if (item.id in selectedItemsIds) selectedItemsIds - item.id else selectedItemsIds + item.id
+                        } else {
+                            val content = item.toContentWithOverride()
+                            PendingDetailsNavigation.set(
+                                content,
+                                contentCoverSharedKey(item.source.name, item.coverUrl.orEmpty()),
+                            )
+                            navController.navigate("details")
                         }
-                    }
+                    },
+                    onItemLongClick = { item ->
+                        selectedItemsIds = if (item.id in selectedItemsIds) selectedItemsIds - item.id else selectedItemsIds + item.id
+                    },
+                    onClearSelection = { selectedItemsIds = emptySet() },
+                    onSelectionAction = { action ->
+                        if (action == org.skepsun.kototoro.list.ui.compose.SelectionAction.REMOVE) {
+                            viewModel.removeFromHistory(selectedItemsIds)
+                            selectedItemsIds = emptySet()
+                        }
+                    },
+                    onClearHistoryClick = { showClearDialog = true },
+                    onStatsClick = { appRouter.openStatistic() },
+                    showInlineSelectionTopBar = false,
                 )
+
+                if (showClearDialog) {
+                    org.skepsun.kototoro.history.ui.compose.ClearHistoryDialog(
+                        onDismissRequest = { showClearDialog = false },
+                        onConfirm = { option ->
+                            when(option) {
+                                org.skepsun.kototoro.history.ui.compose.ClearHistoryOption.LAST_2_HOURS -> viewModel.clearHistory(java.time.Instant.now().minus(2, java.time.temporal.ChronoUnit.HOURS))
+                                org.skepsun.kototoro.history.ui.compose.ClearHistoryOption.TODAY -> viewModel.clearHistory(java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant())
+                                org.skepsun.kototoro.history.ui.compose.ClearHistoryOption.NOT_IN_FAVORITES -> viewModel.removeNotFavorite()
+                                org.skepsun.kototoro.history.ui.compose.ClearHistoryOption.CLEAR_ALL -> viewModel.clearHistory(null)
+                            }
+                        }
+                    )
+                }
             }
         }
-        composable("favorites") { 
-            KototoroFavoritesHostRoute(
-                appRouter = appRouter,
-                contentPadding = contentPadding
-            )
+        composable("favorites") {
+            CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
+                KototoroFavoritesHostRoute(
+                    appRouter = appRouter,
+                    contentPadding = contentPadding,
+                    onNavigateToDetails = { content, sharedElementKey ->
+                        PendingDetailsNavigation.set(content, sharedElementKey)
+                        navController.navigate("details")
+                    },
+                )
+            }
         }
         composable("explore") {
             val exploreViewModel = hiltViewModel<org.skepsun.kototoro.explore.ui.ExploreViewModel>()
@@ -370,12 +399,18 @@ fun AppNavGraph(
                 }
             }
 
-            org.skepsun.kototoro.explore.ui.compose.KototoroExploreHostRoute(
-                appRouter = appRouter,
-                contentPadding = contentPadding,
-                exploreViewModel = exploreViewModel,
-                onSourceSelectionTopBarChanged = onExploreSourceSelectionTopBarChanged,
-            )
+            CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
+                org.skepsun.kototoro.explore.ui.compose.KototoroExploreHostRoute(
+                    appRouter = appRouter,
+                    contentPadding = contentPadding,
+                    exploreViewModel = exploreViewModel,
+                    onSourceSelectionTopBarChanged = onExploreSourceSelectionTopBarChanged,
+                    onNavigateToDetails = { origin, sharedElementKey ->
+                        PendingDetailsNavigation.set(origin, sharedElementKey)
+                        navController.navigate("details")
+                    },
+                )
+            }
         }
         composable("feed") {
             val viewModel = hiltViewModel<org.skepsun.kototoro.tracker.ui.feed.FeedViewModel>()
@@ -432,99 +467,121 @@ fun AppNavGraph(
                 }
             }
 
-            org.skepsun.kototoro.tracker.ui.feed.compose.FeedScreen(
-                contentPadding = contentPadding,
-                items = items,
-                isRefreshing = isRunning,
-                onRefresh = { viewModel.update() },
-                onLoadMore = { viewModel.requestMoreItems() },
-                onFeedItemClick = { item, coverBounds ->
-                    DetailsCoverTransitionStore.set(item.toContentWithOverride(), coverBounds)
-                    viewModel.onItemClick(item)
-                    appRouter.openDetails(item.toContentWithOverride(), rootView)
-                },
-                onUpdatedContentItemClick = { contentItem, coverBounds ->
-                    DetailsCoverTransitionStore.set(contentItem.toContentWithOverride(), coverBounds)
-                    appRouter.openDetails(contentItem.toContentWithOverride(), rootView)
-                },
-                onUpdatedContentMoreClick = {
-                    navController.navigate("updated")
-                },
-                categories = categories,
-                selectedCategoryId = selectedCategoryId,
-                onCategorySelected = viewModel::selectCategory,
-            )
+            CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
+                org.skepsun.kototoro.tracker.ui.feed.compose.FeedScreen(
+                    contentPadding = contentPadding,
+                    items = items,
+                    isRefreshing = isRunning,
+                    onRefresh = { viewModel.update() },
+                    onLoadMore = { viewModel.requestMoreItems() },
+                    onFeedItemClick = { item, coverBounds ->
+                        viewModel.onItemClick(item)
+                        val content = item.toContentWithOverride()
+                        PendingDetailsNavigation.set(
+                            content,
+                            contentCoverSharedKey(content.source.name, content.coverUrl.orEmpty()),
+                        )
+                        navController.navigate("details")
+                    },
+                    onUpdatedContentItemClick = { contentItem, coverBounds ->
+                        val content = contentItem.toContentWithOverride()
+                        PendingDetailsNavigation.set(
+                            content,
+                            contentCoverSharedKey(content.source.name, content.coverUrl.orEmpty()),
+                        )
+                        navController.navigate("details")
+                    },
+                    onUpdatedContentMoreClick = {
+                        navController.navigate("updated")
+                    },
+                    categories = categories,
+                    selectedCategoryId = selectedCategoryId,
+                    onCategorySelected = viewModel::selectCategory,
+                )
+            }
         }
-        composable("local") { 
+        composable("local") {
             val viewModel = hiltViewModel<org.skepsun.kototoro.local.ui.LocalListViewModel>()
             val activity = androidx.compose.ui.platform.LocalContext.current as? androidx.activity.ComponentActivity
-            org.skepsun.kototoro.list.ui.compose.AppContentListRoute(
-                viewModel = viewModel,
-                contentPadding = contentPadding,
-                appRouter = appRouter,
-                onTopBarOverrideChanged = onExploreSourceSelectionTopBarChanged,
-                showRemoveOption = true,
-                isContentTypeFilterVisible = false,
-                isSourceTagFilterVisible = false,
-                onRemoveSelection = { ids ->
-                    if (activity != null) {
-                        com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
-                            .setTitle(org.skepsun.kototoro.R.string.delete_manga)
-                            .setMessage(org.skepsun.kototoro.R.string.text_delete_local_manga_batch)
-                            .setPositiveButton(org.skepsun.kototoro.R.string.delete) { _, _ -> viewModel.delete(ids) }
-                            .setNegativeButton(android.R.string.cancel, null)
-                            .show()
+            CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
+                org.skepsun.kototoro.list.ui.compose.AppContentListRoute(
+                    viewModel = viewModel,
+                    contentPadding = contentPadding,
+                    appRouter = appRouter,
+                    onTopBarOverrideChanged = onExploreSourceSelectionTopBarChanged,
+                    showRemoveOption = true,
+                    isContentTypeFilterVisible = false,
+                    onNavigateToDetails = { content, sharedElementKey ->
+                        PendingDetailsNavigation.set(content, sharedElementKey)
+                        navController.navigate("details")
+                    },
+                    isSourceTagFilterVisible = false,
+                    onRemoveSelection = { ids ->
+                        if (activity != null) {
+                            com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
+                                .setTitle(org.skepsun.kototoro.R.string.delete_manga)
+                                .setMessage(org.skepsun.kototoro.R.string.text_delete_local_manga_batch)
+                                .setPositiveButton(org.skepsun.kototoro.R.string.delete) { _, _ -> viewModel.delete(ids) }
+                                .setNegativeButton(android.R.string.cancel, null)
+                                .show()
+                        }
+                    },
+                    onShareSelection = { ids ->
+                        if (activity != null) {
+                            val files = viewModel.content.value.filter { it is org.skepsun.kototoro.list.ui.model.ContentListModel && it.id in ids }.mapNotNull { (it as? org.skepsun.kototoro.list.ui.model.ContentListModel)?.manga?.url?.let { url -> java.io.File(android.net.Uri.parse(url).path ?: "") } }
+                            org.skepsun.kototoro.core.util.ShareHelper(activity).shareCbz(files)
+                        }
+                    },
+                    onAddMenuProvider = { act, _, owner ->
+                        org.skepsun.kototoro.local.ui.LocalListMenuProvider(appRouter, { appRouter.showImportDialog() })
                     }
-                },
-                onShareSelection = { ids ->
-                    if (activity != null) {
-                        val files = viewModel.content.value.filter { it is org.skepsun.kototoro.list.ui.model.ContentListModel && it.id in ids }.mapNotNull { (it as? org.skepsun.kototoro.list.ui.model.ContentListModel)?.manga?.url?.let { url -> java.io.File(android.net.Uri.parse(url).path ?: "") } }
-                        org.skepsun.kototoro.core.util.ShareHelper(activity).shareCbz(files)
-                    }
-                },
-                onAddMenuProvider = { act, _, owner ->
-                    org.skepsun.kototoro.local.ui.LocalListMenuProvider(appRouter, { appRouter.showImportDialog() })
-                }
-            )
+                )
+            }
         }
-        composable("suggestions") { 
+        composable("suggestions") {
             val viewModel = hiltViewModel<org.skepsun.kototoro.suggestions.ui.SuggestionsViewModel>()
-            org.skepsun.kototoro.list.ui.compose.AppContentListRoute(
-                viewModel = viewModel,
-                contentPadding = contentPadding,
-                appRouter = appRouter,
-                onTopBarOverrideChanged = onExploreSourceSelectionTopBarChanged,
-                showRemoveOption = false,
-                isContentTypeFilterVisible = true,
-                isSourceTagFilterVisible = true,
-                onAddMenuProvider = { act, _, _ ->
-                    object : androidx.core.view.MenuProvider {
-                        override fun onCreateMenu(menu: android.view.Menu, menuInflater: android.view.MenuInflater) {
-                            menuInflater.inflate(org.skepsun.kototoro.R.menu.opt_suggestions, menu)
-                            menuInflater.inflate(org.skepsun.kototoro.R.menu.opt_list, menu)
-                        }
-                        override fun onPrepareMenu(menu: android.view.Menu) {
-                            menu.findItem(org.skepsun.kototoro.R.id.action_settings_suggestions)?.isVisible = true
-                        }
-                        override fun onMenuItemSelected(menuItem: android.view.MenuItem): Boolean = when (menuItem.itemId) {
-                            org.skepsun.kototoro.R.id.action_update -> {
-                                viewModel.updateSuggestions()
-                                com.google.android.material.snackbar.Snackbar.make(act.window.decorView.rootView, org.skepsun.kototoro.R.string.suggestions_updating, com.google.android.material.snackbar.Snackbar.LENGTH_LONG).show()
-                                true
+            CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
+                org.skepsun.kototoro.list.ui.compose.AppContentListRoute(
+                    viewModel = viewModel,
+                    contentPadding = contentPadding,
+                    appRouter = appRouter,
+                    onTopBarOverrideChanged = onExploreSourceSelectionTopBarChanged,
+                    showRemoveOption = false,
+                    isContentTypeFilterVisible = true,
+                    isSourceTagFilterVisible = true,
+                    onNavigateToDetails = { content, sharedElementKey ->
+                        PendingDetailsNavigation.set(content, sharedElementKey)
+                        navController.navigate("details")
+                    },
+                    onAddMenuProvider = { act, _, _ ->
+                        object : androidx.core.view.MenuProvider {
+                            override fun onCreateMenu(menu: android.view.Menu, menuInflater: android.view.MenuInflater) {
+                                menuInflater.inflate(org.skepsun.kototoro.R.menu.opt_suggestions, menu)
+                                menuInflater.inflate(org.skepsun.kototoro.R.menu.opt_list, menu)
                             }
-                            org.skepsun.kototoro.R.id.action_list_mode -> {
-                                appRouter.showListConfigSheet(org.skepsun.kototoro.list.ui.config.ListConfigSection.Suggestions)
-                                true
+                            override fun onPrepareMenu(menu: android.view.Menu) {
+                                menu.findItem(org.skepsun.kototoro.R.id.action_settings_suggestions)?.isVisible = true
                             }
-                            org.skepsun.kototoro.R.id.action_settings_suggestions -> {
-                                appRouter.openSuggestionsSettings()
-                                true
+                            override fun onMenuItemSelected(menuItem: android.view.MenuItem): Boolean = when (menuItem.itemId) {
+                                org.skepsun.kototoro.R.id.action_update -> {
+                                    viewModel.updateSuggestions()
+                                    com.google.android.material.snackbar.Snackbar.make(act.window.decorView.rootView, org.skepsun.kototoro.R.string.suggestions_updating, com.google.android.material.snackbar.Snackbar.LENGTH_LONG).show()
+                                    true
+                                }
+                                org.skepsun.kototoro.R.id.action_list_mode -> {
+                                    appRouter.showListConfigSheet(org.skepsun.kototoro.list.ui.config.ListConfigSection.Suggestions)
+                                    true
+                                }
+                                org.skepsun.kototoro.R.id.action_settings_suggestions -> {
+                                    appRouter.openSuggestionsSettings()
+                                    true
+                                }
+                                else -> false
                             }
-                            else -> false
                         }
                     }
-                }
-            )
+                )
+            }
         }
         composable("bookmarks") { 
             val viewModel = hiltViewModel<org.skepsun.kototoro.bookmarks.ui.AllBookmarksViewModel>()
@@ -548,30 +605,36 @@ fun AppNavGraph(
         }
         composable("updated") { 
             val viewModel = hiltViewModel<org.skepsun.kototoro.tracker.ui.updates.UpdatesViewModel>()
-            org.skepsun.kototoro.list.ui.compose.AppContentListRoute(
-                viewModel = viewModel,
-                contentPadding = contentPadding,
-                appRouter = appRouter,
-                onTopBarOverrideChanged = onExploreSourceSelectionTopBarChanged,
-                showRemoveOption = true,
-                isContentTypeFilterVisible = true,
-                isSourceTagFilterVisible = true,
-                onRemoveSelection = { ids -> viewModel.remove(ids) },
-                onAddMenuProvider = { _, _, _ ->
-                    object : androidx.core.view.MenuProvider {
-                        override fun onCreateMenu(menu: android.view.Menu, menuInflater: android.view.MenuInflater) {
-                            menuInflater.inflate(org.skepsun.kototoro.R.menu.opt_list, menu)
-                        }
-                        override fun onMenuItemSelected(menuItem: android.view.MenuItem): Boolean = when (menuItem.itemId) {
-                            org.skepsun.kototoro.R.id.action_list_mode -> {
-                                appRouter.showListConfigSheet(org.skepsun.kototoro.list.ui.config.ListConfigSection.Updated)
-                                true
+            CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
+                org.skepsun.kototoro.list.ui.compose.AppContentListRoute(
+                    viewModel = viewModel,
+                    contentPadding = contentPadding,
+                    appRouter = appRouter,
+                    onTopBarOverrideChanged = onExploreSourceSelectionTopBarChanged,
+                    showRemoveOption = true,
+                    isContentTypeFilterVisible = true,
+                    isSourceTagFilterVisible = true,
+                    onRemoveSelection = { ids -> viewModel.remove(ids) },
+                    onNavigateToDetails = { content, sharedElementKey ->
+                        PendingDetailsNavigation.set(content, sharedElementKey)
+                        navController.navigate("details")
+                    },
+                    onAddMenuProvider = { _, _, _ ->
+                        object : androidx.core.view.MenuProvider {
+                            override fun onCreateMenu(menu: android.view.Menu, menuInflater: android.view.MenuInflater) {
+                                menuInflater.inflate(org.skepsun.kototoro.R.menu.opt_list, menu)
                             }
-                            else -> false
+                            override fun onMenuItemSelected(menuItem: android.view.MenuItem): Boolean = when (menuItem.itemId) {
+                                org.skepsun.kototoro.R.id.action_list_mode -> {
+                                    appRouter.showListConfigSheet(org.skepsun.kototoro.list.ui.config.ListConfigSection.Updated)
+                                    true
+                                }
+                                else -> false
+                            }
                         }
                     }
-                }
-            )
+                )
+            }
         }
         composable(
             route = SearchNavigation.routePattern,
@@ -619,7 +682,8 @@ fun AppNavGraph(
                 viewModel = viewModel,
                 onBackClick = { navController.navigateUp() },
                 onOpenContent = { content ->
-                    appRouter.openDetails(content, rootView)
+                    PendingDetailsNavigation.set(content)
+                    navController.navigate("details")
                 },
                 onPickContent = { },
                 onOpenSourceResults = { item ->
@@ -654,6 +718,96 @@ fun AppNavGraph(
                 },
                 isPickMode = false,
             )
+        }
+
+        composable(
+            route = "details",
+            enterTransition = {
+                if (hasPendingSharedElement()) {
+                    null
+                } else {
+                    slideInHorizontally(tween(320, easing = FastOutSlowInEasing)) { it }
+                }
+            },
+            exitTransition = {
+                if (hasPendingSharedElement()) {
+                    null
+                } else {
+                    slideOutHorizontally(tween(320, easing = FastOutSlowInEasing)) { -it / 4 }
+                }
+            },
+            popEnterTransition = {
+                if (hasPendingSharedElement()) {
+                    null
+                } else {
+                    slideInHorizontally(tween(320, easing = FastOutSlowInEasing)) { -it / 4 }
+                }
+            },
+            popExitTransition = {
+                if (hasPendingSharedElement()) {
+                    null
+                } else {
+                    slideOutHorizontally(tween(320, easing = FastOutSlowInEasing)) { it }
+                }
+            },
+        ) {
+            val detailsViewModel = hiltViewModel<DetailsViewModel>()
+            val pagesViewModel = hiltViewModel<org.skepsun.kototoro.details.ui.pager.pages.PagesViewModel>()
+            val bookmarksViewModel = hiltViewModel<org.skepsun.kototoro.details.ui.pager.bookmarks.BookmarksViewModel>()
+            val detailsCoroutineScope = rememberCoroutineScope()
+
+            val entryPoint = remember(activity) {
+                dagger.hilt.android.EntryPointAccessors.fromActivity(
+                    activity,
+                    DetailsRouteEntryPoint::class.java,
+                )
+            }
+            val effectivePageSaveHelper = pageSaveHelper ?: remember(activity) {
+                entryPoint.pageSaveHelperFactory().create(activity)
+            }
+            val overrideEditLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                contract = androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+            ) { result ->
+                if (result.resultCode == android.app.Activity.RESULT_OK) {
+                    detailsViewModel.reload()
+                }
+            }
+
+            CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
+                val pendingContent = remember { PendingDetailsNavigation.lastContent() }
+                val pendingSharedKey = remember { PendingDetailsNavigation.lastSharedElementKey() }
+                val mangaDetails by detailsViewModel.mangaDetails.collectAsStateWithLifecycle()
+                val sharedKey = remember(pendingSharedKey, mangaDetails, pendingContent) {
+                    pendingSharedKey ?: run {
+                        val content = mangaDetails?.toContent() ?: pendingContent
+                        content?.let { c ->
+                            contentCoverSharedKey(c.source.name, c.coverUrl.orEmpty())
+                        }
+                    }
+                }
+                DetailsScreen(
+                    viewModel = detailsViewModel,
+                    pagesViewModel = pagesViewModel,
+                    bookmarksViewModel = bookmarksViewModel,
+                    settings = entryPoint.settings(),
+                    appRouter = appRouter,
+                    pageSaveHelper = effectivePageSaveHelper,
+                    onBackClick = { navController.popBackStack() },
+                    sharedElementKey = sharedKey,
+                    onActionClick = { action ->
+                        handleDetailsAction(
+                            action = action,
+                            appRouter = appRouter,
+                            viewModel = detailsViewModel,
+                            appShortcutManager = entryPoint.appShortcutManager(),
+                            coroutineScope = detailsCoroutineScope,
+                            snackbarHost = rootView,
+                            overrideEditLauncher = overrideEditLauncher,
+                            onFinish = { navController.popBackStack() },
+                        )
+                    },
+                )
+            }
         }
     }
 }

@@ -3,6 +3,7 @@ package org.skepsun.kototoro.list.ui.compose
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -11,7 +12,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -43,6 +43,7 @@ import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
 import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
 import org.skepsun.kototoro.core.ui.compose.VerticalRailAnimatedVisibility
 import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
+import org.skepsun.kototoro.core.ui.compose.rememberVerticalRailScrollIntensity
 import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
 import org.skepsun.kototoro.list.ui.model.ContentDetailedListModel
 import org.skepsun.kototoro.list.ui.model.ContentGridModel
@@ -62,6 +63,7 @@ fun KototoroContentListScreen(
     listMode: ListMode,
     isRefreshing: Boolean,
     showRemoveOption: Boolean = false,
+    sharedTransitionEnabled: Boolean = true,
     onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
     gridScale: Float,
@@ -87,6 +89,7 @@ fun KototoroContentListScreen(
         settings.observeAsState(AppSettings.KEY_VERTICAL_LIST_RAIL_ANIMATION) {
             isVerticalListRailAnimationEnabled
         }.value
+    val cardUiPrefs = rememberContentCardUiPrefs(settings)
 
     Box(modifier = modifier.fillMaxSize()) {
         KototoroPullToRefreshBox(
@@ -117,13 +120,7 @@ fun KototoroContentListScreen(
                             }
                             items(
                                 count = items.size,
-                                key = { index ->
-                                    val listModel = items[index]
-                                    when (listModel) {
-                                        is ContentListModel -> "${listModel::class.java.name}:${listModel.id}"
-                                        else -> "${listModel::class.java.name}:$index"
-                                    }
-                                },
+                                key = { index -> listModelComposeKey(items[index], index) },
                                 span = { index ->
                                     val listModel = items[index]
                                     if (listModel is ContentGridModel) {
@@ -131,6 +128,9 @@ fun KototoroContentListScreen(
                                     } else {
                                         GridItemSpan(maxLineSpan)
                                     }
+                                },
+                                contentType = { index ->
+                                    if (items[index] is ContentGridModel) "grid_card" else "supplementary"
                                 },
                             ) { index ->
                                 val listModel = items[index]
@@ -143,12 +143,16 @@ fun KototoroContentListScreen(
                                             onItemClick(listModel)
                                         },
                                         onLongClick = { onItemLongClick(listModel) },
+                                        sharedTransitionEnabled = sharedTransitionEnabled,
                                         showSourceInfo = showSourceOnCards,
                                         gridScale = gridScale,
+                                        uiPrefs = cardUiPrefs,
                                     )
                                 } else {
                                     SupplementaryListItem(
                                         item = listModel,
+                                        listMode = listMode,
+                                        gridScale = gridScale,
                                         onQuickFilterOptionClick = onQuickFilterOptionClick,
                                         onEmptyActionClick = onEmptyActionClick,
                                         onRetry = onRetry,
@@ -165,6 +169,11 @@ fun KototoroContentListScreen(
                     }
                     ListMode.LIST -> {
                         val listState = rememberLazyListState()
+                        val scrollIntensity = if (isVerticalCardListAnimationEnabled) {
+                            rememberVerticalRailScrollIntensity(listState)
+                        } else {
+                            0f
+                        }
                         LazyColumn(
                             state = listState,
                             contentPadding = contentPadding,
@@ -175,21 +184,27 @@ fun KototoroContentListScreen(
                                     listHeader()
                                 }
                             }
-                            itemsIndexed(items) { index, listModel ->
-                                val animationKey = when (listModel) {
-                                    is ContentListModel -> "${listModel::class.java.name}:${listModel.id}"
-                                    else -> "${listModel::class.java.name}:$index"
-                                }
+                            items(
+                                count = items.size,
+                                key = { index -> listModelComposeKey(items[index], index) },
+                                contentType = { index ->
+                                    if (items[index] is ContentCompactListModel) "list_card" else "supplementary"
+                                },
+                            ) { index ->
+                                val listModel = items[index]
                                 VerticalRailAnimatedVisibility(
-                                    animationKey = animationKey,
+                                    animationKey = listModelComposeKey(listModel, index),
                                     index = index,
                                     listState = listState,
                                     isAnimationEnabled = isVerticalCardListAnimationEnabled,
+                                    scrollIntensity = scrollIntensity,
                                 ) { animatedModifier ->
                                     if (listModel is ContentCompactListModel) {
                                         KototoroContentCardList(
                                             item = listModel,
                                             isSelected = listModel.id in selectedItemsIds,
+                                            sharedTransitionEnabled = sharedTransitionEnabled,
+                                            uiPrefs = cardUiPrefs,
                                             onClick = { coverBounds ->
                                                 onPrepareItemTransition(listModel, coverBounds)
                                                 onItemClick(listModel)
@@ -201,6 +216,8 @@ fun KototoroContentListScreen(
                                         Box(modifier = animatedModifier) {
                                             SupplementaryListItem(
                                                 item = listModel,
+                                                listMode = listMode,
+                                                gridScale = gridScale,
                                                 onQuickFilterOptionClick = onQuickFilterOptionClick,
                                                 onEmptyActionClick = onEmptyActionClick,
                                                 onRetry = onRetry,
@@ -218,6 +235,11 @@ fun KototoroContentListScreen(
                     }
                     ListMode.DETAILED_LIST -> {
                         val listState = rememberLazyListState()
+                        val scrollIntensity = if (isVerticalCardListAnimationEnabled) {
+                            rememberVerticalRailScrollIntensity(listState)
+                        } else {
+                            0f
+                        }
                         LazyColumn(
                             state = listState,
                             contentPadding = contentPadding,
@@ -228,21 +250,27 @@ fun KototoroContentListScreen(
                                     listHeader()
                                 }
                             }
-                            itemsIndexed(items) { index, listModel ->
-                                val animationKey = when (listModel) {
-                                    is ContentListModel -> "${listModel::class.java.name}:${listModel.id}"
-                                    else -> "${listModel::class.java.name}:$index"
-                                }
+                            items(
+                                count = items.size,
+                                key = { index -> listModelComposeKey(items[index], index) },
+                                contentType = { index ->
+                                    if (items[index] is ContentDetailedListModel) "detailed_card" else "supplementary"
+                                },
+                            ) { index ->
+                                val listModel = items[index]
                                 VerticalRailAnimatedVisibility(
-                                    animationKey = animationKey,
+                                    animationKey = listModelComposeKey(listModel, index),
                                     index = index,
                                     listState = listState,
                                     isAnimationEnabled = isVerticalCardListAnimationEnabled,
+                                    scrollIntensity = scrollIntensity,
                                 ) { animatedModifier ->
                                     if (listModel is ContentDetailedListModel) {
                                         KototoroContentCardDetailedList(
                                             item = listModel,
                                             isSelected = listModel.id in selectedItemsIds,
+                                            sharedTransitionEnabled = sharedTransitionEnabled,
+                                            uiPrefs = cardUiPrefs,
                                             onClick = { coverBounds ->
                                                 onPrepareItemTransition(listModel, coverBounds)
                                                 onItemClick(listModel)
@@ -254,6 +282,8 @@ fun KototoroContentListScreen(
                                         Box(modifier = animatedModifier) {
                                             SupplementaryListItem(
                                                 item = listModel,
+                                                listMode = listMode,
+                                                gridScale = gridScale,
                                                 onQuickFilterOptionClick = onQuickFilterOptionClick,
                                                 onEmptyActionClick = onEmptyActionClick,
                                                 onRetry = onRetry,
@@ -298,6 +328,8 @@ fun KototoroContentListScreen(
 @Composable
 private fun SupplementaryListItem(
     item: ListModel,
+    listMode: ListMode,
+    gridScale: Float,
     onQuickFilterOptionClick: (ListFilterOption) -> Unit,
     onEmptyActionClick: () -> Unit,
     onRetry: () -> Unit,
@@ -311,7 +343,7 @@ private fun SupplementaryListItem(
         is InfoModel -> InfoCard(item)
         is EmptyState -> EmptyStateCard(item, onEmptyActionClick)
         is ErrorState -> ErrorStateCard(item, onRetry)
-        LoadingState -> LoadingStateItem()
+        LoadingState -> LoadingStateItem(listMode = listMode, gridScale = gridScale)
     }
 }
 
@@ -351,7 +383,7 @@ private fun QuickFilterSection(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        items(quickFilter.items) { chip ->
+        items(quickFilter.items, contentType = { "filter_chip" }) { chip ->
             val option = chip.data as? ListFilterOption
             FilterChip(
                 selected = chip.isChecked,
@@ -473,15 +505,117 @@ private fun ErrorStateCard(
 }
 
 @Composable
-private fun LoadingStateItem() {
-    Box(
+private fun LoadingStateItem(
+    listMode: ListMode,
+    gridScale: Float,
+) {
+    when (listMode) {
+        ListMode.GRID -> GridLoadingSkeleton(gridScale = gridScale)
+        ListMode.LIST,
+        ListMode.DETAILED_LIST -> LinearLoadingSkeleton(isDetailed = listMode == ListMode.DETAILED_LIST)
+    }
+}
+
+@Composable
+private fun GridLoadingSkeleton(
+    gridScale: Float,
+) {
+    val posterStyle = compactPosterCardStyle(gridScale)
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 24.dp),
-        contentAlignment = Alignment.Center,
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        KototoroLoadingIndicator()
+        repeat(3) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                SkeletonBlock(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(posterStyle.posterHeight)
+                )
+                SkeletonBlock(
+                    modifier = Modifier
+                        .fillMaxWidth(0.92f)
+                        .height(12.dp)
+                )
+                SkeletonBlock(
+                    modifier = Modifier
+                        .fillMaxWidth(0.68f)
+                        .height(12.dp)
+                )
+            }
+        }
     }
+}
+
+@Composable
+private fun LinearLoadingSkeleton(
+    isDetailed: Boolean,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        repeat(3) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                SkeletonBlock(
+                    modifier = Modifier
+                        .width(if (isDetailed) 96.dp else 84.dp)
+                        .height(if (isDetailed) 132.dp else 116.dp)
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    SkeletonBlock(
+                        modifier = Modifier
+                            .fillMaxWidth(0.72f)
+                            .height(14.dp)
+                    )
+                    SkeletonBlock(
+                        modifier = Modifier
+                            .fillMaxWidth(0.92f)
+                            .height(12.dp)
+                    )
+                    SkeletonBlock(
+                        modifier = Modifier
+                            .fillMaxWidth(0.84f)
+                            .height(12.dp)
+                    )
+                    if (isDetailed) {
+                        SkeletonBlock(
+                            modifier = Modifier
+                                .fillMaxWidth(0.58f)
+                                .height(12.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SkeletonBlock(
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .background(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+                shape = MaterialTheme.shapes.medium,
+            ),
+    )
 }
 
 @Composable
@@ -496,6 +630,34 @@ private fun chipIcon(chip: ChipsView.ChipModel): (@Composable () -> Unit)? {
             tint = if (chip.tint == 0) Color.Unspecified else MaterialTheme.colorScheme.primary,
         )
     }
+}
+
+private fun listModelComposeKey(
+    listModel: ListModel,
+    index: Int,
+): String = when (listModel) {
+    is ContentListModel -> buildString {
+        append(listModel.javaClass.simpleName)
+        append(':')
+        append(listModel.source.name)
+        append(':')
+        append(listModel.id)
+        append(':')
+        append(
+            listModel.manga.url
+                .ifBlank { listModel.manga.publicUrl }
+                .ifBlank { listModel.title },
+        )
+        append(':')
+        append(index)
+    }
+    is ListHeader -> "header:${listModel.hashCode()}:$index"
+    is QuickFilter -> "quick_filter:${listModel.hashCode()}:$index"
+    is InfoModel -> "info:${listModel.hashCode()}:$index"
+    is EmptyState -> "empty_state:${listModel.hashCode()}:$index"
+    is ErrorState -> "error_state:${listModel.hashCode()}:$index"
+    LoadingState -> "loading_state:$index"
+    else -> "${listModel.javaClass.name}:${listModel.hashCode()}:$index"
 }
 
 @Composable

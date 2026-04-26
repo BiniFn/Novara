@@ -24,6 +24,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 
 @Composable
@@ -99,14 +102,17 @@ fun HeroAutoAdvanceEffect(
     pageCount: Int,
     intervalMillis: Long = 4500L,
 ) {
-    LaunchedEffect(pageCount) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner, pagerState, pageCount, intervalMillis) {
         if (pageCount <= 1) {
             return@LaunchedEffect
         }
-        while (true) {
-            delay(intervalMillis)
-            if (!pagerState.isScrollInProgress) {
-                pagerState.animateScrollToPage((pagerState.currentPage + 1) % pageCount)
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                delay(intervalMillis)
+                if (!pagerState.isScrollInProgress) {
+                    pagerState.animateScrollToPage((pagerState.currentPage + 1) % pageCount)
+                }
             }
         }
     }

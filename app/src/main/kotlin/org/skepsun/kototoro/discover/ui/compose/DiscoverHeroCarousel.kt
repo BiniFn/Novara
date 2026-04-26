@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.discover.ui.compose
 
+import android.os.Build
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -34,6 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,15 +45,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -67,8 +69,14 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.image.panoramaBlur
 import org.skepsun.kototoro.core.ui.compose.HeroAutoAdvanceEffect
+import org.skepsun.kototoro.core.ui.compose.unclippedBoundsInWindow
 import org.skepsun.kototoro.core.ui.compose.HeroPagerIndicator
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
+import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
+import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
@@ -79,19 +87,55 @@ private val DiscoverHeroHeightLandscape = 220.dp
 private val DiscoverHeroBottomBlendHeightLandscape = 128.dp
 private val DiscoverHeroBottomBlendHeightDetachedLandscape = 64.dp
 
-@OptIn(ExperimentalFoundationApi::class)
+@Immutable
+private data class DiscoverHeroPanoramaPrefs(
+    val isEnabled: Boolean,
+    val blurPercent: Int,
+    val bottomGradientAlphaPercent: Int,
+    val animationEnabled: Boolean,
+    val animationSpeedPercent: Int,
+    val blendHeight: Int,
+)
+
+@Composable
+private fun rememberDiscoverHeroPanoramaPrefs(settings: AppSettings): DiscoverHeroPanoramaPrefs {
+    val supportsRealtimeEffects = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val prefs by settings.observeAsState(
+        AppSettings.KEY_PANORAMA_ENABLED,
+        AppSettings.KEY_PANORAMA_BLUR,
+        AppSettings.KEY_BROWSE_PANORAMA_BOTTOM_GRADIENT_ALPHA,
+        AppSettings.KEY_PANORAMA_ANIMATION_ENABLED,
+        AppSettings.KEY_PANORAMA_ANIMATION_SPEED,
+        AppSettings.KEY_BROWSE_PANORAMA_BLEND_HEIGHT,
+    ) {
+        DiscoverHeroPanoramaPrefs(
+            isEnabled = isPanoramaCoverEnabled,
+            blurPercent = panoramaCoverBlur,
+            bottomGradientAlphaPercent = browsePanoramaBottomGradientAlpha,
+            animationEnabled = supportsRealtimeEffects && isPanoramaCoverAnimationEnabled,
+            animationSpeedPercent = panoramaAnimationSpeed,
+            blendHeight = browsePanoramaBlendHeight,
+        )
+    }
+    return prefs
+}
+
+@OptIn(ExperimentalFoundationApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun DiscoverHeroCarousel(
     title: String,
     items: List<ContentListModel>,
     activeService: ScrobblerService?,
     availableServices: List<ScrobblerService>,
-    onItemClick: (ContentListModel, Rect?) -> Unit,
+    onItemClick: (ContentListModel, Rect?, String) -> Unit,
     onSelectService: (ScrobblerService) -> Unit,
     topContentInset: Dp = 0.dp,
     modifier: Modifier = Modifier,
     bottomContent: (@Composable () -> Unit)? = null,
     detachedBottomContent: Boolean = false,
+    sharedElementKeyForItem: (ContentListModel, Int) -> String = { item, _ ->
+        contentCoverSharedKey(item.manga.source.name, item.manga.coverUrl.orEmpty())
+    },
 ) {
     if (items.isEmpty()) return
 
@@ -104,31 +148,17 @@ fun DiscoverHeroCarousel(
     }
     val context = LocalContext.current
     val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-    val browsePanoramaBlendHeight by settings.observeAsState(AppSettings.KEY_BROWSE_PANORAMA_BLEND_HEIGHT) {
-        browsePanoramaBlendHeight
-    }
+    val panoramaPrefs = rememberDiscoverHeroPanoramaPrefs(settings)
     val heroBottomBlendHeight = when {
         detachedBottomContent && isLandscape -> DiscoverHeroBottomBlendHeightDetachedLandscape
-        detachedBottomContent -> ((browsePanoramaBlendHeight * 0.54f).toInt()).dp
+        detachedBottomContent -> ((panoramaPrefs.blendHeight * 0.54f).toInt()).dp
         isLandscape -> DiscoverHeroBottomBlendHeightLandscape
-        else -> browsePanoramaBlendHeight.dp
+        else -> panoramaPrefs.blendHeight.dp
     }
     val pageBackground = MaterialTheme.colorScheme.background
 
-    val isPanoramaCoverEnabled by settings.observeAsState(AppSettings.KEY_PANORAMA_ENABLED) { isPanoramaCoverEnabled }
-    val panoramaBlur by settings.observeAsState(AppSettings.KEY_PANORAMA_BLUR) { panoramaCoverBlur }
-    val panoramaBottomAlpha by settings.observeAsState(AppSettings.KEY_BROWSE_PANORAMA_BOTTOM_GRADIENT_ALPHA) {
-        browsePanoramaBottomGradientAlpha
-    }
-    val isPanoramaCoverAnimationEnabled by settings.observeAsState(AppSettings.KEY_PANORAMA_ANIMATION_ENABLED) {
-        isPanoramaCoverAnimationEnabled
-    }
-    val panoramaAnimationSpeed by settings.observeAsState(AppSettings.KEY_PANORAMA_ANIMATION_SPEED) {
-        panoramaAnimationSpeed
-    }
-    val panoramaBlurDp = (((panoramaBlur / 100f).coerceIn(0f, 1f)) * 20f).dp
-    val panoramaGradientAlphaFactor = (panoramaBottomAlpha / 100f).coerceIn(0f, 1f)
-    val panoramaAnimationSpeedFactor = (panoramaAnimationSpeed.coerceIn(50, 200)) / 100f
+    val panoramaGradientAlphaFactor = (panoramaPrefs.bottomGradientAlphaPercent / 100f).coerceIn(0f, 1f)
+    val panoramaAnimationSpeedFactor = (panoramaPrefs.animationSpeedPercent.coerceIn(50, 200)) / 100f
     val scaleAnimationDuration = (14000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(4000)
     val horizontalPanAnimationDuration = (16000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(4500)
     val verticalPanAnimationDuration = (12000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(3500)
@@ -138,34 +168,44 @@ fun DiscoverHeroCarousel(
     }
     val selectedItem = items[selectedIndex]
     var isServiceMenuExpanded by rememberSaveable { mutableStateOf(false) }
-    val infiniteTransition = rememberInfiniteTransition(label = "discover_hero_background")
-    val backgroundScale by infiniteTransition.animateFloat(
-        initialValue = if (isPanoramaCoverAnimationEnabled) 1.15f else 1f,
-        targetValue = if (isPanoramaCoverAnimationEnabled) 1.22f else 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = scaleAnimationDuration, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "discover_hero_background_scale",
-    )
-    val backgroundTranslationX by infiniteTransition.animateFloat(
-        initialValue = if (isPanoramaCoverAnimationEnabled) -18f else 0f,
-        targetValue = if (isPanoramaCoverAnimationEnabled) 18f else 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = horizontalPanAnimationDuration, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "discover_hero_background_translation_x",
-    )
-    val backgroundTranslationY by infiniteTransition.animateFloat(
-        initialValue = if (isPanoramaCoverAnimationEnabled) -12f else 0f,
-        targetValue = if (isPanoramaCoverAnimationEnabled) 12f else 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = verticalPanAnimationDuration, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "discover_hero_background_translation_y",
-    )
+
+    val backgroundScale: Float
+    val backgroundTranslationX: Float
+    val backgroundTranslationY: Float
+    if (panoramaPrefs.animationEnabled) {
+        val infiniteTransition = rememberInfiniteTransition(label = "discover_hero_background")
+        backgroundScale = infiniteTransition.animateFloat(
+            initialValue = 1.15f,
+            targetValue = 1.22f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = scaleAnimationDuration, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "discover_hero_background_scale",
+        ).value
+        backgroundTranslationX = infiniteTransition.animateFloat(
+            initialValue = -18f,
+            targetValue = 18f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = horizontalPanAnimationDuration, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "discover_hero_background_translation_x",
+        ).value
+        backgroundTranslationY = infiniteTransition.animateFloat(
+            initialValue = -12f,
+            targetValue = 12f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = verticalPanAnimationDuration, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "discover_hero_background_translation_y",
+        ).value
+    } else {
+        backgroundScale = 1f
+        backgroundTranslationX = 0f
+        backgroundTranslationY = 0f
+    }
 
     HeroAutoAdvanceEffect(
         pagerState = pagerState,
@@ -193,17 +233,23 @@ fun DiscoverHeroCarousel(
             modifier = heroImageModifier
                 .background(pageBackground),
         )
-        if (isPanoramaCoverEnabled) {
+        if (panoramaPrefs.isEnabled) {
             Crossfade(
                 targetState = selectedItem.id,
                 label = "discover_hero_background",
                 modifier = heroImageModifier,
             ) { currentId ->
                 val backgroundItem = items.firstOrNull { it.id == currentId } ?: selectedItem
-                val backgroundRequest = remember(currentId, backgroundItem.coverUrl) {
+                val backgroundRequest = remember(
+                    currentId,
+                    backgroundItem.coverUrl,
+                    context,
+                    panoramaPrefs.blurPercent,
+                ) {
                     ImageRequest.Builder(context)
                         .data(backgroundItem.coverUrl)
                         .size(250) // drastically reduces GPU workload for blurring
+                        .panoramaBlur(panoramaPrefs.blurPercent)
                         .build()
                 }
                 AsyncImage(
@@ -218,15 +264,14 @@ fun DiscoverHeroCarousel(
                             translationX = backgroundTranslationX
                             translationY = backgroundTranslationY
                         }
-                        .blur(panoramaBlurDp)
                         .alpha(0.94f),
                 )
             }
         }
         Box(
             modifier = heroImageModifier
-                .background(
-                    if (detachedBottomContent) {
+                .drawBehind {
+                    val verticalScrim = if (detachedBottomContent) {
                         Brush.verticalGradient(
                             colorStops = arrayOf(
                                 0.0f to Color.Transparent,
@@ -249,17 +294,18 @@ fun DiscoverHeroCarousel(
                                 1.0f to pageBackground,
                             ),
                         )
-                    },
-                )
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(
-                            pageBackground.copy(alpha = 0.24f),
-                            Color.Transparent,
-                            pageBackground.copy(alpha = 0.14f),
+                    }
+                    drawRect(verticalScrim)
+                    drawRect(
+                        Brush.horizontalGradient(
+                            colors = listOf(
+                                pageBackground.copy(alpha = 0.24f),
+                                Color.Transparent,
+                                pageBackground.copy(alpha = 0.14f),
+                            ),
                         ),
-                    ),
-                ),
+                    )
+                },
         )
         // 底部渐变固定在 hero 图片区域底部，不随 bottomContent 延伸
         Spacer(
@@ -383,6 +429,7 @@ fun DiscoverHeroCarousel(
                 modifier = Modifier.fillMaxWidth(),
             ) { page ->
                 val item = items[page]
+                val sharedElementKey = remember(item.id, page) { sharedElementKeyForItem(item, page) }
                 var coverBounds by remember(item.id) { mutableStateOf<Rect?>(null) }
                 val posterRequest = remember(item.id, item.coverUrl) {
                     ImageRequest.Builder(context)
@@ -390,10 +437,12 @@ fun DiscoverHeroCarousel(
                         .crossfade(true)
                         .build()
                 }
+                val sharedTransitionScope = LocalSharedTransitionScope.current
+                val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onItemClick(item, coverBounds) }
+                        .clickable { onItemClick(item, coverBounds, sharedElementKey) }
                         .padding(horizontal = 20.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -405,8 +454,20 @@ fun DiscoverHeroCarousel(
                         modifier = Modifier
                             .size(width = 96.dp, height = 132.dp)
                             .onGloballyPositioned { coordinates ->
-                                coverBounds = coordinates.boundsInRoot()
+                                coverBounds = coordinates.unclippedBoundsInWindow()
                             }
+                            .then(
+                                if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                                    with(sharedTransitionScope) {
+                                        Modifier.sharedElement(
+                                            rememberSharedContentState(
+                                                key = sharedElementKey,
+                                            ),
+                                            animatedVisibilityScope = animatedVisibilityScope,
+                                        )
+                                    }
+                                } else Modifier,
+                            )
                             .clip(RoundedCornerShape(18.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant),
                     )

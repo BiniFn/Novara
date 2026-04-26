@@ -352,7 +352,7 @@ fun <T> SettingsChoicePreference(
                         .fillMaxWidth()
                         .heightIn(max = 320.dp),
                 ) {
-                    items(options) { option ->
+                    items(options, contentType = { "radio_option" }) { option ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -455,7 +455,7 @@ fun <T> SettingsMultiChoicePreference(
                         .fillMaxWidth()
                         .heightIn(max = 320.dp),
                 ) {
-                    items(options) { option ->
+                    items(options, contentType = { "checkbox_option" }) { option ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()

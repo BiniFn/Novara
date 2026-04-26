@@ -69,6 +69,7 @@ fun FavoriteCategoryDialog(
                     items(
                         items = allCategories,
                         key = { it.id },
+                        contentType = { "category_row" },
                     ) { category ->
                         val isChecked = category.id in memberCategoryIds
                         CategoryRow(

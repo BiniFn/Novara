@@ -323,6 +323,7 @@ class DetailsPaneState internal constructor(
 @Composable
 fun rememberDetailsPaneState(
     screenHeightDp: Int,
+    collapsedHeight: Dp = 96.dp,
     initialPageGridSizeValue: Float,
     initialSelectedTabId: Int,
     initialChapterQuery: String = "",
@@ -351,7 +352,7 @@ fun rememberDetailsPaneState(
         DetailsPaneState(
             density = density,
             coroutineScope = coroutineScope,
-            collapsedHeight = 88.dp,
+            collapsedHeight = collapsedHeight,
             paneHeight = paneHeight,
             hoveredHeight = hoveredHeight,
             initialPageGridSizeValue = initialPageGridSizeValue,

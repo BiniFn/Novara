@@ -9,11 +9,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsState
 
 @Composable
 fun SuggestionsSettingsScreen(
@@ -23,7 +25,14 @@ fun SuggestionsSettingsScreen(
     onExcludeTagsChanged: (String) -> Unit,
     onPreferredTagsChanged: (String) -> Unit,
 ) {
-    val isEnabled = settings.isSuggestionsEnabled
+    val isEnabled by settings.observeAsState(AppSettings.KEY_SUGGESTIONS) { isSuggestionsEnabled }
+    val isWifiOnly by settings.observeAsState(AppSettings.KEY_SUGGESTIONS_WIFI_ONLY) { isSuggestionsWiFiOnly }
+    val includeDisabledSources by settings.observeAsState(AppSettings.KEY_SUGGESTIONS_DISABLED_SOURCES) {
+        isSuggestionsIncludeDisabledSources
+    }
+    val notificationsEnabled by settings.observeAsState(AppSettings.KEY_SUGGESTIONS_NOTIFICATIONS) {
+        isSuggestionsNotificationAvailable
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -43,37 +52,37 @@ fun SuggestionsSettingsScreen(
                     title = stringResource(R.string.suggestions_enable),
                     checked = isEnabled,
                     onCheckedChange = { checked ->
-                        settings.prefs.edit().putBoolean(AppSettings.KEY_SUGGESTIONS, checked).apply()
+                        settings.isSuggestionsEnabled = checked
                     },
                 )
                 SettingsSectionDivider()
                 SettingsSwitchPreference(
                     title = stringResource(R.string.only_using_wifi),
                     summary = stringResource(R.string.suggestions_wifi_only_summary),
-                    checked = settings.prefs.getBoolean("suggestions_wifi", false),
+                    checked = isWifiOnly,
                     enabled = isEnabled,
                     onCheckedChange = { checked ->
-                        settings.prefs.edit().putBoolean("suggestions_wifi", checked).apply()
+                        settings.prefs.edit().putBoolean(AppSettings.KEY_SUGGESTIONS_WIFI_ONLY, checked).apply()
                     },
                 )
                 SettingsSectionDivider()
                 SettingsSwitchPreference(
                     title = stringResource(R.string.include_disabled_sources),
                     summary = stringResource(R.string.suggestions_disabled_sources_summary),
-                    checked = settings.prefs.getBoolean("suggestions_disabled_sources", false),
+                    checked = includeDisabledSources,
                     enabled = isEnabled,
                     onCheckedChange = { checked ->
-                        settings.prefs.edit().putBoolean("suggestions_disabled_sources", checked).apply()
+                        settings.prefs.edit().putBoolean(AppSettings.KEY_SUGGESTIONS_DISABLED_SOURCES, checked).apply()
                     },
                 )
                 SettingsSectionDivider()
                 SettingsSwitchPreference(
                     title = stringResource(R.string.notifications_enable),
                     summary = stringResource(R.string.suggestions_notifications_summary),
-                    checked = settings.prefs.getBoolean("suggestions_notifications", false),
+                    checked = notificationsEnabled,
                     enabled = isEnabled,
                     onCheckedChange = { checked ->
-                        settings.prefs.edit().putBoolean("suggestions_notifications", checked).apply()
+                        settings.prefs.edit().putBoolean(AppSettings.KEY_SUGGESTIONS_NOTIFICATIONS, checked).apply()
                     },
                 )
                 SettingsSectionDivider()

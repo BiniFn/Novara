@@ -42,6 +42,7 @@ fun KototoroBottomNav(
 
     val activeItems = navState.items.filter { navState.itemVisibility[it.id] != false }
     val useNavigationRail = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     val targetAlpha = when (blurMode) {
         AppSettings.BlurMode.ENHANCED -> 0.72f
@@ -67,7 +68,12 @@ fun KototoroBottomNav(
             if (useNavigationRail) {
                 Modifier
                     .fillMaxHeight()
-                    .padding(horizontal = railHorizontalPadding, vertical = railVerticalPadding)
+                    .padding(
+                        start = railHorizontalPadding,
+                        end = railHorizontalPadding,
+                        top = railVerticalPadding + statusBarTopPadding,
+                        bottom = railVerticalPadding,
+                    )
             } else {
                 Modifier
                     .fillMaxWidth()

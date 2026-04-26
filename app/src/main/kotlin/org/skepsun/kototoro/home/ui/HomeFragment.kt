@@ -17,7 +17,6 @@ import org.skepsun.kototoro.core.prefs.NavItem
 import org.skepsun.kototoro.core.ui.BaseFragment
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.details.ui.DetailsCoverTransitionStore
 import org.skepsun.kototoro.databinding.FragmentHomeBinding
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 
@@ -55,19 +54,18 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 
 		viewModel.onOpenContent.observeEvent(viewLifecycleOwner) { manga ->
 			router.openDetails(manga, binding.root)
-		}
+        }
 
-		binding.composeView.setContent {
-			val state by viewModel.summaryState.collectAsStateWithLifecycle()
-			val isRandomLoading by viewModel.isRandomLoading.collectAsStateWithLifecycle()
-			
-			syncSelectedTab(state.selectedTab)
+        binding.composeView.setContent {
+            val state by viewModel.summaryState.collectAsStateWithLifecycle()
+            val isRandomLoading by viewModel.isRandomLoading.collectAsStateWithLifecycle()
+
+            syncSelectedTab(state.selectedTab)
 			
 			KototoroTheme {
 				HomeScreen(
 					state = state,
-					onContentClick = { content, coverBounds ->
-						DetailsCoverTransitionStore.set(content, coverBounds)
+					onContentClick = { content, coverBounds, _ ->
 						router.openDetails(content, binding.root)
 					},
 					onSettingsClick = { router.openSettings() },
@@ -94,13 +92,13 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 		filterMenuProvider?.updateIcons()
 	}
 
-	private fun currentBrowseGroupTab(): BrowseGroupTab {
-		return when (viewModel.summaryState.value.selectedTab) {
-			HomeContentTab.MANGA -> BrowseGroupTab.Content
-			HomeContentTab.NOVEL -> BrowseGroupTab.Novel
-			HomeContentTab.VIDEO -> BrowseGroupTab.Video
-			null -> BrowseGroupTab.All
-		}
+    private fun currentBrowseGroupTab(): BrowseGroupTab {
+        return when (viewModel.summaryState.value.selectedTab) {
+            HomeContentTab.MANGA -> BrowseGroupTab.Content
+            HomeContentTab.NOVEL -> BrowseGroupTab.Novel
+            HomeContentTab.VIDEO -> BrowseGroupTab.Video
+            null -> BrowseGroupTab.All
+        }
 	}
 
 	override fun onDestroyView() {
@@ -150,9 +148,9 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 		return currentBrowseGroupTab()
 	}
 
-	override fun getSelectedSourceTags(): Set<SourceTag> {
-		return viewModel.summaryState.value.selectedSourceTags
-	}
+    override fun getSelectedSourceTags(): Set<SourceTag> {
+        return viewModel.summaryState.value.selectedSourceTags
+    }
 
 	override fun isLanguagePresetFilterVisible(): Boolean = settings.isShowLanguagePresetFilter
 	override fun isContentTypeFilterVisible(): Boolean = settings.isShowContentTypeFilter && true

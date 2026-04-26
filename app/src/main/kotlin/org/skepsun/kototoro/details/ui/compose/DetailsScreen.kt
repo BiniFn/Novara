@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -72,7 +73,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -90,6 +90,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -114,6 +115,7 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
@@ -182,62 +184,62 @@ fun DetailsScreen(
     appRouter: AppRouter,
     pageSaveHelper: PageSaveHelper,
     onBackClick: () -> Unit,
-    onCoverBoundsSync: (Rect, Float) -> Unit,
-    isHeroOverlayVisible: Boolean = false,
+    sharedElementKey: String? = null,
     onActionClick: (DetailsAction) -> Unit = {},
 ) {
-    val mangaDetails by viewModel.mangaDetails.collectAsState()
-    val remoteContent by viewModel.remoteContent.collectAsState()
-    val favouriteCategories by viewModel.favouriteCategories.collectAsState()
-    val historyInfo by viewModel.historyInfo.collectAsState()
-    val branches by viewModel.branches.collectAsState()
-    val translatedTitle by viewModel.translatedTitle.collectAsState()
-    val translatedDescription by viewModel.translatedDescription.collectAsState()
-    val isShowingTranslation by viewModel.isShowingTranslation.collectAsState()
-    val hasTranslationCache by viewModel.hasTranslationCache.collectAsState()
-    val isTranslating by viewModel.isTranslating.collectAsState()
-    val showTranslateAction by viewModel.showTranslateAction.collectAsState()
-    val isStatsAvailable by viewModel.isStatsAvailable.collectAsState()
-    val isChaptersReversed by viewModel.isChaptersReversed.collectAsState(initial = false)
-    val isChaptersInGridView by viewModel.isChaptersInGridView.collectAsState(initial = false)
-    val isDownloadedOnly by viewModel.isDownloadedOnly.collectAsState(initial = false)
-    val pagesGridScale by pagesViewModel.gridScale.collectAsState(initial = settings.gridSizePages / 100f)
-    val chapterEmptyReason by viewModel.emptyReason.collectAsState(initial = null)
-    val trackingSuggestion by viewModel.trackingMatchSuggestion.collectAsState()
-    val linkedTrackingItems by viewModel.linkedTrackingItems.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val entityRelationSections by viewModel.entityRelationSections.collectAsState()
-    val activeLocalSourceOptions by viewModel.activeLocalSourceOptions.collectAsState()
-    val entityChapterSourceInfo by viewModel.entityChapterSourceInfo.collectAsState()
-    val metadataSourceOptions by viewModel.metadataSourceOptions.collectAsState()
-    val readingSourceOptions by viewModel.readingSourceOptions.collectAsState()
-    val metadataChapterTabs by viewModel.metadataChapterTabs.collectAsState()
-    val readingChapterTabs by viewModel.readingChapterTabs.collectAsState()
-    val trackingMetadataProperties by viewModel.trackingMetadataProperties.collectAsState()
-    val trackingDetailsSections by viewModel.trackingDetailsSections.collectAsState()
-    val trackingDetailsActions by viewModel.trackingDetailsActions.collectAsState()
-    val trackingCommentThreads by viewModel.trackingCommentThreads.collectAsState()
-    val trackingCommentsUrl by viewModel.trackingCommentsUrl.collectAsState()
-    val trackingReviews by viewModel.trackingReviews.collectAsState()
-    val trackingReviewsUrl by viewModel.trackingReviewsUrl.collectAsState()
-    val metadataSearchServices by viewModel.metadataSearchServices.collectAsState()
-    val authorizedTrackingServices by viewModel.authorizedTrackingServices.collectAsState()
-    val selectedMetadataSearchService by viewModel.selectedMetadataSearchService.collectAsState()
-    val metadataSearchQuery by viewModel.metadataSearchQuery.collectAsState()
-    val metadataSearchResults by viewModel.metadataSearchResults.collectAsState()
-    val metadataSearchLoading by viewModel.metadataSearchLoading.collectAsState()
-    val metadataSearchError by viewModel.metadataSearchError.collectAsState()
-    val readingSearchSources by viewModel.readingSearchSources.collectAsState()
-    val selectedReadingSearchSource by viewModel.selectedReadingSearchSource.collectAsState()
-    val readingSearchQuery by viewModel.readingSearchQuery.collectAsState()
-    val readingSearchState by viewModel.readingSearchState.collectAsState()
-    val resolvedMetadataContentType by viewModel.resolvedMetadataContentType.collectAsState()
-    val resolvedMetadataLanguage by viewModel.resolvedMetadataLanguage.collectAsState()
-    val resolvedReadingLanguage by viewModel.resolvedReadingLanguage.collectAsState()
-    val activeLocalBrowserContent by viewModel.activeLocalBrowserContent.collectAsState()
+    val mangaDetails by viewModel.mangaDetails.collectAsStateWithLifecycle()
+    val remoteContent by viewModel.remoteContent.collectAsStateWithLifecycle()
+    val favouriteCategories by viewModel.favouriteCategories.collectAsStateWithLifecycle()
+    val historyInfo by viewModel.historyInfo.collectAsStateWithLifecycle()
+    val branches by viewModel.branches.collectAsStateWithLifecycle()
+    val translatedTitle by viewModel.translatedTitle.collectAsStateWithLifecycle()
+    val translatedDescription by viewModel.translatedDescription.collectAsStateWithLifecycle()
+    val isShowingTranslation by viewModel.isShowingTranslation.collectAsStateWithLifecycle()
+    val hasTranslationCache by viewModel.hasTranslationCache.collectAsStateWithLifecycle()
+    val isTranslating by viewModel.isTranslating.collectAsStateWithLifecycle()
+    val showTranslateAction by viewModel.showTranslateAction.collectAsStateWithLifecycle()
+    val isStatsAvailable by viewModel.isStatsAvailable.collectAsStateWithLifecycle()
+    val isChaptersReversed by viewModel.isChaptersReversed.collectAsStateWithLifecycle(initialValue = false)
+    val isChaptersInGridView by viewModel.isChaptersInGridView.collectAsStateWithLifecycle(initialValue = false)
+    val isDownloadedOnly by viewModel.isDownloadedOnly.collectAsStateWithLifecycle(initialValue = false)
+    val pagesGridScale by pagesViewModel.gridScale.collectAsStateWithLifecycle(initialValue = settings.gridSizePages / 100f)
+    val chapterEmptyReason by viewModel.emptyReason.collectAsStateWithLifecycle(initialValue = null)
+    val trackingSuggestion by viewModel.trackingMatchSuggestion.collectAsStateWithLifecycle()
+    val linkedTrackingItems by viewModel.linkedTrackingItems.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val entityRelationSections by viewModel.entityRelationSections.collectAsStateWithLifecycle()
+    val activeLocalSourceOptions by viewModel.activeLocalSourceOptions.collectAsStateWithLifecycle()
+    val entityChapterSourceInfo by viewModel.entityChapterSourceInfo.collectAsStateWithLifecycle()
+    val metadataSourceOptions by viewModel.metadataSourceOptions.collectAsStateWithLifecycle()
+    val readingSourceOptions by viewModel.readingSourceOptions.collectAsStateWithLifecycle()
+    val metadataChapterTabs by viewModel.metadataChapterTabs.collectAsStateWithLifecycle()
+    val readingChapterTabs by viewModel.readingChapterTabs.collectAsStateWithLifecycle()
+    val trackingMetadataProperties by viewModel.trackingMetadataProperties.collectAsStateWithLifecycle()
+    val trackingDetailsSections by viewModel.trackingDetailsSections.collectAsStateWithLifecycle()
+    val trackingDetailsActions by viewModel.trackingDetailsActions.collectAsStateWithLifecycle()
+    val trackingCommentThreads by viewModel.trackingCommentThreads.collectAsStateWithLifecycle()
+    val trackingCommentsUrl by viewModel.trackingCommentsUrl.collectAsStateWithLifecycle()
+    val trackingReviews by viewModel.trackingReviews.collectAsStateWithLifecycle()
+    val trackingReviewsUrl by viewModel.trackingReviewsUrl.collectAsStateWithLifecycle()
+    val metadataSearchServices by viewModel.metadataSearchServices.collectAsStateWithLifecycle()
+    val authorizedTrackingServices by viewModel.authorizedTrackingServices.collectAsStateWithLifecycle()
+    val selectedMetadataSearchService by viewModel.selectedMetadataSearchService.collectAsStateWithLifecycle()
+    val metadataSearchQuery by viewModel.metadataSearchQuery.collectAsStateWithLifecycle()
+    val metadataSearchResults by viewModel.metadataSearchResults.collectAsStateWithLifecycle()
+    val metadataSearchLoading by viewModel.metadataSearchLoading.collectAsStateWithLifecycle()
+    val metadataSearchError by viewModel.metadataSearchError.collectAsStateWithLifecycle()
+    val readingSearchSources by viewModel.readingSearchSources.collectAsStateWithLifecycle()
+    val selectedReadingSearchSource by viewModel.selectedReadingSearchSource.collectAsStateWithLifecycle()
+    val readingSearchQuery by viewModel.readingSearchQuery.collectAsStateWithLifecycle()
+    val readingSearchState by viewModel.readingSearchState.collectAsStateWithLifecycle()
+    val resolvedMetadataContentType by viewModel.resolvedMetadataContentType.collectAsStateWithLifecycle()
+    val resolvedMetadataLanguage by viewModel.resolvedMetadataLanguage.collectAsStateWithLifecycle()
+    val resolvedReadingLanguage by viewModel.resolvedReadingLanguage.collectAsStateWithLifecycle()
+    val activeLocalBrowserContent by viewModel.activeLocalBrowserContent.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     val panoramaExtraHeight by settings.observeAsState(AppSettings.KEY_PANORAMA_EXTRA_HEIGHT) { panoramaCoverExtraHeight }
+    val panoramaPrefs = rememberPanoramaBackdropPrefs(settings)
     val downloadDialogViewModel: DownloadDialogViewModel = hiltViewModel()
     val content = mangaDetails?.toContent()
     val contentType = resolvedMetadataContentType
@@ -289,13 +291,17 @@ fun DetailsScreen(
         configuration.orientation == Configuration.ORIENTATION_LANDSCAPE || configuration.screenWidthDp >= 720
     }
     val density = LocalDensity.current
+    val navigationBarBottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val compactPaneCollapsedHeight = remember(navigationBarBottomPadding) {
+        (68.dp + navigationBarBottomPadding).coerceIn(88.dp, 120.dp)
+    }
     val detailsPaneState = rememberDetailsPaneState(
         screenHeightDp = configuration.screenHeightDp,
+        collapsedHeight = compactPaneCollapsedHeight,
         initialPageGridSizeValue = settings.gridSizePages.toFloat(),
         initialSelectedTabId = settings.defaultDetailsTab,
         initialChapterQuery = "",
     )
-    val compactPaneCollapsedHeight = detailsPaneState.collapsedHeight
     val compactPaneHeight = detailsPaneState.paneHeight
     val compactPaneAnchor = detailsPaneState.anchor
     val pageGridSizeValue = detailsPaneState.pageGridSizeValue
@@ -401,7 +407,7 @@ fun DetailsScreen(
         }
     }
     val panoramaExtraHeightDp = ((panoramaExtraHeight ?: 0).coerceAtLeast(0)).dp
-    val detailsHeaderTopSpacing = overlayTopBarInset + if (settings.isPanoramaCoverEnabled) panoramaExtraHeightDp else 0.dp
+    val detailsHeaderTopSpacing = overlayTopBarInset + if (panoramaPrefs.isEnabled) panoramaExtraHeightDp else 0.dp
     val compactTopBarAlpha by animateFloatAsState(
         targetValue = if (isWideAdaptiveLayout) 1f else (1f - compactSheetExpansionProgress).coerceIn(0f, 1f),
         animationSpec = tween(durationMillis = 180),
@@ -416,11 +422,7 @@ fun DetailsScreen(
         animationSpec = tween(durationMillis = 220),
         label = "details_header_cover_visual_alpha",
     )
-    val headerCoverVisualAlpha = if (isHeroOverlayVisible) {
-        0f
-    } else {
-        animatedHeaderCoverVisualAlpha
-    }
+    val headerCoverVisualAlpha = animatedHeaderCoverVisualAlpha
 
     val clearChapterSearch: () -> Unit = remember(detailsPaneState, viewModel) {
         {
@@ -536,7 +538,7 @@ fun DetailsScreen(
                         .matchParentSize()
                         .background(MaterialTheme.colorScheme.surface),
                 )
-                if (settings.isPanoramaCoverEnabled) {
+                if (panoramaPrefs.isEnabled) {
                     val panoramaCoverUrl = content?.coverUrl?.takeIf { it.isNotBlank() }
                     val request = remember(content?.source?.name, content?.url, panoramaCoverUrl) {
                         ImageRequest.Builder(context)
@@ -545,10 +547,11 @@ fun DetailsScreen(
                             .build()
                     }
                     AnimatedPanoramaBackdrop(
-                        settings = settings,
+                        prefs = panoramaPrefs,
                         model = request,
                         contentAlpha = 0.6f * (1f - collapseProgress),
                         backgroundColor = MaterialTheme.colorScheme.surface,
+                        crossfadeEnabled = sharedElementKey == null,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -665,7 +668,7 @@ fun DetailsScreen(
                             modifier = Modifier.fillMaxSize(),
                             scrollState = landscapeLeftScrollState,
                             contentPadding = paddingValues,
-                            headerTopSpacing = if (settings.isPanoramaCoverEnabled) panoramaExtraHeightDp else 0.dp,
+                            headerTopSpacing = if (panoramaPrefs.isEnabled) panoramaExtraHeightDp else 0.dp,
                             bottomSpacerHeight = 40.dp,
                             mangaDetails = mangaDetails,
                             favouriteCategories = favouriteCategories,
@@ -691,17 +694,17 @@ fun DetailsScreen(
                             showTranslateAction = showTranslateAction,
                             settings = settings,
                             collapseProgress = 0f,
-                            coverVisualAlpha = if (isHeroOverlayVisible) 0f else 1f,
+                            coverVisualAlpha = 1f,
                             coverUrl = mangaDetails?.coverUrl?.takeIf { it.isNotBlank() } ?: content?.coverUrl,
                             fallbackCoverUrl = content?.coverUrl,
                             showCommentsAction = trackingCommentThreads.isNotEmpty() || !trackingCommentsUrl.isNullOrBlank(),
                             showReviewsAction = trackingReviews.isNotEmpty() || !trackingReviewsUrl.isNullOrBlank(),
                             content = content,
+                            sharedElementKey = sharedElementKey,
                             pendingTagSearch = { pendingTagSearch = it },
                             pendingAuthorSearch = { author, source ->
                                 pendingAuthorSearch = PendingAuthorSearch(author = author, source = source)
                             },
-							onCoverBoundsSync = onCoverBoundsSync,
 							onInfoCardTopSync = { infoCardTopPx = it },
 							onFavoriteClick = { showFavoriteDialog = true },
 							onCommentsClick = { showCommentsDialog = true },
@@ -822,11 +825,11 @@ fun DetailsScreen(
                             showCommentsAction = trackingCommentThreads.isNotEmpty() || !trackingCommentsUrl.isNullOrBlank(),
                             showReviewsAction = trackingReviews.isNotEmpty() || !trackingReviewsUrl.isNullOrBlank(),
                             content = content,
+                            sharedElementKey = sharedElementKey,
                             pendingTagSearch = { pendingTagSearch = it },
                             pendingAuthorSearch = { author, source ->
                                 pendingAuthorSearch = PendingAuthorSearch(author = author, source = source)
                             },
-							onCoverBoundsSync = onCoverBoundsSync,
 							onInfoCardTopSync = { top -> infoCardTopPx = top },
 							onFavoriteClick = { showFavoriteDialog = true },
 							onCommentsClick = { showCommentsDialog = true },
@@ -975,7 +978,7 @@ fun DetailsScreen(
             }
 
             if (showFavoriteDialog && content != null) {
-            val allCategories by viewModel.allCategories.collectAsState()
+            val allCategories by viewModel.allCategories.collectAsStateWithLifecycle()
             val memberCategoryIds = remember(favouriteCategories) {
                 favouriteCategories.mapTo(mutableSetOf()) { it.id }
             }
@@ -998,6 +1001,7 @@ fun DetailsScreen(
             DownloadDialog(
                 mangaList = listOf(content),
                 snackbarHostState = snackbarHostState,
+                onOpenDownloads = appRouter::openDownloads,
                 viewModel = downloadDialogViewModel,
                 onDismiss = { showDownloadDialog = false },
             )
@@ -1404,7 +1408,6 @@ private fun DetailsScrollableContent(
     bottomSpacerHeight: androidx.compose.ui.unit.Dp,
     pendingTagSearch: (ContentTag) -> Unit,
     pendingAuthorSearch: (String, ContentSource) -> Unit,
-    onCoverBoundsSync: (Rect, Float) -> Unit,
     onInfoCardTopSync: (Float) -> Unit,
     onFavoriteClick: () -> Unit,
     onCommentsClick: () -> Unit,
@@ -1415,6 +1418,7 @@ private fun DetailsScrollableContent(
     onOpenReadingSourceSheet: () -> Unit,
     onEntityClick: (Long) -> Unit,
     onActionClick: (DetailsAction) -> Unit,
+    sharedElementKey: String? = null,
 ) {
     val context = LocalContext.current
     val source = content?.source
@@ -1449,10 +1453,10 @@ private fun DetailsScrollableContent(
             coverVisualAlpha = coverVisualAlpha,
             coverUrl = coverUrl,
             fallbackCoverUrl = fallbackCoverUrl,
+            sharedElementKey = sharedElementKey,
             showCommentsAction = showCommentsAction,
             showReviewsAction = showReviewsAction,
 
-            onCoverBoundsSync = onCoverBoundsSync,
             onInfoCardTopSync = onInfoCardTopSync,
             onCoverClick = { onActionClick(DetailsAction.OpenCover) },
             onFavoriteClick = onFavoriteClick,
@@ -1569,17 +1573,35 @@ private fun DetailsPaneContent(
     )
     val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val isCollapsedPane = showCollapsedHandle && detailsPaneState.anchor == CompactDetailsPaneAnchor.Collapsed
-    val paneGlassStyle = remember(showCollapsedHandle, isCollapsedPane, isSheetFullyExpanded, paneOpacityProgress) {
+    val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val paneGlassStyle = remember(showCollapsedHandle, isCollapsedPane, isSheetFullyExpanded, paneOpacityProgress, isDarkTheme) {
         GlassStyle(
             containerAlpha = when {
-                !showCollapsedHandle -> 0.88f
-                isCollapsedPane -> 0.94f
-                isSheetFullyExpanded -> lerpFloat(0.82f, 0.88f, paneOpacityProgress)
-                else -> lerpFloat(0.68f, 0.86f, paneOpacityProgress)
+                !showCollapsedHandle -> if (isDarkTheme) 0.88f else 0.76f
+                isCollapsedPane -> if (isDarkTheme) 0.94f else 0.62f
+                isSheetFullyExpanded -> if (isDarkTheme) {
+                    lerpFloat(0.82f, 0.88f, paneOpacityProgress)
+                } else {
+                    lerpFloat(0.46f, 0.56f, paneOpacityProgress)
+                }
+                else -> if (isDarkTheme) {
+                    lerpFloat(0.68f, 0.86f, paneOpacityProgress)
+                } else {
+                    lerpFloat(0.40f, 0.52f, paneOpacityProgress)
+                }
             },
-            borderAlpha = if (isCollapsedPane) 0.18f else 0.24f,
+            borderAlpha = when {
+                isDarkTheme && isCollapsedPane -> 0.18f
+                isDarkTheme -> 0.24f
+                isCollapsedPane -> 0.10f
+                else -> 0.14f
+            },
             tonalElevation = 0.dp,
-            shadowElevation = if (isCollapsedPane) 0.dp else 8.dp,
+            shadowElevation = when {
+                isCollapsedPane -> 0.dp
+                isDarkTheme -> 8.dp
+                else -> 0.dp
+            },
         )
     }
     val paneShape = if (showCollapsedHandle && isSheetFullyExpanded && paneOpacityProgress >= 0.96f) {
@@ -1726,20 +1748,20 @@ private fun DetailsPaneActionsRow(
                 enabled = detailsPaneState.anchor == CompactDetailsPaneAnchor.Full &&
                     !detailsPaneState.isGridSizeControlsVisible,
             )
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
         horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
     ) {
         if (showCollapsedHandle) {
+            val collapsedHandleHeight = 10.dp
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(handleTopInset + 24.dp),
-                contentAlignment = Alignment.TopCenter,
+                    .height(collapsedHandleHeight),
+                contentAlignment = Alignment.Center,
             ) {
                 DetailsPaneDragHandle(
                     modifier = Modifier
-                        .padding(top = 8.dp)
                         .alpha(lerpFloat(0.68f, 1f, paneOpacityProgress)),
                 )
             }
@@ -1777,7 +1799,7 @@ private fun DetailsPaneActionsRow(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 2.dp, vertical = 2.dp),
+                    .padding(horizontal = 2.dp),
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             ) {
                 DetailsDockActionButton(
@@ -2200,7 +2222,7 @@ private fun ReadDock(
     val optionGap by androidx.compose.animation.core.animateDpAsState(targetValue = if (expanded) 8.dp else 2.dp)
 
     Row(
-        modifier = modifier.height(52.dp),
+        modifier = modifier.height(50.dp),
         horizontalArrangement = Arrangement.spacedBy(optionGap)
     ) {
         androidx.compose.material3.Button(
@@ -2219,10 +2241,11 @@ private fun ReadDock(
                 containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = lerpFloat(0.9f, 1f, sheetExpansionProgress)),
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             ),
-            contentPadding = PaddingValues(horizontal = 16.dp)
+            contentPadding = PaddingValues(horizontal = 14.dp)
         ) {
             Text(
                 text = readLabel,
+                style = MaterialTheme.typography.labelLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -2239,7 +2262,7 @@ private fun ReadDock(
                     bottomStartPercent = shapeRadiusPercent
                 ),
                 modifier = Modifier
-                    .width(52.dp)
+                    .width(50.dp)
                     .fillMaxHeight(),
                 contentPadding = PaddingValues(0.dp),
                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(

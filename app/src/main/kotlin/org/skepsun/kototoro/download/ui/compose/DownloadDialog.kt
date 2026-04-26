@@ -3,6 +3,7 @@ package org.skepsun.kototoro.download.ui.compose
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,6 +21,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
@@ -46,6 +48,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getContentType
@@ -53,8 +56,10 @@ import org.skepsun.kototoro.core.model.getSaveTitleResId
 import org.skepsun.kototoro.core.model.getWholeWorkOptionResId
 import org.skepsun.kototoro.core.prefs.DownloadFormat
 import org.skepsun.kototoro.core.util.ext.joinToStringWithLimit
+import org.skepsun.kototoro.core.util.ext.findActivity
 import org.skepsun.kototoro.download.ui.dialog.ChapterSelectOptions
 import org.skepsun.kototoro.download.ui.dialog.DownloadDialogViewModel
+import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.util.format
@@ -67,6 +72,8 @@ private enum class SelectedMode {
 fun DownloadDialog(
     mangaList: List<Content>,
     snackbarHostState: SnackbarHostState? = null,
+    snackbarHostView: android.view.View? = null,
+    onOpenDownloads: (() -> Unit)? = null,
     viewModel: DownloadDialogViewModel = hiltViewModel(),
     onDismiss: () -> Unit
 ) {
@@ -83,8 +90,21 @@ fun DownloadDialog(
                 if (snackbarHostState != null) {
                     scope.launch {
                         val msg = if (isStarted) R.string.download_started else R.string.download_added
-                        snackbarHostState.showSnackbar(context.getString(msg))
+                        val result = snackbarHostState.showSnackbar(
+                            message = context.getString(msg),
+                            actionLabel = context.getString(R.string.downloads),
+                            withDismissAction = true,
+                        )
+                        if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                            onOpenDownloads?.invoke()
+                        }
                     }
+                } else if (snackbarHostView != null) {
+                    showDownloadResultSnackbar(
+                        snackbarHostView = snackbarHostView,
+                        isStarted = isStarted,
+                        onOpenDownloads = onOpenDownloads,
+                    )
                 }
                 onDismiss()
             }
@@ -103,6 +123,9 @@ fun DownloadDialog(
     var startNow by remember { mutableStateOf(true) }
     var selectedMode by remember { mutableStateOf(SelectedMode.WHOLE_MANGA) }
     var isAlignReader by remember { mutableStateOf(viewModel.isDownloadAlignedWithReader()) }
+    var showWholeBranchMenu by remember { mutableStateOf(false) }
+    var showFirstChaptersMenu by remember { mutableStateOf(false) }
+    var showUnreadChaptersMenu by remember { mutableStateOf(false) }
 
     val firstManga = mangaList.firstOrNull()
     val contentType = firstManga?.source?.getContentType() ?: ContentType.MANGA
@@ -138,18 +161,45 @@ fun DownloadDialog(
                 if (chaptersSelectOptions.wholeBranch != null) {
                     val branchOptions = chaptersSelectOptions.wholeBranch!!
                     SelectableDropdownItem(
-                        title = stringResource(id = R.string.download_option_all_chapters, branchOptions.selectedBranch ?: ""),
+                        title = stringResource(
+                            id = R.string.download_option_all_chapters,
+                            branchOptions.selectedBranch ?: stringResource(id = R.string.system_default),
+                        ),
                         subtitle = if (branchOptions.chaptersCount > 0) {
                             pluralStringResource(id = R.plurals.chapters, count = branchOptions.chaptersCount, branchOptions.chaptersCount)
                         } else null,
                         selected = selectedMode == SelectedMode.WHOLE_BRANCH,
                         onClick = { selectedMode = SelectedMode.WHOLE_BRANCH },
+                        isDropdownExpanded = showWholeBranchMenu,
+                        onDismissDropdown = { showWholeBranchMenu = false },
                         onDropdownClick = {
                             val branches = branchOptions.branches.keys.toList()
                             if (branches.size > 1) {
-                                // Real implementation would show dropdown
+                                selectedMode = SelectedMode.WHOLE_BRANCH
+                                showWholeBranchMenu = true
                             }
-                        }
+                        },
+                        dropdownContent = {
+                            branchOptions.branches.forEach { (branch, count) ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = buildString {
+                                                append(branch ?: context.getString(R.string.system_default))
+                                                append(" (")
+                                                append(count)
+                                                append(")")
+                                            },
+                                        )
+                                    },
+                                    onClick = {
+                                        viewModel.setSelectedBranch(branch)
+                                        selectedMode = SelectedMode.WHOLE_BRANCH
+                                        showWholeBranchMenu = false
+                                    },
+                                )
+                            }
+                        },
                     )
                 }
 
@@ -158,12 +208,35 @@ fun DownloadDialog(
                     val firstOptions = chaptersSelectOptions.firstChapters!!
                     SelectableDropdownItem(
                         title = stringResource(id = R.string.download_option_first_n_chapters, pluralStringResource(id = R.plurals.chapters, count = firstOptions.chaptersCount, firstOptions.chaptersCount)),
-                        subtitle = firstOptions.branch,
+                        subtitle = firstOptions.branch ?: stringResource(id = R.string.system_default),
                         selected = selectedMode == SelectedMode.FIRST_CHAPTERS,
                         onClick = { selectedMode = SelectedMode.FIRST_CHAPTERS },
+                        isDropdownExpanded = showFirstChaptersMenu,
+                        onDismissDropdown = { showFirstChaptersMenu = false },
                         onDropdownClick = {
-                            // Show counts menu
-                        }
+                            selectedMode = SelectedMode.FIRST_CHAPTERS
+                            showFirstChaptersMenu = true
+                        },
+                        dropdownContent = {
+                            rememberDownloadCountOptions(firstOptions.maxAvailableCount).forEach { count ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = pluralStringResource(
+                                                id = R.plurals.chapters,
+                                                count = count,
+                                                count,
+                                            ),
+                                        )
+                                    },
+                                    onClick = {
+                                        viewModel.setFirstChaptersCount(count)
+                                        selectedMode = SelectedMode.FIRST_CHAPTERS
+                                        showFirstChaptersMenu = false
+                                    },
+                                )
+                            }
+                        },
                     )
                 }
 
@@ -180,9 +253,42 @@ fun DownloadDialog(
                         subtitle = null,
                         selected = selectedMode == SelectedMode.UNREAD_CHAPTERS,
                         onClick = { selectedMode = SelectedMode.UNREAD_CHAPTERS },
+                        isDropdownExpanded = showUnreadChaptersMenu,
+                        onDismissDropdown = { showUnreadChaptersMenu = false },
                         onDropdownClick = {
-                            // Show counts
-                        }
+                            selectedMode = SelectedMode.UNREAD_CHAPTERS
+                            showUnreadChaptersMenu = true
+                        },
+                        dropdownContent = {
+                            rememberDownloadCountOptions(unreadOptions.maxAvailableCount).forEach { count ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = pluralStringResource(
+                                                id = R.plurals.chapters,
+                                                count = count,
+                                                count,
+                                            ),
+                                        )
+                                    },
+                                    onClick = {
+                                        viewModel.setUnreadChaptersCount(count)
+                                        selectedMode = SelectedMode.UNREAD_CHAPTERS
+                                        showUnreadChaptersMenu = false
+                                    },
+                                )
+                            }
+                            if (unreadOptions.maxAvailableCount > 0) {
+                                DropdownMenuItem(
+                                    text = { Text(text = stringResource(id = R.string.download_option_all_unread)) },
+                                    onClick = {
+                                        viewModel.setUnreadChaptersCount(Int.MAX_VALUE)
+                                        selectedMode = SelectedMode.UNREAD_CHAPTERS
+                                        showUnreadChaptersMenu = false
+                                    },
+                                )
+                            }
+                        },
                     )
                 }
 
@@ -350,7 +456,10 @@ private fun SelectableDropdownItem(
     subtitle: String?,
     selected: Boolean,
     onClick: () -> Unit,
-    onDropdownClick: () -> Unit
+    onDropdownClick: () -> Unit,
+    isDropdownExpanded: Boolean = false,
+    onDismissDropdown: () -> Unit = {},
+    dropdownContent: @Composable ColumnScope.() -> Unit = {},
 ) {
     Row(
         modifier = Modifier
@@ -367,10 +476,53 @@ private fun SelectableDropdownItem(
                 Text(text = subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        Icon(
-            painter = painterResource(id = R.drawable.ic_expand_more),
-            contentDescription = null,
-            modifier = Modifier.clickable(onClick = onDropdownClick).padding(8.dp)
-        )
+        Box {
+            IconButton(onClick = onDropdownClick) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_expand_more),
+                    contentDescription = null,
+                )
+            }
+            DropdownMenu(
+                expanded = isDropdownExpanded,
+                onDismissRequest = onDismissDropdown,
+                content = dropdownContent,
+            )
+        }
+    }
+}
+
+private fun showDownloadResultSnackbar(
+    snackbarHostView: android.view.View,
+    isStarted: Boolean,
+    onOpenDownloads: (() -> Unit)?,
+) {
+    Snackbar.make(
+        snackbarHostView,
+        if (isStarted) R.string.download_started else R.string.download_added,
+        Snackbar.LENGTH_LONG,
+    ).apply {
+        (snackbarHostView.context.findActivity() as? BottomNavOwner)?.let { owner ->
+            anchorView = owner.bottomNav
+        }
+        if (onOpenDownloads != null) {
+            setAction(R.string.downloads) { onOpenDownloads() }
+        }
+    }.show()
+}
+
+@Composable
+private fun rememberDownloadCountOptions(maxAvailableCount: Int): List<Int> {
+    return remember(maxAvailableCount) {
+        buildList {
+            listOf(1, 3, 5, 10, 20, 50).forEach { preset ->
+                if (preset in 1 until maxAvailableCount) {
+                    add(preset)
+                }
+            }
+            if (maxAvailableCount > 0) {
+                add(maxAvailableCount)
+            }
+        }.distinct()
     }
 }

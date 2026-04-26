@@ -28,7 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -41,12 +40,15 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
+import org.skepsun.kototoro.core.ui.compose.rememberRailAnimationFactor
+import org.skepsun.kototoro.core.ui.compose.unclippedBoundsInWindow
 import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.list.ui.compose.ContentCardCornerBadges
 import org.skepsun.kototoro.list.ui.compose.ContentCardNsfwBadge
 import org.skepsun.kototoro.list.ui.compose.asBadgeModel
 import org.skepsun.kototoro.list.ui.compose.contentCardBadgeMetricsFor
+import org.skepsun.kototoro.core.ui.compose.rememberHorizontalRailScrollIntensity
 import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 
@@ -63,6 +65,7 @@ fun DiscoverCarousel(
 	val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
 	val gridScale = settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize / 100f }.value
 	val posterStyle = remember(gridScale) { compactPosterRailCardStyle(gridScale) }
+	val scrollIntensity = rememberHorizontalRailScrollIntensity(listState)
 
 	Column(modifier = modifier.fillMaxWidth()) {
 		Row(
@@ -84,6 +87,7 @@ fun DiscoverCarousel(
 			)
 		}
 
+		val railAnimationFactor = rememberRailAnimationFactor()
 		LazyRow(
 			state = listState,
 			contentPadding = PaddingValues(horizontal = 16.dp),
@@ -91,13 +95,17 @@ fun DiscoverCarousel(
 		) {
 			itemsIndexed(
 				items = row.items,
-				key = { _, item -> "carousel_${row.category.id}_${(item as? ContentListModel)?.manga?.id ?: item.hashCode()}" }
+				key = { _, item -> "carousel_${row.category.id}_${(item as? ContentListModel)?.manga?.id ?: item.hashCode()}" },
+				contentType = { _, _ -> "discover_card" },
 			) { index, contentModel ->
 				(contentModel as? ContentListModel)?.let { model ->
 					HorizontalRailAnimatedVisibility(
 						animationKey = "discover_${row.category.id}_${model.id}",
 						index = index,
 						listState = listState,
+						scrollIntensity = scrollIntensity,
+						animationFactor = railAnimationFactor,
+						enableScrollLinkedAnimation = false,
 					) { animatedModifier ->
 						DiscoverPosterCard(
 							model = model,
@@ -144,7 +152,7 @@ private fun DiscoverPosterCard(
 				.fillMaxWidth()
 				.height(posterStyle.posterHeight)
 				.onGloballyPositioned { coordinates ->
-					coverBounds = coordinates.boundsInRoot()
+					coverBounds = coordinates.unclippedBoundsInWindow()
 				}
 				.clip(MaterialTheme.shapes.medium)
 				.background(

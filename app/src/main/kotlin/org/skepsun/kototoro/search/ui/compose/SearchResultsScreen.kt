@@ -67,9 +67,11 @@ import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
+import org.skepsun.kototoro.core.ui.compose.rememberRailAnimationFactor
 import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
+import org.skepsun.kototoro.core.ui.compose.rememberHorizontalRailScrollIntensity
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
-import org.skepsun.kototoro.details.ui.DetailsCoverTransitionStore
+
 import org.skepsun.kototoro.list.ui.compose.KototoroContentCard
 import org.skepsun.kototoro.list.ui.compose.KototoroSelectionTopBar
 import org.skepsun.kototoro.list.ui.compose.SelectionAction
@@ -251,6 +253,7 @@ fun SearchResultsRoute(
             items(
                 items = sections,
                 key = { section -> "${section.source.name}_${section.titleResId}" },
+                contentType = { "search_section" },
             ) { section ->
                 SearchResultsSection(
                     section = section,
@@ -264,7 +267,6 @@ fun SearchResultsRoute(
                         } else if (isPickMode) {
                             onPickContent(item.toContentWithOverride())
                         } else {
-                            DetailsCoverTransitionStore.set(item.toContentWithOverride(), null)
                             onOpenContent(item.toContentWithOverride())
                         }
                     },
@@ -279,6 +281,7 @@ fun SearchResultsRoute(
             items(
                 items = supplementaryItems,
                 key = { item -> "extra_${item.javaClass.simpleName}_${item.hashCode()}" },
+                contentType = { "search_supplementary" },
             ) { item ->
                 SearchSupplementaryItem(
                     item = item,
@@ -542,6 +545,7 @@ private fun SearchResultsSection(
     val context = LocalContext.current
     val posterStyle = compactPosterCardStyle(gridScale)
     val rowState = rememberLazyListState()
+    val scrollIntensity = rememberHorizontalRailScrollIntensity(rowState)
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -571,6 +575,7 @@ private fun SearchResultsSection(
         }
 
         if (section.list.isNotEmpty()) {
+            val railAnimationFactor = rememberRailAnimationFactor()
             LazyRow(
                 state = rowState,
                 contentPadding = PaddingValues(horizontal = 12.dp),
@@ -579,11 +584,15 @@ private fun SearchResultsSection(
                 itemsIndexed(
                     items = section.list,
                     key = { _, item -> item.id },
+                    contentType = { _, _ -> "search_result_card" },
                 ) { index, item ->
                     HorizontalRailAnimatedVisibility(
                         animationKey = "search_${section.source.name}_${item.id}",
                         index = index,
                         listState = rowState,
+                        scrollIntensity = scrollIntensity,
+                        animationFactor = railAnimationFactor,
+                        enableScrollLinkedAnimation = false,
                     ) { animatedModifier ->
                         Box(
                             modifier = animatedModifier.width(posterStyle.itemWidth + 20.dp),

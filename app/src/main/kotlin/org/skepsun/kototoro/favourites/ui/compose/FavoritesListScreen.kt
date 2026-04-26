@@ -7,13 +7,15 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.favourites.ui.list.FavouritesListViewModel
 import org.skepsun.kototoro.list.ui.compose.AppContentListRoute
-import org.skepsun.kototoro.list.ui.compose.SelectionAction
+import org.skepsun.kototoro.parsers.model.Content
 
 @Composable
 fun KototoroFavoritesListScreen(
     categoryId: Long,
     appRouter: AppRouter,
     contentPadding: PaddingValues,
+    onNavigateToDetails: ((Content, String?) -> Unit)? = null,
+    sharedTransitionEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val viewModel = hiltViewModel<FavouritesListViewModel, FavouritesListViewModel.Factory>(
@@ -27,8 +29,10 @@ fun KototoroFavoritesListScreen(
         contentPadding = contentPadding,
         appRouter = appRouter,
         showRemoveOption = true,
+        sharedTransitionEnabled = sharedTransitionEnabled,
         registerFilterCallback = false, // Parent FavoritesHostScreen manages the centralized callback
         onLoadMore = { viewModel.requestMoreItems() },
+        onNavigateToDetails = onNavigateToDetails,
         onRemoveSelection = { ids ->
             viewModel.removeFromFavourites(ids)
         }

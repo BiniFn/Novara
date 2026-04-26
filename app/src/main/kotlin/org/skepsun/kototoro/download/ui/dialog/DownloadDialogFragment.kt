@@ -11,12 +11,15 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.LifecycleOwner
+import java.lang.ref.WeakReference
 import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.ui.theme.KototoroTheme
 import org.skepsun.kototoro.download.ui.compose.DownloadDialog
 
 class DownloadDialogFragment : DialogFragment() {
+
+    private fun currentSnackbarHost(): View? = callbackSnackbarHost?.get()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -34,6 +37,12 @@ class DownloadDialogFragment : DialogFragment() {
                     DownloadDialog(
                         mangaList = mangaList,
                         snackbarHostState = snackbarHostState,
+                        snackbarHostView = currentSnackbarHost(),
+                        onOpenDownloads = {
+                            currentSnackbarHost()?.let { host ->
+                                AppRouter.from(host)?.openDownloads()
+                            }
+                        },
                         onDismiss = { dismiss() }
                     )
                 }
@@ -42,12 +51,14 @@ class DownloadDialogFragment : DialogFragment() {
     }
 
     companion object {
+        private var callbackSnackbarHost: WeakReference<View>? = null
+
         fun registerCallback(fm: FragmentManager, lifecycleOwner: LifecycleOwner, snackbarHost: View) {
-            // Deprecated callback mechanism since Compose handles it internally
+            callbackSnackbarHost = WeakReference(snackbarHost)
         }
 
         fun unregisterCallback(fm: FragmentManager) {
-            // Deprecated
+            callbackSnackbarHost = null
         }
     }
 }

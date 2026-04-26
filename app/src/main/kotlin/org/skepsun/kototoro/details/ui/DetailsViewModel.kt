@@ -174,7 +174,7 @@ class DetailsViewModel @Inject constructor(
 	private val intent = ContentIntent(savedStateHandle)
 	val activeExternalOrigin = savedStateHandle.get<org.skepsun.kototoro.details.ui.model.DetailsOrigin>(
 		org.skepsun.kototoro.core.nav.AppRouter.KEY_DETAILS_ORIGIN,
-	)
+	) ?: org.skepsun.kototoro.core.nav.PendingDetailsNavigation.consume()
 	private val originContent = (activeExternalOrigin as? org.skepsun.kototoro.details.ui.model.DetailsOrigin.LocalMangaContent)?.manga
 	private val initialLoadIntentOverride = when (val origin = activeExternalOrigin) {
 		is org.skepsun.kototoro.details.ui.model.DetailsOrigin.LocalMangaContent -> ContentIntent.of(origin.manga)

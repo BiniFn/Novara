@@ -53,7 +53,6 @@ class DetailsActivity :
     private val bookmarksViewModel: BookmarksViewModel by viewModels()
 
     private lateinit var pageSaveHelper: org.skepsun.kototoro.reader.ui.PageSaveHelper
-    private lateinit var heroTransitionController: DetailsHeroTransitionController
 
     private val overrideEditLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -77,46 +76,14 @@ class DetailsActivity :
 
         pageSaveHelper = pageSaveHelperFactory.create(this)
 
-        if (settings.isSharedElementTransitionsEnabled) {
-            window.requestFeature(android.view.Window.FEATURE_ACTIVITY_TRANSITIONS)
-            val interpolator = androidx.interpolator.view.animation.FastOutSlowInInterpolator()
-            window.enterTransition = null
-            window.returnTransition = null
-            window.exitTransition = null
-            window.reenterTransition = null
-
-            val sharedTransition =
-                android.transition.TransitionInflater.from(this).inflateTransition(android.R.transition.move)
-            sharedTransition.duration = 350L
-            sharedTransition.interpolator = interpolator
-            window.sharedElementEnterTransition = sharedTransition
-            window.sharedElementReturnTransition = sharedTransition
-
-            window.allowEnterTransitionOverlap = true
-            window.allowReturnTransitionOverlap = true
-        }
-
         setContentView(ActivityDetailsBinding.inflate(layoutInflater))
-
-        heroTransitionController = DetailsHeroTransitionController(
-            activity = this,
-            binding = viewBinding,
-            settings = settings,
-        )
-        heroTransitionController.restoreState(savedInstanceState)
-        heroTransitionController.prepareOnCreate(
-            manga = viewModel.getContentOrNull(),
-            isFreshLaunch = savedInstanceState == null,
-        )
 
         onBackPressedDispatcher.addCallback(
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
-                    if (!heroTransitionController.playExitHeroIfNeeded()) {
-                        isEnabled = false
-                        finishAfterTransition()
-                    }
+                    isEnabled = false
+                    finishAfterTransition()
                 }
             },
         )
@@ -134,57 +101,20 @@ class DetailsActivity :
                     appRouter = router,
                     pageSaveHelper = pageSaveHelper,
                     onBackClick = { onBackPressedDispatcher.onBackPressed() },
-                    onCoverBoundsSync = heroTransitionController::syncCoverBounds,
-                    isHeroOverlayVisible = heroTransitionController.isHeroOverlayVisible,
                     onActionClick = ::handleActionClick,
                 )
             }
         }
 
-        viewBinding.imageViewCover.addImageRequestListener(object : coil3.request.ImageRequest.Listener {
-            override fun onSuccess(
-                request: coil3.request.ImageRequest,
-                result: coil3.request.SuccessResult,
-            ) {
-                heroTransitionController.onCoverImageLoadSettled()
-            }
-
-            override fun onError(
-                request: coil3.request.ImageRequest,
-                result: coil3.request.ErrorResult,
-            ) {
-                heroTransitionController.onCoverImageLoadSettled()
-            }
-        })
-
-        lifecycleScope.launch {
-            viewModel.coverUrl.collect { url ->
-                viewBinding.imageViewCover.setImageAsync(url, viewModel.getContentOrNull())
-            }
-        }
-        viewBinding.imageViewCover.setOnClickListener {
-            viewModel.getContentOrNull()?.let { content ->
-                content.coverUrl?.let { url ->
-                    router.openImage(
-                        url = url,
-                        source = content.source,
-                        anchor = viewBinding.imageViewCover,
-                    )
-                }
-            }
-        }
         viewModel.onContentRemoved.observeEvent(this, ::onContentRemoved)
     }
 
     override fun dispatchNavigateUp() {
-        if (!heroTransitionController.playExitHeroIfNeeded()) {
-            super.dispatchNavigateUp()
-        }
+        super.dispatchNavigateUp()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        heroTransitionController.saveState(outState)
     }
 
     override fun onProvideAssistContent(outContent: AssistContent) {

@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.tracker.ui.feed.compose
 
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,7 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -34,10 +35,16 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
+import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
+import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
+import org.skepsun.kototoro.core.ui.compose.unclippedBoundsInWindow
+
 import org.skepsun.kototoro.list.ui.compose.ContentCardNsfwBadge
 import org.skepsun.kototoro.list.ui.compose.contentCardBadgeMetricsFor
 import org.skepsun.kototoro.tracker.ui.feed.model.FeedItem
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun FeedItemCard(
 	item: FeedItem,
@@ -46,6 +53,11 @@ fun FeedItemCard(
 ) {
 	var coverBounds by remember(item.id) { mutableStateOf<Rect?>(null) }
 	val badgeMetrics = remember { contentCardBadgeMetricsFor(40.dp) }
+	val sharedTransitionScope = LocalSharedTransitionScope.current
+	val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
+	val sharedElementKey = remember(item.id, item.imageUrl, item.manga.source.name) {
+		contentCoverSharedKey(item.manga.source.name, item.imageUrl.orEmpty(), instanceKey = "feed_${item.id}")
+	}
 
 	Row(
 		modifier = modifier
@@ -58,14 +70,24 @@ fun FeedItemCard(
 			modifier = Modifier
 				.size(40.dp)
 				.onGloballyPositioned { coordinates ->
-					coverBounds = coordinates.boundsInRoot()
+					coverBounds = coordinates.unclippedBoundsInWindow()
 				}
+				.then(
+					if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+						with(sharedTransitionScope) {
+							Modifier.sharedElement(
+								rememberSharedContentState(key = sharedElementKey),
+								animatedVisibilityScope = animatedVisibilityScope,
+							)
+						}
+					} else Modifier
+				)
 				.clip(MaterialTheme.shapes.medium)
 		) {
 			AsyncImage(
 				model = ImageRequest.Builder(LocalContext.current)
 					.data(item.imageUrl)
-					.crossfade(true)
+					.crossfade(sharedTransitionScope == null || animatedVisibilityScope == null)
 					.build(),
 				contentDescription = item.title,
 				contentScale = ContentScale.Crop,

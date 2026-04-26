@@ -13,11 +13,11 @@ import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 import org.skepsun.kototoro.list.ui.ContentListViewModel
 import org.skepsun.kototoro.main.ui.MainActivity
 import androidx.compose.runtime.saveable.rememberSaveable
-import org.skepsun.kototoro.details.ui.DetailsCoverTransitionStore
 import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
 import org.skepsun.kototoro.alternatives.ui.AutoFixService
 import org.skepsun.kototoro.core.util.ShareHelper
 import org.skepsun.kototoro.core.model.isLocal
+import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
 import org.skepsun.kototoro.main.ui.compose.ContentSelectionTopBarOverrideState
 import org.skepsun.kototoro.main.ui.compose.TopBarOverrideState
 
@@ -28,6 +28,7 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     appRouter: AppRouter,
     onTopBarOverrideChanged: (TopBarOverrideState?) -> Unit = {},
     showRemoveOption: Boolean = false,
+    sharedTransitionEnabled: Boolean = true,
     isContentTypeFilterVisible: Boolean = true,
     isSourceTagFilterVisible: Boolean = true,
     registerFilterCallback: Boolean = true,
@@ -35,6 +36,7 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     onShareSelection: ((Set<Long>) -> Unit)? = null,
     onEmptyActionClick: (() -> Unit)? = null,
     onLoadMore: () -> Unit = {},
+    onNavigateToDetails: ((org.skepsun.kototoro.parsers.model.Content, String?) -> Unit)? = null,
     onAddMenuProvider: ((androidx.activity.ComponentActivity, VM, androidx.lifecycle.LifecycleOwner) -> androidx.core.view.MenuProvider?)? = null
 ) {
     val items by viewModel.content.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -216,20 +218,24 @@ fun <VM : ContentListViewModel> AppContentListRoute(
         listMode = listMode,
         isRefreshing = isRefreshing,
         showRemoveOption = showRemoveOption,
+        sharedTransitionEnabled = sharedTransitionEnabled,
         onRefresh = { viewModel.onRefresh() },
         onLoadMore = onLoadMore,
         gridScale = gridScale,
         selectedItemsIds = composeSelectionIds,
         onPrepareItemTransition = { item, coverBounds ->
-            if (composeSelectionIds.isEmpty()) {
-                DetailsCoverTransitionStore.set(item.toContentWithOverride(), coverBounds)
-            }
         },
         onItemClick = { item ->
             if (composeSelectionIds.isNotEmpty()) {
                 composeSelectionIds = if (item.id in composeSelectionIds) composeSelectionIds - item.id else composeSelectionIds + item.id
             } else {
-                appRouter.openDetails(item.toContentWithOverride(), rootView)
+                val content = item.toContentWithOverride()
+                val sharedElementKey = contentCoverSharedKey(item.source.name, item.coverUrl.orEmpty())
+                if (onNavigateToDetails != null) {
+                    onNavigateToDetails(content, sharedElementKey)
+                } else {
+                    appRouter.openDetails(content, rootView)
+                }
             }
         },
         onItemLongClick = { item ->

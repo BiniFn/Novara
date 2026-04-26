@@ -79,7 +79,7 @@ fun SettingsRootScreen(
             )
         }
 
-        items(sections, key = { it.title }) { section ->
+        items(sections, key = { it.title }, contentType = { "settings_section" }) { section ->
             SettingsSectionCard(section = section)
         }
     }

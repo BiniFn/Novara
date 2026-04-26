@@ -56,7 +56,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -70,22 +69,31 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.zIndex
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import java.util.Locale
 import kotlin.math.absoluteValue
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.compose.HeroAutoAdvanceEffect
 import org.skepsun.kototoro.core.ui.compose.HeroPagerIndicator
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
-import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
 import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
 import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
+import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
+import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
+import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
+import org.skepsun.kototoro.core.ui.compose.rememberRailAnimationFactor
+import org.skepsun.kototoro.core.ui.compose.rememberHorizontalRailScrollIntensity
+import org.skepsun.kototoro.core.ui.compose.unclippedBoundsInWindow
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.details.ui.compose.AnimatedPanoramaBackdrop
+import org.skepsun.kototoro.details.ui.compose.PanoramaBackdropPrefs
+import org.skepsun.kototoro.details.ui.compose.rememberPanoramaBackdropPrefs
 import org.skepsun.kototoro.home.ui.HOME_HERO_SECTION_LIMIT
 import org.skepsun.kototoro.home.ui.HOME_HERO_TOTAL_LIMIT
 import org.skepsun.kototoro.home.ui.HomeRecentItem
@@ -98,12 +106,19 @@ import org.skepsun.kototoro.list.ui.compose.contentCardBadgeMetricsFor
 import org.skepsun.kototoro.list.ui.model.ContentGridModel
 import org.skepsun.kototoro.parsers.model.Content
 
+private data class HomeCardBadgePrefs(
+    val topLeft: Set<String>,
+    val topRight: Set<String>,
+    val bottomLeft: Set<String>,
+    val bottomRight: Set<String>,
+)
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     contentPadding: PaddingValues = PaddingValues(0.dp),
     state: HomeSummaryState,
-    onContentClick: (Content, Rect?) -> Unit,
+    onContentClick: (Content, Rect?, String?) -> Unit,
     onSettingsClick: () -> Unit,
     onReaderSettingsClick: () -> Unit,
     onSyncSettingsClick: () -> Unit,
@@ -126,6 +141,19 @@ fun HomeScreen(
     val context = LocalContext.current
     val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
     val gridScale by settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize / 100f }
+    val badgePrefs by settings.observeAsState(
+        AppSettings.KEY_BADGES_TOP_LEFT,
+        AppSettings.KEY_BADGES_TOP_RIGHT,
+        AppSettings.KEY_BADGES_BOTTOM_LEFT,
+        AppSettings.KEY_BADGES_BOTTOM_RIGHT,
+    ) {
+        HomeCardBadgePrefs(
+            topLeft = badgesTopLeft,
+            topRight = badgesTopRight,
+            bottomLeft = badgesBottomLeft,
+            bottomRight = badgesBottomRight,
+        )
+    }
     val posterStyle = remember(gridScale) { compactPosterRailCardStyle(gridScale) }
     val recentSearches = remember(state.recentSearches) { state.recentSearches.map { it.query } }
     val heroEntries = remember(
@@ -187,6 +215,7 @@ fun HomeScreen(
                 recommendationsCount = state.recommendationsCount,
                 recentSearches = recentSearches,
                 posterStyle = posterStyle,
+                badgePrefs = badgePrefs,
                 onItemClick = onContentClick,
                 onViewAllRecentClick = onViewAllRecentClick,
                 onViewAllUpdatesClick = onViewAllUpdatesClick,
@@ -195,14 +224,7 @@ fun HomeScreen(
             )
         }
         if (!hasHighlights && !state.isInitialized) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 24.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                KototoroLoadingIndicator()
-            }
+            HomeLoadingSkeleton(posterStyle = posterStyle)
         }
 
         QuickActionsCard(actions = quickActions)
@@ -221,7 +243,8 @@ private fun HomeHighlightsSections(
     recommendationsCount: Int,
     recentSearches: List<String>,
     posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
-    onItemClick: (Content, Rect?) -> Unit,
+    badgePrefs: HomeCardBadgePrefs,
+    onItemClick: (Content, Rect?, String?) -> Unit,
     onViewAllRecentClick: () -> Unit,
     onViewAllUpdatesClick: () -> Unit,
     onViewAllRecommendationsClick: () -> Unit,
@@ -276,10 +299,12 @@ private fun HomeHighlightsSections(
                 if (historyItems.isNotEmpty()) {
                     HomeContentRowSection(
                         title = stringResource(R.string.recent_history),
+                        sectionKey = "recent_history",
                         iconRes = R.drawable.ic_history,
                         items = historyDisplayItems,
                         count = recentHistoryCount,
                         posterStyle = posterStyle,
+                        badgePrefs = badgePrefs,
                         onItemClick = onItemClick,
                         onMoreClick = onViewAllRecentClick,
                         addTopSpacing = false,
@@ -295,10 +320,12 @@ private fun HomeHighlightsSections(
                     }
                     HomeContentRowSection(
                         title = stringResource(R.string.home_recent_updates),
+                        sectionKey = "recent_updates",
                         iconRes = R.drawable.ic_updated,
                         items = updateDisplayItems,
                         count = unreadUpdatesCount,
                         posterStyle = posterStyle,
+                        badgePrefs = badgePrefs,
                         onItemClick = onItemClick,
                         onMoreClick = onViewAllUpdatesClick,
                         addTopSpacing = false,
@@ -314,10 +341,12 @@ private fun HomeHighlightsSections(
                     }
                     HomeContentRowSection(
                         title = stringResource(R.string.suggestions),
+                        sectionKey = "recommendations",
                         iconRes = R.drawable.ic_feed,
                         items = recommendationDisplayItems,
                         count = recommendationsCount,
                         posterStyle = posterStyle,
+                        badgePrefs = badgePrefs,
                         onItemClick = onItemClick,
                         onMoreClick = onViewAllRecommendationsClick,
                         addTopSpacing = false,
@@ -344,7 +373,7 @@ private fun HomeHighlightsSections(
 @Composable
 private fun HomeHeroCarousel(
     entries: List<HomeHeroEntry>,
-    onClick: (Content, Rect?) -> Unit,
+    onClick: (Content, Rect?, String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val pagerState = rememberPagerState(pageCount = { entries.size })
@@ -352,6 +381,9 @@ private fun HomeHeroCarousel(
     val selectedIndex by remember(entries, pagerState) {
         derivedStateOf { pagerState.currentPage.coerceIn(0, entries.lastIndex) }
     }
+    val context = LocalContext.current
+    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+    val panoramaPrefs = rememberPanoramaBackdropPrefs(settings)
 
     HeroAutoAdvanceEffect(
         pagerState = pagerState,
@@ -382,35 +414,29 @@ private fun HomeHeroCarousel(
                 contentPadding = PaddingValues(horizontal = horizontalContentPadding),
                 modifier = Modifier.fillMaxWidth(),
             ) { page ->
-                val signedPageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction)
-                    .coerceIn(-1f, 1f)
-                val pageOffset = signedPageOffset
-                    .absoluteValue
-                    .coerceIn(0f, 1f)
-                val focusProgress = 1f - pageOffset
-                val pageScale = 0.9f + (0.1f * focusProgress)
-                val pageAlpha = 0.64f + (0.36f * focusProgress)
-                val pageTranslationX = signedPageOffset * sidePeekPx * 0.52f
-                val pageTranslationY = (1f - focusProgress) * liftPx
-                val horizontalTransformOrigin = when {
-                    signedPageOffset < -0.02f -> 0f
-                    signedPageOffset > 0.02f -> 1f
-                    else -> 0.5f
-                }
                 HomeHeroCard(
                     entry = entries[page],
                     bottomInset = if (hasPagerIndicator) 42.dp else 16.dp,
-                    focusProgress = focusProgress,
-                    signedOffset = signedPageOffset,
+                    panoramaPrefs = panoramaPrefs,
                     onClick = onClick,
                     modifier = Modifier
-                        .zIndex(focusProgress)
+                        .zIndex(if (page == selectedIndex) 1f else 0f)
                         .graphicsLayer {
+                            val signedPageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction)
+                                .coerceIn(-1f, 1f)
+                            val pageOffset = signedPageOffset.absoluteValue.coerceIn(0f, 1f)
+                            val focusProgress = 1f - pageOffset
+                            val horizontalTransformOrigin = when {
+                                signedPageOffset < -0.02f -> 0f
+                                signedPageOffset > 0.02f -> 1f
+                                else -> 0.5f
+                            }
+                            val pageScale = 0.9f + (0.1f * focusProgress)
                             scaleX = pageScale
                             scaleY = pageScale
-                            alpha = pageAlpha
-                            translationX = pageTranslationX
-                            translationY = pageTranslationY
+                            alpha = 0.64f + (0.36f * focusProgress)
+                            translationX = signedPageOffset * sidePeekPx * 0.52f
+                            translationY = (1f - focusProgress) * liftPx
                             transformOrigin = TransformOrigin(horizontalTransformOrigin, 0.5f)
                         },
                 )
@@ -437,18 +463,16 @@ private fun HomeHeroCarousel(
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun HomeHeroCard(
     entry: HomeHeroEntry,
     bottomInset: androidx.compose.ui.unit.Dp,
-    focusProgress: Float,
-    signedOffset: Float,
-    onClick: (Content, Rect?) -> Unit,
+    panoramaPrefs: PanoramaBackdropPrefs,
+    onClick: (Content, Rect?, String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-    val isPanoramaCoverEnabled by settings.observeAsState(AppSettings.KEY_PANORAMA_ENABLED) { isPanoramaCoverEnabled }
     val content = entry.content
     val imageRequest = remember(content.coverUrl, content.id) {
         ImageRequest.Builder(context)
@@ -458,44 +482,58 @@ private fun HomeHeroCard(
             .build()
     }
     var coverBounds by remember(entry.kind, content.id) { mutableStateOf<Rect?>(null) }
-    val edgeScrimAlpha = 0.12f + ((1f - focusProgress) * 0.18f)
-    val contentAlpha = 0.84f + (0.16f * focusProgress)
-    val contentParallaxX = -signedOffset * 18f
-    val backgroundParallaxX = -signedOffset * 28f
-    val backgroundScale = 1.02f + ((1f - focusProgress) * 0.06f)
-    val posterScale = 0.96f + (0.04f * focusProgress)
+    val edgeScrimAlpha = 0.16f
+    val sharedTransitionScope = LocalSharedTransitionScope.current
+    val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
+    val sharedElementKey = remember(entry.kind, content.id, content.coverUrl) {
+        contentCoverSharedKey(
+            sourceName = content.source.name,
+            url = content.coverUrl.orEmpty(),
+            instanceKey = "home_hero_${entry.kind.name.lowercase(Locale.ROOT)}_${content.id}",
+        )
+    }
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
             .height(196.dp)
             .clip(MaterialTheme.shapes.large)
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .clickable { onClick(content, coverBounds) },
+            .clickable { onClick(content, coverBounds, sharedElementKey) },
     ) {
-        if (isPanoramaCoverEnabled) {
+        val isCompactHeroLayout = maxWidth < 300.dp
+        val posterWidth = if (isCompactHeroLayout) 80.dp else 88.dp
+        val posterHeight = if (isCompactHeroLayout) 112.dp else 122.dp
+        val heroHorizontalPadding = if (isCompactHeroLayout) 12.dp else 14.dp
+        val heroRowSpacing = if (isCompactHeroLayout) 10.dp else 12.dp
+        val heroColumnSpacing = if (isCompactHeroLayout) 6.dp else 8.dp
+        val titleTextStyle = if (isCompactHeroLayout) {
+            MaterialTheme.typography.titleLarge
+        } else {
+            MaterialTheme.typography.headlineSmall
+        }
+        val sourceTextStyle = if (isCompactHeroLayout) {
+            MaterialTheme.typography.bodySmall
+        } else {
+            MaterialTheme.typography.bodyMedium
+        }
+        val supportingTextStyle = if (isCompactHeroLayout) {
+            MaterialTheme.typography.labelMedium
+        } else {
+            MaterialTheme.typography.labelLarge
+        }
+        if (panoramaPrefs.isEnabled) {
             AnimatedPanoramaBackdrop(
-                settings = settings,
+                prefs = panoramaPrefs,
                 model = imageRequest,
                 contentAlpha = 0.94f,
                 backgroundColor = MaterialTheme.colorScheme.surface,
-                modifier = Modifier.graphicsLayer {
-                    scaleX = backgroundScale
-                    scaleY = backgroundScale
-                    translationX = backgroundParallaxX
-                },
             )
         } else {
             AsyncImage(
                 model = imageRequest,
                 contentDescription = content.title,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        scaleX = backgroundScale
-                        scaleY = backgroundScale
-                        translationX = backgroundParallaxX
-                    },
+                modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
             )
         }
@@ -528,23 +566,34 @@ private fun HomeHeroCard(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 14.dp, top = 14.dp, end = 14.dp, bottom = bottomInset),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(
+                    start = heroHorizontalPadding,
+                    top = heroHorizontalPadding,
+                    end = heroHorizontalPadding,
+                    bottom = bottomInset,
+                ),
+            horizontalArrangement = Arrangement.spacedBy(heroRowSpacing),
             verticalAlignment = Alignment.Bottom,
         ) {
-            val heroBadgeMetrics = remember { contentCardBadgeMetricsFor(88.dp) }
+            val heroBadgeMetrics = remember(posterWidth) { contentCardBadgeMetricsFor(posterWidth) }
             Box(
                 modifier = Modifier
-                    .graphicsLayer {
-                        scaleX = posterScale
-                        scaleY = posterScale
-                        translationX = contentParallaxX * 0.45f
-                        alpha = contentAlpha
-                    }
-                    .size(width = 88.dp, height = 122.dp)
+                    .size(width = posterWidth, height = posterHeight)
                     .onGloballyPositioned { coordinates ->
-                        coverBounds = coordinates.boundsInRoot()
+                        coverBounds = coordinates.unclippedBoundsInWindow()
                     }
+                    .then(
+                        if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                            with(sharedTransitionScope) {
+                                Modifier.sharedElement(
+                                    rememberSharedContentState(
+                                        key = sharedElementKey,
+                                    ),
+                                    animatedVisibilityScope = animatedVisibilityScope,
+                                )
+                            }
+                        } else Modifier
+                    )
                     .clip(MaterialTheme.shapes.medium)
                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.28f)),
             ) {
@@ -565,12 +614,8 @@ private fun HomeHeroCard(
             }
             Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .graphicsLayer {
-                        translationX = contentParallaxX
-                        alpha = contentAlpha
-                    },
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                    .weight(1f),
+                verticalArrangement = Arrangement.spacedBy(heroColumnSpacing),
             ) {
                 val supportingText = when (entry.kind) {
                     HomeHeroKind.RESUME -> entry.progressPercent
@@ -594,7 +639,7 @@ private fun HomeHeroCard(
                 )
                 Text(
                     text = content.title,
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = titleTextStyle,
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
@@ -602,7 +647,7 @@ private fun HomeHeroCard(
                 )
                 Text(
                     text = content.source.getTitle(context),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = sourceTextStyle,
                     color = Color.White.copy(alpha = 0.86f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -610,7 +655,7 @@ private fun HomeHeroCard(
                 supportingText?.let {
                     Text(
                         text = it,
-                        style = MaterialTheme.typography.labelLarge,
+                        style = supportingTextStyle,
                         color = Color.White.copy(alpha = 0.92f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -679,17 +724,20 @@ private fun HomeRecentSearchSection(
 @Composable
 private fun HomeContentRowSection(
     title: String,
+    sectionKey: String,
     iconRes: Int,
     items: List<HomeCoverDisplayItem>,
     count: Int,
     posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
-    onItemClick: (Content, Rect?) -> Unit,
+    badgePrefs: HomeCardBadgePrefs,
+    onItemClick: (Content, Rect?, String?) -> Unit,
     onMoreClick: () -> Unit,
     addTopSpacing: Boolean,
     modifier: Modifier = Modifier,
 ) {
     if (items.isEmpty()) return
     val rowState = rememberLazyListState()
+    val scrollIntensity = rememberHorizontalRailScrollIntensity(rowState)
 
     Column(
         modifier = modifier
@@ -731,6 +779,7 @@ private fun HomeContentRowSection(
             }
         }
 
+        val railAnimationFactor = rememberRailAnimationFactor()
         LazyRow(
             state = rowState,
             modifier = Modifier.fillMaxWidth(),
@@ -740,16 +789,23 @@ private fun HomeContentRowSection(
             itemsIndexed(
                 items = items.take(12),
                 key = { _, item -> item.content.id },
+                contentType = { _, _ -> "home_content_card" },
             ) { index, item ->
                 HorizontalRailAnimatedVisibility(
                     animationKey = "home_row_${title}_${item.content.id}",
                     index = index,
                     listState = rowState,
+                    scrollIntensity = scrollIntensity,
+                    animationFactor = railAnimationFactor,
+                    enableScrollLinkedAnimation = false,
                 ) { animatedModifier ->
                     HomeCoverRowItem(
                         item = item,
                         posterStyle = posterStyle,
-                        onClick = { coverBounds -> onItemClick(item.content, coverBounds) },
+                        badgePrefs = badgePrefs,
+                        onClick = { coverBounds, sharedElementKey ->
+                            onItemClick(item.content, coverBounds, sharedElementKey)
+                        },
                         modifier = animatedModifier,
                     )
                 }
@@ -758,11 +814,13 @@ private fun HomeContentRowSection(
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun HomeCoverRowItem(
     item: HomeCoverDisplayItem,
     posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
-    onClick: (Rect?) -> Unit,
+    badgePrefs: HomeCardBadgePrefs,
+    onClick: (Rect?, String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -787,7 +845,7 @@ private fun HomeCoverRowItem(
     Column(
         modifier = modifier
             .width(posterStyle.itemWidth)
-            .clickable { onClick(coverBounds) },
+            .clickable { onClick(coverBounds, null) },
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(
@@ -795,7 +853,7 @@ private fun HomeCoverRowItem(
                 .fillMaxWidth()
                 .height(posterStyle.posterHeight)
                 .onGloballyPositioned { coordinates ->
-                    coverBounds = coordinates.boundsInRoot()
+                    coverBounds = coordinates.unclippedBoundsInWindow()
                 }
                 .clip(cardShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant),
@@ -808,7 +866,7 @@ private fun HomeCoverRowItem(
             )
             item.cardModel?.let { cardModel ->
                 ContentCardCornerBadges(
-                    badges = rememberHomeBadgesTopLeft(),
+                    badges = badgePrefs.topLeft,
                     item = cardModel,
                     corner = Alignment.TopStart,
                     cardRadius = cardRadius,
@@ -816,7 +874,13 @@ private fun HomeCoverRowItem(
                     modifier = Modifier.align(Alignment.TopStart),
                 )
                 ContentCardCornerBadges(
-                    badges = rememberHomeBadgesTopRight(cardModel),
+                    badges = remember(badgePrefs.topRight, cardModel.counter) {
+                        if (cardModel.counter > 0 && "counter" !in badgePrefs.topRight) {
+                            badgePrefs.topRight + "counter"
+                        } else {
+                            badgePrefs.topRight
+                        }
+                    },
                     item = cardModel,
                     corner = Alignment.TopEnd,
                     cardRadius = cardRadius,
@@ -824,7 +888,7 @@ private fun HomeCoverRowItem(
                     modifier = Modifier.align(Alignment.TopEnd),
                 )
                 ContentCardCornerBadges(
-                    badges = rememberHomeBadgesBottomLeft(),
+                    badges = badgePrefs.bottomLeft,
                     item = cardModel,
                     corner = Alignment.BottomStart,
                     cardRadius = cardRadius,
@@ -832,7 +896,7 @@ private fun HomeCoverRowItem(
                     modifier = Modifier.align(Alignment.BottomStart),
                 )
                 ContentCardCornerBadges(
-                    badges = rememberHomeBadgesBottomRight(),
+                    badges = badgePrefs.bottomRight,
                     item = cardModel,
                     corner = Alignment.BottomEnd,
                     cardRadius = cardRadius,
@@ -864,42 +928,6 @@ private data class HomeCoverDisplayItem(
     val content: Content,
     val cardModel: ContentGridModel?,
 )
-
-@Composable
-private fun rememberHomeBadgesTopLeft(): Set<String> {
-    val context = LocalContext.current
-    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-    return settings.observeAsState(AppSettings.KEY_BADGES_TOP_LEFT) { badgesTopLeft }.value
-}
-
-@Composable
-private fun rememberHomeBadgesBottomLeft(): Set<String> {
-    val context = LocalContext.current
-    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-    return settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_LEFT) { badgesBottomLeft }.value
-}
-
-@Composable
-private fun rememberHomeBadgesBottomRight(): Set<String> {
-    val context = LocalContext.current
-    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-    return settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_RIGHT) { badgesBottomRight }.value
-}
-
-@Composable
-private fun rememberHomeBadgesTopRight(item: ContentGridModel): Set<String> {
-    val context = LocalContext.current
-    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-    val badgesTopRight = settings.observeAsState(AppSettings.KEY_BADGES_TOP_RIGHT) { badgesTopRight }.value
-    return remember(badgesTopRight, item.counter) {
-        if (item.counter > 0 && "counter" !in badgesTopRight) {
-            badgesTopRight + "counter"
-        } else {
-            badgesTopRight
-        }
-    }
-}
-
 
 @Composable
 private fun QuickActionsCard(
@@ -1057,6 +1085,85 @@ private fun HomeBadge(
             )
         }
     }
+}
+
+@Composable
+private fun HomeLoadingSkeleton(
+    posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
+) {
+    DashboardCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            HomeSkeletonBlock(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(216.dp),
+            )
+            repeat(2) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        HomeSkeletonBlock(
+                            modifier = Modifier
+                                .width(124.dp)
+                                .height(16.dp),
+                        )
+                        HomeSkeletonBlock(
+                            modifier = Modifier
+                                .width(52.dp)
+                                .height(14.dp),
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        repeat(3) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                HomeSkeletonBlock(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(posterStyle.posterHeight),
+                                )
+                                HomeSkeletonBlock(
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.9f)
+                                        .height(12.dp),
+                                )
+                                HomeSkeletonBlock(
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.64f)
+                                        .height(12.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeSkeletonBlock(
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(MaterialTheme.shapes.medium)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f)),
+    )
 }
 
 @Composable

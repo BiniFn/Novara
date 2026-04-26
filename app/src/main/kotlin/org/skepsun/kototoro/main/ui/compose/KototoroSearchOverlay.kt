@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -44,6 +46,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -55,6 +58,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -181,7 +185,7 @@ fun KototoroSearchOverlay(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = onDismissRequest) {
@@ -190,38 +194,63 @@ fun KototoroSearchOverlay(
                             contentDescription = stringResource(R.string.back),
                         )
                     }
-                    TextField(
-                        value = query,
-                        onValueChange = onQueryChanged,
+                    Surface(
                         modifier = Modifier
                             .weight(1f)
-                            .focusRequester(focusRequester),
-                        singleLine = true,
-                        placeholder = { Text(stringResource(R.string.search_content)) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Filled.Search,
-                                contentDescription = stringResource(R.string.search),
-                            )
-                        },
-                        trailingIcon = {
-                            if (query.isNotEmpty()) {
-                                IconButton(onClick = { onQueryChanged("") }) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Clear,
-                                        contentDescription = stringResource(R.string.clear),
-                                    )
-                                }
-                            }
-                        },
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(
-                            onSearch = {
-                                submitSearch(query)
-                            },
+                            .padding(horizontal = 2.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.52f),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.24f),
                         ),
-                        shape = RoundedCornerShape(24.dp),
-                    )
+                        tonalElevation = 0.dp,
+                        shadowElevation = 0.dp,
+                    ) {
+                        TextField(
+                            value = query,
+                            onValueChange = onQueryChanged,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .focusRequester(focusRequester),
+                            singleLine = true,
+                            placeholder = { Text(stringResource(R.string.search_content)) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.Search,
+                                    contentDescription = stringResource(R.string.search),
+                                )
+                            },
+                            trailingIcon = {
+                                if (query.isNotEmpty()) {
+                                    IconButton(onClick = { onQueryChanged("") }) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Clear,
+                                            contentDescription = stringResource(R.string.clear),
+                                        )
+                                    }
+                                }
+                            },
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(
+                                onSearch = {
+                                    submitSearch(query)
+                                },
+                            ),
+                            shape = RoundedCornerShape(18.dp),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                disabledContainerColor = Color.Transparent,
+                                errorContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                                disabledIndicatorColor = Color.Transparent,
+                                errorIndicatorColor = Color.Transparent,
+                            ),
+                        )
+                    }
                     IconButton(onClick = { showOptionsSheet = true }) {
                         Icon(
                             painter = androidx.compose.ui.res.painterResource(R.drawable.ic_filter_menu),
@@ -505,6 +534,18 @@ private fun SuggestionList(
                     is SearchSuggestionItem.Text -> "text_${item.textResId}"
                 }
             },
+            contentType = { item ->
+                when (item) {
+                    is SearchSuggestionItem.RecentQuery -> "recent_query"
+                    is SearchSuggestionItem.Hint -> "hint"
+                    is SearchSuggestionItem.Author -> "author"
+                    is SearchSuggestionItem.Source -> "source"
+                    is SearchSuggestionItem.SourceTip -> "source_tip"
+                    is SearchSuggestionItem.Tags -> "tags"
+                    is SearchSuggestionItem.ContentList -> "content_list"
+                    is SearchSuggestionItem.Text -> "text"
+                }
+            },
         ) { item ->
             when (item) {
                 is SearchSuggestionItem.RecentQuery -> {
@@ -563,7 +604,7 @@ private fun SuggestionList(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(item.tags) { chip ->
+                        items(item.tags, contentType = { "tag_chip" }) { chip ->
                             val tag = chip.data as? ContentTag
                             AssistChip(
                                 onClick = { tag?.let(onTagSuggestionClick) },

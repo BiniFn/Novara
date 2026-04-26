@@ -283,8 +283,6 @@ class ExploreViewModel @Inject constructor(
 		sourceTags: Set<SourceTag>,
 		preset: org.skepsun.kototoro.explore.data.SourcePreset?,
 	): List<ContentSourceInfo> {
-		android.util.Log.d("ExploreViewModel", "applyGroupTabFilter: total sources=${sources.size}, groupTab=$groupTab, sourceTags=$sourceTags")
-		
 		val filtered = sources.filter { sourceInfo ->
 			val source = sourceInfo.mangaSource
 			if (preset != null && source.name !in preset.sources) {
@@ -305,18 +303,7 @@ class ExploreViewModel @Inject constructor(
 				sourceTags.any { it.matches(contentGroup, originGroup) }
 			}
 
-			val passes = groupMatches && originMatches
-			
-			if (!passes) {
-				android.util.Log.v("ExploreViewModel", "  Filtered out: ${source.name} (contentGroup=$contentGroup, originGroup=$originGroup)")
-			}
-			
-			passes
-		}
-		
-		android.util.Log.d("ExploreViewModel", "applyGroupTabFilter: filtered sources=${filtered.size}")
-		if (filtered.isEmpty() && sources.isNotEmpty()) {
-			android.util.Log.w("ExploreViewModel", "All sources were filtered out by tab! tab=$groupTab")
+			groupMatches && originMatches
 		}
 		return filtered
 	}

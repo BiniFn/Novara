@@ -39,6 +39,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -48,6 +49,7 @@ import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -133,7 +135,7 @@ fun DetailsHeader(
     coverVisualAlpha: Float,
     coverUrl: String?,
     fallbackCoverUrl: String?,
-    onCoverBoundsSync: (Rect, Float) -> Unit,
+    sharedElementKey: String? = null,
     onInfoCardTopSync: (Float) -> Unit,
     onCoverClick: (String?) -> Unit,
     onFavoriteClick: () -> Unit,
@@ -239,7 +241,7 @@ fun DetailsHeader(
     val coverModel = remember(content?.source?.name, content?.url, currentCoverUrl) {
         ImageRequest.Builder(context)
             .data(currentCoverUrl)
-            .crossfade(true)
+            .crossfade(sharedElementKey == null)
             .apply { content?.let { mangaExtra(it) } }
             .build()
     }
@@ -308,16 +310,13 @@ fun DetailsHeader(
             DetailsCoverFrame(
                 coverModel = coverModel,
                 contentDescription = displayTitle,
-                onCoverBoundsSync = onCoverBoundsSync,
-                syncAlpha = coverSyncAlpha,
                 showNsfwBadge = isNsfw,
+                sharedElementKey = sharedElementKey,
                 topBadgeText = ratingLabel,
                 topBadgeIconRes = R.drawable.ic_star_small,
                 onClick = { onCoverClick(currentCoverUrl) },
                 onState = { state ->
-                    android.util.Log.e("DetailsCover", "Cover State: $state")
                     if (state is coil3.compose.AsyncImagePainter.State.Error) {
-                        android.util.Log.e("DetailsCover", "Cover Error: ${state.result.throwable}")
                         hasCoverLoadFailed = true
                     }
                 },
@@ -565,44 +564,48 @@ fun DetailsHeader(
         }
 
         if (!content?.tags.isNullOrEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    content?.tags.orEmpty().forEach { tag ->
-                        val isSensitiveTag = isSensitiveDetailsTag(tag)
-                        SuggestionChip(
-                            onClick = { onTagClick(tag) },
-                            modifier = Modifier.heightIn(min = 28.dp),
-                            label = {
-                                Text(
-                                    text = tag.title,
-                                    style = MaterialTheme.typography.labelSmall,
-                                )
-                            },
-                            colors = SuggestionChipDefaults.suggestionChipColors(
-                                containerColor = if (isSensitiveTag) {
-                                    Color(0xFFE3B341).copy(alpha = 0.22f)
-                                } else {
-                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.48f)
+            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 24.dp) {
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                    ) {
+                        content?.tags.orEmpty().forEach { tag ->
+                            val isSensitiveTag = isSensitiveDetailsTag(tag)
+                            SuggestionChip(
+                                onClick = { onTagClick(tag) },
+                                modifier = Modifier.heightIn(min = 24.dp),
+                                label = {
+                                    Text(
+                                        text = tag.title,
+                                        style = MaterialTheme.typography.labelSmall.copy(lineHeight = 12.sp),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
                                 },
-                                labelColor = if (isSensitiveTag) {
-                                    MaterialTheme.colorScheme.onSurface
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                },
-                            ),
-                            border = SuggestionChipDefaults.suggestionChipBorder(
-                                enabled = true,
-                                borderColor = if (isSensitiveTag) {
-                                    Color(0xFFE3B341).copy(alpha = 0.68f)
-                                } else {
-                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)
-                                },
-                            ),
-                        )
+                                colors = SuggestionChipDefaults.suggestionChipColors(
+                                    containerColor = if (isSensitiveTag) {
+                                        Color(0xFFE3B341).copy(alpha = 0.22f)
+                                    } else {
+                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.48f)
+                                    },
+                                    labelColor = if (isSensitiveTag) {
+                                        MaterialTheme.colorScheme.onSurface
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    },
+                                ),
+                                border = SuggestionChipDefaults.suggestionChipBorder(
+                                    enabled = true,
+                                    borderColor = if (isSensitiveTag) {
+                                        Color(0xFFE3B341).copy(alpha = 0.68f)
+                                    } else {
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)
+                                    },
+                                ),
+                            )
+                        }
                     }
                 }
             }

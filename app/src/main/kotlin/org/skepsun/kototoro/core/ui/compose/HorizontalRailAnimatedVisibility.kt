@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.collectLatest
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
@@ -28,23 +29,9 @@ import kotlin.math.abs
 import kotlin.math.sign
 
 @Composable
-fun HorizontalRailAnimatedVisibility(
-    animationKey: Any,
-    index: Int,
+fun rememberHorizontalRailScrollIntensity(
     listState: LazyListState,
-    modifier: Modifier = Modifier,
-    content: @Composable (Modifier) -> Unit,
-) {
-    var hasPlayed by rememberSaveable(animationKey) { mutableStateOf(false) }
-    val entryProgress = remember(animationKey) { Animatable(if (hasPlayed) 1f else 0f) }
-    val density = LocalDensity.current
-    val context = LocalContext.current
-    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-    val animationIntensityPercent by settings.observeAsState(AppSettings.KEY_RAIL_ANIMATION_INTENSITY) {
-        railAnimationIntensityPercent
-    }
-    val animationFactor = (animationIntensityPercent / 100f).coerceIn(0f, 3f)
-    val initialOffsetPx = with(density) { 34.dp.toPx() } * animationFactor
+): Float {
     var velocityTarget by remember(listState) { mutableFloatStateOf(0f) }
     val scrollIntensity by animateFloatAsState(
         targetValue = velocityTarget,
@@ -54,6 +41,68 @@ fun HorizontalRailAnimatedVisibility(
         ),
         label = "horizontal_rail_scroll_intensity",
     )
+
+    LaunchedEffect(listState) {
+        var lastTimestamp = SystemClock.elapsedRealtime()
+        var lastIndex = listState.firstVisibleItemIndex
+        var lastOffset = listState.firstVisibleItemScrollOffset
+        snapshotFlow {
+            Triple(
+                listState.firstVisibleItemIndex,
+                listState.firstVisibleItemScrollOffset,
+                listState.isScrollInProgress,
+            )
+        }.distinctUntilChanged()
+            .collectLatest { (currentIndex, currentOffset, isScrolling) ->
+                val now = SystemClock.elapsedRealtime()
+                val dt = (now - lastTimestamp).coerceAtLeast(16L)
+                val estimatedItemSize = listState.layoutInfo.visibleItemsInfo.firstOrNull()?.size ?: 1
+                val deltaPx = ((currentIndex - lastIndex) * estimatedItemSize) + (currentOffset - lastOffset)
+                val pixelsPerSecond = (abs(deltaPx) * 1000f) / dt.toFloat()
+                velocityTarget = if (isScrolling) {
+                    (pixelsPerSecond / 3200f).coerceIn(0f, 1f)
+                } else {
+                    0f
+                }
+                lastTimestamp = now
+                lastIndex = currentIndex
+                lastOffset = currentOffset
+            }
+    }
+
+    return scrollIntensity
+}
+
+@Composable
+fun rememberRailAnimationFactor(): Float {
+    val context = LocalContext.current
+    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+    val animationIntensityPercent by settings.observeAsState(AppSettings.KEY_RAIL_ANIMATION_INTENSITY) {
+        railAnimationIntensityPercent
+    }
+    return (animationIntensityPercent / 100f).coerceIn(0f, 3f)
+}
+
+@Composable
+fun HorizontalRailAnimatedVisibility(
+    animationKey: Any,
+    index: Int,
+    listState: LazyListState,
+    scrollIntensity: Float,
+    modifier: Modifier = Modifier,
+    animationFactor: Float = rememberRailAnimationFactor(),
+    enableScrollLinkedAnimation: Boolean = true,
+    content: @Composable (Modifier) -> Unit,
+) {
+    if (animationFactor <= 0f) {
+        content(modifier)
+        return
+    }
+
+    var hasPlayed by rememberSaveable(animationKey) { mutableStateOf(false) }
+    val entryProgress = remember(animationKey) { Animatable(if (hasPlayed) 1f else 0f) }
+    val density = LocalDensity.current
+    val initialOffsetPx = with(density) { 34.dp.toPx() } * animationFactor
 
     LaunchedEffect(animationKey) {
         if (hasPlayed) return@LaunchedEffect
@@ -68,52 +117,38 @@ fun HorizontalRailAnimatedVisibility(
         hasPlayed = true
     }
 
-    LaunchedEffect(listState) {
-        var lastTimestamp = SystemClock.elapsedRealtime()
-        var lastIndex = listState.firstVisibleItemIndex
-        var lastOffset = listState.firstVisibleItemScrollOffset
-        snapshotFlow {
-            Triple(
-                listState.firstVisibleItemIndex,
-                listState.firstVisibleItemScrollOffset,
-                listState.isScrollInProgress,
-            )
-        }.collectLatest { (currentIndex, currentOffset, isScrolling) ->
-            val now = SystemClock.elapsedRealtime()
-            val dt = (now - lastTimestamp).coerceAtLeast(16L)
-            val estimatedItemSize = listState.layoutInfo.visibleItemsInfo.firstOrNull()?.size ?: 1
-            val deltaPx = ((currentIndex - lastIndex) * estimatedItemSize) + (currentOffset - lastOffset)
-            val pixelsPerSecond = (abs(deltaPx) * 1000f) / dt.toFloat()
-            velocityTarget = if (isScrolling) {
-                (pixelsPerSecond / 3200f).coerceIn(0f, 1f)
-            } else {
-                0f
-            }
-            lastTimestamp = now
-            lastIndex = currentIndex
-            lastOffset = currentOffset
-        }
-    }
-
-    val itemInfo = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
-    val viewportStart = listState.layoutInfo.viewportStartOffset.toFloat()
-    val viewportEnd = listState.layoutInfo.viewportEndOffset.toFloat()
-    val viewportWidth = (viewportEnd - viewportStart).coerceAtLeast(1f)
-    val viewportCenter = viewportStart + viewportWidth / 2f
-    val itemCenter = itemInfo?.let { it.offset + (it.size / 2f) }?.toFloat() ?: viewportCenter
-    val distanceFraction = ((itemCenter - viewportCenter).absoluteValue / (viewportWidth * 0.55f)).coerceIn(0f, 1f)
-    val focusProgress = 1f - distanceFraction
-    val edgeProgress = 1f - focusProgress
-    val direction = sign(itemCenter - viewportCenter)
-    val linkedScale = 1f - (edgeProgress * (0.10f + 0.16f * scrollIntensity) * animationFactor)
-    val linkedAlpha = 1f - (edgeProgress * (0.14f + 0.20f * scrollIntensity) * animationFactor)
-    val linkedTranslationX = direction * edgeProgress * (12f + 34f * scrollIntensity) * animationFactor
-    val linkedTranslationY = edgeProgress * (5f + 16f * scrollIntensity) * animationFactor
-
     val animatedModifier = modifier.graphicsLayer {
         val entry = entryProgress.value
-        alpha = (1f - ((1f - entry) * 0.62f * animationFactor.coerceIn(0f, 1f))) * linkedAlpha
-        val entryScale = 1f - ((1f - entry) * 0.08f * animationFactor.coerceIn(0f, 1f))
+        val clampedFactor = animationFactor.coerceIn(0f, 1f)
+        if (!enableScrollLinkedAnimation || scrollIntensity > 0.85f) {
+            alpha = 1f - ((1f - entry) * 0.62f * clampedFactor)
+            val entryScale = 1f - ((1f - entry) * 0.08f * clampedFactor)
+            scaleX = entryScale
+            scaleY = entryScale
+            translationX = (1f - entry) * initialOffsetPx
+            translationY = 0f
+            return@graphicsLayer
+        }
+
+        val layoutInfo = listState.layoutInfo
+        val viewportStart = layoutInfo.viewportStartOffset.toFloat()
+        val viewportEnd = layoutInfo.viewportEndOffset.toFloat()
+        val viewportWidth = (viewportEnd - viewportStart).coerceAtLeast(1f)
+        val viewportCenter = viewportStart + viewportWidth / 2f
+
+        val itemInfo = layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
+        val itemCenter = itemInfo?.let { it.offset + (it.size / 2f) }?.toFloat() ?: viewportCenter
+        val distanceFraction = (abs(itemCenter - viewportCenter) / (viewportWidth * 0.55f)).coerceIn(0f, 1f)
+        val edgeProgress = distanceFraction
+        val direction = sign(itemCenter - viewportCenter)
+
+        val linkedScale = 1f - (edgeProgress * (0.10f + 0.16f * scrollIntensity) * animationFactor)
+        val linkedAlpha = 1f - (edgeProgress * (0.14f + 0.20f * scrollIntensity) * animationFactor)
+        val linkedTranslationX = direction * edgeProgress * (12f + 34f * scrollIntensity) * animationFactor
+        val linkedTranslationY = edgeProgress * (5f + 16f * scrollIntensity) * animationFactor
+
+        alpha = (1f - ((1f - entry) * 0.62f * clampedFactor)) * linkedAlpha
+        val entryScale = 1f - ((1f - entry) * 0.08f * clampedFactor)
         scaleX = entryScale * linkedScale
         scaleY = scaleX
         translationX = ((1f - entry) * initialOffsetPx) + linkedTranslationX
@@ -121,6 +156,3 @@ fun HorizontalRailAnimatedVisibility(
     }
     content(animatedModifier)
 }
-
-private val Float.absoluteValue: Float
-    get() = abs(this)

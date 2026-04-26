@@ -108,7 +108,15 @@ fun FeedScreen(
 						is EmptyState -> "empty"
 						else -> item.hashCode().toString()
 					}
-				}
+				},
+				contentType = { item ->
+					when (item) {
+						is FeedItem -> "feed_item"
+						is UpdatedContentHeader -> "updated_carousel"
+						is ListHeader -> "list_header"
+						else -> "feed_other"
+					}
+				},
 			) { item ->
 				when (item) {
 					is FeedItem -> {
@@ -156,7 +164,7 @@ private fun FeedFilterBar(
 		contentPadding = PaddingValues(horizontal = 12.dp),
 		horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
 	) {
-		items(categories, key = { "category_${it.id}" }) { category ->
+		items(categories, key = { "category_${it.id}" }, contentType = { "filter_chip" }) { category ->
 			FilterChip(
 				selected = selectedCategoryId == category.id,
 				onClick = { onCategorySelected(category.id) },

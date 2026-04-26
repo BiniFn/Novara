@@ -18,6 +18,7 @@ import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.favourites.ui.container.FavouritesContainerViewModel
 import org.skepsun.kototoro.favourites.domain.GlobalFavoritesState
 import org.skepsun.kototoro.core.model.FavouriteCategory.Companion.NO_ID
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.list.ui.compose.AppContentListRoute
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
@@ -29,6 +30,7 @@ import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 fun KototoroFavoritesHostRoute(
     appRouter: AppRouter,
     contentPadding: PaddingValues,
+    onNavigateToDetails: ((Content, String?) -> Unit)? = null,
     viewModel: FavouritesContainerViewModel = hiltViewModel()
 ) {
     val categories by viewModel.categories.collectAsStateWithLifecycle(emptyList())
@@ -144,10 +146,13 @@ fun KototoroFavoritesHostRoute(
         ) { page ->
             val category = categories.getOrNull(page)
             if (category != null) {
+                val isSharedTransitionEnabled = page == pagerState.currentPage && !pagerState.isScrollInProgress
                 KototoroFavoritesListScreen(
                     categoryId = category.id,
                     appRouter = appRouter,
-                    contentPadding = innerPadding
+                    contentPadding = innerPadding,
+                    onNavigateToDetails = onNavigateToDetails,
+                    sharedTransitionEnabled = isSharedTransitionEnabled,
                 )
             }
         }

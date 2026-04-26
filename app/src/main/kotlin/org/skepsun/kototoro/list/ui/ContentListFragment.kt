@@ -49,7 +49,6 @@ import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.core.util.ext.consumeAll
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
-import org.skepsun.kototoro.details.ui.DetailsCoverTransitionStore
 import org.skepsun.kototoro.databinding.FragmentContentListBinding
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
@@ -155,11 +154,7 @@ abstract class ContentListFragment :
 					onLoadMore = { onScrolledToEnd() },
 					gridScale = gridScale,
 					selectedItemsIds = composeSelectionIds,
-					onPrepareItemTransition = { item, coverBounds ->
-						if (composeSelectionIds.isEmpty()) {
-							DetailsCoverTransitionStore.set(item.toContentWithOverride(), coverBounds)
-						}
-					},
+					onPrepareItemTransition = { _, _ -> },
 					onItemClick = { item ->
 						if (composeSelectionIds.isNotEmpty()) {
 							composeSelectionIds = if (item.id in composeSelectionIds) composeSelectionIds - item.id else composeSelectionIds + item.id

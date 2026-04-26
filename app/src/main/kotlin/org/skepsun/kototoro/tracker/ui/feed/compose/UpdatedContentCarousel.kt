@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.tracker.ui.feed.compose
 
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,7 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -43,12 +44,19 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
+import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
+import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
+import org.skepsun.kototoro.core.ui.compose.rememberRailAnimationFactor
+import org.skepsun.kototoro.core.ui.compose.unclippedBoundsInWindow
 import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
+import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
+
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.list.ui.compose.ContentCardCornerBadges
 import org.skepsun.kototoro.list.ui.compose.ContentCardNsfwBadge
 import org.skepsun.kototoro.list.ui.compose.asBadgeModel
 import org.skepsun.kototoro.list.ui.compose.contentCardBadgeMetricsFor
+import org.skepsun.kototoro.core.ui.compose.rememberHorizontalRailScrollIntensity
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.tracker.ui.feed.model.UpdatedContentHeader
 
@@ -64,6 +72,7 @@ fun UpdatedContentCarousel(
 	val gridScale = settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize / 100f }.value
 	val posterStyle = remember(gridScale) { compactPosterRailCardStyle(gridScale) }
 	val listState = rememberLazyListState()
+	val scrollIntensity = rememberHorizontalRailScrollIntensity(listState)
 
 	Column(modifier = modifier.fillMaxWidth()) {
 		Row(
@@ -90,6 +99,7 @@ fun UpdatedContentCarousel(
 			}
 		}
 
+		val railAnimationFactor = rememberRailAnimationFactor()
 		LazyRow(
 			state = listState,
 			modifier = Modifier.fillMaxWidth(),
@@ -98,12 +108,16 @@ fun UpdatedContentCarousel(
 		) {
 			itemsIndexed(
 				items = header.list,
-				key = { _, item -> "updated_${item.manga.id}" }
+				key = { _, item -> "updated_${item.manga.id}" },
+				contentType = { _, _ -> "updated_card" },
 			) { index, contentModel ->
 				HorizontalRailAnimatedVisibility(
 					animationKey = "updated_${contentModel.id}",
 					index = index,
 					listState = listState,
+					scrollIntensity = scrollIntensity,
+					animationFactor = railAnimationFactor,
+					enableScrollLinkedAnimation = false,
 				) { animatedModifier ->
 					FeedUpdatedPosterCard(
 						model = contentModel,
@@ -119,6 +133,7 @@ fun UpdatedContentCarousel(
 	}
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun FeedUpdatedPosterCard(
 	model: ContentListModel,
@@ -132,11 +147,16 @@ private fun FeedUpdatedPosterCard(
 	val imageRequest = remember(model.id, model.coverUrl) {
 		ImageRequest.Builder(context)
 			.data(model.coverUrl)
-			.crossfade(true)
+			.crossfade(false)
 			.build()
 	}
 	val badgeMetrics = remember(posterStyle.itemWidth) { contentCardBadgeMetricsFor(posterStyle.itemWidth) }
 	var coverBounds by remember(model.id) { mutableStateOf<Rect?>(null) }
+	val sharedTransitionScope = LocalSharedTransitionScope.current
+	val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
+	val sharedElementKey = remember(model.id, model.coverUrl, model.manga.source.name) {
+		contentCoverSharedKey(model.manga.source.name, model.coverUrl.orEmpty(), instanceKey = "feed_updated_${model.id}")
+	}
 
 	Column(
 		modifier = modifier
@@ -149,8 +169,18 @@ private fun FeedUpdatedPosterCard(
 				.fillMaxWidth()
 				.height(posterStyle.posterHeight)
 				.onGloballyPositioned { coordinates ->
-					coverBounds = coordinates.boundsInRoot()
+					coverBounds = coordinates.unclippedBoundsInWindow()
 				}
+				.then(
+					if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+						with(sharedTransitionScope) {
+							Modifier.sharedElement(
+								rememberSharedContentState(key = sharedElementKey),
+								animatedVisibilityScope = animatedVisibilityScope,
+							)
+						}
+					} else Modifier
+				)
 				.clip(MaterialTheme.shapes.medium)
 				.background(MaterialTheme.colorScheme.surfaceVariant),
 		) {

@@ -114,7 +114,9 @@ fun DiscoverScreen(
 							items = heroItems,
 							activeService = activeService,
 							availableServices = availableServices,
-							onItemClick = onItemClick,
+							onItemClick = { item, coverBounds, sharedElementKey ->
+								onItemClick(item, coverBounds)
+							},
 							onSelectService = onSelectService,
 							modifier = Modifier.padding(bottom = 4.dp)
 						)

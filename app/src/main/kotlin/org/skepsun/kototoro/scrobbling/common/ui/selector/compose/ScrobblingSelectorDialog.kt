@@ -180,7 +180,14 @@ private fun ColumnScope.ScrobblerListContent(
                         is LoadingFooter -> "loading_footer"
                         else -> item.hashCode()
                     }
-                }
+                },
+                contentType = { item ->
+                    when (item) {
+                        is ScrobblerContent -> "scrobbler_content"
+                        is ScrobblerHint -> "scrobbler_hint"
+                        else -> "scrobbler_other"
+                    }
+                },
             ) { item ->
                 when (item) {
                     is ScrobblerContent -> {

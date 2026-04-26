@@ -99,7 +99,7 @@ import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.ui.model.titleRes
-import org.skepsun.kototoro.details.ui.DetailsCoverTransitionStore
+
 import org.skepsun.kototoro.filter.ui.model.UiTagGroup
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.list.ui.compose.KototoroContentListScreen
@@ -298,9 +298,7 @@ fun AppSearchContentListRoute(
                         modifier = Modifier
                             .weight(1f)
                             .nestedScroll(nestedScrollConnection),
-                        onPrepareItemTransition = { item, coverBounds ->
-                            DetailsCoverTransitionStore.set(item.toContentWithOverride(), coverBounds)
-                        },
+                        onPrepareItemTransition = { _, _ -> },
                         onItemClick = { item ->
                             previewContent = item.toContentWithOverride()
                             sidePaneMode = SearchSidePaneMode.Preview
@@ -364,9 +362,7 @@ fun AppSearchContentListRoute(
                 isRefreshing = false,
                 contentPadding = paddingValues,
                 modifier = Modifier.nestedScroll(nestedScrollConnection),
-                onPrepareItemTransition = { item, coverBounds ->
-                    DetailsCoverTransitionStore.set(item.toContentWithOverride(), coverBounds)
-                },
+                onPrepareItemTransition = { _, _ -> },
                 onItemClick = { item -> appRouter.openDetails(item.manga, rootView) },
                 onItemLongClick = { },
                 onLoadMore = { viewModel.loadNextPage() },

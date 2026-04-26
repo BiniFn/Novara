@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.details.ui.compose
 
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,52 +22,54 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
+import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun DetailsCoverFrame(
     coverModel: Any?,
     contentDescription: String,
-    onCoverBoundsSync: (Rect, Float) -> Unit,
-    syncAlpha: Float,
     showNsfwBadge: Boolean,
+    sharedElementKey: String? = null,
     topBadgeText: String? = null,
     @DrawableRes topBadgeIconRes: Int? = null,
     onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     onState: ((coil3.compose.AsyncImagePainter.State) -> Unit)? = null,
 ) {
-    var coverBounds by remember { mutableStateOf(Rect.Zero) }
-    LaunchedEffect(coverBounds, syncAlpha) {
-        if (coverBounds.width > 0f && coverBounds.height > 0f) {
-            onCoverBoundsSync(coverBounds, syncAlpha)
-        }
-    }
+    val sharedTransitionScope = LocalSharedTransitionScope.current
+    val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
 
     Box(
         modifier = modifier
             .width(132.dp)
+            .then(
+                if (sharedElementKey != null && sharedTransitionScope != null && animatedVisibilityScope != null) {
+                    with(sharedTransitionScope) {
+                        Modifier.sharedElement(
+                            rememberSharedContentState(key = sharedElementKey),
+                            animatedVisibilityScope = animatedVisibilityScope,
+                        )
+                    }
+                } else Modifier,
+            )
             .shadow(
                 elevation = 18.dp,
                 shape = MaterialTheme.shapes.large,
@@ -96,10 +99,7 @@ fun DetailsCoverFrame(
                     .background(
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f),
                         shape = MaterialTheme.shapes.medium,
-                    )
-                    .onGloballyPositioned { coordinates ->
-                        coverBounds = coordinates.boundsInRoot()
-                    },
+                    ),
             )
             AsyncImage(
                 model = coverModel,
@@ -116,12 +116,34 @@ fun DetailsCoverFrame(
                 onState = { state -> onState?.invoke(state) },
             )
             if (!topBadgeText.isNullOrBlank()) {
-                GlassSurface(
+                val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
+                val badgeContainerColor = if (isDarkTheme) {
+                    MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.72f)
+                } else {
+                    MaterialTheme.colorScheme.scrim.copy(alpha = 0.34f)
+                }
+                val badgeContentColor = if (isDarkTheme) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    Color.White
+                }
+                Surface(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(8.dp),
-                    style = GlassDefaults.regularStyle(),
                     shape = RoundedCornerShape(12.dp),
+                    color = badgeContainerColor,
+                    contentColor = badgeContentColor,
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp,
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = if (isDarkTheme) {
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f)
+                        } else {
+                            Color.White.copy(alpha = 0.10f)
+                        },
+                    ),
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
@@ -132,14 +154,14 @@ fun DetailsCoverFrame(
                             Icon(
                                 painter = rememberSafePainter(iconRes),
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurface,
+                                tint = badgeContentColor,
                                 modifier = Modifier.size(12.dp),
                             )
                         }
                         Text(
                             text = topBadgeText,
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = badgeContentColor,
                         )
                     }
                 }

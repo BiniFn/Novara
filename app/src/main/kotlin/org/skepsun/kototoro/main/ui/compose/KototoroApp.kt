@@ -1,11 +1,14 @@
 package org.skepsun.kototoro.main.ui.compose
 
 import android.content.res.Configuration
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -29,7 +32,9 @@ import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.ui.theme.KototoroTheme
 import org.skepsun.kototoro.core.ui.widgets.BottomNavState
 import org.skepsun.kototoro.core.ui.widgets.KototoroBottomNav
+import org.skepsun.kototoro.core.ui.glass.LocalGlassPrefs
 import org.skepsun.kototoro.core.ui.glass.LocalHazeState
+import org.skepsun.kototoro.core.ui.glass.rememberGlassPrefs
 import org.skepsun.kototoro.core.ui.glass.supportsRuntimeHaze
 import org.skepsun.kototoro.explore.data.SourcePreset
 import org.skepsun.kototoro.explore.ui.compose.ExploreSelectionTopBar
@@ -51,11 +56,17 @@ import org.skepsun.kototoro.search.domain.SearchKind
 import org.skepsun.kototoro.search.domain.AdvancedSearchParams
 import org.skepsun.kototoro.search.ui.compose.SearchNavigation
 import org.skepsun.kototoro.search.ui.compose.SearchNavigationRequest
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
+import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun KototoroApp(
     appSettings: AppSettings,
     navStateFlow: StateFlow<BottomNavState>,
+    pageSaveHelper: org.skepsun.kototoro.reader.ui.PageSaveHelper,
     query: String = "",
     suggestions: List<SearchSuggestionItem> = emptyList(),
     onQueryChanged: (String) -> Unit = {},
@@ -136,7 +147,13 @@ fun KototoroApp(
     var isSearchOverlayVisible by rememberSaveable { mutableStateOf(false) }
     var topBarOverrideState by remember { mutableStateOf<TopBarOverrideState?>(null) }
 
-    val nestedScrollConnection = remember(isNavBarPinned, topBarHeightPx, bottomNavHeightPx, isSearchOverlayVisible) {
+    val nestedScrollConnection = remember(
+        isNavBarPinned,
+        isLandscapeNavigation,
+        topBarHeightPx,
+        bottomNavHeightPx,
+        isSearchOverlayVisible,
+    ) {
         object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
             override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
                 if (isSearchOverlayVisible) {
@@ -145,7 +162,11 @@ fun KototoroApp(
                 val dy = available.y
                 if (!isNavBarPinned && dy != 0f) {
                     topBarOffset = (topBarOffset + dy).coerceIn(-topBarHeightPx.toFloat(), 0f)
-                    bottomNavOffset = (bottomNavOffset - dy).coerceIn(0f, bottomNavHeightPx.toFloat())
+                    bottomNavOffset = if (isLandscapeNavigation) {
+                        0f
+                    } else {
+                        (bottomNavOffset - dy).coerceIn(0f, bottomNavHeightPx.toFloat())
+                    }
                 } else if (isNavBarPinned) {
                     topBarOffset = 0f
                     bottomNavOffset = 0f
@@ -162,11 +183,40 @@ fun KototoroApp(
         }
     }
 
+    LaunchedEffect(isLandscapeNavigation) {
+        if (isLandscapeNavigation) {
+            bottomNavOffset = 0f
+        }
+    }
+
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     val isSearchRoute = currentRoute?.startsWith(SearchNavigation.baseRoute) == true
+    val isDetailsRoute = currentRoute == "details"
     val shouldShowChrome = !isSearchRoute
+    var shouldKeepChromeVisible by remember {
+        mutableStateOf(shouldShowChrome && !isDetailsRoute)
+    }
+    LaunchedEffect(shouldShowChrome, isDetailsRoute) {
+        when {
+            !shouldShowChrome -> shouldKeepChromeVisible = false
+            !isDetailsRoute -> shouldKeepChromeVisible = true
+            else -> {
+                shouldKeepChromeVisible = true
+                delay(220)
+                if (isDetailsRoute && shouldShowChrome) {
+                    shouldKeepChromeVisible = false
+                }
+            }
+        }
+    }
+    val isChromeVisible = shouldShowChrome && (!isDetailsRoute || shouldKeepChromeVisible)
+    val chromeAlpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isChromeVisible) 1f else 0f,
+        animationSpec = tween(if (isChromeVisible) 200 else 150),
+        label = "chrome_alpha",
+    )
     val isBrowseRoute = currentRoute == "explore"
     val showBrowseSourceSettingsEntry = currentRoute in setOf("explore", "discover")
     val supportsDisplayModeMenu = currentRoute in setOf("history", "favorites", "suggestions", "updated")
@@ -219,7 +269,7 @@ fun KototoroApp(
         (bottomNavHeightPx - bottomNavOffset).coerceAtLeast(0f).toInt() + extraPinnedBottomInsetPx
     }
     val visibleStartInsetDp = with(density) {
-        if (isLandscapeNavigation && shouldShowChrome) {
+        if (isLandscapeNavigation && isChromeVisible) {
             (bottomNavHeightPx - bottomNavOffset).coerceAtLeast(0f).toDp()
         } else {
             0.dp
@@ -240,33 +290,42 @@ fun KototoroApp(
 
     KototoroTheme(cornerRadius = cornerRadius) {
         val hazeState = remember { HazeState() }
+        val glassPrefs = rememberGlassPrefs(appSettings)
         val useRuntimeHaze = remember { supportsRuntimeHaze() }
-        CompositionLocalProvider(LocalHazeState provides hazeState) {
+        CompositionLocalProvider(
+            LocalHazeState provides hazeState,
+            LocalGlassPrefs provides glassPrefs,
+        ) {
             Box(modifier = Modifier.fillMaxSize().nestedScroll(nestedScrollConnection)) {
-                AppNavGraph(
-                    navController = navController,
-                    contentPadding = contentPadding,
-                    onExploreSourceSelectionTopBarChanged = { topBarOverrideState = it },
-                    onOpenSearch = { request ->
-                        val route = SearchNavigation.createRoute(request)
-                        if (isSearchRoute) {
-                            navController.navigate(route) {
-                                popUpTo(currentRoute ?: SearchNavigation.routePattern) { inclusive = true }
-                                launchSingleTop = true
-                            }
-                        } else {
-                            navController.navigate(route) {
-                                launchSingleTop = true
-                            }
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(start = visibleStartInsetDp)
-                        .then(if (useRuntimeHaze) Modifier.haze(hazeState) else Modifier)
-                )
+                SharedTransitionLayout {
+                    CompositionLocalProvider(LocalSharedTransitionScope provides this@SharedTransitionLayout) {
+                        AppNavGraph(
+                            navController = navController,
+                            contentPadding = contentPadding,
+                            pageSaveHelper = pageSaveHelper,
+                            onExploreSourceSelectionTopBarChanged = { topBarOverrideState = it },
+                            onOpenSearch = { request ->
+                                val route = SearchNavigation.createRoute(request)
+                                if (isSearchRoute) {
+                                    navController.navigate(route) {
+                                        popUpTo(currentRoute ?: SearchNavigation.routePattern) { inclusive = true }
+                                        launchSingleTop = true
+                                    }
+                                } else {
+                                    navController.navigate(route) {
+                                        launchSingleTop = true
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(start = visibleStartInsetDp)
+                                .then(if (useRuntimeHaze) Modifier.haze(hazeState) else Modifier)
+                        )
+                    }
+                }
 
-                if (shouldShowChrome) {
+                if (isChromeVisible || chromeAlpha > 0f) {
                     if (topBarOverrideState != null) {
                         when (val overrideState = topBarOverrideState) {
                             is ExploreSourceSelectionTopBarState -> {
@@ -289,6 +348,7 @@ fun KototoroApp(
                                         .then(if (isLandscapeNavigation) Modifier.fillMaxWidth() else Modifier)
                                         .padding(start = visibleStartInsetDp)
                                         .offset { androidx.compose.ui.unit.IntOffset(0, topBarOffset.toInt()) }
+                                        .graphicsLayer { alpha = chromeAlpha }
                                         .onGloballyPositioned { coords ->
                                             val newHeight = coords.size.height
                                             if (topBarHeightPx != newHeight) {
@@ -313,6 +373,7 @@ fun KototoroApp(
                                         .then(if (isLandscapeNavigation) Modifier.fillMaxWidth() else Modifier)
                                         .padding(start = visibleStartInsetDp)
                                         .offset { androidx.compose.ui.unit.IntOffset(0, topBarOffset.toInt()) }
+                                        .graphicsLayer { alpha = chromeAlpha }
                                         .onGloballyPositioned { coords ->
                                             val newHeight = coords.size.height
                                             if (topBarHeightPx != newHeight) {
@@ -364,6 +425,7 @@ fun KototoroApp(
                                 .then(if (isLandscapeNavigation) Modifier.fillMaxWidth() else Modifier)
                                 .padding(start = visibleStartInsetDp)
                                 .offset { androidx.compose.ui.unit.IntOffset(0, topBarOffset.toInt()) }
+                                .graphicsLayer { alpha = chromeAlpha }
                                 .onGloballyPositioned { coords ->
                                     val newHeight = coords.size.height
                                     if (topBarHeightPx != newHeight) {
@@ -384,6 +446,7 @@ fun KototoroApp(
                                     androidx.compose.ui.unit.IntOffset(0, bottomNavOffset.toInt())
                                 }
                             }
+                            .graphicsLayer { alpha = chromeAlpha }
                             .onGloballyPositioned { coords ->
                                 val newHeight = if (isLandscapeNavigation) coords.size.width else coords.size.height
                                 if (bottomNavHeightPx != newHeight) {

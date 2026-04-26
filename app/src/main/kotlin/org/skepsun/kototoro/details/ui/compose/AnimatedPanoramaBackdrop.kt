@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.details.ui.compose
 
+import android.os.Build
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -10,91 +11,129 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import androidx.compose.ui.platform.LocalContext
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.image.panoramaBlur
+
+@Immutable
+data class PanoramaBackdropPrefs(
+    val isEnabled: Boolean,
+    val blurPercent: Int,
+    val bottomGradientAlphaPercent: Int,
+    val isAnimationEnabled: Boolean,
+    val animationSpeedPercent: Int,
+)
+
+@Composable
+fun rememberPanoramaBackdropPrefs(settings: AppSettings): PanoramaBackdropPrefs {
+    val supportsRealtimeEffects = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val prefs by settings.observeAsState(
+        AppSettings.KEY_PANORAMA_ENABLED,
+        AppSettings.KEY_PANORAMA_BLUR,
+        AppSettings.KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA,
+        AppSettings.KEY_PANORAMA_ANIMATION_ENABLED,
+        AppSettings.KEY_PANORAMA_ANIMATION_SPEED,
+    ) {
+        PanoramaBackdropPrefs(
+            isEnabled = isPanoramaCoverEnabled,
+            blurPercent = panoramaCoverBlur,
+            bottomGradientAlphaPercent = panoramaBottomGradientAlpha,
+            isAnimationEnabled = supportsRealtimeEffects && isPanoramaCoverAnimationEnabled,
+            animationSpeedPercent = panoramaAnimationSpeed,
+        )
+    }
+    return prefs
+}
 
 @Composable
 fun AnimatedPanoramaBackdrop(
-    settings: AppSettings,
+    prefs: PanoramaBackdropPrefs,
     model: Any?,
     contentAlpha: Float,
     backgroundColor: Color,
+    crossfadeEnabled: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    val isPanoramaCoverEnabled by settings.observeAsState(AppSettings.KEY_PANORAMA_ENABLED) { isPanoramaCoverEnabled }
-    val panoramaBlur by settings.observeAsState(AppSettings.KEY_PANORAMA_BLUR) { panoramaCoverBlur }
-    val panoramaBottomAlpha by settings.observeAsState(AppSettings.KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA) {
-        panoramaBottomGradientAlpha
-    }
-    val isPanoramaCoverAnimationEnabled by settings.observeAsState(AppSettings.KEY_PANORAMA_ANIMATION_ENABLED) {
-        isPanoramaCoverAnimationEnabled
-    }
-    val panoramaAnimationSpeed by settings.observeAsState(AppSettings.KEY_PANORAMA_ANIMATION_SPEED) {
-        panoramaAnimationSpeed
-    }
+    val resolvedContentAlpha = contentAlpha.coerceIn(0f, 1f)
+    if (!prefs.isEnabled || resolvedContentAlpha <= 0.01f) return
 
-    if (!isPanoramaCoverEnabled) return
-
-    val blurRadius = (((panoramaBlur / 100f).coerceIn(0f, 1f)) * 20f).dp
-    val panoramaGradientAlphaFactor = (panoramaBottomAlpha / 100f).coerceIn(0f, 1f)
-    val panoramaAnimationSpeedFactor = (panoramaAnimationSpeed.coerceIn(50, 200)) / 100f
+    val panoramaGradientAlphaFactor = (prefs.bottomGradientAlphaPercent / 100f).coerceIn(0f, 1f)
+    val panoramaAnimationSpeedFactor = (prefs.animationSpeedPercent.coerceIn(50, 200)) / 100f
     val scaleAnimationDuration = (14000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(4000)
     val horizontalPanAnimationDuration = (16000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(4500)
     val verticalPanAnimationDuration = (12000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(3500)
 
-    val infiniteTransition = rememberInfiniteTransition(label = "details_panorama_background")
-    val backgroundScale by infiniteTransition.animateFloat(
-        initialValue = if (isPanoramaCoverAnimationEnabled) 1.15f else 1f,
-        targetValue = if (isPanoramaCoverAnimationEnabled) 1.22f else 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = scaleAnimationDuration, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "details_panorama_background_scale",
-    )
-    val backgroundTranslationX by infiniteTransition.animateFloat(
-        initialValue = if (isPanoramaCoverAnimationEnabled) -18f else 0f,
-        targetValue = if (isPanoramaCoverAnimationEnabled) 18f else 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = horizontalPanAnimationDuration, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "details_panorama_background_translation_x",
-    )
-    val backgroundTranslationY by infiniteTransition.animateFloat(
-        initialValue = if (isPanoramaCoverAnimationEnabled) -12f else 0f,
-        targetValue = if (isPanoramaCoverAnimationEnabled) 12f else 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = verticalPanAnimationDuration, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "details_panorama_background_translation_y",
-    )
+    val backgroundScale: Float
+    val backgroundTranslationX: Float
+    val backgroundTranslationY: Float
+    if (prefs.isAnimationEnabled) {
+        val infiniteTransition = rememberInfiniteTransition(label = "details_panorama_background")
+        val animatedScale by infiniteTransition.animateFloat(
+            initialValue = 1.15f,
+            targetValue = 1.22f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = scaleAnimationDuration, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "details_panorama_background_scale",
+        )
+        val animatedTranslationX by infiniteTransition.animateFloat(
+            initialValue = -18f,
+            targetValue = 18f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = horizontalPanAnimationDuration, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "details_panorama_background_translation_x",
+        )
+        val animatedTranslationY by infiniteTransition.animateFloat(
+            initialValue = -12f,
+            targetValue = 12f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = verticalPanAnimationDuration, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "details_panorama_background_translation_y",
+        )
+        backgroundScale = animatedScale
+        backgroundTranslationX = animatedTranslationX
+        backgroundTranslationY = animatedTranslationY
+    } else {
+        backgroundScale = 1f
+        backgroundTranslationX = 0f
+        backgroundTranslationY = 0f
+    }
 
     val context = LocalContext.current
-    val backgroundRequest = androidx.compose.runtime.remember(model) {
+    val backgroundRequest = androidx.compose.runtime.remember(
+        model,
+        context,
+        crossfadeEnabled,
+        prefs.blurPercent,
+    ) {
         when (model) {
             is ImageRequest -> model.newBuilder()
                 .size(400)
-                .crossfade(true)
+                .crossfade(crossfadeEnabled)
+                .panoramaBlur(prefs.blurPercent)
                 .build()
             else -> ImageRequest.Builder(context)
                 .data(model)
                 .size(400)
-                .crossfade(true)
+                .crossfade(crossfadeEnabled)
+                .panoramaBlur(prefs.blurPercent)
                 .build()
         }
     }
@@ -111,8 +150,7 @@ fun AnimatedPanoramaBackdrop(
                 translationX = backgroundTranslationX
                 translationY = backgroundTranslationY
             }
-            .blur(blurRadius)
-            .alpha(contentAlpha),
+            .alpha(resolvedContentAlpha),
     )
     Box(
         modifier = modifier

@@ -70,8 +70,12 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
     @Inject
     lateinit var sourcePresetsRepository: SourcePresetsRepository
 
+    @Inject
+    lateinit var pageSaveHelperFactory: org.skepsun.kototoro.reader.ui.PageSaveHelper.Factory
+
     private val viewModel by viewModels<MainViewModel>()
     private val searchSuggestionViewModel by viewModels<SearchSuggestionViewModel>()
+    private lateinit var pageSaveHelper: org.skepsun.kototoro.reader.ui.PageSaveHelper
     private val voiceInputLauncher = registerForActivityResult(VoiceInputContract()) { result ->
         val query = result?.trim().orEmpty()
         if (query.isNotEmpty()) {
@@ -163,6 +167,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pageSaveHelper = pageSaveHelperFactory.create(this)
         searchQuery = savedInstanceState?.getString(STATE_TOP_BAR_QUERY).orEmpty()
         applyConfiguredLanguagePreset()
 
@@ -192,6 +197,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
             KototoroApp(
                 appSettings = settings,
                 navStateFlow = navStateFlow,
+                pageSaveHelper = pageSaveHelper,
                 suggestions = suggestions,
                 onQueryChanged = ::updateSearchQuery,
                 onSearch = { query -> submitSearch(query) },

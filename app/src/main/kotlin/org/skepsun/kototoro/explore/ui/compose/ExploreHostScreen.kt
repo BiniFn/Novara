@@ -22,15 +22,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,10 +53,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
@@ -75,6 +75,7 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest.Builder
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import kotlinx.coroutines.flow.distinctUntilChanged
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.core.model.isLocal
@@ -85,11 +86,19 @@ import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
 import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
-import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
+import org.skepsun.kototoro.core.ui.compose.rememberRailAnimationFactor
 import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
+import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
+import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
 import org.skepsun.kototoro.core.ui.compose.VerticalRailAnimatedVisibility
 import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
+import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
+import org.skepsun.kototoro.core.ui.compose.rememberHorizontalRailScrollIntensity
+import org.skepsun.kototoro.core.ui.compose.rememberVerticalRailScrollIntensity
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
+import org.skepsun.kototoro.core.ui.compose.unclippedBoundsInWindow
+import org.skepsun.kototoro.core.util.ext.mangaExtra
+import org.skepsun.kototoro.details.ui.model.DetailsOrigin
 import org.skepsun.kototoro.discover.ui.DiscoverViewModel
 import org.skepsun.kototoro.discover.ui.compose.DiscoverHeroCarousel
 import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
@@ -142,6 +151,7 @@ fun KototoroExploreHostRoute(
     exploreViewModel: ExploreViewModel = hiltViewModel(),
     discoverViewModel: DiscoverViewModel = hiltViewModel(),
     onSourceSelectionTopBarChanged: (ExploreSourceSelectionTopBarState?) -> Unit = {},
+    onNavigateToDetails: ((DetailsOrigin, String?) -> Unit)? = null,
 ) {
     val sourceItems by exploreViewModel.content.collectAsStateWithLifecycle(emptyList())
     val discoverItems by discoverViewModel.content.collectAsStateWithLifecycle(emptyList())
@@ -150,6 +160,7 @@ fun KototoroExploreHostRoute(
     val activeService by discoverViewModel.activeService.collectAsStateWithLifecycle()
     val query by discoverViewModel.query.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
+    val verticalScrollIntensity = rememberVerticalRailScrollIntensity(listState)
     var heroPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
     val context = LocalContext.current
@@ -276,13 +287,14 @@ fun KototoroExploreHostRoute(
         }
     }
 
-    LaunchedEffect(listState, query, popularItems.size, isDiscoverLoading) {
+    val currentDiscoverLoading = androidx.compose.runtime.rememberUpdatedState(isDiscoverLoading)
+    LaunchedEffect(listState, query, popularItems.size) {
         if (query.isNotBlank() || popularItems.isEmpty()) {
             return@LaunchedEffect
         }
         listState.maybeTriggerBrowseLoadMore(
             itemCount = popularItems.size,
-            isLoading = isDiscoverLoading,
+            isLoading = { currentDiscoverLoading.value },
             onLoadMore = discoverViewModel::loadNextPage,
         )
     }
@@ -334,6 +346,7 @@ fun KototoroExploreHostRoute(
                 items(
                     items = showcaseRows,
                     key = { "showcase_${it.category.id}" },
+                    contentType = { "showcase_row" },
                 ) { row ->
                     val rowContentItems = remember(row) {
                         row.items.filterIsInstance<ContentListModel>().take(12)
@@ -345,7 +358,18 @@ fun KototoroExploreHostRoute(
                             posterStyle = posterStyle,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp),
                             onItemClick = { item ->
-                                openTrackingItem(appRouter, discoverViewModel, availableServices, item)
+                                openTrackingItem(
+                                    appRouter = appRouter,
+                                    discoverViewModel = discoverViewModel,
+                                    availableServices = availableServices,
+                                    item = item,
+                                    sharedElementKey = contentCoverSharedKey(
+                                        item.manga.source.name,
+                                        item.manga.coverUrl.orEmpty(),
+                                        instanceKey = "explore_showcase_${row.category.id}_${item.id}",
+                                    ),
+                                    onNavigateToDetails = onNavigateToDetails,
+                                )
                             },
                             onMoreClick = {
                                 activeService?.let { service ->
@@ -366,18 +390,34 @@ fun KototoroExploreHostRoute(
                     itemsIndexed(
                         items = popularItems,
                         key = { _, item -> "popular_${item.id}" },
+                        contentType = { _, _ -> "popular_item" },
                     ) { index, item ->
                         VerticalRailAnimatedVisibility(
                             animationKey = "explore_popular_${item.id}",
                             index = index + showcaseRows.size + 1,
                             listState = listState,
+                            scaleFactor = 0f,
+                            scrollIntensity = verticalScrollIntensity,
                         ) { animatedModifier ->
+                            val sharedElementKey = contentCoverSharedKey(
+                                item.manga.source.name,
+                                item.manga.coverUrl.orEmpty(),
+                                instanceKey = "explore_popular_${item.id}",
+                            )
                             BrowsePopularListItem(
                                 item = item,
                                 posterStyle = posterStyle,
+                                sharedElementKey = sharedElementKey,
                                 modifier = animatedModifier.padding(horizontal = 16.dp, vertical = 5.dp),
                                 onClick = {
-                                    openTrackingItem(appRouter, discoverViewModel, availableServices, item)
+                                    openTrackingItem(
+                                        appRouter = appRouter,
+                                        discoverViewModel = discoverViewModel,
+                                        availableServices = availableServices,
+                                        item = item,
+                                        sharedElementKey = sharedElementKey,
+                                        onNavigateToDetails = onNavigateToDetails,
+                                    )
                                 },
                             )
                         }
@@ -386,14 +426,10 @@ fun KototoroExploreHostRoute(
 
                 if (isDiscoverLoading && popularItems.isNotEmpty()) {
                     item(key = "popular_loading") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            KototoroLoadingIndicator()
-                        }
+                        BrowsePopularLoadingSection(
+                            posterStyle = posterStyle,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp),
+                        )
                     }
                 }
             }
@@ -408,8 +444,22 @@ fun KototoroExploreHostRoute(
                 isLoadingOnly = isLoadingOnly,
                 topContentInset = contentPadding.calculateTopPadding(),
                 onSelectService = discoverViewModel::selectService,
-                onHeroItemClick = { item ->
-                    openTrackingItem(appRouter, discoverViewModel, availableServices, item)
+                onHeroItemClick = { item, sharedElementKey ->
+                    openTrackingItem(
+                        appRouter = appRouter,
+                        discoverViewModel = discoverViewModel,
+                        availableServices = availableServices,
+                        item = item,
+                        sharedElementKey = sharedElementKey,
+                        onNavigateToDetails = onNavigateToDetails,
+                    )
+                },
+                sharedElementKeyForItem = { item, _ ->
+                    contentCoverSharedKey(
+                        item.manga.source.name,
+                        item.manga.coverUrl.orEmpty(),
+                        instanceKey = "explore_hero_${item.id}",
+                    )
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -424,12 +474,13 @@ fun KototoroExploreHostRoute(
 
 private suspend fun LazyListState.maybeTriggerBrowseLoadMore(
     itemCount: Int,
-    isLoading: Boolean,
+    isLoading: () -> Boolean,
     onLoadMore: () -> Unit,
 ) {
     snapshotFlow { layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+        .distinctUntilChanged()
         .collect { lastVisibleIndex: Int? ->
-            if (lastVisibleIndex != null && !isLoading && lastVisibleIndex >= itemCount - BrowseLoadMoreBuffer) {
+            if (lastVisibleIndex != null && !isLoading() && lastVisibleIndex >= itemCount - BrowseLoadMoreBuffer) {
                 onLoadMore()
             }
         }
@@ -440,11 +491,24 @@ private fun openTrackingItem(
     discoverViewModel: DiscoverViewModel,
     availableServices: List<ScrobblerService>,
     item: ContentListModel,
+    sharedElementKey: String? = null,
+    onNavigateToDetails: ((DetailsOrigin, String?) -> Unit)? = null,
 ) {
     val serviceName = item.manga.source.name.removePrefix("TRACKING_")
     val trackingService = availableServices.find { it.name == serviceName } ?: return
     if (discoverViewModel.supportsDetails(trackingService)) {
-        appRouter.openTrackingSiteDetails(trackingService, item.manga.id, item.manga.publicUrl)
+        if (onNavigateToDetails != null) {
+            onNavigateToDetails(
+                DetailsOrigin.TrackingItem(
+                    serviceId = trackingService.id.toString(),
+                    remoteId = item.manga.id,
+                    url = item.manga.publicUrl,
+                ),
+                sharedElementKey,
+            )
+        } else {
+            appRouter.openTrackingSiteDetails(trackingService, item.manga.id, item.manga.publicUrl)
+        }
     } else {
         val url = item.manga.url ?: item.manga.publicUrl
         if (!url.isNullOrBlank()) {
@@ -462,7 +526,8 @@ private fun BrowseHeroBlock(
     isLoadingOnly: Boolean,
     topContentInset: androidx.compose.ui.unit.Dp,
     onSelectService: (ScrobblerService) -> Unit,
-    onHeroItemClick: (ContentListModel) -> Unit,
+    onHeroItemClick: (ContentListModel, String) -> Unit,
+    sharedElementKeyForItem: (ContentListModel, Int) -> String,
     modifier: Modifier = Modifier,
 ) {
     if (heroItems.isNotEmpty()) {
@@ -472,9 +537,10 @@ private fun BrowseHeroBlock(
             activeService = activeService,
             availableServices = availableServices,
             onSelectService = onSelectService,
-            onItemClick = { item, _ -> onHeroItemClick(item) },
+            onItemClick = { item, _, sharedElementKey -> onHeroItemClick(item, sharedElementKey) },
             topContentInset = topContentInset,
             detachedBottomContent = true,
+            sharedElementKeyForItem = sharedElementKeyForItem,
             modifier = modifier,
         )
     } else {
@@ -495,7 +561,7 @@ private fun BrowseHeroBlock(
             contentAlignment = Alignment.Center,
         ) {
             if (isLoadingOnly) {
-                KototoroLoadingIndicator()
+                BrowseHeroSkeleton()
             }
         }
     }
@@ -536,7 +602,7 @@ private fun DetachedBottomContent(
                 )
             }
             isLoadingOnly -> {
-                Box(
+                BrowseSourcesSkeleton(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(
@@ -545,10 +611,8 @@ private fun DetachedBottomContent(
                             top = topBackgroundOverlap + 36.dp,
                             bottom = 36.dp,
                         ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    KototoroLoadingIndicator()
-                }
+                    metrics = metrics,
+                )
             }
         }
     }
@@ -633,30 +697,14 @@ private fun SourcesQuickAccessSection(
                             modifier = Modifier.padding(top = 4.dp, bottom = 4.dp, start = 2.dp),
                         )
                     }
-                    val rowCount = ((group.sources.size + columns - 1) / columns).coerceAtLeast(1)
-                    val gridHeight = (metrics.cardHeight * rowCount) + (metrics.gridSpacing * (rowCount - 1))
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(columns),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(gridHeight),
-                        userScrollEnabled = false,
-                        horizontalArrangement = Arrangement.spacedBy(metrics.gridSpacing),
-                        verticalArrangement = Arrangement.spacedBy(metrics.gridSpacing),
-                    ) {
-                        gridItems(
-                            items = group.sources,
-                            key = { it.id },
-                        ) { source ->
-                            SourceQuickAccessCard(
-                                metrics = metrics,
-                                source = source,
-                                isSelected = source.id in selectedSourceIds,
-                                onClick = { onSourceClick(source) },
-                                onLongClick = { onSourceLongClick(source) },
-                            )
-                        }
-                    }
+                    SourceQuickAccessGrid(
+                        metrics = metrics,
+                        columns = columns,
+                        sources = group.sources,
+                        selectedSourceIds = selectedSourceIds,
+                        onSourceClick = onSourceClick,
+                        onSourceLongClick = onSourceLongClick,
+                    )
                 }
                 if (hasMoreSources) {
                     TextButton(
@@ -674,6 +722,43 @@ private fun SourcesQuickAccessSection(
                             color = MaterialTheme.colorScheme.primary,
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SourceQuickAccessGrid(
+    metrics: SourceQuickAccessMetrics,
+    columns: Int,
+    sources: List<ContentSourceItem>,
+    selectedSourceIds: Set<Long>,
+    onSourceClick: (ContentSourceItem) -> Unit,
+    onSourceLongClick: (ContentSourceItem) -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(metrics.gridSpacing),
+    ) {
+        sources.chunked(columns).forEach { rowSources ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(metrics.gridSpacing),
+            ) {
+                rowSources.forEach { source ->
+                    Box(modifier = Modifier.weight(1f)) {
+                        SourceQuickAccessCard(
+                            metrics = metrics,
+                            source = source,
+                            isSelected = source.id in selectedSourceIds,
+                            onClick = { onSourceClick(source) },
+                            onLongClick = { onSourceLongClick(source) },
+                        )
+                    }
+                }
+                repeat(columns - rowSources.size) {
+                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -879,6 +964,7 @@ private fun TrackingCategoryRow(
 ) {
     if (items.isEmpty()) return
     val rowState = rememberLazyListState()
+    val scrollIntensity = rememberHorizontalRailScrollIntensity(rowState)
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -902,6 +988,7 @@ private fun TrackingCategoryRow(
                 Text(stringResource(R.string.more))
             }
         }
+        val railAnimationFactor = rememberRailAnimationFactor()
         LazyRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -915,10 +1002,18 @@ private fun TrackingCategoryRow(
                     animationKey = "explore_${title}_${item.id}",
                     index = index,
                     listState = rowState,
+                    scrollIntensity = scrollIntensity,
+                    animationFactor = railAnimationFactor,
+                    enableScrollLinkedAnimation = false,
                 ) { animatedModifier ->
                     TrackingCompactPoster(
                         item = item,
                         posterStyle = posterStyle,
+                        sharedElementKey = contentCoverSharedKey(
+                            item.manga.source.name,
+                            item.manga.coverUrl.orEmpty(),
+                            instanceKey = "explore_row_${title}_${item.id}_$index",
+                        ),
                         onClick = { onItemClick(item) },
                         modifier = animatedModifier,
                     )
@@ -942,26 +1037,33 @@ private fun BrowsePopularHeader(
     )
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun BrowsePopularListItem(
     item: ContentListModel,
     posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
+    sharedElementKey: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val sharedTransitionScope = LocalSharedTransitionScope.current
+    val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
     val backgroundRequest = remember(item.coverUrl, item.id) {
-        ImageRequest.Builder(context)
-            .data(item.coverUrl)
-            .size(150)
-            .crossfade(true)
-            .build()
+        buildExploreCoverRequest(
+            context = context,
+            coverUrl = item.coverUrl,
+            content = item.manga,
+            size = 150,
+        )
     }
     val posterRequest = remember(item.coverUrl, item.id) {
-        ImageRequest.Builder(context)
-            .data(item.coverUrl)
-            .crossfade(true)
-            .build()
+        buildExploreCoverRequest(
+            context = context,
+            coverUrl = item.coverUrl,
+            content = item.manga,
+            size = 320,
+        )
     }
 
     Surface(
@@ -983,8 +1085,8 @@ private fun BrowsePopularListItem(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .blur(24.dp)
-                    .alpha(0.72f),
+                    .blur(16.dp)
+                    .alpha(0.58f),
             )
             Box(
                 modifier = Modifier
@@ -992,18 +1094,18 @@ private fun BrowsePopularListItem(
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                MaterialTheme.colorScheme.surface.copy(alpha = 0.18f),
-                                MaterialTheme.colorScheme.surface.copy(alpha = 0.38f),
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.94f),
+                                MaterialTheme.colorScheme.surface.copy(alpha = 0.14f),
+                                MaterialTheme.colorScheme.surface.copy(alpha = 0.28f),
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.90f),
                             ),
                         ),
                     )
                     .background(
                         Brush.horizontalGradient(
                             colors = listOf(
-                                MaterialTheme.colorScheme.surface.copy(alpha = 0.74f),
+                                MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
                                 Color.Transparent,
-                                MaterialTheme.colorScheme.surface.copy(alpha = 0.32f),
+                                MaterialTheme.colorScheme.surface.copy(alpha = 0.22f),
                             ),
                         ),
                     ),
@@ -1020,6 +1122,16 @@ private fun BrowsePopularListItem(
                     modifier = Modifier
                         .width(posterStyle.itemWidth)
                         .height(posterStyle.posterHeight)
+                        .then(
+                            if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                                with(sharedTransitionScope) {
+                                    Modifier.sharedElement(
+                                        rememberSharedContentState(key = sharedElementKey),
+                                        animatedVisibilityScope = animatedVisibilityScope,
+                                    )
+                                }
+                            } else Modifier
+                        )
                         .clip(androidx.compose.foundation.shape.RoundedCornerShape(posterStyle.cornerRadius))
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                 ) {
@@ -1059,19 +1171,25 @@ private fun BrowsePopularListItem(
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun TrackingCompactPoster(
     item: ContentListModel,
     posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
+    sharedElementKey: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val sharedTransitionScope = LocalSharedTransitionScope.current
+    val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
     val imageRequest = remember(item.coverUrl, item.id) {
-        ImageRequest.Builder(context)
-            .data(item.coverUrl)
-            .crossfade(true)
-            .build()
+        buildExploreCoverRequest(
+            context = context,
+            coverUrl = item.coverUrl,
+            content = item.manga,
+            size = 320,
+        )
     }
 
     Column(
@@ -1085,6 +1203,16 @@ private fun TrackingCompactPoster(
             modifier = Modifier
                 .width(posterStyle.itemWidth)
                 .height(posterStyle.posterHeight)
+                .then(
+                    if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                        with(sharedTransitionScope) {
+                            Modifier.sharedElement(
+                                rememberSharedContentState(key = sharedElementKey),
+                                animatedVisibilityScope = animatedVisibilityScope,
+                            )
+                        }
+                    } else Modifier
+                )
                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(posterStyle.cornerRadius))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
@@ -1105,4 +1233,153 @@ private fun TrackingCompactPoster(
             modifier = Modifier.fillMaxWidth(),
         )
     }
+}
+
+@Composable
+private fun BrowseHeroSkeleton(
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        ExploreSkeletonBlock(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(184.dp),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            repeat(3) {
+                ExploreSkeletonBlock(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(12.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BrowseSourcesSkeleton(
+    metrics: SourceQuickAccessMetrics,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(metrics.gridSpacing),
+    ) {
+        ExploreSkeletonBlock(
+            modifier = Modifier
+                .width(148.dp)
+                .height(18.dp),
+        )
+        repeat(2) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(metrics.gridSpacing),
+            ) {
+                repeat(metrics.columns.coerceAtMost(4)) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        ExploreSkeletonBlock(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(metrics.cardHeight),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BrowsePopularLoadingSection(
+    posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        repeat(2) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.12f),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ExploreSkeletonBlock(
+                        modifier = Modifier
+                            .width(posterStyle.itemWidth)
+                            .height(posterStyle.posterHeight),
+                    )
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        ExploreSkeletonBlock(
+                            modifier = Modifier
+                                .fillMaxWidth(0.72f)
+                                .height(16.dp),
+                        )
+                        ExploreSkeletonBlock(
+                            modifier = Modifier
+                                .fillMaxWidth(0.52f)
+                                .height(14.dp),
+                        )
+                        ExploreSkeletonBlock(
+                            modifier = Modifier
+                                .width(88.dp)
+                                .height(28.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExploreSkeletonBlock(
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(MaterialTheme.shapes.medium)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)),
+    )
+}
+
+private fun buildExploreCoverRequest(
+    context: android.content.Context,
+    coverUrl: String?,
+    content: org.skepsun.kototoro.parsers.model.Content,
+    size: Int? = null,
+): ImageRequest {
+    val builder = ImageRequest.Builder(context)
+        .data(normalizeExploreCoverUrl(coverUrl))
+        .mangaExtra(content)
+        .crossfade(true)
+    if (size != null) {
+        builder.size(size)
+    }
+    return builder.build()
+}
+
+private fun normalizeExploreCoverUrl(url: String?): String? = when {
+    url == null -> null
+    url.startsWith("//") -> "https:$url"
+    else -> url
 }
