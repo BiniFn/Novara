@@ -3,6 +3,7 @@ package org.skepsun.kototoro.search.ui.compose
 import android.net.Uri
 import org.skepsun.kototoro.core.jsonsource.SourceType
 import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.main.ui.compose.AppRouteNames
 import org.skepsun.kototoro.search.domain.AdvancedSearchParams
 import org.skepsun.kototoro.search.domain.SearchContentKind
 import org.skepsun.kototoro.search.domain.SearchKind
@@ -19,7 +20,7 @@ data class SearchNavigationRequest(
 )
 
 object SearchNavigation {
-    const val baseRoute = "search"
+    const val baseRoute = AppRouteNames.SEARCH
     const val routePattern =
         "$baseRoute?" +
             "${AppRouter.KEY_QUERY}={${AppRouter.KEY_QUERY}}&" +

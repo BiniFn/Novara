@@ -249,7 +249,7 @@ fun KototoroApp(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     val isSearchRoute = currentRoute?.startsWith(SearchNavigation.baseRoute) == true
-    val isDetailsRoute = currentRoute == "details"
+    val isDetailsRoute = currentRoute == AppRouteNames.DETAILS
     val shouldShowChrome = !isSearchRoute
     var shouldKeepChromeVisible by remember {
         mutableStateOf(shouldShowChrome && !isDetailsRoute)
@@ -273,34 +273,27 @@ fun KototoroApp(
         animationSpec = tween(if (isChromeVisible) 200 else 150),
         label = "chrome_alpha",
     )
-    val isBrowseRoute = currentRoute == "explore"
-    val showBrowseSourceSettingsEntry = currentRoute in setOf("explore", "discover")
-    val supportsDisplayModeMenu = currentRoute in setOf("history", "favorites", "suggestions", "updated")
+    val isBrowseRoute = currentRoute == AppRouteNames.EXPLORE
+    val showBrowseSourceSettingsEntry = currentRoute in setOf(AppRouteNames.EXPLORE, AppRouteNames.DISCOVER)
+    val supportsDisplayModeMenu = currentRoute in setOf(
+        AppRouteNames.HISTORY,
+        AppRouteNames.FAVORITES,
+        AppRouteNames.SUGGESTIONS,
+        AppRouteNames.UPDATED,
+    )
     val supportsGridSizeSlider = currentRoute in setOf(
-        "home",
-        "discover",
-        "explore",
-        "feed",
-        "history",
-        "favorites",
-        "suggestions",
-        "updated",
+        AppRouteNames.HOME,
+        AppRouteNames.DISCOVER,
+        AppRouteNames.EXPLORE,
+        AppRouteNames.FEED,
+        AppRouteNames.HISTORY,
+        AppRouteNames.FAVORITES,
+        AppRouteNames.SUGGESTIONS,
+        AppRouteNames.UPDATED,
     )
 
     LaunchedEffect(currentRoute) {
-        val mappedId = when (currentRoute) {
-            "home" -> org.skepsun.kototoro.R.id.nav_home
-            "history" -> org.skepsun.kototoro.R.id.nav_history
-            "favorites" -> org.skepsun.kototoro.R.id.nav_favorites
-            "explore" -> org.skepsun.kototoro.R.id.nav_explore
-            "discover" -> org.skepsun.kototoro.R.id.nav_discover
-            "feed" -> org.skepsun.kototoro.R.id.nav_feed
-            "local" -> org.skepsun.kototoro.R.id.nav_local
-            "suggestions" -> org.skepsun.kototoro.R.id.nav_suggestions
-            "bookmarks" -> org.skepsun.kototoro.R.id.nav_bookmarks
-            "updated" -> org.skepsun.kototoro.R.id.nav_updated
-            else -> -1
-        }
+        val mappedId = bottomNavItemForRouteName(currentRoute)
         if (mappedId != -1) {
             onNavDestinationChanged(mappedId)
         }
@@ -516,19 +509,7 @@ fun KototoroApp(
                         KototoroBottomNav(
                             state = navStateFlow,
                             onItemSelected = { itemId ->
-                                val route = when (itemId) {
-                                    org.skepsun.kototoro.R.id.nav_home -> "home"
-                                    org.skepsun.kototoro.R.id.nav_history -> "history"
-                                    org.skepsun.kototoro.R.id.nav_favorites -> "favorites"
-                                    org.skepsun.kototoro.R.id.nav_explore -> "explore"
-                                    org.skepsun.kototoro.R.id.nav_discover -> "discover"
-                                    org.skepsun.kototoro.R.id.nav_feed -> "feed"
-                                    org.skepsun.kototoro.R.id.nav_local -> "local"
-                                    org.skepsun.kototoro.R.id.nav_suggestions -> "suggestions"
-                                    org.skepsun.kototoro.R.id.nav_bookmarks -> "bookmarks"
-                                    org.skepsun.kototoro.R.id.nav_updated -> "updated"
-                                    else -> "home"
-                                }
+                                val route = routeNameForBottomNavItem(itemId)
                                 navController.navigate(route) {
                                     popUpTo(navController.graph.startDestinationId) { saveState = true }
                                     launchSingleTop = true
