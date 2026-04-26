@@ -15,11 +15,21 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.StateFlow
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.BaseActivityEntryPoint
 import org.skepsun.kototoro.core.ui.glass.GlassBottomBarContainer
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
 import dagger.hilt.android.EntryPointAccessors
+
+@Immutable
+private data class BottomNavPrefs(
+    val isFloating: Boolean,
+    val blurMode: AppSettings.BlurMode,
+    val isLabelsVisible: Boolean,
+    val navHeight: Int,
+    val navFloatingHeight: Int,
+)
 
 @Composable
 fun KototoroBottomNav(
@@ -33,12 +43,27 @@ fun KototoroBottomNav(
     val appSettings = remember {
         EntryPointAccessors.fromApplication<BaseActivityEntryPoint>(context.applicationContext).settings
     }
-    
-    val isFloating by appSettings.observeAsState(AppSettings.KEY_NAV_FLOATING) { isNavFloating }
-    val blurMode by appSettings.observeAsState(AppSettings.KEY_BLUR_MODE) { blurMode }
-    val isLabelsVisible by appSettings.observeAsState(AppSettings.KEY_NAV_LABELS) { isNavLabelsVisible }
-    val navHeight by appSettings.observeAsState(AppSettings.KEY_NAV_HEIGHT) { navHeight }
-    val navFloatingHeight by appSettings.observeAsState(AppSettings.KEY_NAV_FLOATING_HEIGHT) { navFloatingHeight }
+
+    val prefs by appSettings.observeAsState(
+        AppSettings.KEY_NAV_FLOATING,
+        AppSettings.KEY_BLUR_MODE,
+        AppSettings.KEY_NAV_LABELS,
+        AppSettings.KEY_NAV_HEIGHT,
+        AppSettings.KEY_NAV_FLOATING_HEIGHT,
+    ) {
+        BottomNavPrefs(
+            isFloating = isNavFloating,
+            blurMode = blurMode,
+            isLabelsVisible = isNavLabelsVisible,
+            navHeight = navHeight,
+            navFloatingHeight = navFloatingHeight,
+        )
+    }
+    val isFloating = prefs.isFloating
+    val blurMode = prefs.blurMode
+    val isLabelsVisible = prefs.isLabelsVisible
+    val navHeight = prefs.navHeight
+    val navFloatingHeight = prefs.navFloatingHeight
 
     val activeItems = navState.items.filter { navState.itemVisibility[it.id] != false }
     val useNavigationRail = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -297,24 +322,4 @@ private fun getPremiumPainter(itemId: Int, isSelected: Boolean): Painter {
         else -> R.drawable.ic_home // fallback
     }
     return painterResource(id = resId)
-}
-
-@Composable
-private fun <T> AppSettings.observeAsState(
-    key: String,
-    selector: AppSettings.() -> T
-): State<T> {
-    val state = remember { mutableStateOf(selector()) }
-    DisposableEffect(key) {
-        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
-            if (changedKey == key) {
-                state.value = selector()
-            }
-        }
-        this@observeAsState.subscribe(listener)
-        onDispose {
-            this@observeAsState.unsubscribe(listener)
-        }
-    }
-    return state
 }
