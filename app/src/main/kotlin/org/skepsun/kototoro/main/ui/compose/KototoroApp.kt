@@ -250,7 +250,6 @@ fun KototoroApp(
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
-    val currentRoute = navBackStackEntry?.destination?.route
     val isSearchRoute = currentDestination?.hasRoute<SearchRoute>() == true
     val isDetailsRoute = currentDestination?.hasRoute<DetailsRoute>() == true
     val shouldShowChrome = !isSearchRoute
@@ -376,7 +375,7 @@ fun KototoroApp(
                                 val route = SearchNavigation.createRoute(request)
                                 if (isSearchRoute) {
                                     navController.navigate(route) {
-                                        currentRoute?.let { popUpTo(it) { inclusive = true } }
+                                        popUpTo<SearchRoute> { inclusive = true }
                                         launchSingleTop = true
                                     }
                                 } else {
@@ -600,7 +599,7 @@ fun KototoroApp(
         val route = SearchNavigation.createRoute(request)
         if (isSearchRoute) {
             navController.navigate(route) {
-                currentRoute?.let { popUpTo(it) { inclusive = true } }
+                popUpTo<SearchRoute> { inclusive = true }
                 launchSingleTop = true
             }
         } else {

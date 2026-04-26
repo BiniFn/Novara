@@ -10,7 +10,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import org.skepsun.kototoro.home.ui.compose.HomeScreen
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import org.skepsun.kototoro.home.ui.HomeViewModel
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -65,6 +65,18 @@ fun AppNavGraph(
     val mainActivity = activity as? MainActivity
     val rootView = LocalView.current
     val hasPendingSharedElement = remember { { PendingDetailsNavigation.lastSharedElementKey() != null } }
+    val navigateToDetailsWithContent = remember(navController) {
+        { content: Content, sharedElementKey: String? ->
+            PendingDetailsNavigation.set(content, sharedElementKey)
+            navController.navigate(DetailsRoute)
+        }
+    }
+    val navigateToDetailsWithOrigin = remember(navController) {
+        { origin: org.skepsun.kototoro.details.ui.model.DetailsOrigin, sharedElementKey: String? ->
+            PendingDetailsNavigation.set(origin, sharedElementKey)
+            navController.navigate(DetailsRoute)
+        }
+    }
 
     NavHost(
         navController = navController,
@@ -116,10 +128,9 @@ fun AppNavGraph(
             }
 
             CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
-                val onHomeContentClick = remember(navController) {
+                val onHomeContentClick = remember(navigateToDetailsWithContent) {
                     { content: Content, _: Rect?, sharedElementKey: String? ->
-                        PendingDetailsNavigation.set(content, sharedElementKey)
-                        navController.navigate(DetailsRoute)
+                        navigateToDetailsWithContent(content, sharedElementKey)
                     }
                 }
                 val onHomeSettingsClick = remember(appRouter) { { appRouter.openSettings() } }
@@ -345,11 +356,10 @@ fun AppNavGraph(
                             selectedItemsIds = if (item.id in selectedItemsIds) selectedItemsIds - item.id else selectedItemsIds + item.id
                         } else {
                             val content = item.toContentWithOverride()
-                            PendingDetailsNavigation.set(
+                            navigateToDetailsWithContent(
                                 content,
                                 contentCoverSharedKey(item.source.name, item.coverUrl.orEmpty()),
                             )
-                            navController.navigate(DetailsRoute)
                         }
                     },
                     onItemLongClick = { item ->
@@ -387,10 +397,7 @@ fun AppNavGraph(
                 KototoroFavoritesHostRoute(
                     appRouter = appRouter,
                     contentPadding = contentPadding,
-                    onNavigateToDetails = { content, sharedElementKey ->
-                        PendingDetailsNavigation.set(content, sharedElementKey)
-                        navController.navigate(DetailsRoute)
-                    },
+                    onNavigateToDetails = navigateToDetailsWithContent,
                 )
             }
         }
@@ -431,10 +438,7 @@ fun AppNavGraph(
                     contentPadding = contentPadding,
                     exploreViewModel = exploreViewModel,
                     onSourceSelectionTopBarChanged = onExploreSourceSelectionTopBarChanged,
-                    onNavigateToDetails = { origin, sharedElementKey ->
-                        PendingDetailsNavigation.set(origin, sharedElementKey)
-                        navController.navigate(DetailsRoute)
-                    },
+                    onNavigateToDetails = navigateToDetailsWithOrigin,
                 )
             }
         }
@@ -503,19 +507,17 @@ fun AppNavGraph(
                     onFeedItemClick = { item, coverBounds ->
                         viewModel.onItemClick(item)
                         val content = item.toContentWithOverride()
-                        PendingDetailsNavigation.set(
+                        navigateToDetailsWithContent(
                             content,
                             contentCoverSharedKey(content.source.name, content.coverUrl.orEmpty()),
                         )
-                        navController.navigate(DetailsRoute)
                     },
                     onUpdatedContentItemClick = { contentItem, coverBounds ->
                         val content = contentItem.toContentWithOverride()
-                        PendingDetailsNavigation.set(
+                        navigateToDetailsWithContent(
                             content,
                             contentCoverSharedKey(content.source.name, content.coverUrl.orEmpty()),
                         )
-                        navController.navigate(DetailsRoute)
                     },
                     onUpdatedContentMoreClick = {
                         navController.navigate(UpdatedRoute)
@@ -537,10 +539,7 @@ fun AppNavGraph(
                     onTopBarOverrideChanged = onExploreSourceSelectionTopBarChanged,
                     showRemoveOption = true,
                     isContentTypeFilterVisible = false,
-                    onNavigateToDetails = { content, sharedElementKey ->
-                        PendingDetailsNavigation.set(content, sharedElementKey)
-                        navController.navigate(DetailsRoute)
-                    },
+                    onNavigateToDetails = navigateToDetailsWithContent,
                     isSourceTagFilterVisible = false,
                     onRemoveSelection = { ids ->
                         if (activity != null) {
@@ -575,10 +574,7 @@ fun AppNavGraph(
                     showRemoveOption = false,
                     isContentTypeFilterVisible = true,
                     isSourceTagFilterVisible = true,
-                    onNavigateToDetails = { content, sharedElementKey ->
-                        PendingDetailsNavigation.set(content, sharedElementKey)
-                        navController.navigate(DetailsRoute)
-                    },
+                    onNavigateToDetails = navigateToDetailsWithContent,
                     onAddMenuProvider = { act, _, _ ->
                         object : androidx.core.view.MenuProvider {
                             override fun onCreateMenu(menu: android.view.Menu, menuInflater: android.view.MenuInflater) {
@@ -641,10 +637,7 @@ fun AppNavGraph(
                     isContentTypeFilterVisible = true,
                     isSourceTagFilterVisible = true,
                     onRemoveSelection = { ids -> viewModel.remove(ids) },
-                    onNavigateToDetails = { content, sharedElementKey ->
-                        PendingDetailsNavigation.set(content, sharedElementKey)
-                        navController.navigate(DetailsRoute)
-                    },
+                    onNavigateToDetails = navigateToDetailsWithContent,
                     onAddMenuProvider = { _, _, _ ->
                         object : androidx.core.view.MenuProvider {
                             override fun onCreateMenu(menu: android.view.Menu, menuInflater: android.view.MenuInflater) {
@@ -668,8 +661,7 @@ fun AppNavGraph(
                 viewModel = viewModel,
                 onBackClick = { navController.navigateUp() },
                 onOpenContent = { content ->
-                    PendingDetailsNavigation.set(content)
-                    navController.navigate(DetailsRoute)
+                    navigateToDetailsWithContent(content, null)
                 },
                 onPickContent = { },
                 onOpenSourceResults = { item ->
