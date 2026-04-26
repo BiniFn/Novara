@@ -49,6 +49,7 @@ import org.skepsun.kototoro.search.ui.suggestion.model.SearchSuggestionItem
 import org.skepsun.kototoro.core.prefs.observeAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.NavDestination.Companion.hasRoute
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import org.skepsun.kototoro.core.jsonsource.SourceType
@@ -247,9 +248,10 @@ fun KototoroApp(
 
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentDestination = navBackStackEntry?.destination
     val currentRoute = navBackStackEntry?.destination?.route
     val isSearchRoute = currentRoute?.startsWith(SearchNavigation.baseRoute) == true
-    val isDetailsRoute = currentRoute == AppRouteNames.DETAILS
+    val isDetailsRoute = currentDestination?.hasRoute<DetailsRoute>() == true
     val shouldShowChrome = !isSearchRoute
     var shouldKeepChromeVisible by remember {
         mutableStateOf(shouldShowChrome && !isDetailsRoute)
@@ -273,27 +275,41 @@ fun KototoroApp(
         animationSpec = tween(if (isChromeVisible) 200 else 150),
         label = "chrome_alpha",
     )
-    val isBrowseRoute = currentRoute == AppRouteNames.EXPLORE
-    val showBrowseSourceSettingsEntry = currentRoute in setOf(AppRouteNames.EXPLORE, AppRouteNames.DISCOVER)
-    val supportsDisplayModeMenu = currentRoute in setOf(
-        AppRouteNames.HISTORY,
-        AppRouteNames.FAVORITES,
-        AppRouteNames.SUGGESTIONS,
-        AppRouteNames.UPDATED,
-    )
-    val supportsGridSizeSlider = currentRoute in setOf(
-        AppRouteNames.HOME,
-        AppRouteNames.DISCOVER,
-        AppRouteNames.EXPLORE,
-        AppRouteNames.FEED,
-        AppRouteNames.HISTORY,
-        AppRouteNames.FAVORITES,
-        AppRouteNames.SUGGESTIONS,
-        AppRouteNames.UPDATED,
-    )
+    val isBrowseRoute = currentDestination?.hasRoute<ExploreRoute>() == true
+    val showBrowseSourceSettingsEntry = currentDestination?.let {
+        it.hasRoute<ExploreRoute>() || it.hasRoute<DiscoverRoute>()
+    } == true
+    val supportsDisplayModeMenu = currentDestination?.let {
+        it.hasRoute<HistoryRoute>() ||
+            it.hasRoute<FavoritesRoute>() ||
+            it.hasRoute<SuggestionsRoute>() ||
+            it.hasRoute<UpdatedRoute>()
+    } == true
+    val supportsGridSizeSlider = currentDestination?.let {
+        it.hasRoute<HomeRoute>() ||
+            it.hasRoute<DiscoverRoute>() ||
+            it.hasRoute<ExploreRoute>() ||
+            it.hasRoute<FeedRoute>() ||
+            it.hasRoute<HistoryRoute>() ||
+            it.hasRoute<FavoritesRoute>() ||
+            it.hasRoute<SuggestionsRoute>() ||
+            it.hasRoute<UpdatedRoute>()
+    } == true
 
-    LaunchedEffect(currentRoute) {
-        val mappedId = bottomNavItemForRouteName(currentRoute)
+    LaunchedEffect(currentDestination) {
+        val mappedId = when {
+            currentDestination?.hasRoute<HomeRoute>() == true -> org.skepsun.kototoro.R.id.nav_home
+            currentDestination?.hasRoute<HistoryRoute>() == true -> org.skepsun.kototoro.R.id.nav_history
+            currentDestination?.hasRoute<FavoritesRoute>() == true -> org.skepsun.kototoro.R.id.nav_favorites
+            currentDestination?.hasRoute<ExploreRoute>() == true -> org.skepsun.kototoro.R.id.nav_explore
+            currentDestination?.hasRoute<DiscoverRoute>() == true -> org.skepsun.kototoro.R.id.nav_discover
+            currentDestination?.hasRoute<FeedRoute>() == true -> org.skepsun.kototoro.R.id.nav_feed
+            currentDestination?.hasRoute<LocalRoute>() == true -> org.skepsun.kototoro.R.id.nav_local
+            currentDestination?.hasRoute<SuggestionsRoute>() == true -> org.skepsun.kototoro.R.id.nav_suggestions
+            currentDestination?.hasRoute<BookmarksRoute>() == true -> org.skepsun.kototoro.R.id.nav_bookmarks
+            currentDestination?.hasRoute<UpdatedRoute>() == true -> org.skepsun.kototoro.R.id.nav_updated
+            else -> -1
+        }
         if (mappedId != -1) {
             onNavDestinationChanged(mappedId)
         }
@@ -509,7 +525,7 @@ fun KototoroApp(
                         KototoroBottomNav(
                             state = navStateFlow,
                             onItemSelected = { itemId ->
-                                val route = routeNameForBottomNavItem(itemId)
+                                val route = routeForBottomNavItem(itemId)
                                 navController.navigate(route) {
                                     popUpTo(navController.graph.startDestinationId) { saveState = true }
                                     launchSingleTop = true

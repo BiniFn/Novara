@@ -64,30 +64,16 @@ data object UpdatedRoute
 @SerialName(AppRouteNames.DETAILS)
 data object DetailsRoute
 
-fun routeNameForBottomNavItem(@IdRes itemId: Int): String = when (itemId) {
-    R.id.nav_home -> AppRouteNames.HOME
-    R.id.nav_history -> AppRouteNames.HISTORY
-    R.id.nav_favorites -> AppRouteNames.FAVORITES
-    R.id.nav_explore -> AppRouteNames.EXPLORE
-    R.id.nav_discover -> AppRouteNames.DISCOVER
-    R.id.nav_feed -> AppRouteNames.FEED
-    R.id.nav_local -> AppRouteNames.LOCAL
-    R.id.nav_suggestions -> AppRouteNames.SUGGESTIONS
-    R.id.nav_bookmarks -> AppRouteNames.BOOKMARKS
-    R.id.nav_updated -> AppRouteNames.UPDATED
-    else -> AppRouteNames.HOME
-}
-
-fun bottomNavItemForRouteName(route: String?): Int = when (route) {
-    AppRouteNames.HOME -> R.id.nav_home
-    AppRouteNames.HISTORY -> R.id.nav_history
-    AppRouteNames.FAVORITES -> R.id.nav_favorites
-    AppRouteNames.EXPLORE -> R.id.nav_explore
-    AppRouteNames.DISCOVER -> R.id.nav_discover
-    AppRouteNames.FEED -> R.id.nav_feed
-    AppRouteNames.LOCAL -> R.id.nav_local
-    AppRouteNames.SUGGESTIONS -> R.id.nav_suggestions
-    AppRouteNames.BOOKMARKS -> R.id.nav_bookmarks
-    AppRouteNames.UPDATED -> R.id.nav_updated
-    else -> -1
+fun routeForBottomNavItem(@IdRes itemId: Int): Any = when (itemId) {
+    R.id.nav_home -> HomeRoute
+    R.id.nav_history -> HistoryRoute
+    R.id.nav_favorites -> FavoritesRoute
+    R.id.nav_explore -> ExploreRoute
+    R.id.nav_discover -> DiscoverRoute
+    R.id.nav_feed -> FeedRoute
+    R.id.nav_local -> LocalRoute
+    R.id.nav_suggestions -> SuggestionsRoute
+    R.id.nav_bookmarks -> BookmarksRoute
+    R.id.nav_updated -> UpdatedRoute
+    else -> HomeRoute
 }

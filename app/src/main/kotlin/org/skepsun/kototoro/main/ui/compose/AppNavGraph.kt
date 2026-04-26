@@ -71,10 +71,10 @@ fun AppNavGraph(
 
     NavHost(
         navController = navController,
-        startDestination = AppRouteNames.HOME,
+        startDestination = HomeRoute,
         modifier = modifier
     ) {
-        composable(AppRouteNames.HOME) {
+        composable<HomeRoute> {
             val viewModel = hiltViewModel<HomeViewModel>()
             val state by viewModel.summaryState.collectAsStateWithLifecycle()
             val isRandomLoading by viewModel.isRandomLoading.collectAsStateWithLifecycle()
@@ -122,7 +122,7 @@ fun AppNavGraph(
                 val onHomeContentClick = remember(navController) {
                     { content: Content, _: Rect?, sharedElementKey: String? ->
                         PendingDetailsNavigation.set(content, sharedElementKey)
-                        navController.navigate(AppRouteNames.DETAILS)
+                        navController.navigate(DetailsRoute)
                     }
                 }
                 val onHomeSettingsClick = remember(appRouter) { { appRouter.openSettings() } }
@@ -130,16 +130,16 @@ fun AppNavGraph(
                 val onHomeSyncSettingsClick = remember(appRouter) { { appRouter.openSyncSettings() } }
                 val onHomeViewAllRecentClick = remember(navController) {
                     {
-                        navController.navigate(AppRouteNames.HISTORY) {
+                        navController.navigate(HistoryRoute) {
                             popUpTo(navController.graph.startDestinationId) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
                         }
                     }
                 }
-                val onHomeViewAllUpdatesClick = remember(navController) { { navController.navigate(AppRouteNames.UPDATED) } }
+                val onHomeViewAllUpdatesClick = remember(navController) { { navController.navigate(UpdatedRoute) } }
                 val onHomeViewAllRecommendationsClick = remember(navController) {
-                    { navController.navigate(AppRouteNames.SUGGESTIONS) }
+                    { navController.navigate(SuggestionsRoute) }
                 }
                 val onHomeRecentSearchClick = remember(onOpenSearch) {
                     { query: String ->
@@ -160,17 +160,17 @@ fun AppNavGraph(
                 val onHomeSourceSettingsClick = remember(appRouter) { { appRouter.openSourcesSettings() } }
                 val onHomeLibraryOpenClick = remember(navController) {
                     {
-                        navController.navigate(AppRouteNames.FAVORITES) {
+                        navController.navigate(FavoritesRoute) {
                             popUpTo(navController.graph.startDestinationId) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
                         }
                     }
                 }
-                val onHomeBookmarksClick = remember(navController) { { navController.navigate(AppRouteNames.BOOKMARKS) } }
+                val onHomeBookmarksClick = remember(navController) { { navController.navigate(BookmarksRoute) } }
                 val onHomeLocalClick = remember(navController) {
                     {
-                        navController.navigate(AppRouteNames.LOCAL) {
+                        navController.navigate(LocalRoute) {
                             popUpTo(navController.graph.startDestinationId) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
@@ -202,7 +202,7 @@ fun AppNavGraph(
                 )
             }
         }
-        composable(AppRouteNames.DISCOVER) {
+        composable<DiscoverRoute> {
             val exploreViewModel = hiltViewModel<org.skepsun.kototoro.explore.ui.ExploreViewModel>()
             val selectedGroupTab by exploreViewModel.currentGroupTab.collectAsStateWithLifecycle(initialValue = BrowseGroupTab.All)
             val selectedSourceTags by exploreViewModel.currentSourceTags.collectAsStateWithLifecycle(initialValue = emptySet())
@@ -242,7 +242,7 @@ fun AppNavGraph(
                 )
             }
         }
-        composable(AppRouteNames.HISTORY) {
+        composable<HistoryRoute> {
             val viewModel = hiltViewModel<org.skepsun.kototoro.history.ui.HistoryListViewModel>()
             val items by viewModel.content.collectAsStateWithLifecycle(initialValue = emptyList())
             val listMode by viewModel.listMode.collectAsStateWithLifecycle(initialValue = org.skepsun.kototoro.core.prefs.ListMode.GRID)
@@ -352,7 +352,7 @@ fun AppNavGraph(
                                 content,
                                 contentCoverSharedKey(item.source.name, item.coverUrl.orEmpty()),
                             )
-                            navController.navigate(AppRouteNames.DETAILS)
+                            navController.navigate(DetailsRoute)
                         }
                     },
                     onItemLongClick = { item ->
@@ -385,19 +385,19 @@ fun AppNavGraph(
                 }
             }
         }
-        composable(AppRouteNames.FAVORITES) {
+        composable<FavoritesRoute> {
             CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                 KototoroFavoritesHostRoute(
                     appRouter = appRouter,
                     contentPadding = contentPadding,
                     onNavigateToDetails = { content, sharedElementKey ->
                         PendingDetailsNavigation.set(content, sharedElementKey)
-                        navController.navigate(AppRouteNames.DETAILS)
+                        navController.navigate(DetailsRoute)
                     },
                 )
             }
         }
-        composable(AppRouteNames.EXPLORE) {
+        composable<ExploreRoute> {
             val exploreViewModel = hiltViewModel<org.skepsun.kototoro.explore.ui.ExploreViewModel>()
             val selectedGroupTab by exploreViewModel.currentGroupTab.collectAsStateWithLifecycle(initialValue = BrowseGroupTab.All)
             val selectedSourceTags by exploreViewModel.currentSourceTags.collectAsStateWithLifecycle(initialValue = emptySet())
@@ -436,12 +436,12 @@ fun AppNavGraph(
                     onSourceSelectionTopBarChanged = onExploreSourceSelectionTopBarChanged,
                     onNavigateToDetails = { origin, sharedElementKey ->
                         PendingDetailsNavigation.set(origin, sharedElementKey)
-                        navController.navigate(AppRouteNames.DETAILS)
+                        navController.navigate(DetailsRoute)
                     },
                 )
             }
         }
-        composable(AppRouteNames.FEED) {
+        composable<FeedRoute> {
             val viewModel = hiltViewModel<org.skepsun.kototoro.tracker.ui.feed.FeedViewModel>()
             val items by viewModel.content.collectAsStateWithLifecycle(initialValue = emptyList())
             val isRunning by viewModel.isRunning.collectAsStateWithLifecycle()
@@ -510,7 +510,7 @@ fun AppNavGraph(
                             content,
                             contentCoverSharedKey(content.source.name, content.coverUrl.orEmpty()),
                         )
-                        navController.navigate(AppRouteNames.DETAILS)
+                        navController.navigate(DetailsRoute)
                     },
                     onUpdatedContentItemClick = { contentItem, coverBounds ->
                         val content = contentItem.toContentWithOverride()
@@ -518,10 +518,10 @@ fun AppNavGraph(
                             content,
                             contentCoverSharedKey(content.source.name, content.coverUrl.orEmpty()),
                         )
-                        navController.navigate(AppRouteNames.DETAILS)
+                        navController.navigate(DetailsRoute)
                     },
                     onUpdatedContentMoreClick = {
-                        navController.navigate(AppRouteNames.UPDATED)
+                        navController.navigate(UpdatedRoute)
                     },
                     categories = categories,
                     selectedCategoryId = selectedCategoryId,
@@ -529,7 +529,7 @@ fun AppNavGraph(
                 )
             }
         }
-        composable(AppRouteNames.LOCAL) {
+        composable<LocalRoute> {
             val viewModel = hiltViewModel<org.skepsun.kototoro.local.ui.LocalListViewModel>()
             val activity = androidx.compose.ui.platform.LocalContext.current as? androidx.activity.ComponentActivity
             CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
@@ -542,7 +542,7 @@ fun AppNavGraph(
                     isContentTypeFilterVisible = false,
                     onNavigateToDetails = { content, sharedElementKey ->
                         PendingDetailsNavigation.set(content, sharedElementKey)
-                        navController.navigate(AppRouteNames.DETAILS)
+                        navController.navigate(DetailsRoute)
                     },
                     isSourceTagFilterVisible = false,
                     onRemoveSelection = { ids ->
@@ -567,7 +567,7 @@ fun AppNavGraph(
                 )
             }
         }
-        composable(AppRouteNames.SUGGESTIONS) {
+        composable<SuggestionsRoute> {
             val viewModel = hiltViewModel<org.skepsun.kototoro.suggestions.ui.SuggestionsViewModel>()
             CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                 org.skepsun.kototoro.list.ui.compose.AppContentListRoute(
@@ -580,7 +580,7 @@ fun AppNavGraph(
                     isSourceTagFilterVisible = true,
                     onNavigateToDetails = { content, sharedElementKey ->
                         PendingDetailsNavigation.set(content, sharedElementKey)
-                        navController.navigate(AppRouteNames.DETAILS)
+                        navController.navigate(DetailsRoute)
                     },
                     onAddMenuProvider = { act, _, _ ->
                         object : androidx.core.view.MenuProvider {
@@ -612,7 +612,7 @@ fun AppNavGraph(
                 )
             }
         }
-        composable(AppRouteNames.BOOKMARKS) {
+        composable<BookmarksRoute> {
             val viewModel = hiltViewModel<org.skepsun.kototoro.bookmarks.ui.AllBookmarksViewModel>()
             val activity = androidx.compose.ui.platform.LocalContext.current as? androidx.activity.ComponentActivity
             val pageSaveHelperFactory = androidx.compose.runtime.remember {
@@ -632,7 +632,7 @@ fun AppNavGraph(
                 pageSaveHelper = pageSaveHelper
             )
         }
-        composable(AppRouteNames.UPDATED) {
+        composable<UpdatedRoute> {
             val viewModel = hiltViewModel<org.skepsun.kototoro.tracker.ui.updates.UpdatesViewModel>()
             CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                 org.skepsun.kototoro.list.ui.compose.AppContentListRoute(
@@ -646,7 +646,7 @@ fun AppNavGraph(
                     onRemoveSelection = { ids -> viewModel.remove(ids) },
                     onNavigateToDetails = { content, sharedElementKey ->
                         PendingDetailsNavigation.set(content, sharedElementKey)
-                        navController.navigate(AppRouteNames.DETAILS)
+                        navController.navigate(DetailsRoute)
                     },
                     onAddMenuProvider = { _, _, _ ->
                         object : androidx.core.view.MenuProvider {
@@ -712,7 +712,7 @@ fun AppNavGraph(
                 onBackClick = { navController.navigateUp() },
                 onOpenContent = { content ->
                     PendingDetailsNavigation.set(content)
-                    navController.navigate(AppRouteNames.DETAILS)
+                    navController.navigate(DetailsRoute)
                 },
                 onPickContent = { },
                 onOpenSourceResults = { item ->
@@ -749,8 +749,7 @@ fun AppNavGraph(
             )
         }
 
-        composable(
-            route = AppRouteNames.DETAILS,
+        composable<DetailsRoute>(
             enterTransition = {
                 if (hasPendingSharedElement()) {
                     null
