@@ -23,9 +23,11 @@ import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 import org.skepsun.kototoro.explore.ui.model.SourceTag
+import org.skepsun.kototoro.home.ui.compose.HomeScreenActions
 import org.skepsun.kototoro.home.ui.compose.HomeScreen
 import org.skepsun.kototoro.core.ui.theme.KototoroTheme
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import org.skepsun.kototoro.main.ui.MainActivity
 
 @AndroidEntryPoint
@@ -63,25 +65,30 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
             syncSelectedTab(state.selectedTab)
 			
 			KototoroTheme {
+				val actions = remember(router, viewModel) {
+					HomeScreenActions(
+						onSettingsClick = { router.openSettings() },
+						onReaderSettingsClick = { router.openReaderSettings() },
+						onSyncSettingsClick = { router.openSyncSettings() },
+						onViewAllRecentClick = { router.openHistory(currentBrowseGroupTab()) },
+						onViewAllUpdatesClick = { /* router.openMangaUpdates(currentBrowseGroupTab()) */ },
+						onViewAllRecommendationsClick = { /* router.openSuggestions(currentBrowseGroupTab()) */ },
+						onRecentSearchClick = { query -> router.openSearch(query) },
+						onSourceSettingsClick = { router.openSourcesSettings() },
+						onLibraryOpenClick = { router.openFavorites() },
+						onBookmarksClick = { /* router.openBookmarks() */ },
+						onLocalClick = { router.openList(org.skepsun.kototoro.core.model.LocalMangaSource, null, null) },
+						onDownloadsClick = { router.openDownloads() },
+						onRandomClick = { viewModel.openRandom() },
+						onAutoTranslateClick = { router.openTranslationSettings() },
+					)
+				}
 				HomeScreen(
 					state = state,
 					onContentClick = { content, coverBounds, _ ->
 						router.openDetails(content, binding.root)
 					},
-					onSettingsClick = { router.openSettings() },
-					onReaderSettingsClick = { router.openReaderSettings() },
-					onSyncSettingsClick = { router.openSyncSettings() },
-					onViewAllRecentClick = { router.openHistory(currentBrowseGroupTab()) },
-					onViewAllUpdatesClick = { /* router.openMangaUpdates(currentBrowseGroupTab()) */ },
-					onViewAllRecommendationsClick = { /* router.openSuggestions(currentBrowseGroupTab()) */ },
-					onRecentSearchClick = { query -> router.openSearch(query) },
-					onSourceSettingsClick = { router.openSourcesSettings() },
-					onLibraryOpenClick = { router.openFavorites() },
-					onBookmarksClick = { /* router.openBookmarks() */ },
-					onLocalClick = { router.openList(org.skepsun.kototoro.core.model.LocalMangaSource, null, null) },
-					onDownloadsClick = { router.openDownloads() },
-					onRandomClick = { viewModel.openRandom() },
-					onAutoTranslateClick = { router.openTranslationSettings() },
+					actions = actions,
 					isRandomLoading = isRandomLoading
 				)
 			}

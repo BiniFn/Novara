@@ -43,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -122,26 +123,31 @@ private data class HomeScreenPrefs(
     val badgePrefs: HomeCardBadgePrefs,
 )
 
+@Stable
+data class HomeScreenActions(
+    val onSettingsClick: () -> Unit,
+    val onReaderSettingsClick: () -> Unit,
+    val onSyncSettingsClick: () -> Unit,
+    val onViewAllRecentClick: () -> Unit,
+    val onViewAllUpdatesClick: () -> Unit,
+    val onViewAllRecommendationsClick: () -> Unit,
+    val onRecentSearchClick: (String) -> Unit,
+    val onSourceSettingsClick: () -> Unit,
+    val onLibraryOpenClick: () -> Unit,
+    val onBookmarksClick: () -> Unit,
+    val onLocalClick: () -> Unit,
+    val onDownloadsClick: () -> Unit,
+    val onRandomClick: () -> Unit,
+    val onAutoTranslateClick: () -> Unit,
+)
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     contentPadding: PaddingValues = PaddingValues(0.dp),
     state: HomeSummaryState,
     onContentClick: (Content, Rect?, String?) -> Unit,
-    onSettingsClick: () -> Unit,
-    onReaderSettingsClick: () -> Unit,
-    onSyncSettingsClick: () -> Unit,
-    onViewAllRecentClick: () -> Unit,
-    onViewAllUpdatesClick: () -> Unit,
-    onViewAllRecommendationsClick: () -> Unit,
-    onRecentSearchClick: (String) -> Unit,
-    onSourceSettingsClick: () -> Unit,
-    onLibraryOpenClick: () -> Unit,
-    onBookmarksClick: () -> Unit,
-    onLocalClick: () -> Unit,
-    onDownloadsClick: () -> Unit,
-    onRandomClick: () -> Unit,
-    onAutoTranslateClick: () -> Unit,
+    actions: HomeScreenActions,
     isRandomLoading: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -190,16 +196,16 @@ fun HomeScreen(
         )
     }
     val quickActions = listOf(
-        HomeQuickAction(stringResource(R.string.favourites), R.drawable.ic_heart, onLibraryOpenClick),
-        HomeQuickAction(stringResource(R.string.bookmarks), R.drawable.ic_bookmark, onBookmarksClick),
-        HomeQuickAction(stringResource(R.string.local_storage), R.drawable.ic_storage, onLocalClick),
-        HomeQuickAction(stringResource(R.string.downloads), R.drawable.ic_download, onDownloadsClick),
-        HomeQuickAction(stringResource(R.string.random), R.drawable.ic_dice, onRandomClick, !isRandomLoading),
-        HomeQuickAction(stringResource(R.string.sync_status), R.drawable.ic_sync, onSyncSettingsClick),
-        HomeQuickAction(stringResource(R.string.home_sources_overview), R.drawable.ic_storage, onSourceSettingsClick),
-        HomeQuickAction(stringResource(R.string.translation_settings), R.drawable.ic_language, onAutoTranslateClick),
-        HomeQuickAction(stringResource(R.string.reader_settings), R.drawable.ic_read, onReaderSettingsClick),
-        HomeQuickAction(stringResource(R.string.settings), R.drawable.ic_settings, onSettingsClick),
+        HomeQuickAction(stringResource(R.string.favourites), R.drawable.ic_heart, actions.onLibraryOpenClick),
+        HomeQuickAction(stringResource(R.string.bookmarks), R.drawable.ic_bookmark, actions.onBookmarksClick),
+        HomeQuickAction(stringResource(R.string.local_storage), R.drawable.ic_storage, actions.onLocalClick),
+        HomeQuickAction(stringResource(R.string.downloads), R.drawable.ic_download, actions.onDownloadsClick),
+        HomeQuickAction(stringResource(R.string.random), R.drawable.ic_dice, actions.onRandomClick, !isRandomLoading),
+        HomeQuickAction(stringResource(R.string.sync_status), R.drawable.ic_sync, actions.onSyncSettingsClick),
+        HomeQuickAction(stringResource(R.string.home_sources_overview), R.drawable.ic_storage, actions.onSourceSettingsClick),
+        HomeQuickAction(stringResource(R.string.translation_settings), R.drawable.ic_language, actions.onAutoTranslateClick),
+        HomeQuickAction(stringResource(R.string.reader_settings), R.drawable.ic_read, actions.onReaderSettingsClick),
+        HomeQuickAction(stringResource(R.string.settings), R.drawable.ic_settings, actions.onSettingsClick),
     )
     Column(
         modifier = modifier
@@ -234,10 +240,10 @@ fun HomeScreen(
                 badgePrefs = badgePrefs,
                 panoramaPrefs = panoramaPrefs,
                 onItemClick = onContentClick,
-                onViewAllRecentClick = onViewAllRecentClick,
-                onViewAllUpdatesClick = onViewAllUpdatesClick,
-                onViewAllRecommendationsClick = onViewAllRecommendationsClick,
-                onRecentSearchClick = onRecentSearchClick,
+                onViewAllRecentClick = actions.onViewAllRecentClick,
+                onViewAllUpdatesClick = actions.onViewAllUpdatesClick,
+                onViewAllRecommendationsClick = actions.onViewAllRecommendationsClick,
+                onRecentSearchClick = actions.onRecentSearchClick,
             )
         }
         if (!hasHighlights && !state.isInitialized) {

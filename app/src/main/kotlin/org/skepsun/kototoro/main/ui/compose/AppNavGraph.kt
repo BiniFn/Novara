@@ -10,6 +10,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import org.skepsun.kototoro.home.ui.compose.HomeScreen
+import org.skepsun.kototoro.home.ui.compose.HomeScreenActions
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import org.skepsun.kototoro.home.ui.HomeViewModel
 import androidx.compose.runtime.getValue
@@ -188,24 +189,44 @@ fun AppNavGraph(
                 val onHomeDownloadsClick = remember(appRouter) { { appRouter.openDownloads() } }
                 val onHomeRandomClick = remember(viewModel) { { viewModel.openRandom() } }
                 val onHomeAutoTranslateClick = remember(appRouter) { { appRouter.openTranslationSettings() } }
+                val homeActions = remember(
+                    onHomeSettingsClick,
+                    onHomeReaderSettingsClick,
+                    onHomeSyncSettingsClick,
+                    onHomeViewAllRecentClick,
+                    onHomeViewAllUpdatesClick,
+                    onHomeViewAllRecommendationsClick,
+                    onHomeRecentSearchClick,
+                    onHomeSourceSettingsClick,
+                    onHomeLibraryOpenClick,
+                    onHomeBookmarksClick,
+                    onHomeLocalClick,
+                    onHomeDownloadsClick,
+                    onHomeRandomClick,
+                    onHomeAutoTranslateClick,
+                ) {
+                    HomeScreenActions(
+                        onSettingsClick = onHomeSettingsClick,
+                        onReaderSettingsClick = onHomeReaderSettingsClick,
+                        onSyncSettingsClick = onHomeSyncSettingsClick,
+                        onViewAllRecentClick = onHomeViewAllRecentClick,
+                        onViewAllUpdatesClick = onHomeViewAllUpdatesClick,
+                        onViewAllRecommendationsClick = onHomeViewAllRecommendationsClick,
+                        onRecentSearchClick = onHomeRecentSearchClick,
+                        onSourceSettingsClick = onHomeSourceSettingsClick,
+                        onLibraryOpenClick = onHomeLibraryOpenClick,
+                        onBookmarksClick = onHomeBookmarksClick,
+                        onLocalClick = onHomeLocalClick,
+                        onDownloadsClick = onHomeDownloadsClick,
+                        onRandomClick = onHomeRandomClick,
+                        onAutoTranslateClick = onHomeAutoTranslateClick,
+                    )
+                }
                 HomeScreen(
                     contentPadding = contentPadding,
                     state = state,
                     onContentClick = onHomeContentClick,
-                    onSettingsClick = onHomeSettingsClick,
-                    onReaderSettingsClick = onHomeReaderSettingsClick,
-                    onSyncSettingsClick = onHomeSyncSettingsClick,
-                    onViewAllRecentClick = onHomeViewAllRecentClick,
-                    onViewAllUpdatesClick = onHomeViewAllUpdatesClick,
-                    onViewAllRecommendationsClick = onHomeViewAllRecommendationsClick,
-                    onRecentSearchClick = onHomeRecentSearchClick,
-                    onSourceSettingsClick = onHomeSourceSettingsClick,
-                    onLibraryOpenClick = onHomeLibraryOpenClick,
-                    onBookmarksClick = onHomeBookmarksClick,
-                    onLocalClick = onHomeLocalClick,
-                    onDownloadsClick = onHomeDownloadsClick,
-                    onRandomClick = onHomeRandomClick,
-                    onAutoTranslateClick = onHomeAutoTranslateClick,
+                    actions = homeActions,
                     isRandomLoading = isRandomLoading,
                 )
             }
