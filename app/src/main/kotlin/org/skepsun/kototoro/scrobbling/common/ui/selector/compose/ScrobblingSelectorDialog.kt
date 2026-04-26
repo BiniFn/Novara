@@ -14,6 +14,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
@@ -79,7 +80,7 @@ private fun ScrobblerHeader(
     viewModel: ScrobblingSelectorViewModel,
     onClose: () -> Unit
 ) {
-    val selectedIndex by viewModel.selectedScrobblerIndex.collectAsState()
+    val selectedIndex by viewModel.selectedScrobblerIndex.collectAsStateWithLifecycle()
     val scrobblers = viewModel.availableScrobblers
     var searchQuery by remember { mutableStateOf(viewModel.manga.title) }
 
@@ -143,9 +144,9 @@ private fun ScrobblerHeader(
 private fun ColumnScope.ScrobblerListContent(
     viewModel: ScrobblingSelectorViewModel
 ) {
-    val items by viewModel.content.collectAsState()
-    val selectedItemId by viewModel.selectedItemId.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
+    val items by viewModel.content.collectAsStateWithLifecycle()
+    val selectedItemId by viewModel.selectedItemId.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     
     val listState = rememberLazyListState()
 

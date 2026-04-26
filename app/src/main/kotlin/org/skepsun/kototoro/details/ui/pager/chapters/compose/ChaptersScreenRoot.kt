@@ -21,6 +21,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.isLocal
@@ -44,12 +45,12 @@ fun ChaptersScreenRoot(
     handleSelectionBackPressInternally: Boolean = true,
     onSelectionStateChange: (ChapterSelectionUiState?) -> Unit = {},
 ) {
-	val isGridView by viewModel.isChaptersInGridView.collectAsState(initial = false)
-	val isLoading by viewModel.isLoading.collectAsState(initial = false)
-	val quickFilter by viewModel.quickFilter.collectAsState(initial = emptyList())
-	val emptyReason by viewModel.emptyReason.collectAsState(initial = null)
-	val chapters by viewModel.chapters.collectAsState(initial = emptyList())
-	val selectedBranch by viewModel.selectedBranch.collectAsState(initial = null)
+	val isGridView by viewModel.isChaptersInGridView.collectAsStateWithLifecycle(initialValue = false)
+	val isLoading by viewModel.isLoading.collectAsStateWithLifecycle(initialValue = false)
+	val quickFilter by viewModel.quickFilter.collectAsStateWithLifecycle(initialValue = emptyList())
+	val emptyReason by viewModel.emptyReason.collectAsStateWithLifecycle(initialValue = null)
+	val chapters by viewModel.chapters.collectAsStateWithLifecycle(initialValue = emptyList())
+	val selectedBranch by viewModel.selectedBranch.collectAsStateWithLifecycle(initialValue = null)
 	var qualityProbeResult by remember { mutableStateOf<ChaptersPagesViewModel.QualityProbeResult?>(null) }
 	
 	val chaptersWithHeaders = remember(chapters) {

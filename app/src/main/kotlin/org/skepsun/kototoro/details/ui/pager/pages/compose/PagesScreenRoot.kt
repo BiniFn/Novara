@@ -5,12 +5,12 @@ import android.view.View
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.android.material.snackbar.Snackbar
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.AppRouter
@@ -30,14 +30,17 @@ fun PagesScreenRoot(
 	lifecycleOwner: LifecycleOwner,
 	viewModel: PagesViewModel,
 ) {
-	val thumbnails by viewModel.thumbnails.collectAsState(initial = emptyList())
-	val isLoading by viewModel.isLoading.collectAsState(initial = false)
-	val gridScale by viewModel.gridScale.collectAsState(initial = 1f)
+	val thumbnails by viewModel.thumbnails.collectAsStateWithLifecycle(initialValue = emptyList())
+	val isLoading by viewModel.isLoading.collectAsStateWithLifecycle(initialValue = false)
+	val gridScale by viewModel.gridScale.collectAsStateWithLifecycle(initialValue = 1f)
 	val selectedItemIds = remember { mutableStateListOf<Long>() }
+	val selectedIds = remember(selectedItemIds.toList()) {
+		selectedItemIds.toSet()
+	}
 
-	val mangaDetails by activityViewModel.mangaDetails.collectAsState(initial = null)
-	val readingState by activityViewModel.readingState.collectAsState(initial = null)
-	val selectedBranch by activityViewModel.selectedBranch.collectAsState(initial = null)
+	val mangaDetails by activityViewModel.mangaDetails.collectAsStateWithLifecycle(initialValue = null)
+	val readingState by activityViewModel.readingState.collectAsStateWithLifecycle(initialValue = null)
+	val selectedBranch by activityViewModel.selectedBranch.collectAsStateWithLifecycle(initialValue = null)
 
 	LaunchedEffect(mangaDetails, readingState, selectedBranch) {
 		if (mangaDetails != null) {
@@ -64,7 +67,7 @@ fun PagesScreenRoot(
 	PagesScreen(
 		items = thumbnails,
 		gridMinSize = (120.dp / gridScale.coerceIn(0.5f, 1.5f)),
-		selectedItemIds = selectedItemIds.toSet(),
+		selectedItemIds = selectedIds,
 		emptyMessageResId = null,
 		isLoading = isLoading,
 		onItemClick = { item ->
@@ -94,11 +97,11 @@ fun PagesScreenRoot(
 			}
 		},
 		onSelectionActionClick = { actionId ->
-			if (selectedItemIds.isEmpty()) return@PagesScreen
+			if (selectedIds.isEmpty()) return@PagesScreen
 			when (actionId) {
 				R.id.action_save -> {
 					val snapshot = thumbnails.filterIsInstance<PageThumbnail>()
-						.filter { it.page.id in selectedItemIds }
+						.filter { it.page.id in selectedIds }
 						.map { it.page }
 						.toSet()
 					viewModel.savePages(pageSaveHelper, snapshot)
