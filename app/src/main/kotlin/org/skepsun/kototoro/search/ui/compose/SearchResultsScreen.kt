@@ -94,6 +94,27 @@ import org.skepsun.kototoro.search.domain.SearchKind
 import org.skepsun.kototoro.search.ui.multi.SearchResultsListModel
 import org.skepsun.kototoro.search.ui.multi.SearchViewModel
 
+private data class SearchPreparedItems(
+    val sections: List<SearchResultsListModel>,
+    val supplementaryItems: List<ListModel>,
+)
+
+private fun prepareSearchItems(items: List<ListModel>): SearchPreparedItems {
+    val sections = ArrayList<SearchResultsListModel>()
+    val supplementaryItems = ArrayList<ListModel>()
+    items.forEach { item ->
+        if (item is SearchResultsListModel) {
+            sections += item
+        } else {
+            supplementaryItems += item
+        }
+    }
+    return SearchPreparedItems(
+        sections = sections,
+        supplementaryItems = supplementaryItems,
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchResultsRoute(
@@ -145,8 +166,9 @@ fun SearchResultsRoute(
     var hideEmpty by remember { mutableStateOf(viewModel.isHideEmptySelected) }
     var selectedItemsIds by rememberSaveable { mutableStateOf(emptySet<Long>()) }
 
-    val sections = remember(listModels) { listModels.filterIsInstance<SearchResultsListModel>() }
-    val supplementaryItems = remember(listModels) { listModels.filterNot { it is SearchResultsListModel } }
+    val preparedItems = remember(listModels) { prepareSearchItems(listModels) }
+    val sections = preparedItems.sections
+    val supplementaryItems = preparedItems.supplementaryItems
     val selectedItems = remember(selectedItemsIds, listModels) {
         viewModel.getItems(selectedItemsIds)
     }
@@ -605,6 +627,7 @@ private fun SearchResultsSection(
                                 model = item,
                                 isSelected = item.id in selectedItemsIds,
                                 selectionModeActive = selectionEnabled,
+                                sharedTransitionEnabled = false,
                                 uiPrefs = cardUiPrefs,
                                 onClick = { onItemClick(item) },
                                 onLongClick = { onItemLongClick(item) },

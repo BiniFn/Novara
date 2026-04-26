@@ -35,7 +35,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -246,9 +245,13 @@ fun KototoroContentCardGrid(
                 .widthIn(max = posterStyle.itemWidth)
                 .fillMaxWidth()
                 .height(posterStyle.posterHeight)
-                .onGloballyPositioned { coordinates ->
-                    coverBounds = coordinates.unclippedBoundsInWindow()
-                }
+                .then(
+                    if (sharedTransitionEnabled) {
+                        Modifier.onGloballyPositioned { coordinates ->
+                            coverBounds = coordinates.unclippedBoundsInWindow()
+                        }
+                    } else Modifier,
+                )
                 .then(
                     if (sharedTransitionEnabled && sharedTransitionScope != null && animatedVisibilityScope != null) {
                         with(sharedTransitionScope) {
@@ -480,9 +483,13 @@ fun KototoroContentCardList(
         Box(
             modifier = Modifier
                 .size(48.dp, 72.dp)
-                .onGloballyPositioned { coordinates ->
-                    coverBounds = coordinates.unclippedBoundsInWindow()
-                }
+                .then(
+                    if (sharedTransitionEnabled) {
+                        Modifier.onGloballyPositioned { coordinates ->
+                            coverBounds = coordinates.unclippedBoundsInWindow()
+                        }
+                    } else Modifier,
+                )
                 .then(
                     if (sharedTransitionEnabled && sharedTransitionScope != null && animatedVisibilityScope != null) {
                         with(sharedTransitionScope) {
@@ -752,9 +759,13 @@ fun KototoroContentCardDetailedList(
         Box(
             modifier = Modifier
                 .size(80.dp, 120.dp)
-                .onGloballyPositioned { coordinates ->
-                    coverBounds = coordinates.unclippedBoundsInWindow()
-                }
+                .then(
+                    if (sharedTransitionEnabled) {
+                        Modifier.onGloballyPositioned { coordinates ->
+                            coverBounds = coordinates.unclippedBoundsInWindow()
+                        }
+                    } else Modifier,
+                )
                 .then(
                     if (sharedTransitionEnabled && sharedTransitionScope != null && animatedVisibilityScope != null) {
                         with(sharedTransitionScope) {

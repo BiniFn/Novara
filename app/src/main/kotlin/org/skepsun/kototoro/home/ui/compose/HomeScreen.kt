@@ -155,6 +155,7 @@ fun HomeScreen(
             bottomRight = badgesBottomRight,
         )
     }
+    val panoramaPrefs = rememberPanoramaBackdropPrefs(settings)
     val posterStyle = remember(gridScale) { compactPosterRailCardStyle(gridScale) }
     val recentSearches = remember(state.recentSearches) { state.recentSearches.map { it.query } }
     val heroEntries = remember(
@@ -217,6 +218,7 @@ fun HomeScreen(
                 recentSearches = recentSearches,
                 posterStyle = posterStyle,
                 badgePrefs = badgePrefs,
+                panoramaPrefs = panoramaPrefs,
                 onItemClick = onContentClick,
                 onViewAllRecentClick = onViewAllRecentClick,
                 onViewAllUpdatesClick = onViewAllUpdatesClick,
@@ -245,6 +247,7 @@ private fun HomeHighlightsSections(
     recentSearches: List<String>,
     posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
     badgePrefs: HomeCardBadgePrefs,
+    panoramaPrefs: PanoramaBackdropPrefs,
     onItemClick: (Content, Rect?, String?) -> Unit,
     onViewAllRecentClick: () -> Unit,
     onViewAllUpdatesClick: () -> Unit,
@@ -274,6 +277,7 @@ private fun HomeHighlightsSections(
             if (heroEntries.isNotEmpty()) {
                 HomeHeroCarousel(
                     entries = heroEntries,
+                    panoramaPrefs = panoramaPrefs,
                     onClick = onItemClick,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -374,6 +378,7 @@ private fun HomeHighlightsSections(
 @Composable
 private fun HomeHeroCarousel(
     entries: List<HomeHeroEntry>,
+    panoramaPrefs: PanoramaBackdropPrefs,
     onClick: (Content, Rect?, String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -382,10 +387,6 @@ private fun HomeHeroCarousel(
     val selectedIndex by remember(entries, pagerState) {
         derivedStateOf { pagerState.currentPage.coerceIn(0, entries.lastIndex) }
     }
-    val context = LocalContext.current
-    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-    val panoramaPrefs = rememberPanoramaBackdropPrefs(settings)
-
     HeroAutoAdvanceEffect(
         pagerState = pagerState,
         pageCount = entries.size,
@@ -813,7 +814,6 @@ private fun HomeContentRowSection(
     }
 }
 
-@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun HomeCoverRowItem(
     item: HomeCoverDisplayItem,
@@ -838,22 +838,18 @@ private fun HomeCoverRowItem(
             .apply { mangaExtra(content) }
             .build()
     }
-    var coverBounds by remember(content.id) { mutableStateOf<Rect?>(null) }
     val badgeMetrics = remember(posterStyle.itemWidth) { contentCardBadgeMetricsFor(posterStyle.itemWidth) }
 
     Column(
         modifier = modifier
             .width(posterStyle.itemWidth)
-            .clickable { onClick(coverBounds, null) },
+            .clickable { onClick(null, null) },
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(posterStyle.posterHeight)
-                .onGloballyPositioned { coordinates ->
-                    coverBounds = coordinates.unclippedBoundsInWindow()
-                }
                 .clip(cardShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {

@@ -53,7 +53,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -133,6 +132,7 @@ fun DiscoverHeroCarousel(
     modifier: Modifier = Modifier,
     bottomContent: (@Composable () -> Unit)? = null,
     detachedBottomContent: Boolean = false,
+    settings: AppSettings? = null,
     sharedElementKeyForItem: (ContentListModel, Int) -> String = { item, _ ->
         contentCoverSharedKey(item.manga.source.name, item.manga.coverUrl.orEmpty())
     },
@@ -147,8 +147,8 @@ fun DiscoverHeroCarousel(
         else -> DiscoverHeroHeight
     }
     val context = LocalContext.current
-    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-    val panoramaPrefs = rememberDiscoverHeroPanoramaPrefs(settings)
+    val resolvedSettings = settings ?: remember(context.applicationContext) { AppSettings(context.applicationContext) }
+    val panoramaPrefs = rememberDiscoverHeroPanoramaPrefs(resolvedSettings)
     val heroBottomBlendHeight = when {
         detachedBottomContent && isLandscape -> DiscoverHeroBottomBlendHeightDetachedLandscape
         detachedBottomContent -> ((panoramaPrefs.blendHeight * 0.54f).toInt()).dp

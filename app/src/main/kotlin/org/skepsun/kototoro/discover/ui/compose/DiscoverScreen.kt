@@ -166,6 +166,7 @@ fun DiscoverScreen(
 								onItemClick(item, coverBounds)
 							},
 							onSelectService = onSelectService,
+							settings = settings,
 							modifier = Modifier.padding(bottom = 4.dp)
 						)
 					}

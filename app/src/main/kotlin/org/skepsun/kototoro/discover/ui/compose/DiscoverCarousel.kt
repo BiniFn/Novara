@@ -19,16 +19,12 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,7 +35,6 @@ import coil3.request.crossfade
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
 import org.skepsun.kototoro.core.ui.compose.rememberRailAnimationFactor
-import org.skepsun.kototoro.core.ui.compose.unclippedBoundsInWindow
 import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.list.ui.compose.ContentCardCornerBadges
@@ -108,7 +103,7 @@ fun DiscoverCarousel(
 							model = model,
 							posterStyle = posterStyle,
 							badgesBottomRight = badgesBottomRight,
-							onClick = { coverBounds -> onItemClick(model, coverBounds) },
+							onClick = { onItemClick(model, null) },
 							modifier = animatedModifier,
 						)
 					}
@@ -125,7 +120,7 @@ private fun DiscoverPosterCard(
 	model: ContentListModel,
 	posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
 	badgesBottomRight: Set<String>,
-	onClick: (Rect?) -> Unit,
+	onClick: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	val context = LocalContext.current
@@ -136,21 +131,17 @@ private fun DiscoverPosterCard(
 			.build()
 	}
 	val badgeMetrics = remember(posterStyle.itemWidth) { contentCardBadgeMetricsFor(posterStyle.itemWidth) }
-	var coverBounds by remember(model.id) { mutableStateOf<Rect?>(null) }
 
 	Column(
 		modifier = modifier
 			.width(posterStyle.itemWidth)
-			.clickable { onClick(coverBounds) },
+			.clickable(onClick = onClick),
 		verticalArrangement = Arrangement.spacedBy(6.dp),
 	) {
 		Box(
 			modifier = Modifier
 				.fillMaxWidth()
 				.height(posterStyle.posterHeight)
-				.onGloballyPositioned { coordinates ->
-					coverBounds = coordinates.unclippedBoundsInWindow()
-				}
 				.clip(MaterialTheme.shapes.medium)
 				.background(
 					color = MaterialTheme.colorScheme.surfaceVariant,
