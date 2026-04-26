@@ -18,8 +18,35 @@ import org.skepsun.kototoro.alternatives.ui.AutoFixService
 import org.skepsun.kototoro.core.util.ShareHelper
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
+import org.skepsun.kototoro.list.ui.model.ContentListModel
+import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.main.ui.compose.ContentSelectionTopBarOverrideState
 import org.skepsun.kototoro.main.ui.compose.TopBarOverrideState
+
+private data class ContentSelectionModels(
+    val allContentIds: Set<Long>,
+    val selectedModels: List<ContentListModel>,
+)
+
+private fun prepareContentSelectionModels(
+    items: List<ListModel>,
+    selectedIds: Set<Long>,
+): ContentSelectionModels {
+    val allContentIds = linkedSetOf<Long>()
+    val selectedModels = ArrayList<ContentListModel>()
+    items.forEach { item ->
+        if (item is ContentListModel) {
+            allContentIds += item.id
+            if (item.id in selectedIds) {
+                selectedModels += item
+            }
+        }
+    }
+    return ContentSelectionModels(
+        allContentIds = allContentIds,
+        selectedModels = selectedModels,
+    )
+}
 
 @Composable
 fun <VM : ContentListViewModel> AppContentListRoute(
@@ -50,11 +77,10 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     val context = LocalContext.current
     val rootView = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val selectedModels = remember(items, composeSelectionIds) {
-        items
-            .filterIsInstance<org.skepsun.kototoro.list.ui.model.ContentListModel>()
-            .filter { it.id in composeSelectionIds }
+    val selectionModels = remember(items, composeSelectionIds) {
+        prepareContentSelectionModels(items, composeSelectionIds)
     }
+    val selectedModels = selectionModels.selectedModels
 
     BackHandler(enabled = composeSelectionIds.isNotEmpty()) {
         composeSelectionIds = emptySet()
@@ -82,9 +108,7 @@ fun <VM : ContentListViewModel> AppContentListRoute(
                     onActionClick = { action ->
                         when (action) {
                             SelectionAction.SELECT_ALL -> {
-                                composeSelectionIds = items
-                                    .filterIsInstance<org.skepsun.kototoro.list.ui.model.ContentListModel>()
-                                    .mapTo(linkedSetOf()) { it.id }
+                                composeSelectionIds = selectionModels.allContentIds
                             }
 
                             SelectionAction.REMOVE -> {

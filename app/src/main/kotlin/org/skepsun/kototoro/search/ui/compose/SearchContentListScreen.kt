@@ -104,6 +104,7 @@ import org.skepsun.kototoro.filter.ui.model.UiTagGroup
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.list.ui.compose.KototoroContentListScreen
 import org.skepsun.kototoro.list.ui.model.ContentListModel
+import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.QuickFilter
 import org.skepsun.kototoro.remotelist.ui.RemoteListViewModel
 import org.skepsun.kototoro.parsers.model.Content
@@ -118,6 +119,33 @@ private val SearchTopActionsHeight = 56.dp
 private enum class SearchSidePaneMode {
     Filter,
     Preview,
+}
+
+private data class SearchContentPreparedItems(
+    val quickFilter: QuickFilter?,
+    val contentItems: List<ListModel>,
+    val contentListItems: List<ContentListModel>,
+)
+
+private fun prepareSearchContentItems(items: List<ListModel>): SearchContentPreparedItems {
+    var quickFilter: QuickFilter? = null
+    val contentItems = ArrayList<ListModel>()
+    val contentListItems = ArrayList<ContentListModel>()
+    items.forEach { item ->
+        if (item is QuickFilter && quickFilter == null) {
+            quickFilter = item
+        } else {
+            contentItems += item
+            if (item is ContentListModel) {
+                contentListItems += item
+            }
+        }
+    }
+    return SearchContentPreparedItems(
+        quickFilter = quickFilter,
+        contentItems = contentItems,
+        contentListItems = contentListItems,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -149,12 +177,10 @@ fun AppSearchContentListRoute(
         configuration.orientation == Configuration.ORIENTATION_LANDSCAPE || configuration.screenWidthDp >= 720
     }
 
-    val quickFilter = remember(items) {
-        items.filterIsInstance<QuickFilter>().firstOrNull()
-    }
-    val contentItems = remember(items) {
-        items.filterNot { it is QuickFilter }
-    }
+    val preparedItems = remember(items) { prepareSearchContentItems(items) }
+    val quickFilter = preparedItems.quickFilter
+    val contentItems = preparedItems.contentItems
+    val contentListItems = preparedItems.contentListItems
 
     var searchMode by rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf(filterSnapshot.listFilter.query.orEmpty()) }
@@ -191,7 +217,7 @@ fun AppSearchContentListRoute(
 
     LaunchedEffect(contentItems) {
         val previewId = previewContent?.id ?: return@LaunchedEffect
-        if (contentItems.filterIsInstance<ContentListModel>().none { it.id == previewId }) {
+        if (contentListItems.none { it.id == previewId }) {
             previewContent = null
             sidePaneMode = SearchSidePaneMode.Filter
         }
@@ -233,7 +259,7 @@ fun AppSearchContentListRoute(
             currentSortLabel = stringResource(filterSnapshot.sortOrder.titleRes),
             isFilterApplied = viewModel.filterCoordinator.isFilterApplied,
             quickFilter = quickFilter,
-            contentItems = contentItems.filterIsInstance<ContentListModel>(),
+            contentItems = contentListItems,
             selectedTags = filterSnapshot.listFilter.tags,
             availableTags = tagsProperty.availableItems.flatMap { it.tags },
             listMode = listMode,

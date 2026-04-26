@@ -204,8 +204,10 @@ fun KototoroContentCardGrid(
 ) {
     val context = LocalContext.current
     val density = androidx.compose.ui.platform.LocalDensity.current
-    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-    val resolvedUiPrefs = uiPrefs ?: rememberContentCardUiPrefs(settings)
+    val resolvedUiPrefs = uiPrefs ?: run {
+        val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+        rememberContentCardUiPrefs(settings)
+    }
 
     val manga = item.manga
     val coverRequest = remember(manga.coverUrl, manga.id, manga.source, sharedTransitionEnabled) {
@@ -450,8 +452,10 @@ fun KototoroContentCardList(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-    val resolvedUiPrefs = uiPrefs ?: rememberContentCardUiPrefs(settings)
+    val resolvedUiPrefs = uiPrefs ?: run {
+        val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+        rememberContentCardUiPrefs(settings)
+    }
     var coverBounds by remember { mutableStateOf<Rect?>(null) }
     val coverRequest = remember(item.coverUrl, item.manga.id, item.manga.source, sharedTransitionEnabled) {
         buildContentCoverRequest(
@@ -722,8 +726,10 @@ fun KototoroContentCardDetailedList(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-    val resolvedUiPrefs = uiPrefs ?: rememberContentCardUiPrefs(settings)
+    val resolvedUiPrefs = uiPrefs ?: run {
+        val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+        rememberContentCardUiPrefs(settings)
+    }
     var coverBounds by remember { mutableStateOf<Rect?>(null) }
     val coverRequest = remember(item.coverUrl, item.manga.id, item.manga.source, sharedTransitionEnabled) {
         buildContentCoverRequest(
@@ -834,7 +840,9 @@ fun KototoroContentCardDetailedList(
                 overflow = TextOverflow.Ellipsis
             )
             
-            val authorText = item.manga.authors.joinToString(", ")
+            val authorText = remember(item.manga.authors) {
+                item.manga.authors.joinToString(", ")
+            }
             if (authorText.isNotBlank()) {
                 Text(
                     text = authorText,
@@ -846,7 +854,9 @@ fun KototoroContentCardDetailedList(
                 )
             }
 
-            val tagsText = item.tags.joinToString(", ") { it.title ?: "" }
+            val tagsText = remember(item.tags) {
+                item.tags.joinToString(", ") { it.title ?: "" }
+            }
             if (tagsText.isNotBlank()) {
                 Text(
                     text = tagsText,

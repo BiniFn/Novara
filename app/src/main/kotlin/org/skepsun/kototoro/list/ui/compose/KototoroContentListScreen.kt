@@ -56,6 +56,12 @@ import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.list.ui.model.QuickFilter
 
+private data class ContentListScreenPrefs(
+    val showSourceOnCards: Boolean,
+    val isVerticalCardListAnimationEnabled: Boolean,
+    val cardUiPrefs: ContentCardUiPrefs,
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KototoroContentListScreen(
@@ -84,12 +90,28 @@ fun KototoroContentListScreen(
     val lastContentItem = items.lastOrNull { it is ContentListModel }
     val context = LocalContext.current
     val settings = androidx.compose.runtime.remember(context.applicationContext) { AppSettings(context.applicationContext) }
-    val showSourceOnCards = settings.observeAsState(AppSettings.KEY_SHOW_SOURCE_ON_CARDS) { isShowSourceOnCards }.value
-    val isVerticalCardListAnimationEnabled =
-        settings.observeAsState(AppSettings.KEY_VERTICAL_LIST_RAIL_ANIMATION) {
-            isVerticalListRailAnimationEnabled
-        }.value
-    val cardUiPrefs = rememberContentCardUiPrefs(settings)
+    val screenPrefs = settings.observeAsState(
+        AppSettings.KEY_SHOW_SOURCE_ON_CARDS,
+        AppSettings.KEY_VERTICAL_LIST_RAIL_ANIMATION,
+        AppSettings.KEY_BADGES_TOP_LEFT,
+        AppSettings.KEY_BADGES_TOP_RIGHT,
+        AppSettings.KEY_BADGES_BOTTOM_LEFT,
+        AppSettings.KEY_BADGES_BOTTOM_RIGHT,
+    ) {
+        ContentListScreenPrefs(
+            showSourceOnCards = isShowSourceOnCards,
+            isVerticalCardListAnimationEnabled = isVerticalListRailAnimationEnabled,
+            cardUiPrefs = ContentCardUiPrefs(
+                badgesTopLeft = badgesTopLeft,
+                badgesTopRight = badgesTopRight,
+                badgesBottomLeft = badgesBottomLeft,
+                badgesBottomRight = badgesBottomRight,
+            ),
+        )
+    }.value
+    val showSourceOnCards = screenPrefs.showSourceOnCards
+    val isVerticalCardListAnimationEnabled = screenPrefs.isVerticalCardListAnimationEnabled
+    val cardUiPrefs = screenPrefs.cardUiPrefs
 
     Box(modifier = modifier.fillMaxSize()) {
         KototoroPullToRefreshBox(
