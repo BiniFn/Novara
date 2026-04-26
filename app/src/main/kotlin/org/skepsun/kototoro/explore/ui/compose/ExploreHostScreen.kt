@@ -51,7 +51,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
@@ -77,6 +76,7 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import kotlinx.coroutines.flow.distinctUntilChanged
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.ContentSourceInfo
 import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.model.getTitle
@@ -97,6 +97,7 @@ import org.skepsun.kototoro.core.ui.compose.rememberHorizontalRailScrollIntensit
 import org.skepsun.kototoro.core.ui.compose.rememberVerticalRailScrollIntensity
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.core.ui.compose.unclippedBoundsInWindow
+import org.skepsun.kototoro.core.ui.image.panoramaBlur
 import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.details.ui.model.DetailsOrigin
 import org.skepsun.kototoro.discover.ui.DiscoverViewModel
@@ -131,6 +132,31 @@ private data class SourceQuickAccessGroup(
     val title: String?,
     val sources: List<ContentSourceItem>,
 )
+
+private data class BrowseSourceItems(
+    val sources: List<ContentSourceItem>,
+    val selectedSources: List<ContentSourceInfo>,
+)
+
+private fun prepareBrowseSourceItems(
+    items: List<ListModel>,
+    selectedSourceIds: Set<Long>,
+): BrowseSourceItems {
+    val sources = ArrayList<ContentSourceItem>()
+    val selectedSources = ArrayList<ContentSourceInfo>()
+    items.forEach { item ->
+        if (item is ContentSourceItem) {
+            sources += item
+            if (item.id in selectedSourceIds) {
+                selectedSources += item.source
+            }
+        }
+    }
+    return BrowseSourceItems(
+        sources = sources,
+        selectedSources = selectedSources,
+    )
+}
 
 private data class BrowseShowcaseRow(
     val row: DiscoverCarouselRow,
@@ -228,6 +254,9 @@ fun KototoroExploreHostRoute(
     val activity = context as? androidx.activity.ComponentActivity
     val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
     val gridScale by settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize / 100f }
+    val isSourcesGroupedByLanguage by settings.observeAsState(AppSettings.KEY_SOURCES_GROUPED_BY_LANGUAGE) {
+        isSourcesGroupedByLanguage
+    }
     val posterStyle = remember(gridScale) { compactPosterRailCardStyle(gridScale) }
     // 实时读取 LazyColumn 第一个 item 的滚动偏移，驱动 Hero 跟随滚动
     val heroScrollOffsetPx by remember(listState) {
@@ -240,10 +269,11 @@ fun KototoroExploreHostRoute(
         }
     }
 
-    val sources = remember(sourceItems) {
-        sourceItems.filterIsInstance<ContentSourceItem>()
-    }
     var selectedSourceIds by rememberSaveable { mutableStateOf(emptySet<Long>()) }
+    val browseSourceItems = remember(sourceItems, selectedSourceIds) {
+        prepareBrowseSourceItems(sourceItems, selectedSourceIds)
+    }
+    val sources = browseSourceItems.sources
     val browseDiscoverItems = remember(discoverItems) { prepareBrowseDiscoverItems(discoverItems) }
     val heroRow = browseDiscoverItems.heroRow
     val heroItems = browseDiscoverItems.heroItems
@@ -258,11 +288,7 @@ fun KototoroExploreHostRoute(
             }
         }
     }
-    val selectedSources = remember(sources, selectedSourceIds) {
-        sources
-            .filter { it.id in selectedSourceIds }
-            .map { it.source }
-    }
+    val selectedSources = browseSourceItems.selectedSources
 
     BackHandler(enabled = selectedSourceIds.isNotEmpty()) {
         selectedSourceIds = emptySet()
@@ -372,6 +398,7 @@ fun KototoroExploreHostRoute(
                             sources = sources,
                             isLoadingOnly = isLoadingOnly,
                             metrics = sourceQuickAccessMetrics(gridScale),
+                            isGroupedByLanguage = isSourcesGroupedByLanguage,
                             selectedSourceIds = selectedSourceIds,
                             onSourceClick = { source ->
                                 if (selectedSourceIds.isNotEmpty()) {
@@ -616,6 +643,7 @@ private fun DetachedBottomContent(
     sources: List<ContentSourceItem>,
     isLoadingOnly: Boolean,
     metrics: SourceQuickAccessMetrics,
+    isGroupedByLanguage: Boolean,
     selectedSourceIds: Set<Long>,
     onSourceClick: (ContentSourceItem) -> Unit,
     onSourceLongClick: (ContentSourceItem) -> Unit,
@@ -633,6 +661,7 @@ private fun DetachedBottomContent(
                 SourcesQuickAccessSection(
                     sources = sources,
                     metrics = metrics,
+                    isGroupedByLanguage = isGroupedByLanguage,
                     selectedSourceIds = selectedSourceIds,
                     onSourceClick = onSourceClick,
                     onSourceLongClick = onSourceLongClick,
@@ -666,6 +695,7 @@ private fun DetachedBottomContent(
 private fun SourcesQuickAccessSection(
     sources: List<ContentSourceItem>,
     metrics: SourceQuickAccessMetrics,
+    isGroupedByLanguage: Boolean,
     selectedSourceIds: Set<Long>,
     onSourceClick: (ContentSourceItem) -> Unit,
     onSourceLongClick: (ContentSourceItem) -> Unit,
@@ -673,10 +703,6 @@ private fun SourcesQuickAccessSection(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-    val isGroupedByLanguage by settings.observeAsState(AppSettings.KEY_SOURCES_GROUPED_BY_LANGUAGE) {
-        isSourcesGroupedByLanguage
-    }
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -781,11 +807,12 @@ private fun SourceQuickAccessGrid(
     onSourceClick: (ContentSourceItem) -> Unit,
     onSourceLongClick: (ContentSourceItem) -> Unit,
 ) {
+    val rows = remember(sources, columns) { sources.chunked(columns) }
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(metrics.gridSpacing),
     ) {
-        sources.chunked(columns).forEach { rowSources ->
+        rows.forEach { rowSources ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(metrics.gridSpacing),
@@ -1099,6 +1126,7 @@ private fun BrowsePopularListItem(
             coverUrl = item.coverUrl,
             content = item.manga,
             size = 150,
+            blurPercent = 58,
         )
     }
     val posterRequest = remember(item.coverUrl, item.id) {
@@ -1129,7 +1157,6 @@ private fun BrowsePopularListItem(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .blur(16.dp)
                     .alpha(0.58f),
             )
             Box(
@@ -1411,11 +1438,13 @@ private fun buildExploreCoverRequest(
     coverUrl: String?,
     content: org.skepsun.kototoro.parsers.model.Content,
     size: Int? = null,
+    blurPercent: Int = 0,
 ): ImageRequest {
     val builder = ImageRequest.Builder(context)
         .data(normalizeExploreCoverUrl(coverUrl))
         .mangaExtra(content)
         .crossfade(true)
+        .panoramaBlur(blurPercent)
     if (size != null) {
         builder.size(size)
     }
