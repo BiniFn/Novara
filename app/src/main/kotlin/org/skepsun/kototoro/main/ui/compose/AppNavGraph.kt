@@ -29,6 +29,7 @@ import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.nav.AppRouter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.geometry.Rect
 import androidx.fragment.app.FragmentActivity
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
@@ -50,6 +51,7 @@ import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
 import org.skepsun.kototoro.details.ui.compose.DetailsScreen
 import org.skepsun.kototoro.details.ui.DetailsViewModel
 import org.skepsun.kototoro.details.ui.compose.handleDetailsAction
+import org.skepsun.kototoro.parsers.model.Content
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -117,59 +119,86 @@ fun AppNavGraph(
             }
 
             CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
+                val onHomeContentClick = remember(navController) {
+                    { content: Content, _: Rect?, sharedElementKey: String? ->
+                        PendingDetailsNavigation.set(content, sharedElementKey)
+                        navController.navigate("details")
+                    }
+                }
+                val onHomeSettingsClick = remember(appRouter) { { appRouter.openSettings() } }
+                val onHomeReaderSettingsClick = remember(appRouter) { { appRouter.openReaderSettings() } }
+                val onHomeSyncSettingsClick = remember(appRouter) { { appRouter.openSyncSettings() } }
+                val onHomeViewAllRecentClick = remember(navController) {
+                    {
+                        navController.navigate("history") {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                }
+                val onHomeViewAllUpdatesClick = remember(navController) { { navController.navigate("updated") } }
+                val onHomeViewAllRecommendationsClick = remember(navController) {
+                    { navController.navigate("suggestions") }
+                }
+                val onHomeRecentSearchClick = remember(onOpenSearch) {
+                    { query: String ->
+                        onOpenSearch(
+                            SearchNavigationRequest(
+                                query = query,
+                                kind = org.skepsun.kototoro.search.domain.SearchKind.SIMPLE,
+                                sourceTypes = org.skepsun.kototoro.search.domain.ALL_SOURCE_TYPES,
+                                contentKinds = org.skepsun.kototoro.search.domain.ALL_SEARCH_CONTENT_KINDS,
+                                advancedQuery = null,
+                                pinnedOnly = false,
+                                hideEmpty = false,
+                                requestId = System.nanoTime(),
+                            ),
+                        )
+                    }
+                }
+                val onHomeSourceSettingsClick = remember(appRouter) { { appRouter.openSourcesSettings() } }
+                val onHomeLibraryOpenClick = remember(navController) {
+                    {
+                        navController.navigate("favorites") {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                }
+                val onHomeBookmarksClick = remember(navController) { { navController.navigate("bookmarks") } }
+                val onHomeLocalClick = remember(navController) {
+                    {
+                        navController.navigate("local") {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                }
+                val onHomeDownloadsClick = remember(appRouter) { { appRouter.openDownloads() } }
+                val onHomeRandomClick = remember(viewModel) { { viewModel.openRandom() } }
+                val onHomeAutoTranslateClick = remember(appRouter) { { appRouter.openTranslationSettings() } }
                 HomeScreen(
                     contentPadding = contentPadding,
                     state = state,
-                    onContentClick = { content, coverBounds, sharedElementKey ->
-                        PendingDetailsNavigation.set(content, sharedElementKey)
-                        navController.navigate("details")
-                    },
-                onSettingsClick = { appRouter.openSettings() },
-                onReaderSettingsClick = { appRouter.openReaderSettings() },
-                onSyncSettingsClick = { appRouter.openSyncSettings() },
-                onViewAllRecentClick = {
-                    navController.navigate("history") {
-                        popUpTo(navController.graph.startDestinationId) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                },
-                onViewAllUpdatesClick = { navController.navigate("updated") },
-                onViewAllRecommendationsClick = { navController.navigate("suggestions") },
-                onRecentSearchClick = { query ->
-                    onOpenSearch(
-                        SearchNavigationRequest(
-                            query = query,
-                            kind = org.skepsun.kototoro.search.domain.SearchKind.SIMPLE,
-                            sourceTypes = org.skepsun.kototoro.search.domain.ALL_SOURCE_TYPES,
-                            contentKinds = org.skepsun.kototoro.search.domain.ALL_SEARCH_CONTENT_KINDS,
-                            advancedQuery = null,
-                            pinnedOnly = false,
-                            hideEmpty = false,
-                            requestId = System.nanoTime(),
-                        ),
-                    )
-                },
-                onSourceSettingsClick = { appRouter.openSourcesSettings() },
-                onLibraryOpenClick = {
-                    navController.navigate("favorites") {
-                        popUpTo(navController.graph.startDestinationId) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                },
-                onBookmarksClick = { navController.navigate("bookmarks") },
-                onLocalClick = {
-                    navController.navigate("local") {
-                        popUpTo(navController.graph.startDestinationId) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                },
-                onDownloadsClick = { appRouter.openDownloads() },
-                onRandomClick = { viewModel.openRandom() },
-                onAutoTranslateClick = { appRouter.openTranslationSettings() },
-                isRandomLoading = isRandomLoading
+                    onContentClick = onHomeContentClick,
+                    onSettingsClick = onHomeSettingsClick,
+                    onReaderSettingsClick = onHomeReaderSettingsClick,
+                    onSyncSettingsClick = onHomeSyncSettingsClick,
+                    onViewAllRecentClick = onHomeViewAllRecentClick,
+                    onViewAllUpdatesClick = onHomeViewAllUpdatesClick,
+                    onViewAllRecommendationsClick = onHomeViewAllRecommendationsClick,
+                    onRecentSearchClick = onHomeRecentSearchClick,
+                    onSourceSettingsClick = onHomeSourceSettingsClick,
+                    onLibraryOpenClick = onHomeLibraryOpenClick,
+                    onBookmarksClick = onHomeBookmarksClick,
+                    onLocalClick = onHomeLocalClick,
+                    onDownloadsClick = onHomeDownloadsClick,
+                    onRandomClick = onHomeRandomClick,
+                    onAutoTranslateClick = onHomeAutoTranslateClick,
+                    isRandomLoading = isRandomLoading,
                 )
             }
         }

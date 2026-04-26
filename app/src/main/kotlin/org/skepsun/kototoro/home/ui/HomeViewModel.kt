@@ -2,6 +2,7 @@ package org.skepsun.kototoro.home.ui
 
 import android.content.Context
 import androidx.annotation.StringRes
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -52,6 +53,7 @@ import org.skepsun.kototoro.tracker.domain.TrackingRepository
 import org.skepsun.kototoro.tracker.domain.model.ContentTracking
 import javax.inject.Inject
 
+@Immutable
 data class HomeRecentItem(
     val content: Content,
     val cardModel: ContentGridModel? = null,
@@ -65,6 +67,7 @@ data class HomeRecentItem(
         get() = content.source.getContentType().toHomeTab()?.titleResId
 }
 
+@Immutable
 data class HomeUpdateItem(
     val content: Content,
     val newChapters: Int,
@@ -75,6 +78,7 @@ data class HomeUpdateItem(
         get() = content.title
 }
 
+@Immutable
 data class HomeRecommendationItem(
     val content: Content,
     val cardModel: ContentGridModel? = null,
@@ -84,10 +88,12 @@ data class HomeRecommendationItem(
         get() = content.title
 }
 
+@Immutable
 data class HomeRecentSearchItem(
     val query: String,
 )
 
+@Immutable
 data class HomeResumeState(
     val content: Content? = null,
     val progressPercent: Int? = null,
@@ -113,11 +119,13 @@ enum class HomeSourceOrigin {
     IREADER,
 }
 
+@Immutable
 data class HomeSourceBreakdown(
     val origin: HomeSourceOrigin,
     val count: Int,
 )
 
+@Immutable
 data class HomeSyncState(
     val isWebDavEnabled: Boolean = false,
     val isAutoSyncEnabled: Boolean = false,
@@ -125,6 +133,7 @@ data class HomeSyncState(
     val lastUploadKind: String? = null,
 )
 
+@Immutable
 data class HomeSummaryState(
     val selectedTab: HomeContentTab? = null,
     val recentHistoryCount: Int = 0,

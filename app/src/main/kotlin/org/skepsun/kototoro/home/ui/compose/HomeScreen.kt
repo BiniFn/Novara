@@ -143,6 +143,7 @@ fun HomeScreen(
     onRandomClick: () -> Unit,
     onAutoTranslateClick: () -> Unit,
     isRandomLoading: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     val scrollState = rememberScrollState()
     val layoutDirection = LocalLayoutDirection.current
@@ -201,7 +202,7 @@ fun HomeScreen(
         HomeQuickAction(stringResource(R.string.settings), R.drawable.ic_settings, onSettingsClick),
     )
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .nestedScroll(rememberNestedScrollInteropConnection())
             .verticalScroll(scrollState)
@@ -932,6 +933,7 @@ private fun HomeCoverRowItem(
     }
 }
 
+@Immutable
 private data class HomeCoverDisplayItem(
     val content: Content,
     val cardModel: ContentGridModel?,
