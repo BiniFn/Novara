@@ -45,6 +45,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -72,10 +73,10 @@ import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
 import org.skepsun.kototoro.core.ui.compose.rememberHorizontalRailScrollIntensity
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 
+import org.skepsun.kototoro.list.ui.compose.ContentCardUiPrefs
 import org.skepsun.kototoro.list.ui.compose.KototoroContentCard
 import org.skepsun.kototoro.list.ui.compose.KototoroSelectionTopBar
 import org.skepsun.kototoro.list.ui.compose.SelectionAction
-import org.skepsun.kototoro.list.ui.compose.rememberContentCardUiPrefs
 import org.skepsun.kototoro.list.ui.model.ButtonFooter
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.EmptyState
@@ -97,6 +98,12 @@ import org.skepsun.kototoro.search.ui.multi.SearchViewModel
 private data class SearchPreparedItems(
     val sections: List<SearchResultsListModel>,
     val supplementaryItems: List<ListModel>,
+)
+
+@Immutable
+private data class SearchResultsScreenPrefs(
+    val gridScale: Float,
+    val cardUiPrefs: ContentCardUiPrefs,
 )
 
 private fun prepareSearchItems(items: List<ListModel>): SearchPreparedItems {
@@ -142,9 +149,25 @@ fun SearchResultsRoute(
     val isTvBoxSourceTypeActive by viewModel.isTvBoxSourceTypeActive.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-    val gridSize = settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize }.value
-    val gridScale = gridSize / 100f
-    val cardUiPrefs = rememberContentCardUiPrefs(settings)
+    val screenPrefs by settings.observeAsState(
+        AppSettings.KEY_GRID_SIZE,
+        AppSettings.KEY_BADGES_TOP_LEFT,
+        AppSettings.KEY_BADGES_TOP_RIGHT,
+        AppSettings.KEY_BADGES_BOTTOM_LEFT,
+        AppSettings.KEY_BADGES_BOTTOM_RIGHT,
+    ) {
+        SearchResultsScreenPrefs(
+            gridScale = gridSize / 100f,
+            cardUiPrefs = ContentCardUiPrefs(
+                badgesTopLeft = badgesTopLeft,
+                badgesTopRight = badgesTopRight,
+                badgesBottomLeft = badgesBottomLeft,
+                badgesBottomRight = badgesBottomRight,
+            ),
+        )
+    }
+    val gridScale = screenPrefs.gridScale
+    val cardUiPrefs = screenPrefs.cardUiPrefs
 
     var query by rememberSaveable { mutableStateOf(viewModel.query) }
     var searchKind by rememberSaveable { mutableStateOf(viewModel.kind) }
