@@ -29,6 +29,7 @@ import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.ReaderIntent
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.details.ui.model.ChapterListItem
+import org.skepsun.kototoro.details.ui.compose.state.DetailsPaneState
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
 import org.skepsun.kototoro.details.ui.pager.chapters.ChapterGroupsManager
 import org.skepsun.kototoro.details.ui.withVolumeHeaders
@@ -42,6 +43,7 @@ fun ChaptersScreenRoot(
 	viewForSnackbar: View,
 	lifecycleOwner: LifecycleOwner,
 	isScrollEnabled: Boolean = true,
+    detailsPaneState: DetailsPaneState? = null,
     handleSelectionBackPressInternally: Boolean = true,
     onSelectionStateChange: (ChapterSelectionUiState?) -> Unit = {},
 ) {
@@ -182,6 +184,7 @@ fun ChaptersScreenRoot(
 		items = collapsedChapters,
 		isGridView = isGridView,
         isScrollEnabled = isScrollEnabled,
+        detailsPaneState = detailsPaneState,
 		gridSpanCount = 2,
 		selectedItemIds = selectedIds,
 		filterChips = emptyList(),

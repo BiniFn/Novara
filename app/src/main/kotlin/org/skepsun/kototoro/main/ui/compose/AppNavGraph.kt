@@ -37,11 +37,12 @@ import org.skepsun.kototoro.search.ui.compose.SearchNavigationRequest
 import org.skepsun.kototoro.search.ui.compose.SearchResultsRoute
 import org.skepsun.kototoro.search.ui.compose.SearchRoute
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.CompositionLocalProvider
 import org.skepsun.kototoro.core.nav.PendingDetailsNavigation
 import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
@@ -65,7 +66,6 @@ fun AppNavGraph(
     val appRouter = activity.router
     val mainActivity = activity as? MainActivity
     val rootView = LocalView.current
-    val hasPendingSharedElement = remember { { PendingDetailsNavigation.lastSharedElementKey() != null } }
     val navigateToDetailsWithContent = remember(navController) {
         { content: Content, sharedElementKey: String? ->
             PendingDetailsNavigation.set(content, sharedElementKey)
@@ -721,32 +721,28 @@ fun AppNavGraph(
 
         composable<DetailsRoute>(
             enterTransition = {
-                if (hasPendingSharedElement()) {
-                    null
-                } else {
-                    slideInHorizontally(tween(320, easing = FastOutSlowInEasing)) { it }
-                }
+                slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
+                    animationSpec = tween(320, easing = LinearEasing),
+                ) + fadeIn(tween(220, easing = LinearEasing))
             },
             exitTransition = {
-                if (hasPendingSharedElement()) {
-                    null
-                } else {
-                    slideOutHorizontally(tween(320, easing = FastOutSlowInEasing)) { -it / 4 }
-                }
+                slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
+                    animationSpec = tween(320, easing = LinearEasing),
+                ) + fadeOut(tween(180, easing = LinearEasing))
             },
             popEnterTransition = {
-                if (hasPendingSharedElement()) {
-                    null
-                } else {
-                    slideInHorizontally(tween(320, easing = FastOutSlowInEasing)) { -it / 4 }
-                }
+                slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Right,
+                    animationSpec = tween(320, easing = LinearEasing),
+                ) + fadeIn(tween(180, easing = LinearEasing))
             },
             popExitTransition = {
-                if (hasPendingSharedElement()) {
-                    null
-                } else {
-                    slideOutHorizontally(tween(320, easing = FastOutSlowInEasing)) { it }
-                }
+                slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Right,
+                    animationSpec = tween(320, easing = LinearEasing),
+                ) + fadeOut(tween(160, easing = LinearEasing))
             },
         ) {
             val detailsViewModel = hiltViewModel<DetailsViewModel>()

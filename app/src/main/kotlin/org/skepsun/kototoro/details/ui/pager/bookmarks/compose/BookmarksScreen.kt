@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -24,6 +26,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -33,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.bookmarks.domain.Bookmark
+import org.skepsun.kototoro.details.ui.compose.state.DetailsPaneState
+import org.skepsun.kototoro.details.ui.compose.state.rememberDetailsPaneNestedScrollConnection
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -100,11 +105,24 @@ fun BookmarksScreen(
 	items: List<org.skepsun.kototoro.list.ui.model.ListModel>,
 	gridMinSize: Dp,
 	selectedItemIds: Set<Long>,
+	detailsPaneState: DetailsPaneState? = null,
 	onItemClick: (Bookmark) -> Unit,
 	onItemLongClick: (Bookmark) -> Unit,
 	onSelectionActionClick: (Int) -> Unit,
 	onClearSelection: () -> Unit,
 ) {
+    val gridState = rememberLazyGridState()
+    val paneNestedScrollConnection = rememberDetailsPaneNestedScrollConnection(
+        state = detailsPaneState,
+        canChildScrollBackward = { gridState.canScrollBackward },
+    )
+    val paneNestedScrollModifier = remember(paneNestedScrollConnection) {
+        if (paneNestedScrollConnection != null) {
+            Modifier.nestedScroll(paneNestedScrollConnection)
+        } else {
+            Modifier
+        }
+    }
 	Box(modifier = Modifier.fillMaxSize()) {
 		if (items.isEmpty()) {
 			Text(
@@ -115,11 +133,14 @@ fun BookmarksScreen(
 			)
 		} else {
 			LazyVerticalGrid(
+                state = gridState,
 				columns = GridCells.Adaptive(minSize = gridMinSize),
 				contentPadding = PaddingValues(16.dp),
 				horizontalArrangement = Arrangement.spacedBy(8.dp),
 				verticalArrangement = Arrangement.spacedBy(8.dp),
-				modifier = Modifier.fillMaxSize(),
+				modifier = Modifier
+                    .fillMaxSize()
+                    .then(paneNestedScrollModifier),
 			) {
 				items(items.filterIsInstance<Bookmark>(), key = { it.pageId }) { bookmark ->
 					BookmarkCard(

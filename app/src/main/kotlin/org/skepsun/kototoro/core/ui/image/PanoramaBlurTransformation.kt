@@ -20,6 +20,7 @@ class PanoramaBlurTransformation(
 ) : Transformation() {
 
     private val radius = ((blurPercent.coerceIn(0, 100) / 100f) * MAX_RADIUS_PX)
+        .times(0.72f)
         .roundToInt()
         .coerceIn(1, MAX_RADIUS_PX)
 
@@ -122,6 +123,6 @@ class PanoramaBlurTransformation(
     }
 
     private companion object {
-        const val MAX_RADIUS_PX = 24
+        const val MAX_RADIUS_PX = 18
     }
 }

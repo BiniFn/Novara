@@ -481,6 +481,7 @@ fun KototoroExploreHostRoute(
                             animationKey = "explore_popular_${item.id}",
                             index = index + showcaseRows.size + 1,
                             listState = listState,
+                            enableScrollLinkedAnimation = false,
                             scaleFactor = 0f,
                             scrollIntensity = verticalScrollIntensity,
                         ) { animatedModifier ->

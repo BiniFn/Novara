@@ -424,9 +424,6 @@ private fun HomeHeroCarousel(
         val horizontalContentPadding = 14.dp
         val cardWidth = (maxWidth - (horizontalContentPadding * 2) - (sidePeek * 2) - pageSpacing)
             .coerceAtLeast(264.dp)
-        val sidePeekPx = with(density) { sidePeek.toPx() }
-        val liftPx = with(density) { 18.dp.toPx() }
-
         Box(modifier = Modifier.fillMaxWidth()) {
             HorizontalPager(
                 state = pagerState,
@@ -457,8 +454,8 @@ private fun HomeHeroCarousel(
                             scaleX = pageScale
                             scaleY = pageScale
                             alpha = 0.64f + (0.36f * focusProgress)
-                            translationX = signedPageOffset * sidePeekPx * 0.52f
-                            translationY = (1f - focusProgress) * liftPx
+                            translationX = 0f
+                            translationY = 0f
                             transformOrigin = TransformOrigin(horizontalTransformOrigin, 0.5f)
                         },
                 )
@@ -496,17 +493,18 @@ private fun HomeHeroCard(
 ) {
     val context = LocalContext.current
     val content = entry.content
-    val imageRequest = remember(content.coverUrl, content.id) {
+    val sharedTransitionScope = LocalSharedTransitionScope.current
+    val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
+    val shouldCrossfadeCover = sharedTransitionScope == null || animatedVisibilityScope == null
+    val imageRequest = remember(content.coverUrl, content.id, shouldCrossfadeCover) {
         ImageRequest.Builder(context)
             .data(content.coverUrl)
-            .crossfade(true)
+            .crossfade(shouldCrossfadeCover)
             .apply { mangaExtra(content) }
             .build()
     }
     var coverBounds by remember(entry.kind, content.id) { mutableStateOf<Rect?>(null) }
     val edgeScrimAlpha = 0.16f
-    val sharedTransitionScope = LocalSharedTransitionScope.current
-    val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
     val sharedElementKey = remember(entry.kind, content.id, content.coverUrl) {
         contentCoverSharedKey(
             sourceName = content.source.name,
@@ -834,6 +832,7 @@ private fun HomeContentRowSection(
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun HomeCoverRowItem(
     item: HomeCoverDisplayItem,
@@ -851,25 +850,49 @@ private fun HomeCoverRowItem(
         } ?: 12.dp
     }
     val content = item.content
-    val imageRequest = remember(content.coverUrl, content.id) {
+    var coverBounds by remember(content.id) { mutableStateOf<Rect?>(null) }
+    val sharedTransitionScope = LocalSharedTransitionScope.current
+    val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
+    val shouldCrossfadeCover = sharedTransitionScope == null || animatedVisibilityScope == null
+    val imageRequest = remember(content.coverUrl, content.id, shouldCrossfadeCover) {
         ImageRequest.Builder(context)
             .data(content.coverUrl)
-            .crossfade(true)
+            .crossfade(shouldCrossfadeCover)
             .apply { mangaExtra(content) }
             .build()
     }
     val badgeMetrics = remember(posterStyle.itemWidth) { contentCardBadgeMetricsFor(posterStyle.itemWidth) }
+    val sharedElementKey = remember(content.id, content.coverUrl, content.source.name) {
+        contentCoverSharedKey(
+            content.source.name,
+            content.coverUrl.orEmpty(),
+            instanceKey = "home_row_${content.id}",
+        )
+    }
 
     Column(
         modifier = modifier
             .width(posterStyle.itemWidth)
-            .clickable { onClick(null, null) },
+            .clickable { onClick(coverBounds, sharedElementKey) },
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(posterStyle.posterHeight)
+                .onGloballyPositioned { coordinates ->
+                    coverBounds = coordinates.unclippedBoundsInWindow()
+                }
+                .then(
+                    if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                        with(sharedTransitionScope) {
+                            Modifier.sharedElement(
+                                rememberSharedContentState(key = sharedElementKey),
+                                animatedVisibilityScope = animatedVisibilityScope,
+                            )
+                        }
+                    } else Modifier
+                )
                 .clip(cardShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {

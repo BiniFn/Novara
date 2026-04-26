@@ -12,6 +12,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.bookmarks.domain.Bookmark
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.ReaderIntent
+import org.skepsun.kototoro.details.ui.compose.state.DetailsPaneState
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
 import org.skepsun.kototoro.details.ui.pager.bookmarks.BookmarksViewModel
 
@@ -21,6 +22,7 @@ fun BookmarksScreenRoot(
 	router: AppRouter,
 	context: Context,
 	viewModel: BookmarksViewModel,
+	detailsPaneState: DetailsPaneState? = null,
 ) {
 	val contentItems by viewModel.content.collectAsStateWithLifecycle(initialValue = emptyList())
 	val gridScale by viewModel.gridScale.collectAsStateWithLifecycle(initialValue = 1f)
@@ -38,6 +40,7 @@ fun BookmarksScreenRoot(
 		items = contentItems,
 		gridMinSize = (120.dp / gridScale.coerceIn(0.5f, 1.5f)),
 		selectedItemIds = selectedIds,
+		detailsPaneState = detailsPaneState,
 		onItemClick = { item ->
 			val bookmark = item as Bookmark
 			if (selectedItemIds.isNotEmpty()) {

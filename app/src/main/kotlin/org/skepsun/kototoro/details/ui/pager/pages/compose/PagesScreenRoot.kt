@@ -15,6 +15,7 @@ import com.google.android.material.snackbar.Snackbar
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.details.ui.compose.state.DetailsPaneState
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
 import org.skepsun.kototoro.details.ui.pager.pages.PageThumbnail
 import org.skepsun.kototoro.details.ui.pager.pages.PagesViewModel
@@ -29,6 +30,7 @@ fun PagesScreenRoot(
 	viewForSnackbar: View,
 	lifecycleOwner: LifecycleOwner,
 	viewModel: PagesViewModel,
+	detailsPaneState: DetailsPaneState? = null,
 ) {
 	val thumbnails by viewModel.thumbnails.collectAsStateWithLifecycle(initialValue = emptyList())
 	val isLoading by viewModel.isLoading.collectAsStateWithLifecycle(initialValue = false)
@@ -70,6 +72,7 @@ fun PagesScreenRoot(
 		selectedItemIds = selectedIds,
 		emptyMessageResId = null,
 		isLoading = isLoading,
+		detailsPaneState = detailsPaneState,
 		onItemClick = { item ->
 			val thumbnail = item as PageThumbnail
 			if (selectedItemIds.isNotEmpty()) {

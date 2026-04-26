@@ -69,6 +69,7 @@ import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.image.panoramaBlur
+import org.skepsun.kototoro.core.ui.image.rememberPanoramaRequestSize
 import org.skepsun.kototoro.core.ui.compose.HeroAutoAdvanceEffect
 import org.skepsun.kototoro.core.ui.compose.unclippedBoundsInWindow
 import org.skepsun.kototoro.core.ui.compose.HeroPagerIndicator
@@ -149,6 +150,14 @@ fun DiscoverHeroCarousel(
     val context = LocalContext.current
     val resolvedSettings = settings ?: remember(context.applicationContext) { AppSettings(context.applicationContext) }
     val panoramaPrefs = rememberDiscoverHeroPanoramaPrefs(resolvedSettings)
+    val panoramaRequestSize = rememberPanoramaRequestSize(
+        minWidthPx = 960,
+        minHeightPx = 720,
+        maxWidthPx = 1600,
+        maxHeightPx = 1280,
+        widthOverscan = 1.34f,
+        heightOverscan = 0.64f,
+    )
     val heroBottomBlendHeight = when {
         detachedBottomContent && isLandscape -> DiscoverHeroBottomBlendHeightDetachedLandscape
         detachedBottomContent -> ((panoramaPrefs.blendHeight * 0.54f).toInt()).dp
@@ -252,10 +261,11 @@ fun DiscoverHeroCarousel(
                     backgroundItem.coverUrl,
                     context,
                     panoramaPrefs.blurPercent,
+                    panoramaRequestSize,
                 ) {
                     ImageRequest.Builder(context)
                         .data(backgroundItem.coverUrl)
-                        .size(250) // drastically reduces GPU workload for blurring
+                        .size(panoramaRequestSize)
                         .panoramaBlur(panoramaPrefs.blurPercent)
                         .build()
                 }

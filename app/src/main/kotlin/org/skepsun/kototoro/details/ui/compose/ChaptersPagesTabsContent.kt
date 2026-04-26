@@ -46,6 +46,7 @@ import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.details.ui.model.DetailsChapterSourceTab
+import org.skepsun.kototoro.details.ui.compose.state.DetailsPaneState
 import org.skepsun.kototoro.details.ui.model.toListItem
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
 import org.skepsun.kototoro.details.ui.pager.bookmarks.BookmarksViewModel
@@ -90,6 +91,7 @@ fun ChaptersPagesTabsContent(
 	isSheetFullyExpanded: Boolean = true,
 	isChapterListScrollEnabled: Boolean = true,
 	handleSelectionBackPressInternally: Boolean = true,
+    detailsPaneState: DetailsPaneState? = null,
     chapterQuery: String = "",
     isChapterSearchVisible: Boolean = false,
     onChapterQueryChange: ((String) -> Unit)? = null,
@@ -215,6 +217,7 @@ fun ChaptersPagesTabsContent(
 						onSelectMetadataChapterTab = onSelectMetadataChapterTab,
 						onSelectReadingChapterTab = onSelectReadingChapterTab,
 						isScrollEnabled = isChapterListScrollEnabled,
+						detailsPaneState = detailsPaneState,
                         handleSelectionBackPressInternally = handleSelectionBackPressInternally,
                         onChapterSelectionStateChange = onChapterSelectionStateChange,
 					)
@@ -226,12 +229,14 @@ fun ChaptersPagesTabsContent(
 						viewForSnackbar = viewForSnackbar,
 						lifecycleOwner = lifecycleOwner,
 						viewModel = pagesViewModel,
+						detailsPaneState = detailsPaneState,
 					)
 					DETAILS_TAB_BOOKMARKS -> BookmarksScreenRoot(
 						activityViewModel = viewModel,
 						router = router,
 						context = context,
 						viewModel = bookmarksViewModel,
+						detailsPaneState = detailsPaneState,
 					)
 				}
 			}
@@ -257,6 +262,7 @@ private fun DetailsChapterPanels(
 	onSelectMetadataChapterTab: (DetailsChapterSourceTab) -> Unit,
 	onSelectReadingChapterTab: (DetailsChapterSourceTab) -> Unit,
 	isScrollEnabled: Boolean,
+    detailsPaneState: DetailsPaneState? = null,
     handleSelectionBackPressInternally: Boolean,
     onChapterSelectionStateChange: (ChapterSelectionUiState?) -> Unit,
 ) {
@@ -331,6 +337,7 @@ private fun DetailsChapterPanels(
 					viewForSnackbar = viewForSnackbar,
 					lifecycleOwner = lifecycleOwner,
 					isScrollEnabled = isScrollEnabled,
+                    detailsPaneState = detailsPaneState,
                     handleSelectionBackPressInternally = handleSelectionBackPressInternally,
                     onSelectionStateChange = onChapterSelectionStateChange,
 				)

@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -16,6 +17,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +28,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.details.ui.compose.state.DetailsPaneState
+import org.skepsun.kototoro.details.ui.compose.state.rememberDetailsPaneNestedScrollConnection
 import org.skepsun.kototoro.details.ui.pager.pages.PageThumbnail
 import org.skepsun.kototoro.list.ui.model.ListHeader
 
@@ -118,12 +122,25 @@ fun PagesScreen(
 	selectedItemIds: Set<Long>,
 	emptyMessageResId: Int?,
 	isLoading: Boolean,
+	detailsPaneState: DetailsPaneState? = null,
 	onItemClick: (PageThumbnail) -> Unit,
 	onItemLongClick: (PageThumbnail) -> Unit,
 	onSelectionActionClick: (Int) -> Unit,
 	onClearSelection: () -> Unit,
 ) {
     val context = LocalContext.current
+    val listState = rememberLazyGridState()
+    val paneNestedScrollConnection = rememberDetailsPaneNestedScrollConnection(
+        state = detailsPaneState,
+        canChildScrollBackward = { listState.canScrollBackward },
+    )
+    val paneNestedScrollModifier = remember(paneNestedScrollConnection) {
+        if (paneNestedScrollConnection != null) {
+            Modifier.nestedScroll(paneNestedScrollConnection)
+        } else {
+            Modifier
+        }
+    }
 	Box(modifier = Modifier.fillMaxSize()) {
 		if (isLoading) {
 			CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
@@ -139,8 +156,6 @@ fun PagesScreen(
                 )
             }
 		} else {
-			val listState = rememberLazyGridState()
-
 			LaunchedEffect(items) {
 				val currentIndex = items.indexOfFirst { item ->
                     item is PageThumbnail && item.isCurrent
@@ -156,7 +171,9 @@ fun PagesScreen(
 				contentPadding = PaddingValues(16.dp),
 				horizontalArrangement = Arrangement.spacedBy(8.dp),
 				verticalArrangement = Arrangement.spacedBy(8.dp),
-				modifier = Modifier.fillMaxSize(),
+				modifier = Modifier
+                    .fillMaxSize()
+                    .then(paneNestedScrollModifier),
 			) {
                 items(
                     count = items.size,

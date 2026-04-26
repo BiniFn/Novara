@@ -24,6 +24,7 @@ import coil3.request.crossfade
 import androidx.compose.ui.platform.LocalContext
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.image.rememberPanoramaRequestSize
 import org.skepsun.kototoro.core.ui.image.panoramaBlur
 
 @Immutable
@@ -123,21 +124,30 @@ fun AnimatedPanoramaBackdrop(
     }
 
     val context = LocalContext.current
+    val panoramaRequestSize = rememberPanoramaRequestSize(
+        minWidthPx = 960,
+        minHeightPx = 960,
+        maxWidthPx = 1920,
+        maxHeightPx = 1600,
+        widthOverscan = 1.42f,
+        heightOverscan = 1.0f,
+    )
     val backgroundRequest = androidx.compose.runtime.remember(
         model,
         context,
         crossfadeEnabled,
         prefs.blurPercent,
+        panoramaRequestSize,
     ) {
         when (model) {
             is ImageRequest -> model.newBuilder()
-                .size(400)
+                .size(panoramaRequestSize)
                 .crossfade(crossfadeEnabled)
                 .panoramaBlur(prefs.blurPercent)
                 .build()
             else -> ImageRequest.Builder(context)
                 .data(model)
-                .size(400)
+                .size(panoramaRequestSize)
                 .crossfade(crossfadeEnabled)
                 .panoramaBlur(prefs.blurPercent)
                 .build()

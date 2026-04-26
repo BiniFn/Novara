@@ -4,6 +4,8 @@ import android.content.res.Configuration
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -170,6 +172,8 @@ import org.skepsun.kototoro.stats.ui.sheet.ContentStatsViewModel
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import java.util.Locale
@@ -445,8 +449,20 @@ fun DetailsScreen(
         }
     }
 
-    BackHandler(enabled = !isWideAdaptiveLayout && detailsPaneState.shouldHandleBack) {
-        handleBackPress()
+    val shouldInterceptPaneBack = !isWideAdaptiveLayout && detailsPaneState.shouldHandleBack
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        PredictiveBackHandler(enabled = shouldInterceptPaneBack) { progress ->
+            try {
+                progress.collect { }
+                handleBackPress()
+            } catch (_: CancellationException) {
+                Unit
+            }
+        }
+    } else {
+        BackHandler(enabled = shouldInterceptPaneBack) {
+            handleBackPress()
+        }
     }
 
     LaunchedEffect(sheetTabSelection, isCompactPaneFullyExpanded) {
@@ -1587,38 +1603,66 @@ private fun DetailsPaneContent(
         label = "detailsPaneActionsExpansion",
     )
     val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val colorScheme = MaterialTheme.colorScheme
     val isCollapsedPane = showCollapsedHandle && detailsPaneState.anchor == CompactDetailsPaneAnchor.Collapsed
-    val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val paneGlassStyle = remember(showCollapsedHandle, isCollapsedPane, isSheetFullyExpanded, paneOpacityProgress, isDarkTheme) {
-        GlassStyle(
-            containerAlpha = when {
-                !showCollapsedHandle -> if (isDarkTheme) 0.88f else 0.76f
-                isCollapsedPane -> if (isDarkTheme) 0.94f else 0.62f
-                isSheetFullyExpanded -> if (isDarkTheme) {
-                    lerpFloat(0.82f, 0.88f, paneOpacityProgress)
-                } else {
-                    lerpFloat(0.46f, 0.56f, paneOpacityProgress)
-                }
-                else -> if (isDarkTheme) {
-                    lerpFloat(0.68f, 0.86f, paneOpacityProgress)
-                } else {
-                    lerpFloat(0.40f, 0.52f, paneOpacityProgress)
-                }
-            },
-            borderAlpha = when {
-                isDarkTheme && isCollapsedPane -> 0.18f
-                isDarkTheme -> 0.24f
-                isCollapsedPane -> 0.10f
-                else -> 0.14f
-            },
-            tonalElevation = 0.dp,
-            shadowElevation = when {
-                isCollapsedPane -> 0.dp
-                isDarkTheme -> 8.dp
-                else -> 0.dp
-            },
-        )
+    val isDarkTheme = colorScheme.background.luminance() < 0.5f
+    val useCompactPaneSurfaceTint = showCollapsedHandle
+    val paneShadowElevation = if (useCompactPaneSurfaceTint) 0.dp else 2.dp
+    val paneBorderColor = colorScheme.outlineVariant.copy(
+        alpha = if (useCompactPaneSurfaceTint) {
+            if (isDarkTheme) 0.10f else 0.08f
+        } else if (isDarkTheme) {
+            0.12f
+        } else {
+            0.08f
+        },
+    )
+    val paneTopBaseColor = if (isDarkTheme) {
+        colorScheme.surfaceContainerHigh
+    } else {
+        colorScheme.surface
     }
+    val paneBottomBaseColor = if (isDarkTheme) {
+        colorScheme.surfaceContainer
+    } else {
+        colorScheme.surfaceContainerLow
+    }
+    val paneTopAlpha = when {
+        !showCollapsedHandle -> if (isDarkTheme) 0.76f else 0.16f
+        useCompactPaneSurfaceTint && isCollapsedPane -> if (isDarkTheme) 0.92f else 0.90f
+        useCompactPaneSurfaceTint && isSheetFullyExpanded -> if (isDarkTheme) 0.88f else 0.84f
+        useCompactPaneSurfaceTint -> if (isDarkTheme) 0.84f else 0.80f
+        isCollapsedPane -> if (isDarkTheme) 0.82f else 0.20f
+        isSheetFullyExpanded -> if (isDarkTheme) {
+            lerpFloat(0.68f, 0.74f, paneOpacityProgress)
+        } else {
+            lerpFloat(0.12f, 0.18f, paneOpacityProgress)
+        }
+        else -> if (isDarkTheme) {
+            lerpFloat(0.56f, 0.68f, paneOpacityProgress)
+        } else {
+            lerpFloat(0.08f, 0.16f, paneOpacityProgress)
+        }
+    }
+    val paneTopGradientColor = paneTopBaseColor.copy(alpha = paneTopAlpha)
+    val paneMiddleGradientColor = paneTopBaseColor.copy(
+        alpha = paneTopAlpha * if (useCompactPaneSurfaceTint) {
+            if (isDarkTheme) 0.97f else 0.95f
+        } else if (isDarkTheme) {
+            0.92f
+        } else {
+            0.82f
+        },
+    )
+    val paneBottomGradientColor = paneBottomBaseColor.copy(
+        alpha = paneTopAlpha * if (useCompactPaneSurfaceTint) {
+            if (isDarkTheme) 0.94f else 0.90f
+        } else if (isDarkTheme) {
+            0.80f
+        } else {
+            0.58f
+        },
+    )
     val paneShape = if (showCollapsedHandle && isSheetFullyExpanded && paneOpacityProgress >= 0.96f) {
         RoundedCornerShape(0.dp)
     } else {
@@ -1628,17 +1672,33 @@ private fun DetailsPaneContent(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.TopCenter,
     ) {
-        GlassSurface(
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(modifier),
-            style = paneGlassStyle,
             shape = paneShape,
-            allowRuntimeHaze = true,
+            color = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            tonalElevation = 0.dp,
+            shadowElevation = paneShadowElevation,
+            border = if (paneBorderColor.alpha > 0f) {
+                BorderStroke(width = 1.dp, color = paneBorderColor)
+            } else {
+                null
+            },
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                paneTopGradientColor,
+                                paneMiddleGradientColor,
+                                paneBottomGradientColor,
+                            ),
+                        ),
+                    ),
             ) {
                 Column(
                     modifier = Modifier
@@ -1689,6 +1749,7 @@ private fun DetailsPaneContent(
                             isSheetFullyExpanded = isSheetFullyExpanded,
                             isChapterListScrollEnabled = if (showCollapsedHandle) isSheetFullyExpanded else true,
                             handleSelectionBackPressInternally = !showCollapsedHandle,
+                            detailsPaneState = if (showCollapsedHandle) detailsPaneState else null,
                             chapterQuery = chapterQuery,
                             isChapterSearchVisible = isChapterSearchVisible,
                             onChapterQueryChange = onChapterQueryChange,
@@ -1768,7 +1829,7 @@ private fun DetailsPaneActionsRow(
         horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
     ) {
         if (showCollapsedHandle) {
-            val collapsedHandleHeight = 10.dp
+            val collapsedHandleHeight = 18.dp
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.AnchoredDraggableState as createAnchoredDraggableState
 import androidx.compose.foundation.gestures.DraggableAnchors
+import androidx.compose.foundation.gestures.animateTo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -16,6 +17,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -74,6 +79,7 @@ class DetailsPaneState internal constructor(
         private set
 
     private var hostHeightPx by mutableFloatStateOf(0f)
+    private var isNestedPaneDragInProgress = false
 
     private val paneHeightPx: Float
         get() = with(density) { paneHeight.toPx() }
@@ -257,10 +263,10 @@ class DetailsPaneState internal constructor(
 
     fun animateTo(targetAnchor: CompactDetailsPaneAnchor) {
         coroutineScope.launch {
-            anchor = targetAnchor
             updateAnchors(targetAnchor)
-            anchoredState.settle(
-                tween(
+            anchoredState.animateTo(
+                targetAnchor,
+                animationSpec = tween(
                     durationMillis = compactPaneAnimationDurationMillis(targetAnchor),
                     easing = FastOutSlowInEasing,
                 ),
@@ -301,10 +307,26 @@ class DetailsPaneState internal constructor(
             return
         }
         when (anchor) {
-            CompactDetailsPaneAnchor.Full -> animateTo(CompactDetailsPaneAnchor.Hovered)
+            CompactDetailsPaneAnchor.Full,
             CompactDetailsPaneAnchor.Hovered -> animateTo(CompactDetailsPaneAnchor.Collapsed)
             CompactDetailsPaneAnchor.Collapsed -> onBackClick()
         }
+    }
+
+    fun dispatchPaneDragDelta(deltaY: Float): Float {
+        val consumedDelta = anchoredState.dispatchRawDelta(deltaY)
+        if (consumedDelta != 0f) {
+            isNestedPaneDragInProgress = true
+        }
+        return consumedDelta
+    }
+
+    fun hasNestedPaneDragInProgress(): Boolean = isNestedPaneDragInProgress
+
+    suspend fun settleAfterNestedDrag(velocityY: Float = 0f) {
+        if (!isNestedPaneDragInProgress) return
+        isNestedPaneDragInProgress = false
+        anchoredState.settle(velocityY)
     }
 
     private fun updateAnchors(targetAnchor: CompactDetailsPaneAnchor = anchor) {
@@ -365,6 +387,49 @@ fun rememberDetailsPaneState(
         state.onSettledValueChanged()
     }
     return state
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun rememberDetailsPaneNestedScrollConnection(
+    state: DetailsPaneState?,
+    canChildScrollBackward: () -> Boolean,
+): NestedScrollConnection? {
+    if (state == null) return null
+    return remember(state, canChildScrollBackward) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source != NestedScrollSource.UserInput) return Offset.Zero
+                val hasGestureOwnership = state.hasNestedPaneDragInProgress()
+                val shouldStartPaneDrag = state.anchor == CompactDetailsPaneAnchor.Full &&
+                    available.y > 0f &&
+                    !canChildScrollBackward()
+                if (!hasGestureOwnership && !shouldStartPaneDrag) return Offset.Zero
+                val consumedY = state.dispatchPaneDragDelta(available.y)
+                return Offset(
+                    x = 0f,
+                    y = if (hasGestureOwnership && consumedY == 0f) available.y else consumedY,
+                )
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                if (state.anchor != CompactDetailsPaneAnchor.Full || !state.hasNestedPaneDragInProgress()) {
+                    return Velocity.Zero
+                }
+                state.settleAfterNestedDrag(velocityY = available.y)
+                return Velocity(x = 0f, y = available.y)
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                if (state.anchor != CompactDetailsPaneAnchor.Full || !state.hasNestedPaneDragInProgress()) {
+                    return Velocity.Zero
+                }
+                val settleVelocity = if (available.y != 0f) available.y else consumed.y
+                state.settleAfterNestedDrag(velocityY = settleVelocity)
+                return Velocity(x = 0f, y = settleVelocity)
+            }
+        }
+    }
 }
 
 private fun compactPaneFullOffsetPx(
