@@ -202,7 +202,7 @@ fun HomeScreen(
         HomeQuickAction(stringResource(R.string.downloads), R.drawable.ic_download, actions.onDownloadsClick),
         HomeQuickAction(stringResource(R.string.random), R.drawable.ic_dice, actions.onRandomClick, !isRandomLoading),
         HomeQuickAction(stringResource(R.string.sync_status), R.drawable.ic_sync, actions.onSyncSettingsClick),
-        HomeQuickAction(stringResource(R.string.home_sources_overview), R.drawable.ic_storage, actions.onSourceSettingsClick),
+        HomeQuickAction(stringResource(R.string.home_sources_overview), R.drawable.ic_extension, actions.onSourceSettingsClick),
         HomeQuickAction(stringResource(R.string.translation_settings), R.drawable.ic_language, actions.onAutoTranslateClick),
         HomeQuickAction(stringResource(R.string.reader_settings), R.drawable.ic_read, actions.onReaderSettingsClick),
         HomeQuickAction(stringResource(R.string.settings), R.drawable.ic_settings, actions.onSettingsClick),
@@ -276,13 +276,31 @@ private fun HomeHighlightsSections(
     modifier: Modifier = Modifier,
 ) {
     val historyDisplayItems = remember(historyItems) {
-        historyItems.map { HomeCoverDisplayItem(content = it.content, cardModel = it.cardModel) }
+        historyItems.map {
+            HomeCoverDisplayItem(
+                content = it.content,
+                cardModel = it.cardModel,
+                sectionKey = "recent_history",
+            )
+        }
     }
     val updateDisplayItems = remember(updateItems) {
-        updateItems.map { HomeCoverDisplayItem(content = it.content, cardModel = it.cardModel) }
+        updateItems.map {
+            HomeCoverDisplayItem(
+                content = it.content,
+                cardModel = it.cardModel,
+                sectionKey = "recent_updates",
+            )
+        }
     }
     val recommendationDisplayItems = remember(recommendationItems) {
-        recommendationItems.map { HomeCoverDisplayItem(content = it.content, cardModel = it.cardModel) }
+        recommendationItems.map {
+            HomeCoverDisplayItem(
+                content = it.content,
+                cardModel = it.cardModel,
+                sectionKey = "recommendations",
+            )
+        }
     }
     org.skepsun.kototoro.core.ui.glass.GlassSurface(
         modifier = modifier.fillMaxWidth(),
@@ -806,7 +824,7 @@ private fun HomeContentRowSection(
         ) {
             itemsIndexed(
                 items = items.take(12),
-                key = { _, item -> item.content.id },
+                key = { _, item -> "${item.sectionKey}:${item.content.id}" },
                 contentType = { _, _ -> "home_content_card" },
             ) { index, item ->
                 HorizontalRailAnimatedVisibility(
@@ -862,11 +880,11 @@ private fun HomeCoverRowItem(
             .build()
     }
     val badgeMetrics = remember(posterStyle.itemWidth) { contentCardBadgeMetricsFor(posterStyle.itemWidth) }
-    val sharedElementKey = remember(content.id, content.coverUrl, content.source.name) {
+    val sharedElementKey = remember(item.sectionKey, content.id, content.coverUrl, content.source.name) {
         contentCoverSharedKey(
             content.source.name,
             content.coverUrl.orEmpty(),
-            instanceKey = "home_row_${content.id}",
+            instanceKey = "home_row_${item.sectionKey}_${content.id}",
         )
     }
 
@@ -966,6 +984,7 @@ private fun HomeCoverRowItem(
 private data class HomeCoverDisplayItem(
     val content: Content,
     val cardModel: ContentGridModel?,
+    val sectionKey: String,
 )
 
 @Composable
@@ -1266,13 +1285,10 @@ private fun buildHomeHeroEntries(
     recommendationItems: List<org.skepsun.kototoro.home.ui.HomeRecommendationItem>,
 ): List<HomeHeroEntry> {
     val entries = ArrayList<HomeHeroEntry>(HOME_HERO_TOTAL_LIMIT)
-    val seenIds = LinkedHashSet<Long>()
 
     fun addEntry(entry: HomeHeroEntry) {
         if (entries.size >= HOME_HERO_TOTAL_LIMIT) return
-        if (seenIds.add(entry.groupKey)) {
-            entries += entry
-        }
+        entries += entry
     }
 
     resumeContent?.let { content ->
@@ -1302,6 +1318,7 @@ private fun buildHomeHeroEntries(
 
     updateItems
         .asSequence()
+        .filterNot { it.groupKey == resumeGroupKey }
         .take(HOME_HERO_SECTION_LIMIT)
         .forEach { item ->
             addEntry(
@@ -1316,6 +1333,7 @@ private fun buildHomeHeroEntries(
 
     recommendationItems
         .asSequence()
+        .filterNot { it.groupKey == resumeGroupKey }
         .take(HOME_HERO_SECTION_LIMIT)
         .forEach { item ->
             addEntry(

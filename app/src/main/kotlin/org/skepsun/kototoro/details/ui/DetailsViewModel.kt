@@ -4,8 +4,11 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -25,6 +28,7 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.plus
 import kotlinx.coroutines.withContext
 import androidx.room.withTransaction
@@ -115,9 +119,7 @@ import org.skepsun.kototoro.entitygraph.data.EntityBindingRecord
 import org.skepsun.kototoro.entitygraph.ui.details.EntityRelationSection
 import org.skepsun.kototoro.entitygraph.ui.details.EntityRelationItem
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
-import org.skepsun.kototoro.details.ui.model.TrackingDetailsSection
-import org.skepsun.kototoro.details.ui.model.TrackingDetailsAction
-import org.skepsun.kototoro.details.ui.model.TrackingDetailsSectionItem
+import org.skepsun.kototoro.details.ui.model.DetailsSupplementAction
 import kotlinx.coroutines.channels.BufferOverflow
 import java.util.Locale
 
@@ -125,15 +127,16 @@ private const val ENTITY_RELATION_SECTIONS_DEBOUNCE_MS = 120L
 private const val TRACKING_SUGGESTION_THRESHOLD = 0.9f
 private const val TRACKING_SUGGESTION_GAP_THRESHOLD = 0.03f
 private const val TRACKING_SUGGESTION_RESULT_LIMIT = 3
+private const val SOURCE_SEARCH_TIMEOUT_MS = 12_000L
 private val CHARACTER_VOICE_ACTOR_REGEX = Regex(
 	"""^\s*(.+?)\s*\((?:cv|cast|voice actor|voice|配音|声优)\s*[:：]?\s*(.+?)\)\s*$""",
 	RegexOption.IGNORE_CASE,
 )
 
-data class TrackingDetailsUiState(
+data class DetailsSupplementUiState(
 	val metadataProperties: List<Pair<String, String>> = emptyList(),
-	val sections: List<TrackingDetailsSection> = emptyList(),
-	val actions: List<TrackingDetailsAction> = emptyList(),
+	val sections: List<EntityRelationSection> = emptyList(),
+	val actions: List<DetailsSupplementAction> = emptyList(),
 	val commentThreads: List<TrackingSiteItemDetails.CommentThread> = emptyList(),
 	val commentsUrl: String? = null,
 	val reviews: List<TrackingSiteItemDetails.ReviewEntry> = emptyList(),
@@ -146,7 +149,9 @@ data class MetadataSearchUiState(
 	val selectedService: ScrobblerService = ScrobblerService.ANILIST,
 	val query: String = "",
 	val results: List<TrackingSiteItem> = emptyList(),
+	val sections: List<MetadataSearchSectionUiState> = emptyList(),
 	val isLoading: Boolean = false,
+	val hasSearched: Boolean = false,
 	val errorMessage: String? = null,
 )
 
@@ -154,7 +159,24 @@ data class ReadingSearchUiState(
 	val sources: List<ContentSourceInfo> = emptyList(),
 	val selectedSource: String? = null,
 	val query: String = "",
+	val sections: List<ReadingSearchSectionUiState> = emptyList(),
+	val isLoading: Boolean = false,
+	val hasSearched: Boolean = false,
 	val state: LocalSearchState? = null,
+)
+
+data class MetadataSearchSectionUiState(
+	val service: ScrobblerService,
+	val items: List<TrackingSiteItem> = emptyList(),
+	val isLoading: Boolean = false,
+	val errorMessage: String? = null,
+)
+
+data class ReadingSearchSectionUiState(
+	val source: ContentSourceInfo,
+	val items: List<Content> = emptyList(),
+	val isLoading: Boolean = false,
+	val errorMessage: String? = null,
 )
 
 data class SourceBindingUiState(
@@ -199,7 +221,7 @@ data class ChaptersPaneControlsUiState(
 	val emptyReason: EmptyContentReason? = null,
 )
 
-private data class TrackingDiscussionUiState(
+private data class DetailsDiscussionUiState(
 	val commentThreads: List<TrackingSiteItemDetails.CommentThread> = emptyList(),
 	val commentsUrl: String? = null,
 	val reviews: List<TrackingSiteItemDetails.ReviewEntry> = emptyList(),
@@ -212,11 +234,26 @@ private data class MetadataSearchPickerUiState(
 	val selectedService: ScrobblerService = ScrobblerService.ANILIST,
 )
 
+private data class MetadataSearchContentUiState(
+	val query: String = "",
+	val results: List<TrackingSiteItem> = emptyList(),
+	val sections: List<MetadataSearchSectionUiState> = emptyList(),
+)
+
 private data class MetadataSearchResultsUiState(
 	val query: String = "",
 	val results: List<TrackingSiteItem> = emptyList(),
+	val sections: List<MetadataSearchSectionUiState> = emptyList(),
 	val isLoading: Boolean = false,
+	val hasSearched: Boolean = false,
 	val errorMessage: String? = null,
+)
+
+private data class ReadingSearchPrimaryUiState(
+	val sources: List<ContentSourceInfo> = emptyList(),
+	val selectedSource: String? = null,
+	val query: String = "",
+	val sections: List<ReadingSearchSectionUiState> = emptyList(),
 )
 
 private data class SourceOptionsUiState(
@@ -342,40 +379,42 @@ class DetailsViewModel @Inject constructor(
 	val readingSourceOptions = MutableStateFlow<List<DetailsSourceOption>>(emptyList())
 	val metadataChapterTabs = MutableStateFlow<List<DetailsChapterSourceTab>>(emptyList())
 	val readingChapterTabs = MutableStateFlow<List<DetailsChapterSourceTab>>(emptyList())
-	val trackingMetadataProperties = MutableStateFlow<List<Pair<String, String>>>(emptyList())
-	val trackingDetailsSections = MutableStateFlow<List<TrackingDetailsSection>>(emptyList())
-	val trackingDetailsActions = MutableStateFlow<List<TrackingDetailsAction>>(emptyList())
-	val trackingCommentThreads = MutableStateFlow<List<org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails.CommentThread>>(emptyList())
-	val trackingCommentsUrl = MutableStateFlow<String?>(null)
-	val trackingReviews = MutableStateFlow<List<org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails.ReviewEntry>>(emptyList())
-	val trackingReviewsUrl = MutableStateFlow<String?>(null)
+	val supplementalMetadataProperties = MutableStateFlow<List<Pair<String, String>>>(emptyList())
+	val supplementalSections = MutableStateFlow<List<EntityRelationSection>>(emptyList())
+	val supplementalActions = MutableStateFlow<List<DetailsSupplementAction>>(emptyList())
+	val supplementalCommentThreads = MutableStateFlow<List<org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails.CommentThread>>(emptyList())
+	val supplementalCommentsUrl = MutableStateFlow<String?>(null)
+	val supplementalReviews = MutableStateFlow<List<org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails.ReviewEntry>>(emptyList())
+	val supplementalReviewsUrl = MutableStateFlow<String?>(null)
 	val metadataSearchServices = MutableStateFlow<List<ScrobblerService>>(emptyList())
 	val authorizedTrackingServices = MutableStateFlow<Set<ScrobblerService>>(emptySet())
 	val selectedMetadataSearchService = MutableStateFlow(ScrobblerService.ANILIST)
 	val metadataSearchQuery = MutableStateFlow("")
 	val metadataSearchResults = MutableStateFlow<List<TrackingSiteItem>>(emptyList())
+	val metadataSearchSections = MutableStateFlow<List<MetadataSearchSectionUiState>>(emptyList())
 	val metadataSearchLoading = MutableStateFlow(false)
+	val metadataSearchHasSearched = MutableStateFlow(false)
 	val metadataSearchError = MutableStateFlow<String?>(null)
-	private val trackingDiscussionUiState = combine(
-		trackingCommentThreads,
-		trackingCommentsUrl,
-		trackingReviews,
-		trackingReviewsUrl,
+	private val detailsDiscussionUiState = combine(
+		supplementalCommentThreads,
+		supplementalCommentsUrl,
+		supplementalReviews,
+		supplementalReviewsUrl,
 	) { commentThreads, commentsUrl, reviews, reviewsUrl ->
-		TrackingDiscussionUiState(
+		DetailsDiscussionUiState(
 			commentThreads = commentThreads,
 			commentsUrl = commentsUrl,
 			reviews = reviews,
 			reviewsUrl = reviewsUrl,
 		)
 	}
-	val trackingDetailsUiState: StateFlow<TrackingDetailsUiState> = combine(
-		trackingMetadataProperties,
-		trackingDetailsSections,
-		trackingDetailsActions,
-		trackingDiscussionUiState,
+	val detailsSupplementUiState: StateFlow<DetailsSupplementUiState> = combine(
+		supplementalMetadataProperties,
+		supplementalSections,
+		supplementalActions,
+		detailsDiscussionUiState,
 	) { metadataProperties, sections, actions, discussion ->
-		TrackingDetailsUiState(
+		DetailsSupplementUiState(
 			metadataProperties = metadataProperties,
 			sections = sections,
 			actions = actions,
@@ -384,7 +423,7 @@ class DetailsViewModel @Inject constructor(
 			reviews = discussion.reviews,
 			reviewsUrl = discussion.reviewsUrl,
 		)
-	}.stateIn(viewModelScope, SharingStarted.Eagerly, TrackingDetailsUiState())
+	}.stateIn(viewModelScope, SharingStarted.Eagerly, DetailsSupplementUiState())
 	private val metadataSearchPickerUiState = combine(
 		metadataSearchServices,
 		authorizedTrackingServices,
@@ -396,17 +435,34 @@ class DetailsViewModel @Inject constructor(
 			selectedService = selectedService,
 		)
 	}
-	private val metadataSearchResultsUiState = combine(
+	private val metadataSearchContentUiState = combine(
 		metadataSearchQuery,
 		metadataSearchResults,
-		metadataSearchLoading,
-		metadataSearchError,
-	) { query, results, isLoading, errorMessage ->
-		MetadataSearchResultsUiState(
+		metadataSearchSections,
+	) { query, results, sections ->
+		MetadataSearchContentUiState(
 			query = query,
 			results = results,
-			isLoading = isLoading,
-			errorMessage = errorMessage,
+			sections = sections,
+		)
+	}
+	private val metadataSearchResultsUiState = combine(
+		metadataSearchContentUiState,
+		combine(
+			metadataSearchLoading,
+			metadataSearchHasSearched,
+			metadataSearchError,
+		) { isLoading, hasSearched, errorMessage ->
+			Triple(isLoading, hasSearched, errorMessage)
+		},
+	) { content, status ->
+		MetadataSearchResultsUiState(
+			query = content.query,
+			results = content.results,
+			sections = content.sections,
+			isLoading = status.first,
+			hasSearched = status.second,
+			errorMessage = status.third,
 		)
 	}
 	val metadataSearchUiState: StateFlow<MetadataSearchUiState> = combine(
@@ -419,25 +475,50 @@ class DetailsViewModel @Inject constructor(
 			selectedService = picker.selectedService,
 			query = results.query,
 			results = results.results,
+			sections = results.sections,
 			isLoading = results.isLoading,
+			hasSearched = results.hasSearched,
 			errorMessage = results.errorMessage,
 		)
 	}.stateIn(viewModelScope, SharingStarted.Eagerly, MetadataSearchUiState())
 	val readingSearchSources = MutableStateFlow<List<ContentSourceInfo>>(emptyList())
 	val selectedReadingSearchSource = MutableStateFlow<String?>(null)
 	val readingSearchQuery = MutableStateFlow("")
+	val readingSearchSections = MutableStateFlow<List<ReadingSearchSectionUiState>>(emptyList())
+	val readingSearchLoading = MutableStateFlow(false)
+	val readingSearchHasSearched = MutableStateFlow(false)
 	val readingSearchState = MutableStateFlow<LocalSearchState?>(null)
-	val readingSearchUiState: StateFlow<ReadingSearchUiState> = combine(
+	private val readingSearchPrimaryUiState = combine(
 		readingSearchSources,
 		selectedReadingSearchSource,
 		readingSearchQuery,
-		readingSearchState,
-	) { sources, selectedSource, query, state ->
-		ReadingSearchUiState(
+		readingSearchSections,
+	) { sources, selectedSource, query, sections ->
+		ReadingSearchPrimaryUiState(
 			sources = sources,
 			selectedSource = selectedSource,
 			query = query,
-			state = state,
+			sections = sections,
+		)
+	}
+	val readingSearchUiState: StateFlow<ReadingSearchUiState> = combine(
+		readingSearchPrimaryUiState,
+		combine(
+			readingSearchLoading,
+			readingSearchHasSearched,
+			readingSearchState,
+		) { isLoading, hasSearched, state ->
+			Triple(isLoading, hasSearched, state)
+		},
+	) { primary, status ->
+		ReadingSearchUiState(
+			sources = primary.sources,
+			selectedSource = primary.selectedSource,
+			query = primary.query,
+			sections = primary.sections,
+			isLoading = status.first,
+			hasSearched = status.second,
+			state = status.third,
 		)
 	}.stateIn(viewModelScope, SharingStarted.Eagerly, ReadingSearchUiState())
 	val chaptersPaneControlsUiState: StateFlow<ChaptersPaneControlsUiState> = combine(
@@ -1277,7 +1358,7 @@ class DetailsViewModel @Inject constructor(
 		}
 		updateSourceOptions()
 		refreshReadingSearchSources()
-		updateTrackingDetailsPanels(trackingDetails)
+		updateSupplementalDetailsState(trackingDetails)
 		refreshResolvedPresentationState()
 		if (activeExternalOrigin !is org.skepsun.kototoro.details.ui.model.DetailsOrigin.EntityGraph) {
 			refreshContextualEntityRelations()
@@ -1438,17 +1519,17 @@ class DetailsViewModel @Inject constructor(
 		}
 	}
 
-	private fun updateTrackingDetailsPanels(
+	private fun updateSupplementalDetailsState(
 		details: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails?,
 	) {
-		trackingMetadataProperties.value = details?.infoboxProperties.orEmpty()
+		supplementalMetadataProperties.value = details?.infoboxProperties.orEmpty()
 		if (details == null) {
-			trackingDetailsSections.value = emptyList()
-			trackingDetailsActions.value = emptyList()
-			trackingCommentThreads.value = emptyList()
-			trackingCommentsUrl.value = null
-			trackingReviews.value = emptyList()
-			trackingReviewsUrl.value = null
+			supplementalSections.value = emptyList()
+			supplementalActions.value = emptyList()
+			supplementalCommentThreads.value = emptyList()
+			supplementalCommentsUrl.value = null
+			supplementalReviews.value = emptyList()
+			supplementalReviewsUrl.value = null
 			return
 		}
 		val commentsAction = details.actions.firstOrNull { action ->
@@ -1459,31 +1540,32 @@ class DetailsViewModel @Inject constructor(
 				action.title.contains("长评") ||
 				action.title.contains("评论")
 		}
-		trackingCommentsUrl.value = commentsAction?.url
-		trackingCommentThreads.value = details.commentThreads
-		trackingReviewsUrl.value = reviewsAction?.url
-		trackingReviews.value = details.reviews
-		trackingDetailsActions.value = details.actions.filterNot { action ->
+		supplementalCommentsUrl.value = commentsAction?.url
+		supplementalCommentThreads.value = details.commentThreads
+		supplementalReviewsUrl.value = reviewsAction?.url
+		supplementalReviews.value = details.reviews
+		supplementalActions.value = details.actions.filterNot { action ->
 			action == commentsAction || action == reviewsAction
 		}.map { action ->
-			TrackingDetailsAction(
+			DetailsSupplementAction(
 				title = action.title,
 				url = action.url,
 			)
 		}
-		trackingDetailsSections.value = buildList {
+		supplementalSections.value = buildList {
 			details.relatedWorks
 				.takeIf { it.isNotEmpty() }
 				?.let { works ->
 					add(
-						TrackingDetailsSection(
+						EntityRelationSection(
 							titleRes = R.string.details_related_works,
 							items = works.map { work ->
-								TrackingDetailsSectionItem(
-									service = details.service,
-									remoteId = work.id,
-									title = work.title,
+								EntityRelationItem(
+									stableKey = "tracking:${details.service.id}:${work.id}",
+									name = work.title,
 									coverUrl = work.coverUrl.normalizedImageUrl(),
+									trackingService = details.service,
+									remoteId = work.id,
 									subtitle = work.relationship,
 									url = work.url,
 								)
@@ -1495,14 +1577,15 @@ class DetailsViewModel @Inject constructor(
 				.takeIf { it.isNotEmpty() }
 				?.let { works ->
 					add(
-						TrackingDetailsSection(
+						EntityRelationSection(
 							titleRes = R.string.details_recommendations,
 							items = works.map { work ->
-								TrackingDetailsSectionItem(
-									service = details.service,
-									remoteId = work.id,
-									title = work.title,
+								EntityRelationItem(
+									stableKey = "tracking:${details.service.id}:${work.id}",
+									name = work.title,
 									coverUrl = work.coverUrl.normalizedImageUrl(),
+									trackingService = details.service,
+									remoteId = work.id,
 									subtitle = work.relationship,
 									url = work.url,
 								)
@@ -1515,14 +1598,15 @@ class DetailsViewModel @Inject constructor(
 					return@forEach
 				}
 				add(
-					TrackingDetailsSection(
+					EntityRelationSection(
 						title = section.title,
 						items = section.items.map { work ->
-							TrackingDetailsSectionItem(
-								service = details.service,
-								remoteId = work.id,
-								title = work.title,
+							EntityRelationItem(
+								stableKey = "tracking:${details.service.id}:${work.id}",
+								name = work.title,
 								coverUrl = work.coverUrl.normalizedImageUrl(),
+								trackingService = details.service,
+								remoteId = work.id,
 								subtitle = work.relationship,
 								url = work.url,
 							)
@@ -1891,13 +1975,14 @@ class DetailsViewModel @Inject constructor(
 				val relatedId = relation.relatedEntityId(entityId) ?: return@mapNotNull null
 				val related = relatedEntities[relatedId] ?: return@mapNotNull null
 				EntityRelationItem(
+					stableKey = "entity:${related.id}",
 					entityId = related.id,
 					name = related.primaryName,
 					type = related.type,
 					coverUrl = resolveEntityCoverUrl(related.id)
 						?: resolveTrackingRelatedCoverUrl(related, trackingDetails),
 				)
-			}.distinctBy(EntityRelationItem::entityId)
+			}.distinctBy(EntityRelationItem::stableKey)
 			val titleRes = relationSectionTitleRes(anchorEntity.type, typeRelations.first().type) ?: return@mapNotNull null
 			items.takeIf { it.isNotEmpty() }?.let {
 				EntityRelationSection(
@@ -2083,27 +2168,65 @@ class DetailsViewModel @Inject constructor(
 	}
 
 	fun searchMetadataBindings() {
-		val service = selectedMetadataSearchService.value
+		val services = metadataSearchServices.value
+		if (services.isEmpty()) {
+			metadataSearchResults.value = emptyList()
+			metadataSearchSections.value = emptyList()
+			metadataSearchLoading.value = false
+			metadataSearchHasSearched.value = true
+			metadataSearchError.value = null
+			return
+		}
 		val query = metadataSearchQuery.value.trim().ifBlank { currentDetailsTitle() }
 		launchJob(Dispatchers.IO) {
 			metadataSearchLoading.value = true
+			metadataSearchHasSearched.value = false
 			metadataSearchError.value = null
-			val result = runCatchingCancellable {
-				trackingSiteDiscoveryService.search(
-					TrackingSiteCatalog(
-						service = service,
-						query = query.ifBlank { null },
-						contentType = currentDetailsContentType(),
-					),
-				)
+			metadataSearchSections.value = services.map { service ->
+				MetadataSearchSectionUiState(service = service, isLoading = true)
+			}
+			supervisorScope {
+				services.map { service ->
+					async {
+						val section = runCatchingCancellable {
+							withTimeout(SOURCE_SEARCH_TIMEOUT_MS) {
+								trackingSiteDiscoveryService.search(
+									TrackingSiteCatalog(
+										service = service,
+										query = query.ifBlank { null },
+										contentType = currentDetailsContentType(),
+									),
+								)
+							}
+						}.fold(
+							onSuccess = { items ->
+								MetadataSearchSectionUiState(
+									service = service,
+									items = items,
+									isLoading = false,
+								)
+							},
+							onFailure = { throwable ->
+								MetadataSearchSectionUiState(
+									service = service,
+									isLoading = false,
+									errorMessage = throwable.localizedMessage ?: throwable.javaClass.simpleName,
+								)
+							},
+						)
+						metadataSearchSections.update { sections ->
+							sections.map { existing ->
+								if (existing.service == service) section else existing
+							}
+						}
+					}
+				}.awaitAll()
 			}
 			metadataSearchLoading.value = false
-			result.onSuccess {
-				metadataSearchResults.value = it
-			}.onFailure {
-				metadataSearchResults.value = emptyList()
-				metadataSearchError.value = it.localizedMessage ?: it.javaClass.simpleName
-			}
+			metadataSearchHasSearched.value = true
+			val finalSections = metadataSearchSections.value
+			metadataSearchResults.value = finalSections.flatMap { it.items }
+			metadataSearchError.value = finalSections.firstOrNull { it.errorMessage != null }?.errorMessage
 		}
 	}
 
@@ -2155,22 +2278,61 @@ class DetailsViewModel @Inject constructor(
 	}
 
 	fun searchReadingBindings() {
-		val sourceName = selectedReadingSearchSource.value ?: return
-		val sourceInfo = readingSearchSources.value.firstOrNull { it.mangaSource.name == sourceName } ?: return
+		val sources = readingSearchSources.value
+		if (sources.isEmpty()) {
+			readingSearchSections.value = emptyList()
+			readingSearchLoading.value = false
+			readingSearchHasSearched.value = true
+			readingSearchState.value = LocalSearchState.Loaded(emptyList())
+			return
+		}
 		val query = readingSearchQuery.value.trim().ifBlank { currentDetailsTitle() }
 		launchJob(Dispatchers.IO) {
+			readingSearchLoading.value = true
+			readingSearchHasSearched.value = false
 			readingSearchState.value = LocalSearchState.Loading
-			val result = runCatchingCancellable {
-				mangaRepositoryFactory.create(sourceInfo.mangaSource).getList(
-					offset = 0,
-					order = SortOrder.RELEVANCE,
-					filter = ContentListFilter(query = query),
-				).take(20)
+			readingSearchSections.value = sources.map { sourceInfo ->
+				ReadingSearchSectionUiState(source = sourceInfo, isLoading = true)
 			}
-			readingSearchState.value = result.fold(
-				onSuccess = { LocalSearchState.Loaded(it) },
-				onFailure = { LocalSearchState.Error(it) },
-			)
+			supervisorScope {
+				sources.map { sourceInfo ->
+					async {
+						val section = runCatchingCancellable {
+							withTimeout(SOURCE_SEARCH_TIMEOUT_MS) {
+								mangaRepositoryFactory.create(sourceInfo.mangaSource).getList(
+									offset = 0,
+									order = SortOrder.RELEVANCE,
+									filter = ContentListFilter(query = query),
+								).take(20)
+							}
+						}.fold(
+							onSuccess = { items ->
+								ReadingSearchSectionUiState(
+									source = sourceInfo,
+									items = items,
+									isLoading = false,
+								)
+							},
+							onFailure = { throwable ->
+								ReadingSearchSectionUiState(
+									source = sourceInfo,
+									isLoading = false,
+									errorMessage = throwable.localizedMessage ?: throwable.javaClass.simpleName,
+								)
+							},
+						)
+						readingSearchSections.update { sections ->
+							sections.map { existing ->
+								if (existing.source.mangaSource.name == sourceInfo.mangaSource.name) section else existing
+							}
+						}
+					}
+				}.awaitAll()
+			}
+			readingSearchLoading.value = false
+			readingSearchHasSearched.value = true
+			val finalSections = readingSearchSections.value
+			readingSearchState.value = LocalSearchState.Loaded(finalSections.flatMap { it.items })
 		}
 	}
 

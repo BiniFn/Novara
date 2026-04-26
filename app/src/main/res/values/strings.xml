@@ -1505,8 +1505,10 @@
     <string name="details_metadata_chapter_hint">Metadata chapters are for browsing info and chapter pages only. They do not open the reader or player directly.</string>
     <string name="details_metadata_source_label">Metadata source: %1$s</string>
     <string name="details_chapter_number_label">Chapter: %1$s</string>
+    <string name="details_search_result_latest_chapter">Latest: Chapter %1$s</string>
+    <string name="details_search_result_latest_title">Latest: %1$s</string>
     <string name="details_reading_source_unavailable">Unavailable</string>
-    <string name="details_metadata_source_login_hint">Search and local binding work without login. Sign in to %1$s to auto-link online progress.</string>
+    <string name="details_metadata_source_login_hint">Search and local binding work without login. Sign in to auto-link online progress.</string>
     <string name="details_additional_metadata">Additional metadata</string>
     <string name="details_related_works">Related works</string>
     <string name="details_recommendations">Recommendations</string>

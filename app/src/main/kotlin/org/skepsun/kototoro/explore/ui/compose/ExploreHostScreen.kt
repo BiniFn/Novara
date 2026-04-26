@@ -230,7 +230,7 @@ private fun sourceQuickAccessMetrics(gridScale: Float): SourceQuickAccessMetrics
     val interpolatedColumns = 5f + ((3f - 5f) * normalized)
     return SourceQuickAccessMetrics(
         columns = interpolatedColumns.toInt().coerceIn(3, 5),
-        cardHeight = lerp(96.dp, 84.dp, normalized),
+        cardHeight = lerp(90.dp, 80.dp, normalized),
         gridSpacing = lerp(8.dp, 6.dp, normalized),
         iconContainerSize = lerp(44.dp, 36.dp, normalized),
         iconSize = lerp(34.dp, 28.dp, normalized),
@@ -253,9 +253,11 @@ fun KototoroExploreHostRoute(
     val availableServices by discoverViewModel.availableServices.collectAsStateWithLifecycle()
     val activeService by discoverViewModel.activeService.collectAsStateWithLifecycle()
     val query by discoverViewModel.query.collectAsStateWithLifecycle()
-    val listState = rememberLazyListState()
+    val listState = rememberSaveable(saver = LazyListState.Saver) {
+        LazyListState()
+    }
     val verticalScrollIntensity = rememberVerticalRailScrollIntensity(listState)
-    var heroPx by remember { mutableIntStateOf(0) }
+    var heroPx by rememberSaveable { mutableIntStateOf(0) }
     val density = LocalDensity.current
     val context = LocalContext.current
     val activity = context as? androidx.activity.ComponentActivity
@@ -735,7 +737,7 @@ private fun SourcesQuickAccessSection(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_storage),
+                    painter = painterResource(R.drawable.ic_extension),
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
                     tint = MaterialTheme.colorScheme.primary,

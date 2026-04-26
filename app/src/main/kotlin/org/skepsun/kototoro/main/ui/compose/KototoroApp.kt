@@ -282,6 +282,7 @@ fun KototoroApp(
     val supportsDisplayModeMenu = currentDestination?.let {
         it.hasRoute<HistoryRoute>() ||
             it.hasRoute<FavoritesRoute>() ||
+            it.hasRoute<LocalRoute>() ||
             it.hasRoute<SuggestionsRoute>() ||
             it.hasRoute<UpdatedRoute>()
     } == true
@@ -292,6 +293,7 @@ fun KototoroApp(
             it.hasRoute<FeedRoute>() ||
             it.hasRoute<HistoryRoute>() ||
             it.hasRoute<FavoritesRoute>() ||
+            it.hasRoute<LocalRoute>() ||
             it.hasRoute<SuggestionsRoute>() ||
             it.hasRoute<UpdatedRoute>()
     } == true

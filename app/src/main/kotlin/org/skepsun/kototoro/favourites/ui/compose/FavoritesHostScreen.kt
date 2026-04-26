@@ -31,6 +31,7 @@ fun KototoroFavoritesHostRoute(
     appRouter: AppRouter,
     contentPadding: PaddingValues,
     onNavigateToDetails: ((Content, String?) -> Unit)? = null,
+    registerFilterCallback: Boolean = true,
     viewModel: FavouritesContainerViewModel = hiltViewModel()
 ) {
     val categories by viewModel.categories.collectAsStateWithLifecycle(emptyList())
@@ -44,30 +45,45 @@ fun KototoroFavoritesHostRoute(
     val selectedGroupTab by globalState.selectedGroupTab.collectAsStateWithLifecycle()
     val selectedSourceTags by globalState.selectedSourceTags.collectAsStateWithLifecycle()
 
-    DisposableEffect(mainActivity, globalState, selectedGroupTab, selectedSourceTags) {
-        val callback = object : SearchBarFilterViewController.Callback {
-            override fun getSelectedContentType(): BrowseGroupTab = selectedGroupTab
+    DisposableEffect(mainActivity, globalState, selectedGroupTab, selectedSourceTags, registerFilterCallback) {
+        if (!registerFilterCallback) {
+            onDispose { }
+        }
+        else {
+            val callback = object : SearchBarFilterViewController.Callback {
+                override fun isSourceTagFilterVisible(): Boolean = true
 
-            override fun onContentTypeSelected(tab: BrowseGroupTab) {
-                globalState.setSelectedGroupTab(
-                    if (selectedGroupTab == tab) BrowseGroupTab.All else tab
-                )
-            }
+                override fun getSourceTagEntries(): List<SourceTag> = SourceTag.quickFilterEntries
 
-            override fun getSelectedSourceTags(): Set<SourceTag> = selectedSourceTags
+                override fun getSelectedContentType(): BrowseGroupTab = selectedGroupTab
 
-            override fun onSourceTagSelected(tag: SourceTag?) {
-                when {
-                    tag == null -> globalState.clearSourceTags()
-                    tag in selectedSourceTags -> globalState.setSelectedSourceTags(selectedSourceTags - tag)
-                    else -> globalState.setSelectedSourceTags(selectedSourceTags + tag)
+                override fun onContentTypeSelected(tab: BrowseGroupTab) {
+                    globalState.setSelectedGroupTab(
+                        if (selectedGroupTab == tab) BrowseGroupTab.All else tab
+                    )
+                }
+
+                override fun getSelectedSourceTags(): Set<SourceTag> = selectedSourceTags
+
+                override fun onSourceTagSelected(tag: SourceTag?) {
+                    when {
+                        tag == null -> globalState.clearSourceTags()
+                        tag in selectedSourceTags -> globalState.setSelectedSourceTags(selectedSourceTags - tag)
+                        else -> globalState.setSelectedSourceTags(selectedSourceTags + tag)
+                    }
                 }
             }
+
+            mainActivity?.setActiveFilterCallback(callback)
+            onDispose {
+                mainActivity?.clearActiveFilterCallback(callback)
+            }
         }
-        mainActivity?.setActiveFilterCallback(callback)
-        onDispose {
-            mainActivity?.clearActiveFilterCallback(callback)
-        }
+    }
+
+    SideEffect {
+        if (!registerFilterCallback) return@SideEffect
+        mainActivity?.refreshFilters()
     }
 
     if (categories.isEmpty() && !isEmpty) {

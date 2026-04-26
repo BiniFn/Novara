@@ -145,11 +145,9 @@ import org.skepsun.kototoro.details.ui.model.ActiveLocalSourceOption
 import org.skepsun.kototoro.details.ui.model.ContentBranch
 import org.skepsun.kototoro.details.ui.model.DetailsChapterSourceTab
 import org.skepsun.kototoro.details.ui.model.DetailsSourceOption
+import org.skepsun.kototoro.details.ui.model.DetailsSupplementAction
 import org.skepsun.kototoro.details.ui.model.EntityChapterSourceInfo
 import org.skepsun.kototoro.details.ui.model.HistoryInfo
-import org.skepsun.kototoro.details.ui.model.TrackingDetailsSection
-import org.skepsun.kototoro.details.ui.model.TrackingDetailsAction
-import org.skepsun.kototoro.details.ui.model.TrackingDetailsSectionItem
 import org.skepsun.kototoro.details.ui.compose.pane.DetailsPaneHost
 import org.skepsun.kototoro.details.ui.compose.state.CompactDetailsPaneAnchor
 import org.skepsun.kototoro.details.ui.compose.state.rememberDetailsPaneState
@@ -196,7 +194,7 @@ fun DetailsScreen(
     val chaptersPaneControlsUiState by viewModel.chaptersPaneControlsUiState.collectAsStateWithLifecycle()
     val pagesGridScale by pagesViewModel.gridScale.collectAsStateWithLifecycle(initialValue = settings.gridSizePages / 100f)
     val sourceBindingUiState by viewModel.sourceBindingUiState.collectAsStateWithLifecycle()
-    val trackingDetailsUiState by viewModel.trackingDetailsUiState.collectAsStateWithLifecycle()
+    val detailsSupplementUiState by viewModel.detailsSupplementUiState.collectAsStateWithLifecycle()
     val metadataSearchUiState by viewModel.metadataSearchUiState.collectAsStateWithLifecycle()
     val readingSearchUiState by viewModel.readingSearchUiState.collectAsStateWithLifecycle()
     val mangaDetails = detailsPrimaryUiState.mangaDetails
@@ -229,23 +227,28 @@ fun DetailsScreen(
     val hasTranslationCache = translationUiState.hasTranslationCache
     val isTranslating = translationUiState.isTranslating
     val showTranslateAction = translationUiState.showTranslateAction
-    val trackingMetadataProperties = trackingDetailsUiState.metadataProperties
-    val trackingDetailsSections = trackingDetailsUiState.sections
-    val trackingDetailsActions = trackingDetailsUiState.actions
-    val trackingCommentThreads = trackingDetailsUiState.commentThreads
-    val trackingCommentsUrl = trackingDetailsUiState.commentsUrl
-    val trackingReviews = trackingDetailsUiState.reviews
-    val trackingReviewsUrl = trackingDetailsUiState.reviewsUrl
+    val supplementalMetadataProperties = detailsSupplementUiState.metadataProperties
+    val supplementalSections = detailsSupplementUiState.sections
+    val supplementalActions = detailsSupplementUiState.actions
+    val supplementalCommentThreads = detailsSupplementUiState.commentThreads
+    val supplementalCommentsUrl = detailsSupplementUiState.commentsUrl
+    val supplementalReviews = detailsSupplementUiState.reviews
+    val supplementalReviewsUrl = detailsSupplementUiState.reviewsUrl
     val metadataSearchServices = metadataSearchUiState.services
     val authorizedTrackingServices = metadataSearchUiState.authorizedServices
     val selectedMetadataSearchService = metadataSearchUiState.selectedService
     val metadataSearchQuery = metadataSearchUiState.query
     val metadataSearchResults = metadataSearchUiState.results
+    val metadataSearchSections = metadataSearchUiState.sections
     val metadataSearchLoading = metadataSearchUiState.isLoading
+    val metadataSearchHasSearched = metadataSearchUiState.hasSearched
     val metadataSearchError = metadataSearchUiState.errorMessage
     val readingSearchSources = readingSearchUiState.sources
     val selectedReadingSearchSource = readingSearchUiState.selectedSource
     val readingSearchQuery = readingSearchUiState.query
+    val readingSearchSections = readingSearchUiState.sections
+    val readingSearchLoading = readingSearchUiState.isLoading
+    val readingSearchHasSearched = readingSearchUiState.hasSearched
     val readingSearchState = readingSearchUiState.state
 
     val context = LocalContext.current
@@ -285,12 +288,12 @@ fun DetailsScreen(
     var showMetadataSourceDialog by remember { mutableStateOf(false) }
     var showReadingSourceDialog by remember { mutableStateOf(false) }
     LaunchedEffect(showMetadataSourceDialog) {
-        if (showMetadataSourceDialog && metadataSearchResults.isEmpty() && !metadataSearchLoading) {
+        if (showMetadataSourceDialog && !metadataSearchHasSearched && !metadataSearchLoading) {
             viewModel.searchMetadataBindings()
         }
     }
     LaunchedEffect(showReadingSourceDialog) {
-        if (showReadingSourceDialog && readingSearchState == null) {
+        if (showReadingSourceDialog && !readingSearchHasSearched && !readingSearchLoading) {
             viewModel.searchReadingBindings()
         }
     }
@@ -710,9 +713,9 @@ fun DetailsScreen(
                             readingSourceOptions = readingSourceOptions,
                             activeLocalSourceOptions = activeLocalSourceOptions,
                             entityChapterSourceInfo = entityChapterSourceInfo,
-                            trackingMetadataProperties = trackingMetadataProperties,
-                            trackingDetailsSections = trackingDetailsSections,
-                            trackingDetailsActions = trackingDetailsActions,
+                            supplementalMetadataProperties = supplementalMetadataProperties,
+                            supplementalSections = supplementalSections,
+                            supplementalActions = supplementalActions,
                             resolvedContentType = contentType,
                             resolvedMetadataLanguage = resolvedMetadataLanguage,
                             resolvedReadingLanguage = resolvedReadingLanguage,
@@ -728,8 +731,8 @@ fun DetailsScreen(
                             coverVisualAlpha = 1f,
                             coverUrl = mangaDetails?.coverUrl?.takeIf { it.isNotBlank() } ?: content?.coverUrl,
                             fallbackCoverUrl = content?.coverUrl,
-                            showCommentsAction = trackingCommentThreads.isNotEmpty() || !trackingCommentsUrl.isNullOrBlank(),
-                            showReviewsAction = trackingReviews.isNotEmpty() || !trackingReviewsUrl.isNullOrBlank(),
+                            showCommentsAction = supplementalCommentThreads.isNotEmpty() || !supplementalCommentsUrl.isNullOrBlank(),
+                            showReviewsAction = supplementalReviews.isNotEmpty() || !supplementalReviewsUrl.isNullOrBlank(),
                             content = content,
                             sharedElementKey = sharedElementKey,
                             pendingTagSearch = { pendingTagSearch = it },
@@ -835,9 +838,9 @@ fun DetailsScreen(
                             readingSourceOptions = readingSourceOptions,
                             activeLocalSourceOptions = activeLocalSourceOptions,
                             entityChapterSourceInfo = entityChapterSourceInfo,
-                            trackingMetadataProperties = trackingMetadataProperties,
-                            trackingDetailsSections = trackingDetailsSections,
-                            trackingDetailsActions = trackingDetailsActions,
+                            supplementalMetadataProperties = supplementalMetadataProperties,
+                            supplementalSections = supplementalSections,
+                            supplementalActions = supplementalActions,
                             resolvedContentType = contentType,
                             resolvedMetadataLanguage = resolvedMetadataLanguage,
                             resolvedReadingLanguage = resolvedReadingLanguage,
@@ -853,8 +856,8 @@ fun DetailsScreen(
                             coverVisualAlpha = headerCoverVisualAlpha,
                             coverUrl = mangaDetails?.coverUrl?.takeIf { it.isNotBlank() } ?: content?.coverUrl,
                             fallbackCoverUrl = content?.coverUrl,
-                            showCommentsAction = trackingCommentThreads.isNotEmpty() || !trackingCommentsUrl.isNullOrBlank(),
-                            showReviewsAction = trackingReviews.isNotEmpty() || !trackingReviewsUrl.isNullOrBlank(),
+                            showCommentsAction = supplementalCommentThreads.isNotEmpty() || !supplementalCommentsUrl.isNullOrBlank(),
+                            showReviewsAction = supplementalReviews.isNotEmpty() || !supplementalReviewsUrl.isNullOrBlank(),
                             content = content,
                             sharedElementKey = sharedElementKey,
                             pendingTagSearch = { pendingTagSearch = it },
@@ -1056,19 +1059,14 @@ fun DetailsScreen(
                     selectedOption = metadataSourceOptions.firstOrNull { it.isSelected },
                     searchServices = metadataSearchServices,
                     authorizedServices = authorizedTrackingServices,
-                    selectedService = selectedMetadataSearchService,
                     searchQuery = metadataSearchQuery,
-                    searchResults = metadataSearchResults,
+                    searchSections = metadataSearchSections,
                     isLoading = metadataSearchLoading,
-                    errorMessage = metadataSearchError,
+                    hasSearched = metadataSearchHasSearched,
                     unavailableText = stringResource(R.string.details_reading_source_unavailable),
                     onDismissRequest = { showMetadataSourceDialog = false },
                     onSelectOption = viewModel::selectMetadataSource,
                     onSearchQueryChange = viewModel::updateMetadataSearchQuery,
-                    onSelectService = {
-                        viewModel.setMetadataSearchService(it)
-                        viewModel.searchMetadataBindings()
-                    },
                     onSearch = viewModel::searchMetadataBindings,
                     onBindResult = viewModel::bindMetadataSource,
                 )
@@ -1080,16 +1078,13 @@ fun DetailsScreen(
                     selectedOption = readingSourceOptions.firstOrNull { it.isSelected },
                     label = stringResource(readingSourceLabelRes),
                     searchSources = readingSearchSources,
-                    selectedSourceName = selectedReadingSearchSource,
                     searchQuery = readingSearchQuery,
-                    searchState = readingSearchState,
+                    searchSections = readingSearchSections,
+                    isLoading = readingSearchLoading,
+                    hasSearched = readingSearchHasSearched,
                     unavailableText = stringResource(R.string.details_reading_source_unavailable),
                     onSelectOption = { option -> option.targetMangaId?.let(viewModel::selectActiveLocalSource) },
                     onSearchQueryChange = viewModel::updateReadingSearchQuery,
-                    onSelectSearchSource = {
-                        viewModel.setReadingSearchSource(it)
-                        viewModel.searchReadingBindings()
-                    },
                     onSearch = viewModel::searchReadingBindings,
                     onResultClick = { candidate ->
                         viewModel.bindReadingCandidateToTracking(candidate) {
@@ -1102,8 +1097,8 @@ fun DetailsScreen(
 
             if (showCommentsDialog) {
                 TrackingCommentsSheet(
-                    threads = trackingCommentThreads,
-                    externalUrl = trackingCommentsUrl,
+                    threads = supplementalCommentThreads,
+                    externalUrl = supplementalCommentsUrl,
                     onDismissRequest = { showCommentsDialog = false },
                     onOpenExternal = { url ->
                         showCommentsDialog = false
@@ -1114,8 +1109,8 @@ fun DetailsScreen(
 
             if (showReviewsDialog) {
                 TrackingReviewsSheet(
-                    reviews = trackingReviews,
-                    externalUrl = trackingReviewsUrl,
+                    reviews = supplementalReviews,
+                    externalUrl = supplementalReviewsUrl,
                     onDismissRequest = { showReviewsDialog = false },
                     onOpenExternal = { url ->
                         showReviewsDialog = false
@@ -1411,9 +1406,9 @@ private fun DetailsScrollableContent(
     readingSourceOptions: List<DetailsSourceOption>,
     activeLocalSourceOptions: List<ActiveLocalSourceOption>,
     entityChapterSourceInfo: EntityChapterSourceInfo?,
-    trackingMetadataProperties: List<Pair<String, String>>,
-    trackingDetailsSections: List<TrackingDetailsSection>,
-    trackingDetailsActions: List<TrackingDetailsAction>,
+    supplementalMetadataProperties: List<Pair<String, String>>,
+    supplementalSections: List<EntityRelationSection>,
+    supplementalActions: List<DetailsSupplementAction>,
     resolvedContentType: ContentType?,
     resolvedMetadataLanguage: String?,
     resolvedReadingLanguage: String?,
@@ -1469,7 +1464,7 @@ private fun DetailsScrollableContent(
             trackingSuggestion = trackingSuggestion,
             metadataSourceOptions = metadataSourceOptions,
             readingSourceOptions = readingSourceOptions,
-            trackingDetailsActions = trackingDetailsActions,
+            supplementalActions = supplementalActions,
             resolvedContentType = resolvedContentType,
             metadataLanguageCode = resolvedMetadataLanguage,
             readingLanguageCode = resolvedReadingLanguage,
@@ -1501,7 +1496,7 @@ private fun DetailsScrollableContent(
             },
             onOpenMetadataSourceSheet = onOpenMetadataSourceSheet,
             onOpenReadingSourceSheet = onOpenReadingSourceSheet,
-            onOpenTrackingAction = { action ->
+            onOpenSupplementalAction = { action ->
                 onActionClick(DetailsAction.OpenWebUrl(action.url))
             },
             onAuthorClick = { author ->
@@ -1535,21 +1530,25 @@ private fun DetailsScrollableContent(
                 onActionClick(DetailsAction.ManageTrackingBinding(match.service, match.remoteId, match.title, match.url))
             },
         )
-        if (trackingMetadataProperties.isNotEmpty()) {
-            TrackingMetadataCard(properties = trackingMetadataProperties)
+        if (supplementalMetadataProperties.isNotEmpty()) {
+            DetailsSupplementMetadataCard(properties = supplementalMetadataProperties)
         }
-        if (trackingDetailsSections.isNotEmpty()) {
-            TrackingDetailsSections(
-                sections = trackingDetailsSections,
+        if (supplementalSections.isNotEmpty()) {
+            DetailsRelationSections(
+                sections = supplementalSections,
                 onItemClick = { item ->
-                    onActionClick(DetailsAction.OpenTrackingDetails(item.service, item.remoteId, item.url))
+                    val service = item.trackingService ?: return@DetailsRelationSections
+                    val remoteId = item.remoteId ?: return@DetailsRelationSections
+                    onActionClick(DetailsAction.OpenTrackingDetails(service, remoteId, item.url))
                 },
             )
         }
         if (entityRelationSections.isNotEmpty()) {
-            EntityRelationCarousels(
+            DetailsRelationSections(
                 sections = entityRelationSections,
-                onEntityClick = onEntityClick,
+                onItemClick = { item ->
+                    item.entityId?.let(onEntityClick)
+                },
             )
         }
         Spacer(modifier = Modifier.height(bottomSpacerHeight))
@@ -2803,9 +2802,9 @@ fun DetailsChromeButton(
 
 
 @Composable
-fun EntityRelationCarousels(
+fun DetailsRelationSections(
     sections: List<EntityRelationSection>,
-    onEntityClick: (Long) -> Unit,
+    onItemClick: (EntityRelationItem) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -2814,30 +2813,21 @@ fun EntityRelationCarousels(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         sections.forEach { section ->
-            GlassSurface(
+            DetailsRelationSectionContainer(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
-                style = GlassDefaults.regularStyle(),
-                shape = RoundedCornerShape(28.dp),
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                EntityRelationSectionHeader(section = section)
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp),
                 ) {
-                    EntityRelationSectionHeader(section = section)
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                    ) {
-                        items(
-                            items = section.items,
-                            key = { it.entityId },
-                        ) { item ->
-                            EntityRelationCard(item = item, onClick = { onEntityClick(item.entityId) })
-                        }
+                    items(
+                        items = section.items,
+                        key = { it.stableKey },
+                    ) { item ->
+                        EntityRelationCard(item = item, onClick = { onItemClick(item) })
                     }
                 }
             }
@@ -2846,7 +2836,7 @@ fun EntityRelationCarousels(
 }
 
 @Composable
-private fun TrackingMetadataCard(
+private fun DetailsSupplementMetadataCard(
     properties: List<Pair<String, String>>,
 ) {
     GlassSurface(
@@ -2895,127 +2885,6 @@ private fun TrackingMetadataCard(
 }
 
 @Composable
-private fun TrackingDetailsSections(
-    sections: List<TrackingDetailsSection>,
-    onItemClick: (TrackingDetailsSectionItem) -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 12.dp, bottom = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        sections.forEach { section ->
-            GlassSurface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                style = GlassDefaults.regularStyle(),
-                shape = RoundedCornerShape(28.dp),
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = section.titleRes?.let { stringResource(it) } ?: section.title.orEmpty(),
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Surface(
-                            shape = RoundedCornerShape(999.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
-                        ) {
-                            Text(
-                                text = section.items.size.toString(),
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            )
-                        }
-                    }
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                    ) {
-                        items(
-                            items = section.items,
-                            key = { "${it.service.id}:${it.remoteId}" },
-                        ) { item ->
-                            TrackingDetailsCard(
-                                item = item,
-                                onClick = { onItemClick(item) },
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TrackingDetailsCard(
-    item: TrackingDetailsSectionItem,
-    onClick: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier
-            .width(132.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.32f),
-        tonalElevation = 0.dp,
-    ) {
-        Column(
-            modifier = Modifier.padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(item.coverUrl)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = item.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(0.72f)
-                    .clip(RoundedCornerShape(14.dp)),
-                error = rememberSafePainter(R.drawable.ic_placeholder),
-                placeholder = rememberSafePainter(R.drawable.ic_placeholder),
-            )
-            Text(
-                text = item.title,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            item.subtitle?.takeIf { it.isNotBlank() }?.let { subtitle ->
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun EntityRelationSectionHeader(
     section: EntityRelationSection,
 ) {
@@ -3026,21 +2895,23 @@ private fun EntityRelationSectionHeader(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-        ) {
-            Icon(
-                painter = rememberSafePainter(entityRelationSectionIconRes(section.titleRes)),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .padding(10.dp)
-                    .size(18.dp),
-            )
+        section.titleRes?.let { titleRes ->
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+            ) {
+                Icon(
+                    painter = rememberSafePainter(entityRelationSectionIconRes(titleRes)),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .padding(10.dp)
+                        .size(18.dp),
+                )
+            }
         }
         Text(
-            text = stringResource(section.titleRes),
+            text = section.titleRes?.let { stringResource(it) } ?: section.title.orEmpty(),
             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
@@ -3064,63 +2935,90 @@ fun EntityRelationCard(
     item: EntityRelationItem,
     onClick: () -> Unit,
 ) {
-    val typeLabel = stringResource(entityRelationTypeLabelRes(item.type))
-    val typeIconRes = entityRelationTypeIconRes(item.type)
-    GlassSurface(
-        modifier = Modifier
-            .width(148.dp)
-            .clickable(onClick = onClick),
-        style = GlassDefaults.regularStyle(),
-        shape = RoundedCornerShape(22.dp),
+    val type = item.type
+    val typeLabel = type?.let { stringResource(entityRelationTypeLabelRes(it)) }
+    val typeIconRes = type?.let { entityRelationTypeIconRes(it) }
+    DetailsRelationItemCard(
+        width = if (type != null) 148.dp else 132.dp,
+        title = item.name,
+        subtitle = item.subtitle,
+        onClick = onClick,
+        footer = if (typeLabel != null && typeIconRes != null) {
+            {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        painter = rememberSafePainter(typeIconRes),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Text(
+                        text = typeLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        painter = rememberSafePainter(R.drawable.ic_arrow_forward),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+            }
+        } else {
+            null
+        },
     ) {
-        Column(
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+                .aspectRatio(if (type != null) 0.76f else 0.72f),
+            shape = RoundedCornerShape(18.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.36f),
         ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(0.76f),
-                shape = RoundedCornerShape(18.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.36f),
-            ) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    if (item.coverUrl.isNullOrBlank()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                painter = rememberSafePainter(typeIconRes),
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(30.dp),
-                            )
-                        }
-                    } else {
-                        AsyncImage(
-                            model = item.coverUrl,
-                            contentDescription = item.name,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop,
-                        )
-                    }
+            Box(modifier = Modifier.fillMaxSize()) {
+                if (item.coverUrl.isNullOrBlank()) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(
-                                brush = Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color.Transparent,
-                                        MaterialTheme.colorScheme.scrim.copy(alpha = 0.22f),
-                                    ),
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painter = rememberSafePainter(typeIconRes ?: R.drawable.ic_placeholder),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(30.dp),
+                        )
+                    }
+                } else {
+                    AsyncImage(
+                        model = item.coverUrl,
+                        contentDescription = item.name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    MaterialTheme.colorScheme.scrim.copy(alpha = 0.22f),
                                 ),
                             ),
-                    )
+                        ),
+                )
+                if (typeLabel != null && typeIconRes != null) {
                     Surface(
                         modifier = Modifier
                             .align(Alignment.TopStart)
@@ -3149,6 +3047,57 @@ fun EntityRelationCard(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun DetailsRelationSectionContainer(
+    modifier: Modifier = Modifier,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    GlassSurface(
+        modifier = modifier,
+        style = GlassDefaults.subtleStyle(),
+        shape = RoundedCornerShape(24.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun DetailsRelationItemCard(
+    width: androidx.compose.ui.unit.Dp,
+    title: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    footer: (@Composable () -> Unit)? = null,
+    cover: @Composable () -> Unit,
+) {
+    Surface(
+        modifier = modifier
+            .width(width)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(22.dp),
+        color = GlassDefaults.nestedCardColor(),
+        border = BorderStroke(1.dp, GlassDefaults.nestedCardBorderColor()),
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            cover()
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -3156,38 +3105,22 @@ fun EntityRelationCard(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text(
-                    text = item.name,
+                    text = title,
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        painter = rememberSafePainter(typeIconRes),
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(14.dp),
-                    )
+                subtitle?.takeIf { it.isNotBlank() }?.let {
                     Text(
-                        text = typeLabel,
+                        text = it,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Icon(
-                        painter = rememberSafePainter(R.drawable.ic_arrow_forward),
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(14.dp),
                     )
                 }
+                footer?.invoke()
             }
         }
     }

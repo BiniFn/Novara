@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -25,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -41,13 +43,11 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -74,6 +74,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import android.widget.Toast
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
@@ -97,10 +100,10 @@ import org.skepsun.kototoro.core.util.ext.toLocaleOrNull
 import org.skepsun.kototoro.details.data.ContentDetails
 import org.skepsun.kototoro.discover.ui.details.LocalSearchState
 import org.skepsun.kototoro.details.ui.model.DetailsSourceOption
+import org.skepsun.kototoro.details.ui.model.DetailsSupplementAction
 import org.skepsun.kototoro.details.ui.model.EntityChapterSourceInfo
 import org.skepsun.kototoro.details.ui.model.HistoryInfo
 import org.skepsun.kototoro.details.ui.model.LinkedTrackingItemUiModel
-import org.skepsun.kototoro.details.ui.model.TrackingDetailsAction
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentTag
@@ -120,7 +123,7 @@ fun DetailsHeader(
     trackingSuggestion: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult?,
     metadataSourceOptions: List<DetailsSourceOption>,
     readingSourceOptions: List<DetailsSourceOption>,
-    trackingDetailsActions: List<TrackingDetailsAction>,
+    supplementalActions: List<DetailsSupplementAction>,
     resolvedContentType: ContentType?,
     metadataLanguageCode: String?,
     readingLanguageCode: String?,
@@ -147,7 +150,7 @@ fun DetailsHeader(
     onOpenTrackingDiscover: (ScrobblerService) -> Unit,
     onOpenMetadataSourceSheet: () -> Unit,
     onOpenReadingSourceSheet: () -> Unit,
-    onOpenTrackingAction: (TrackingDetailsAction) -> Unit,
+    onOpenSupplementalAction: (DetailsSupplementAction) -> Unit,
     onAuthorClick: (String) -> Unit,
     onTagClick: (ContentTag) -> Unit,
     onTranslateClick: () -> Unit,
@@ -213,6 +216,8 @@ fun DetailsHeader(
     }
     val metadataSourceOption = metadataSourceOptions.firstOrNull { it.isSelected } ?: metadataSourceOptions.firstOrNull()
     val readingSourceOption = readingSourceOptions.firstOrNull { it.isSelected } ?: readingSourceOptions.firstOrNull()
+    val commentsLabel = stringResource(R.string.details_comments)
+    val reviewsLabel = stringResource(R.string.details_reviews)
     val visibleTrackingSuggestion = trackingSuggestion?.takeUnless { suggestion ->
         linkedTrackingItems.any { linked ->
             linked.service == suggestion.service && linked.remoteId == suggestion.remoteId
@@ -354,13 +359,13 @@ fun DetailsHeader(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                if (trackingDetailsActions.isNotEmpty()) {
+                if (supplementalActions.isNotEmpty()) {
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(trackingDetailsActions, key = { it.title + it.url }) { action ->
+                        items(supplementalActions, key = { it.title + it.url }) { action ->
                             SuggestionChip(
-                                onClick = { onOpenTrackingAction(action) },
+                                onClick = { onOpenSupplementalAction(action) },
                                 label = { Text(action.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 colors = SuggestionChipDefaults.suggestionChipColors(
                                     containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.42f),
@@ -389,17 +394,21 @@ fun DetailsHeader(
                         filled = isFavourite,
                     )
                     if (showCommentsAction) {
-                        DetailsHeaderActionButton(
+                        DetailsHeaderIconButton(
                             iconRes = R.drawable.ic_comment,
-                            label = stringResource(R.string.details_comments),
                             onClick = onCommentsClick,
+                            onLongClick = {
+                                Toast.makeText(context, commentsLabel, Toast.LENGTH_SHORT).show()
+                            },
                         )
                     }
                     if (showReviewsAction) {
-                        DetailsHeaderActionButton(
+                        DetailsHeaderIconButton(
                             iconRes = R.drawable.ic_book_page,
-                            label = stringResource(R.string.details_reviews),
                             onClick = onReviewsClick,
+                            onLongClick = {
+                                Toast.makeText(context, reviewsLabel, Toast.LENGTH_SHORT).show()
+                            },
                         )
                     }
                     if (showTranslateAction) {
@@ -872,29 +881,32 @@ fun MetadataSourceSheet(
     selectedOption: DetailsSourceOption?,
     searchServices: List<ScrobblerService>,
     authorizedServices: Set<ScrobblerService>,
-    selectedService: ScrobblerService?,
     searchQuery: String,
-    searchResults: List<TrackingSiteItem>,
+    searchSections: List<org.skepsun.kototoro.details.ui.MetadataSearchSectionUiState>,
     isLoading: Boolean,
-    errorMessage: String?,
+    hasSearched: Boolean,
     unavailableText: String,
     onDismissRequest: () -> Unit,
     onSelectOption: (DetailsSourceOption) -> Unit,
     onSearchQueryChange: (String) -> Unit,
-    onSelectService: (ScrobblerService) -> Unit,
     onSearch: () -> Unit,
     onBindResult: (TrackingSiteItem) -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
-    ModalBottomSheet(
+    val visibleSections = remember(searchServices, searchSections) {
+        if (searchSections.isNotEmpty()) {
+            searchSections
+        } else {
+            searchServices.map { service ->
+                org.skepsun.kototoro.details.ui.MetadataSearchSectionUiState(service = service)
+            }
+        }
+    }
+    DetailsSourceOverlayDialog(
         onDismissRequest = onDismissRequest,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.92f)
                 .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -943,66 +955,23 @@ fun MetadataSourceSheet(
                     onSearch = { onSearch() },
                 ),
             )
-            if (searchServices.isNotEmpty()) {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(searchServices, key = { it.id }) { service ->
-                        FilterChip(
-                            selected = service == selectedService,
-                            onClick = { onSelectService(service) },
-                            label = { Text(stringResource(service.titleResId)) },
-                            leadingIcon = if (service == selectedService) {
-                                {
-                                    Icon(
-                                        imageVector = Icons.Filled.Check,
-                                        contentDescription = null,
-                                    )
-                                }
-                            } else {
-                                null
-                            },
-                            colors = FilterChipDefaults.filterChipColors(
-                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.42f),
-                            ),
-                        )
-                    }
+            searchServices
+                .filter { it !in authorizedServices }
+                .takeIf { it.isNotEmpty() }
+                ?.let {
+                    Text(
+                        text = stringResource(R.string.details_metadata_source_login_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
-            }
-            selectedService?.takeIf { it !in authorizedServices }?.let { service ->
-                Text(
-                    text = stringResource(R.string.details_metadata_source_login_hint, stringResource(service.titleResId)),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f, fill = true),
             ) {
                 when {
-                    isLoading -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            KototoroLoadingIndicator()
-                        }
-                    }
-                    errorMessage != null -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.CenterStart,
-                        ) {
-                            Text(
-                                text = errorMessage,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                        }
-                    }
-                    searchResults.isEmpty() -> {
+                    visibleSections.isEmpty() -> {
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.CenterStart,
@@ -1017,15 +986,17 @@ fun MetadataSourceSheet(
                     else -> {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
                             items(
-                                items = searchResults,
-                                key = { "${it.service.id}:${it.remoteId}" },
-                            ) { item ->
-                                TrackingSearchResultRow(
-                                    item = item,
-                                    onClick = {
+                                items = visibleSections,
+                                key = { it.service.id },
+                            ) { section ->
+                                MetadataSearchSection(
+                                    section = section,
+                                    isAuthorized = section.service in authorizedServices,
+                                    hasSearched = hasSearched,
+                                    onItemClick = { item ->
                                         onDismissRequest()
                                         onBindResult(item)
                                     },
@@ -1039,34 +1010,38 @@ fun MetadataSourceSheet(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReadingSourceSheet(
     currentOptions: List<DetailsSourceOption>,
     selectedOption: DetailsSourceOption?,
     searchSources: List<ContentSourceInfo>,
-    selectedSourceName: String?,
     searchQuery: String,
-    searchState: LocalSearchState?,
+    searchSections: List<org.skepsun.kototoro.details.ui.ReadingSearchSectionUiState>,
+    isLoading: Boolean,
+    hasSearched: Boolean,
     unavailableText: String,
     label: String,
     onDismissRequest: () -> Unit,
     onSelectOption: (DetailsSourceOption) -> Unit,
     onSearchQueryChange: (String) -> Unit,
-    onSelectSearchSource: (String) -> Unit,
     onSearch: () -> Unit,
     onResultClick: (Content) -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
-    ModalBottomSheet(
+    val visibleSections = remember(searchSources, searchSections) {
+        if (searchSections.isNotEmpty()) {
+            searchSections
+        } else {
+            searchSources.map { source ->
+                org.skepsun.kototoro.details.ui.ReadingSearchSectionUiState(source = source)
+            }
+        }
+    }
+    DetailsSourceOverlayDialog(
         onDismissRequest = onDismissRequest,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.92f)
                 .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -1113,105 +1088,231 @@ fun ReadingSourceSheet(
                     onSearch = { onSearch() },
                 ),
             )
-            if (searchSources.isNotEmpty()) {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(searchSources, key = { it.mangaSource.name }) { sourceInfo ->
-                        val source = sourceInfo.mangaSource
-                        val title = rememberResolvedSourceTitle(source)
-                        FilterChip(
-                            selected = source.name == selectedSourceName,
-                            onClick = { onSelectSearchSource(source.name) },
-                            label = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                            leadingIcon = if (source.name == selectedSourceName) {
-                                {
-                                    Icon(
-                                        imageVector = Icons.Filled.Check,
-                                        contentDescription = null,
-                                    )
-                                }
-                            } else {
-                                null
-                            },
-                            colors = FilterChipDefaults.filterChipColors(
-                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.42f),
-                            ),
-                        )
-                    }
-                }
-            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f, fill = true),
             ) {
-                when (val state = searchState) {
-                    null -> {
+                when {
+                    visibleSections.isEmpty() -> {
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.CenterStart,
                         ) {
                             Text(
-                                text = stringResource(R.string.search),
+                                text = stringResource(R.string.nothing_found),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
-                    LocalSearchState.Loading -> {
-                        Box(
+                    else -> {
+                        LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center,
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
-                            KototoroLoadingIndicator()
-                        }
-                    }
-                    is LocalSearchState.Error -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.CenterStart,
-                        ) {
-                            Text(
-                                text = state.throwable.localizedMessage ?: stringResource(R.string.error_occurred),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                        }
-                    }
-                    is LocalSearchState.Loaded -> {
-                        if (state.items.isEmpty()) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.CenterStart,
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.nothing_found),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            items(
+                                items = visibleSections,
+                                key = { it.source.mangaSource.name },
+                            ) { section ->
+                                ReadingSearchSection(
+                                    section = section,
+                                    hasSearched = hasSearched,
+                                    onItemClick = { item ->
+                                        onDismissRequest()
+                                        onResultClick(item)
+                                    },
                                 )
-                            }
-                        } else {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                verticalArrangement = Arrangement.spacedBy(10.dp),
-                            ) {
-                                items(
-                                    items = state.items,
-                                    key = { it.id },
-                                ) { item ->
-                                    ReadingSearchResultRow(
-                                        item = item,
-                                        onClick = {
-                                            onDismissRequest()
-                                            onResultClick(item)
-                                        },
-                                    )
-                                }
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailsSourceOverlayDialog(
+    onDismissRequest: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val consumeClicks = remember { MutableInteractionSource() }
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
+        ),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.42f)),
+        ) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clickable(
+                        interactionSource = consumeClicks,
+                        indication = null,
+                        onClick = onDismissRequest,
+                    ),
+            )
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.92f)
+                    .clickable(
+                        interactionSource = consumeClicks,
+                        indication = null,
+                        onClick = {},
+                    ),
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+            ) {
+                content()
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetadataSearchSection(
+    section: org.skepsun.kototoro.details.ui.MetadataSearchSectionUiState,
+    isAuthorized: Boolean,
+    hasSearched: Boolean,
+    onItemClick: (TrackingSiteItem) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(section.service.titleResId),
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = if (isAuthorized) section.items.size.toString() else stringResource(R.string.sign_in),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        section.errorMessage?.let { errorMessage ->
+            Text(
+                text = errorMessage,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        when {
+            section.items.isNotEmpty() -> {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(horizontal = 2.dp),
+            ) {
+                items(
+                    items = section.items,
+                    key = { "${it.service.id}:${it.remoteId}" },
+                ) { item ->
+                    TrackingSearchResultCard(
+                        item = item,
+                        onClick = { onItemClick(item) },
+                    )
+                }
+            }
+            }
+            section.isLoading -> {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Text(
+                        text = stringResource(R.string.search),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            hasSearched && section.errorMessage == null -> {
+                Text(
+                    text = stringResource(R.string.nothing_found),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReadingSearchSection(
+    section: org.skepsun.kototoro.details.ui.ReadingSearchSectionUiState,
+    hasSearched: Boolean,
+    onItemClick: (Content) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = rememberResolvedSourceTitle(section.source.mangaSource),
+            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        section.errorMessage?.let { errorMessage ->
+            Text(
+                text = errorMessage,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        when {
+            section.items.isNotEmpty() -> {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(horizontal = 2.dp),
+            ) {
+                items(
+                    items = section.items,
+                    key = { it.id },
+                ) { item ->
+                    ReadingSearchResultCard(
+                        item = item,
+                        onClick = { onItemClick(item) },
+                    )
+                }
+            }
+            }
+            section.isLoading -> {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Text(
+                        text = stringResource(R.string.search),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            hasSearched && section.errorMessage == null -> {
+                Text(
+                    text = stringResource(R.string.nothing_found),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
@@ -1321,10 +1422,58 @@ private fun TrackingSearchResultRow(
 }
 
 @Composable
+private fun TrackingSearchResultCard(
+    item: TrackingSiteItem,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    GlassSurface(
+        modifier = modifier.width(108.dp),
+        style = GlassDefaults.subtleStyle(),
+        shape = RoundedCornerShape(18.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            AsyncImage(
+                model = item.coverUrl,
+                contentDescription = item.title,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(142.dp)
+                    .clip(RoundedCornerShape(14.dp)),
+                contentScale = ContentScale.Crop,
+            )
+            Text(
+                text = item.title,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            item.altTitle?.takeIf { it.isNotBlank() }?.let { altTitle ->
+                Text(
+                    text = altTitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun ReadingSearchResultRow(
     item: Content,
     onClick: () -> Unit,
 ) {
+    val latestChapterInfo = remember(item) { item.readingSearchLatestChapterInfo() }
     GlassSurface(
         modifier = Modifier.fillMaxWidth(),
         style = GlassDefaults.subtleStyle(),
@@ -1365,9 +1514,117 @@ private fun ReadingSearchResultRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                latestChapterInfo?.let { latestInfo ->
+                    Text(
+                        text = when (latestInfo) {
+                            is ReadingSearchLatestChapterInfo.Numbered -> {
+                                stringResource(
+                                    R.string.details_search_result_latest_chapter,
+                                    latestInfo.number,
+                                )
+                            }
+                            is ReadingSearchLatestChapterInfo.Titled -> {
+                                stringResource(
+                                    R.string.details_search_result_latest_title,
+                                    latestInfo.title,
+                                )
+                            }
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }
+}
+
+@Composable
+private fun ReadingSearchResultCard(
+    item: Content,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val latestChapterInfo = remember(item) { item.readingSearchLatestChapterInfo() }
+    GlassSurface(
+        modifier = modifier.width(108.dp),
+        style = GlassDefaults.subtleStyle(),
+        shape = RoundedCornerShape(18.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            AsyncImage(
+                model = item.coverUrl,
+                contentDescription = item.title,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(142.dp)
+                    .clip(RoundedCornerShape(14.dp)),
+                contentScale = ContentScale.Crop,
+            )
+            Text(
+                text = item.title,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            latestChapterInfo?.let { latestInfo ->
+                Text(
+                    text = when (latestInfo) {
+                        is ReadingSearchLatestChapterInfo.Numbered -> {
+                            stringResource(
+                                R.string.details_search_result_latest_chapter,
+                                latestInfo.number,
+                            )
+                        }
+                        is ReadingSearchLatestChapterInfo.Titled -> {
+                            stringResource(
+                                R.string.details_search_result_latest_title,
+                                latestInfo.title,
+                            )
+                        }
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+private sealed interface ReadingSearchLatestChapterInfo {
+    data class Numbered(val number: String) : ReadingSearchLatestChapterInfo
+    data class Titled(val title: String) : ReadingSearchLatestChapterInfo
+}
+
+private fun Content.readingSearchLatestChapterInfo(): ReadingSearchLatestChapterInfo? {
+    val chapters = chapters.orEmpty()
+    if (chapters.isEmpty()) return null
+
+    val numberedChapter = chapters
+        .asSequence()
+        .filter { it.number > 0f }
+        .maxByOrNull { it.number }
+    if (numberedChapter != null) {
+        return ReadingSearchLatestChapterInfo.Numbered(
+            numberedChapter.numberString().orEmpty(),
+        )
+    }
+
+    val titledChapter = chapters.firstNotNullOfOrNull { chapter ->
+        chapter.title?.takeIf { it.isNotBlank() }
+    } ?: return null
+    return ReadingSearchLatestChapterInfo.Titled(titledChapter)
 }
 
 @Composable

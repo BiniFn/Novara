@@ -89,6 +89,14 @@ fun AppNavGraph(
             val state by viewModel.summaryState.collectAsStateWithLifecycle()
             val isRandomLoading by viewModel.isRandomLoading.collectAsStateWithLifecycle()
 
+            androidx.compose.runtime.LaunchedEffect(viewModel.onOpenContent, navigateToDetailsWithContent) {
+                viewModel.onOpenContent.collect { event ->
+                    event?.consume { content ->
+                        navigateToDetailsWithContent(content, null)
+                    }
+                }
+            }
+
             DisposableEffect(mainActivity, viewModel, state.selectedTab, state.selectedSourceTags) {
                 val callback = object : SearchBarFilterViewController.Callback {
                     override fun getSelectedContentType(): BrowseGroupTab = when (state.selectedTab) {
@@ -414,11 +422,53 @@ fun AppNavGraph(
             }
         }
         composable<FavoritesRoute> {
+            val viewModel = hiltViewModel<org.skepsun.kototoro.favourites.ui.container.FavouritesContainerViewModel>()
+            val selectedGroupTab by viewModel.globalFavoritesState.selectedGroupTab.collectAsStateWithLifecycle()
+            val selectedSourceTags by viewModel.globalFavoritesState.selectedSourceTags.collectAsStateWithLifecycle()
+
+            DisposableEffect(mainActivity, viewModel, selectedGroupTab, selectedSourceTags) {
+                val callback = object : SearchBarFilterViewController.Callback {
+                    override fun isSourceTagFilterVisible(): Boolean = true
+
+                    override fun getSourceTagEntries(): List<org.skepsun.kototoro.explore.ui.model.SourceTag> =
+                        org.skepsun.kototoro.explore.ui.model.SourceTag.quickFilterEntries
+
+                    override fun getSelectedContentType(): BrowseGroupTab = selectedGroupTab
+
+                    override fun onContentTypeSelected(tab: BrowseGroupTab) {
+                        viewModel.globalFavoritesState.setSelectedGroupTab(
+                            if (selectedGroupTab == tab) BrowseGroupTab.All else tab,
+                        )
+                    }
+
+                    override fun getSelectedSourceTags(): Set<org.skepsun.kototoro.explore.ui.model.SourceTag> =
+                        selectedSourceTags
+
+                    override fun onSourceTagSelected(tag: org.skepsun.kototoro.explore.ui.model.SourceTag?) {
+                        when {
+                            tag == null -> viewModel.globalFavoritesState.clearSourceTags()
+                            tag in selectedSourceTags -> {
+                                viewModel.globalFavoritesState.setSelectedSourceTags(selectedSourceTags - tag)
+                            }
+                            else -> {
+                                viewModel.globalFavoritesState.setSelectedSourceTags(selectedSourceTags + tag)
+                            }
+                        }
+                    }
+                }
+                mainActivity?.setActiveFilterCallback(callback)
+                onDispose {
+                    mainActivity?.clearActiveFilterCallback(callback)
+                }
+            }
+
             CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                 KototoroFavoritesHostRoute(
                     appRouter = appRouter,
                     contentPadding = contentPadding,
                     onNavigateToDetails = navigateToDetailsWithContent,
+                    registerFilterCallback = false,
+                    viewModel = viewModel,
                 )
             }
         }
@@ -561,7 +611,7 @@ fun AppNavGraph(
                     showRemoveOption = true,
                     isContentTypeFilterVisible = false,
                     onNavigateToDetails = navigateToDetailsWithContent,
-                    isSourceTagFilterVisible = false,
+                    isSourceTagFilterVisible = true,
                     onRemoveSelection = { ids ->
                         if (activity != null) {
                             com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
@@ -628,22 +678,13 @@ fun AppNavGraph(
         }
         composable<BookmarksRoute> {
             val viewModel = hiltViewModel<org.skepsun.kototoro.bookmarks.ui.AllBookmarksViewModel>()
-            val activity = androidx.compose.ui.platform.LocalContext.current as? androidx.activity.ComponentActivity
-            val pageSaveHelperFactory = androidx.compose.runtime.remember {
-                // To get the Dagger Factory, we can just use an EntryPoint
-                dagger.hilt.android.EntryPointAccessors.fromActivity(
-                    activity as android.app.Activity,
-                    org.skepsun.kototoro.bookmarks.ui.PageSaveHelperEntryPoint::class.java
-                ).pageSaveHelperFactory()
-            }
-            val pageSaveHelper = androidx.compose.runtime.remember {
-                pageSaveHelperFactory.create(activity as androidx.activity.ComponentActivity)
-            }
             org.skepsun.kototoro.bookmarks.ui.compose.AppBookmarksRoute(
                 viewModel = viewModel,
                 contentPadding = contentPadding,
                 appRouter = appRouter,
-                pageSaveHelper = pageSaveHelper
+                pageSaveHelper = requireNotNull(pageSaveHelper) {
+                    "BookmarksRoute requires a pre-registered PageSaveHelper"
+                },
             )
         }
         composable<UpdatedRoute> {
