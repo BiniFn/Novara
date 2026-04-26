@@ -96,6 +96,7 @@ import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCatalog
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatcher
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItem
+import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails
 import org.skepsun.kototoro.core.parser.ContentDataRepository.MetadataSourceSelection as PersistedMetadataSourceSelection
 import javax.inject.Inject
 import kotlin.experimental.or
@@ -126,6 +127,99 @@ private const val TRACKING_SUGGESTION_RESULT_LIMIT = 3
 private val CHARACTER_VOICE_ACTOR_REGEX = Regex(
 	"""^\s*(.+?)\s*\((?:cv|cast|voice actor|voice|配音|声优)\s*[:：]?\s*(.+?)\)\s*$""",
 	RegexOption.IGNORE_CASE,
+)
+
+data class TrackingDetailsUiState(
+	val metadataProperties: List<Pair<String, String>> = emptyList(),
+	val sections: List<TrackingDetailsSection> = emptyList(),
+	val actions: List<TrackingDetailsAction> = emptyList(),
+	val commentThreads: List<TrackingSiteItemDetails.CommentThread> = emptyList(),
+	val commentsUrl: String? = null,
+	val reviews: List<TrackingSiteItemDetails.ReviewEntry> = emptyList(),
+	val reviewsUrl: String? = null,
+)
+
+data class MetadataSearchUiState(
+	val services: List<ScrobblerService> = emptyList(),
+	val authorizedServices: Set<ScrobblerService> = emptySet(),
+	val selectedService: ScrobblerService = ScrobblerService.ANILIST,
+	val query: String = "",
+	val results: List<TrackingSiteItem> = emptyList(),
+	val isLoading: Boolean = false,
+	val errorMessage: String? = null,
+)
+
+data class ReadingSearchUiState(
+	val sources: List<ContentSourceInfo> = emptyList(),
+	val selectedSource: String? = null,
+	val query: String = "",
+	val state: LocalSearchState? = null,
+)
+
+data class SourceBindingUiState(
+	val activeLocalSourceOptions: List<ActiveLocalSourceOption> = emptyList(),
+	val entityChapterSourceInfo: EntityChapterSourceInfo? = null,
+	val metadataSourceOptions: List<DetailsSourceOption> = emptyList(),
+	val readingSourceOptions: List<DetailsSourceOption> = emptyList(),
+	val metadataChapterTabs: List<DetailsChapterSourceTab> = emptyList(),
+	val readingChapterTabs: List<DetailsChapterSourceTab> = emptyList(),
+	val resolvedMetadataContentType: ContentType? = null,
+	val resolvedMetadataLanguage: String? = null,
+	val resolvedReadingLanguage: String? = null,
+)
+
+data class TranslationUiState(
+	val translatedTitle: String? = null,
+	val translatedDescription: String? = null,
+	val isShowingTranslation: Boolean = false,
+	val hasTranslationCache: Boolean = false,
+	val isTranslating: Boolean = false,
+	val showTranslateAction: Boolean = false,
+)
+
+private data class TrackingDiscussionUiState(
+	val commentThreads: List<TrackingSiteItemDetails.CommentThread> = emptyList(),
+	val commentsUrl: String? = null,
+	val reviews: List<TrackingSiteItemDetails.ReviewEntry> = emptyList(),
+	val reviewsUrl: String? = null,
+)
+
+private data class MetadataSearchPickerUiState(
+	val services: List<ScrobblerService> = emptyList(),
+	val authorizedServices: Set<ScrobblerService> = emptySet(),
+	val selectedService: ScrobblerService = ScrobblerService.ANILIST,
+)
+
+private data class MetadataSearchResultsUiState(
+	val query: String = "",
+	val results: List<TrackingSiteItem> = emptyList(),
+	val isLoading: Boolean = false,
+	val errorMessage: String? = null,
+)
+
+private data class SourceOptionsUiState(
+	val activeLocalSourceOptions: List<ActiveLocalSourceOption> = emptyList(),
+	val entityChapterSourceInfo: EntityChapterSourceInfo? = null,
+	val metadataSourceOptions: List<DetailsSourceOption> = emptyList(),
+	val readingSourceOptions: List<DetailsSourceOption> = emptyList(),
+)
+
+private data class SourceChapterTabsUiState(
+	val metadataChapterTabs: List<DetailsChapterSourceTab> = emptyList(),
+	val readingChapterTabs: List<DetailsChapterSourceTab> = emptyList(),
+)
+
+private data class SourceResolutionUiState(
+	val resolvedMetadataContentType: ContentType? = null,
+	val resolvedMetadataLanguage: String? = null,
+	val resolvedReadingLanguage: String? = null,
+)
+
+private data class TranslationTextUiState(
+	val translatedTitle: String? = null,
+	val translatedDescription: String? = null,
+	val isShowingTranslation: Boolean = false,
+	val hasTranslationCache: Boolean = false,
 )
 
 @HiltViewModel
@@ -224,13 +318,143 @@ class DetailsViewModel @Inject constructor(
 	val metadataSearchResults = MutableStateFlow<List<TrackingSiteItem>>(emptyList())
 	val metadataSearchLoading = MutableStateFlow(false)
 	val metadataSearchError = MutableStateFlow<String?>(null)
+	private val trackingDiscussionUiState = combine(
+		trackingCommentThreads,
+		trackingCommentsUrl,
+		trackingReviews,
+		trackingReviewsUrl,
+	) { commentThreads, commentsUrl, reviews, reviewsUrl ->
+		TrackingDiscussionUiState(
+			commentThreads = commentThreads,
+			commentsUrl = commentsUrl,
+			reviews = reviews,
+			reviewsUrl = reviewsUrl,
+		)
+	}
+	val trackingDetailsUiState: StateFlow<TrackingDetailsUiState> = combine(
+		trackingMetadataProperties,
+		trackingDetailsSections,
+		trackingDetailsActions,
+		trackingDiscussionUiState,
+	) { metadataProperties, sections, actions, discussion ->
+		TrackingDetailsUiState(
+			metadataProperties = metadataProperties,
+			sections = sections,
+			actions = actions,
+			commentThreads = discussion.commentThreads,
+			commentsUrl = discussion.commentsUrl,
+			reviews = discussion.reviews,
+			reviewsUrl = discussion.reviewsUrl,
+		)
+	}.stateIn(viewModelScope, SharingStarted.Eagerly, TrackingDetailsUiState())
+	private val metadataSearchPickerUiState = combine(
+		metadataSearchServices,
+		authorizedTrackingServices,
+		selectedMetadataSearchService,
+	) { services, authorizedServices, selectedService ->
+		MetadataSearchPickerUiState(
+			services = services,
+			authorizedServices = authorizedServices,
+			selectedService = selectedService,
+		)
+	}
+	private val metadataSearchResultsUiState = combine(
+		metadataSearchQuery,
+		metadataSearchResults,
+		metadataSearchLoading,
+		metadataSearchError,
+	) { query, results, isLoading, errorMessage ->
+		MetadataSearchResultsUiState(
+			query = query,
+			results = results,
+			isLoading = isLoading,
+			errorMessage = errorMessage,
+		)
+	}
+	val metadataSearchUiState: StateFlow<MetadataSearchUiState> = combine(
+		metadataSearchPickerUiState,
+		metadataSearchResultsUiState,
+	) { picker, results ->
+		MetadataSearchUiState(
+			services = picker.services,
+			authorizedServices = picker.authorizedServices,
+			selectedService = picker.selectedService,
+			query = results.query,
+			results = results.results,
+			isLoading = results.isLoading,
+			errorMessage = results.errorMessage,
+		)
+	}.stateIn(viewModelScope, SharingStarted.Eagerly, MetadataSearchUiState())
 	val readingSearchSources = MutableStateFlow<List<ContentSourceInfo>>(emptyList())
 	val selectedReadingSearchSource = MutableStateFlow<String?>(null)
 	val readingSearchQuery = MutableStateFlow("")
 	val readingSearchState = MutableStateFlow<LocalSearchState?>(null)
+	val readingSearchUiState: StateFlow<ReadingSearchUiState> = combine(
+		readingSearchSources,
+		selectedReadingSearchSource,
+		readingSearchQuery,
+		readingSearchState,
+	) { sources, selectedSource, query, state ->
+		ReadingSearchUiState(
+			sources = sources,
+			selectedSource = selectedSource,
+			query = query,
+			state = state,
+		)
+	}.stateIn(viewModelScope, SharingStarted.Eagerly, ReadingSearchUiState())
 	val resolvedMetadataContentType = MutableStateFlow<ContentType?>(null)
 	val resolvedMetadataLanguage = MutableStateFlow<String?>(null)
 	val resolvedReadingLanguage = MutableStateFlow<String?>(null)
+	private val sourceOptionsUiState = combine(
+		activeLocalSourceOptions,
+		entityChapterSourceInfo,
+		metadataSourceOptions,
+		readingSourceOptions,
+	) { activeLocalSourceOptions, entityChapterSourceInfo, metadataSourceOptions, readingSourceOptions ->
+		SourceOptionsUiState(
+			activeLocalSourceOptions = activeLocalSourceOptions,
+			entityChapterSourceInfo = entityChapterSourceInfo,
+			metadataSourceOptions = metadataSourceOptions,
+			readingSourceOptions = readingSourceOptions,
+		)
+	}
+	private val sourceChapterTabsUiState = combine(
+		metadataChapterTabs,
+		readingChapterTabs,
+	) { metadataChapterTabs, readingChapterTabs ->
+		SourceChapterTabsUiState(
+			metadataChapterTabs = metadataChapterTabs,
+			readingChapterTabs = readingChapterTabs,
+		)
+	}
+	private val sourceResolutionUiState = combine(
+		resolvedMetadataContentType,
+		resolvedMetadataLanguage,
+		resolvedReadingLanguage,
+	) { resolvedMetadataContentType, resolvedMetadataLanguage, resolvedReadingLanguage ->
+		SourceResolutionUiState(
+			resolvedMetadataContentType = resolvedMetadataContentType,
+			resolvedMetadataLanguage = resolvedMetadataLanguage,
+			resolvedReadingLanguage = resolvedReadingLanguage,
+		)
+	}
+	val sourceBindingUiState: StateFlow<SourceBindingUiState> = combine(
+		sourceOptionsUiState,
+		sourceChapterTabsUiState,
+		sourceResolutionUiState,
+	) { sourceOptions, sourceTabs, sourceResolution ->
+		SourceBindingUiState(
+			activeLocalSourceOptions = sourceOptions.activeLocalSourceOptions,
+			entityChapterSourceInfo = sourceOptions.entityChapterSourceInfo,
+			metadataSourceOptions = sourceOptions.metadataSourceOptions,
+			readingSourceOptions = sourceOptions.readingSourceOptions,
+			metadataChapterTabs = sourceTabs.metadataChapterTabs,
+			readingChapterTabs = sourceTabs.readingChapterTabs,
+			resolvedMetadataContentType = sourceResolution.resolvedMetadataContentType,
+			resolvedMetadataLanguage = sourceResolution.resolvedMetadataLanguage,
+			resolvedReadingLanguage = sourceResolution.resolvedReadingLanguage,
+		)
+	}.stateIn(viewModelScope, SharingStarted.Eagerly, SourceBindingUiState())
 	val showTranslateAction = MutableStateFlow(false)
 	val activeLocalBrowserContent = MutableStateFlow<Content?>(null)
 	private val allEnabledSourceInfos = MutableStateFlow<List<ContentSourceInfo>>(emptyList())
@@ -1364,6 +1588,33 @@ class DetailsViewModel @Inject constructor(
 		description.takeIf { isShowing }
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, null)
 	val isTranslating = MutableStateFlow(false)
+	private val translationTextUiState = combine(
+		translatedTitle,
+		translatedDescription,
+		isShowingTranslation,
+		hasTranslationCache,
+	) { translatedTitle, translatedDescription, isShowingTranslation, hasTranslationCache ->
+		TranslationTextUiState(
+			translatedTitle = translatedTitle,
+			translatedDescription = translatedDescription,
+			isShowingTranslation = isShowingTranslation,
+			hasTranslationCache = hasTranslationCache,
+		)
+	}
+	val translationUiState: StateFlow<TranslationUiState> = combine(
+		translationTextUiState,
+		isTranslating,
+		showTranslateAction,
+	) { textState, isTranslating, showTranslateAction ->
+		TranslationUiState(
+			translatedTitle = textState.translatedTitle,
+			translatedDescription = textState.translatedDescription,
+			isShowingTranslation = textState.isShowingTranslation,
+			hasTranslationCache = textState.hasTranslationCache,
+			isTranslating = isTranslating,
+			showTranslateAction = showTranslateAction,
+		)
+	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, TranslationUiState())
 
 	val historyInfo: StateFlow<HistoryInfo> = combine(
 		mangaDetails,

@@ -57,9 +57,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -131,7 +131,7 @@ fun DetailsHeader(
     isTranslating: Boolean,
     showTranslateAction: Boolean,
     settings: AppSettings,
-    collapseProgress: Float,
+    collapseProgressProvider: () -> Float,
     coverVisualAlpha: Float,
     coverUrl: String?,
     fallbackCoverUrl: String?,
@@ -246,11 +246,6 @@ fun DetailsHeader(
             .build()
     }
     val isNsfw = content?.isNsfw() == true
-    val coverCollapseProgress = (collapseProgress / 0.48f).coerceIn(0f, 1f)
-    val coverSyncAlpha = 1f - coverCollapseProgress
-    val coverAlpha = coverSyncAlpha * coverVisualAlpha.coerceIn(0f, 1f)
-    val textCollapseProgress = ((collapseProgress - 0.08f) / 0.44f).coerceIn(0f, 1f)
-    val actionsCollapseProgress = ((collapseProgress - 0.18f) / 0.36f).coerceIn(0f, 1f)
     val infoItems = buildList {
         content?.let {
             add(
@@ -321,13 +316,19 @@ fun DetailsHeader(
                     }
                 },
                 modifier = Modifier
-                    .alpha(coverAlpha),
+                    .graphicsLayer {
+                        val coverCollapseProgress = (collapseProgressProvider() / 0.48f).coerceIn(0f, 1f)
+                        alpha = (1f - coverCollapseProgress) * coverVisualAlpha.coerceIn(0f, 1f)
+                    },
             )
 
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .alpha(1f - textCollapseProgress),
+                    .graphicsLayer {
+                        val textCollapseProgress = ((collapseProgressProvider() - 0.08f) / 0.44f).coerceIn(0f, 1f)
+                        alpha = 1f - textCollapseProgress
+                    },
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
@@ -370,7 +371,11 @@ fun DetailsHeader(
                 }
                 Row(
                     modifier = Modifier
-                        .alpha(1f - actionsCollapseProgress)
+                        .graphicsLayer {
+                            val actionsCollapseProgress =
+                                ((collapseProgressProvider() - 0.18f) / 0.36f).coerceIn(0f, 1f)
+                            alpha = 1f - actionsCollapseProgress
+                        }
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {

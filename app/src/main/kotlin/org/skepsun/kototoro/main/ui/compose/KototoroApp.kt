@@ -58,7 +58,9 @@ import org.skepsun.kototoro.search.ui.compose.SearchNavigation
 import org.skepsun.kototoro.search.ui.compose.SearchNavigationRequest
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
+import org.skepsun.kototoro.core.ui.compose.LocalRailAnimationFactor
 import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
+import org.skepsun.kototoro.core.ui.compose.rememberRailAnimationFactor
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -291,10 +293,12 @@ fun KototoroApp(
     KototoroTheme(cornerRadius = cornerRadius) {
         val hazeState = remember { HazeState() }
         val glassPrefs = rememberGlassPrefs(appSettings)
+        val railAnimationFactor = rememberRailAnimationFactor(appSettings)
         val useRuntimeHaze = remember { supportsRuntimeHaze() }
         CompositionLocalProvider(
             LocalHazeState provides hazeState,
             LocalGlassPrefs provides glassPrefs,
+            LocalRailAnimationFactor provides railAnimationFactor,
         ) {
             Box(modifier = Modifier.fillMaxSize().nestedScroll(nestedScrollConnection)) {
                 SharedTransitionLayout {

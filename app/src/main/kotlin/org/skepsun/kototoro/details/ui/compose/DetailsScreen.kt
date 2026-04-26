@@ -73,7 +73,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -86,6 +85,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
@@ -192,12 +192,7 @@ fun DetailsScreen(
     val favouriteCategories by viewModel.favouriteCategories.collectAsStateWithLifecycle()
     val historyInfo by viewModel.historyInfo.collectAsStateWithLifecycle()
     val branches by viewModel.branches.collectAsStateWithLifecycle()
-    val translatedTitle by viewModel.translatedTitle.collectAsStateWithLifecycle()
-    val translatedDescription by viewModel.translatedDescription.collectAsStateWithLifecycle()
-    val isShowingTranslation by viewModel.isShowingTranslation.collectAsStateWithLifecycle()
-    val hasTranslationCache by viewModel.hasTranslationCache.collectAsStateWithLifecycle()
-    val isTranslating by viewModel.isTranslating.collectAsStateWithLifecycle()
-    val showTranslateAction by viewModel.showTranslateAction.collectAsStateWithLifecycle()
+    val translationUiState by viewModel.translationUiState.collectAsStateWithLifecycle()
     val isStatsAvailable by viewModel.isStatsAvailable.collectAsStateWithLifecycle()
     val isChaptersReversed by viewModel.isChaptersReversed.collectAsStateWithLifecycle(initialValue = false)
     val isChaptersInGridView by viewModel.isChaptersInGridView.collectAsStateWithLifecycle(initialValue = false)
@@ -208,34 +203,44 @@ fun DetailsScreen(
     val linkedTrackingItems by viewModel.linkedTrackingItems.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val entityRelationSections by viewModel.entityRelationSections.collectAsStateWithLifecycle()
-    val activeLocalSourceOptions by viewModel.activeLocalSourceOptions.collectAsStateWithLifecycle()
-    val entityChapterSourceInfo by viewModel.entityChapterSourceInfo.collectAsStateWithLifecycle()
-    val metadataSourceOptions by viewModel.metadataSourceOptions.collectAsStateWithLifecycle()
-    val readingSourceOptions by viewModel.readingSourceOptions.collectAsStateWithLifecycle()
-    val metadataChapterTabs by viewModel.metadataChapterTabs.collectAsStateWithLifecycle()
-    val readingChapterTabs by viewModel.readingChapterTabs.collectAsStateWithLifecycle()
-    val trackingMetadataProperties by viewModel.trackingMetadataProperties.collectAsStateWithLifecycle()
-    val trackingDetailsSections by viewModel.trackingDetailsSections.collectAsStateWithLifecycle()
-    val trackingDetailsActions by viewModel.trackingDetailsActions.collectAsStateWithLifecycle()
-    val trackingCommentThreads by viewModel.trackingCommentThreads.collectAsStateWithLifecycle()
-    val trackingCommentsUrl by viewModel.trackingCommentsUrl.collectAsStateWithLifecycle()
-    val trackingReviews by viewModel.trackingReviews.collectAsStateWithLifecycle()
-    val trackingReviewsUrl by viewModel.trackingReviewsUrl.collectAsStateWithLifecycle()
-    val metadataSearchServices by viewModel.metadataSearchServices.collectAsStateWithLifecycle()
-    val authorizedTrackingServices by viewModel.authorizedTrackingServices.collectAsStateWithLifecycle()
-    val selectedMetadataSearchService by viewModel.selectedMetadataSearchService.collectAsStateWithLifecycle()
-    val metadataSearchQuery by viewModel.metadataSearchQuery.collectAsStateWithLifecycle()
-    val metadataSearchResults by viewModel.metadataSearchResults.collectAsStateWithLifecycle()
-    val metadataSearchLoading by viewModel.metadataSearchLoading.collectAsStateWithLifecycle()
-    val metadataSearchError by viewModel.metadataSearchError.collectAsStateWithLifecycle()
-    val readingSearchSources by viewModel.readingSearchSources.collectAsStateWithLifecycle()
-    val selectedReadingSearchSource by viewModel.selectedReadingSearchSource.collectAsStateWithLifecycle()
-    val readingSearchQuery by viewModel.readingSearchQuery.collectAsStateWithLifecycle()
-    val readingSearchState by viewModel.readingSearchState.collectAsStateWithLifecycle()
-    val resolvedMetadataContentType by viewModel.resolvedMetadataContentType.collectAsStateWithLifecycle()
-    val resolvedMetadataLanguage by viewModel.resolvedMetadataLanguage.collectAsStateWithLifecycle()
-    val resolvedReadingLanguage by viewModel.resolvedReadingLanguage.collectAsStateWithLifecycle()
+    val sourceBindingUiState by viewModel.sourceBindingUiState.collectAsStateWithLifecycle()
+    val trackingDetailsUiState by viewModel.trackingDetailsUiState.collectAsStateWithLifecycle()
+    val metadataSearchUiState by viewModel.metadataSearchUiState.collectAsStateWithLifecycle()
+    val readingSearchUiState by viewModel.readingSearchUiState.collectAsStateWithLifecycle()
     val activeLocalBrowserContent by viewModel.activeLocalBrowserContent.collectAsStateWithLifecycle()
+    val activeLocalSourceOptions = sourceBindingUiState.activeLocalSourceOptions
+    val entityChapterSourceInfo = sourceBindingUiState.entityChapterSourceInfo
+    val metadataSourceOptions = sourceBindingUiState.metadataSourceOptions
+    val readingSourceOptions = sourceBindingUiState.readingSourceOptions
+    val metadataChapterTabs = sourceBindingUiState.metadataChapterTabs
+    val readingChapterTabs = sourceBindingUiState.readingChapterTabs
+    val resolvedMetadataContentType = sourceBindingUiState.resolvedMetadataContentType
+    val resolvedMetadataLanguage = sourceBindingUiState.resolvedMetadataLanguage
+    val resolvedReadingLanguage = sourceBindingUiState.resolvedReadingLanguage
+    val translatedTitle = translationUiState.translatedTitle
+    val translatedDescription = translationUiState.translatedDescription
+    val isShowingTranslation = translationUiState.isShowingTranslation
+    val hasTranslationCache = translationUiState.hasTranslationCache
+    val isTranslating = translationUiState.isTranslating
+    val showTranslateAction = translationUiState.showTranslateAction
+    val trackingMetadataProperties = trackingDetailsUiState.metadataProperties
+    val trackingDetailsSections = trackingDetailsUiState.sections
+    val trackingDetailsActions = trackingDetailsUiState.actions
+    val trackingCommentThreads = trackingDetailsUiState.commentThreads
+    val trackingCommentsUrl = trackingDetailsUiState.commentsUrl
+    val trackingReviews = trackingDetailsUiState.reviews
+    val trackingReviewsUrl = trackingDetailsUiState.reviewsUrl
+    val metadataSearchServices = metadataSearchUiState.services
+    val authorizedTrackingServices = metadataSearchUiState.authorizedServices
+    val selectedMetadataSearchService = metadataSearchUiState.selectedService
+    val metadataSearchQuery = metadataSearchUiState.query
+    val metadataSearchResults = metadataSearchUiState.results
+    val metadataSearchLoading = metadataSearchUiState.isLoading
+    val metadataSearchError = metadataSearchUiState.errorMessage
+    val readingSearchSources = readingSearchUiState.sources
+    val selectedReadingSearchSource = readingSearchUiState.selectedSource
+    val readingSearchQuery = readingSearchUiState.query
+    val readingSearchState = readingSearchUiState.state
 
     val context = LocalContext.current
     val panoramaExtraHeight by settings.observeAsState(AppSettings.KEY_PANORAMA_EXTRA_HEIGHT) { panoramaCoverExtraHeight }
@@ -333,59 +338,54 @@ fun DetailsScreen(
         )
     }
 
-    LaunchedEffect(infoCardTopPx) {
-        if (infoCardTopPx.isFinite() && (!initialInfoCardTopPx.isFinite() || infoCardTopPx > initialInfoCardTopPx)) {
-            initialInfoCardTopPx = infoCardTopPx
-        }
-    }
     LaunchedEffect(isWideAdaptiveLayout) {
         if (isWideAdaptiveLayout) {
             landscapeLeftScrollState.scrollTo(0)
         }
     }
-    val collapseProgress by remember(
+    val compactCollapseProgressProvider = remember(
         scrollState,
         landscapeLeftScrollState,
-        toolbarBottomPx,
-        infoCardTopPx,
-        initialInfoCardTopPx,
         toolbarGapPx,
         isWideAdaptiveLayout,
     ) {
-        derivedStateOf {
-            if (isWideAdaptiveLayout) {
-                return@derivedStateOf 0f
-            }
-            val targetTop = toolbarBottomPx + toolbarGapPx
-            if (toolbarBottomPx.isFinite() && infoCardTopPx.isFinite() && initialInfoCardTopPx.isFinite()) {
-                val travelDistance = (initialInfoCardTopPx - targetTop).coerceAtLeast(1f)
-                ((initialInfoCardTopPx - infoCardTopPx) / travelDistance).coerceIn(0f, 1f)
-            } else {
-                (scrollState.value / 360f).coerceIn(0f, 1f)
-            }
+        {
+            calculateDetailsScrollProgress(
+                scrollValue = scrollState.value,
+                landscapeScrollValue = landscapeLeftScrollState.value,
+                toolbarBottomPx = toolbarBottomPx,
+                infoCardTopPx = infoCardTopPx,
+                initialInfoCardTopPx = initialInfoCardTopPx,
+                toolbarGapPx = toolbarGapPx,
+                isWideAdaptiveLayout = isWideAdaptiveLayout,
+                disableInWideLayout = true,
+            )
         }
     }
-    val toolbarTitleProgress by remember(
+    val toolbarTitleProgressProvider = remember(
         scrollState,
         landscapeLeftScrollState,
-        toolbarBottomPx,
-        infoCardTopPx,
-        initialInfoCardTopPx,
         toolbarGapPx,
         isWideAdaptiveLayout,
     ) {
-        derivedStateOf {
-            val targetTop = toolbarBottomPx + toolbarGapPx
-            if (toolbarBottomPx.isFinite() && infoCardTopPx.isFinite() && initialInfoCardTopPx.isFinite()) {
-                val travelDistance = (initialInfoCardTopPx - targetTop).coerceAtLeast(1f)
-                ((initialInfoCardTopPx - infoCardTopPx) / travelDistance).coerceIn(0f, 1f)
-            } else {
-                val fallbackScroll = if (isWideAdaptiveLayout) {
-                    landscapeLeftScrollState.value
-                } else {
-                    scrollState.value
-                }
-                (fallbackScroll / 360f).coerceIn(0f, 1f)
+        {
+            calculateDetailsScrollProgress(
+                scrollValue = scrollState.value,
+                landscapeScrollValue = landscapeLeftScrollState.value,
+                toolbarBottomPx = toolbarBottomPx,
+                infoCardTopPx = infoCardTopPx,
+                initialInfoCardTopPx = initialInfoCardTopPx,
+                toolbarGapPx = toolbarGapPx,
+                isWideAdaptiveLayout = isWideAdaptiveLayout,
+                disableInWideLayout = false,
+            )
+        }
+    }
+    val syncInfoCardTop: (Float) -> Unit = remember {
+        { top ->
+            infoCardTopPx = top
+            if (top.isFinite() && (!initialInfoCardTopPx.isFinite() || top > initialInfoCardTopPx)) {
+                initialInfoCardTopPx = top
             }
         }
     }
@@ -549,7 +549,10 @@ fun DetailsScreen(
                     AnimatedPanoramaBackdrop(
                         prefs = panoramaPrefs,
                         model = request,
-                        contentAlpha = 0.6f * (1f - collapseProgress),
+                        contentAlpha = 0.6f,
+                        contentAlphaProvider = {
+                            0.6f * (1f - compactCollapseProgressProvider())
+                        },
                         backgroundColor = MaterialTheme.colorScheme.surface,
                         crossfadeEnabled = sharedElementKey == null,
                         modifier = Modifier.fillMaxSize(),
@@ -558,15 +561,17 @@ fun DetailsScreen(
             }
 
             val commonTopBar: @Composable () -> Unit = {
+            val topBarContainerColor = MaterialTheme.colorScheme.surface
             TopAppBar(
                 title = {
-                    if (toolbarTitleProgress > 0.92f) {
-                        Text(
-                            text = toolbarTitle,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                    Text(
+                        text = toolbarTitle,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.graphicsLayer {
+                            alpha = if (toolbarTitleProgressProvider() > 0.92f) 1f else 0f
+                        },
+                    )
                 },
                     navigationIcon = {
                     DetailsChromeButton(onClick = handleBackPress) {
@@ -632,15 +637,24 @@ fun DetailsScreen(
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f * collapseProgress),
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = Color.Transparent,
                 ),
-                modifier = Modifier.onGloballyPositioned { coordinates ->
-                    val bottom = coordinates.boundsInRoot().bottom
-                    toolbarBottomPx = bottom
-                    if (bottom.isFinite() && bottom > 0f) {
-                        lastToolbarBottomPx = bottom
+                modifier = Modifier
+                    .drawBehind {
+                        drawRect(
+                            color = topBarContainerColor.copy(
+                                alpha = 0.94f * compactCollapseProgressProvider(),
+                            ),
+                        )
                     }
-                },
+                    .onGloballyPositioned { coordinates ->
+                        val bottom = coordinates.boundsInRoot().bottom
+                        toolbarBottomPx = bottom
+                        if (bottom.isFinite() && bottom > 0f) {
+                            lastToolbarBottomPx = bottom
+                        }
+                    },
             )
             }
 
@@ -693,7 +707,7 @@ fun DetailsScreen(
                             isTranslating = isTranslating,
                             showTranslateAction = showTranslateAction,
                             settings = settings,
-                            collapseProgress = 0f,
+                            collapseProgressProvider = remember { { 0f } },
                             coverVisualAlpha = 1f,
                             coverUrl = mangaDetails?.coverUrl?.takeIf { it.isNotBlank() } ?: content?.coverUrl,
                             fallbackCoverUrl = content?.coverUrl,
@@ -705,7 +719,7 @@ fun DetailsScreen(
                             pendingAuthorSearch = { author, source ->
                                 pendingAuthorSearch = PendingAuthorSearch(author = author, source = source)
                             },
-							onInfoCardTopSync = { infoCardTopPx = it },
+							onInfoCardTopSync = syncInfoCardTop,
 							onFavoriteClick = { showFavoriteDialog = true },
 							onCommentsClick = { showCommentsDialog = true },
 							onReviewsClick = { showReviewsDialog = true },
@@ -818,7 +832,7 @@ fun DetailsScreen(
                             isTranslating = isTranslating,
                             showTranslateAction = showTranslateAction,
                             settings = settings,
-                            collapseProgress = collapseProgress,
+                            collapseProgressProvider = compactCollapseProgressProvider,
                             coverVisualAlpha = headerCoverVisualAlpha,
                             coverUrl = mangaDetails?.coverUrl?.takeIf { it.isNotBlank() } ?: content?.coverUrl,
                             fallbackCoverUrl = content?.coverUrl,
@@ -830,7 +844,7 @@ fun DetailsScreen(
                             pendingAuthorSearch = { author, source ->
                                 pendingAuthorSearch = PendingAuthorSearch(author = author, source = source)
                             },
-							onInfoCardTopSync = { top -> infoCardTopPx = top },
+							onInfoCardTopSync = syncInfoCardTop,
 							onFavoriteClick = { showFavoriteDialog = true },
 							onCommentsClick = { showCommentsDialog = true },
 							onReviewsClick = { showReviewsDialog = true },
@@ -1394,7 +1408,7 @@ private fun DetailsScrollableContent(
     isTranslating: Boolean,
     showTranslateAction: Boolean,
     settings: org.skepsun.kototoro.core.prefs.AppSettings,
-    collapseProgress: Float,
+    collapseProgressProvider: () -> Float,
     coverVisualAlpha: Float,
     coverUrl: String?,
     fallbackCoverUrl: String?,
@@ -1449,7 +1463,7 @@ private fun DetailsScrollableContent(
             isTranslating = isTranslating,
             showTranslateAction = showTranslateAction,
             settings = settings,
-            collapseProgress = collapseProgress,
+            collapseProgressProvider = collapseProgressProvider,
             coverVisualAlpha = coverVisualAlpha,
             coverUrl = coverUrl,
             fallbackCoverUrl = fallbackCoverUrl,
@@ -2347,6 +2361,29 @@ private fun ReadDock(
 
 private fun lerpFloat(start: Float, stop: Float, fraction: Float): Float {
     return start + (stop - start) * fraction.coerceIn(0f, 1f)
+}
+
+private fun calculateDetailsScrollProgress(
+    scrollValue: Int,
+    landscapeScrollValue: Int,
+    toolbarBottomPx: Float,
+    infoCardTopPx: Float,
+    initialInfoCardTopPx: Float,
+    toolbarGapPx: Float,
+    isWideAdaptiveLayout: Boolean,
+    disableInWideLayout: Boolean,
+): Float {
+    if (disableInWideLayout && isWideAdaptiveLayout) {
+        return 0f
+    }
+    val targetTop = toolbarBottomPx + toolbarGapPx
+    return if (toolbarBottomPx.isFinite() && infoCardTopPx.isFinite() && initialInfoCardTopPx.isFinite()) {
+        val travelDistance = (initialInfoCardTopPx - targetTop).coerceAtLeast(1f)
+        ((initialInfoCardTopPx - infoCardTopPx) / travelDistance).coerceIn(0f, 1f)
+    } else {
+        val fallbackScroll = if (isWideAdaptiveLayout) landscapeScrollValue else scrollValue
+        (fallbackScroll / 360f).coerceIn(0f, 1f)
+    }
 }
 
 private fun easedOpacityProgress(progress: Float): Float {

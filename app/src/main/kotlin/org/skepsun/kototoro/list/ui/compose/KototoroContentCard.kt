@@ -110,6 +110,7 @@ fun contentCardBadgeMetricsFor(coverWidth: androidx.compose.ui.unit.Dp): Content
     )
 }
 
+@Immutable
 data class ContentCardUiPrefs(
     val badgesTopLeft: Set<String>,
     val badgesTopRight: Set<String>,
@@ -121,15 +122,11 @@ data class ContentCardUiPrefs(
 fun rememberContentCardUiPrefs(
     settings: AppSettings,
 ): ContentCardUiPrefs {
-    val badgesTopLeft by settings.observeAsState(AppSettings.KEY_BADGES_TOP_LEFT) { badgesTopLeft }
-    val badgesTopRight by settings.observeAsState(AppSettings.KEY_BADGES_TOP_RIGHT) { badgesTopRight }
-    val badgesBottomLeft by settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_LEFT) { badgesBottomLeft }
-    val badgesBottomRight by settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_RIGHT) { badgesBottomRight }
-    return remember(
-        badgesTopLeft,
-        badgesTopRight,
-        badgesBottomLeft,
-        badgesBottomRight,
+    val prefs by settings.observeAsState(
+        AppSettings.KEY_BADGES_TOP_LEFT,
+        AppSettings.KEY_BADGES_TOP_RIGHT,
+        AppSettings.KEY_BADGES_BOTTOM_LEFT,
+        AppSettings.KEY_BADGES_BOTTOM_RIGHT,
     ) {
         ContentCardUiPrefs(
             badgesTopLeft = badgesTopLeft,
@@ -138,6 +135,7 @@ fun rememberContentCardUiPrefs(
             badgesBottomRight = badgesBottomRight,
         )
     }
+    return prefs
 }
 
 @Composable
@@ -148,6 +146,7 @@ fun KototoroContentCard(
     selectionModeActive: Boolean = false,
     sharedTransitionEnabled: Boolean = true,
     cardStyle: CompactPosterCardStyle? = null,
+    uiPrefs: ContentCardUiPrefs? = null,
     onClick: (Rect?) -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -158,6 +157,7 @@ fun KototoroContentCard(
                 item = model,
                 isSelected = isSelected,
                 sharedTransitionEnabled = sharedTransitionEnabled,
+                uiPrefs = uiPrefs,
                 onClick = onClick,
                 onLongClick = onLongClick,
                 modifier = modifier
@@ -167,6 +167,7 @@ fun KototoroContentCard(
                 item = model,
                 isSelected = isSelected,
                 sharedTransitionEnabled = sharedTransitionEnabled,
+                uiPrefs = uiPrefs,
                 onClick = onClick,
                 onLongClick = onLongClick,
                 modifier = modifier
@@ -179,6 +180,7 @@ fun KototoroContentCard(
                 isSelected = isSelected,
                 sharedTransitionEnabled = sharedTransitionEnabled,
                 cardStyle = cardStyle,
+                uiPrefs = uiPrefs,
                 onClick = onClick,
                 onLongClick = onLongClick,
                 modifier = modifier

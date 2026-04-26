@@ -75,6 +75,7 @@ import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 import org.skepsun.kototoro.list.ui.compose.KototoroContentCard
 import org.skepsun.kototoro.list.ui.compose.KototoroSelectionTopBar
 import org.skepsun.kototoro.list.ui.compose.SelectionAction
+import org.skepsun.kototoro.list.ui.compose.rememberContentCardUiPrefs
 import org.skepsun.kototoro.list.ui.model.ButtonFooter
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.EmptyState
@@ -122,6 +123,7 @@ fun SearchResultsRoute(
     val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
     val gridSize = settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize }.value
     val gridScale = gridSize / 100f
+    val cardUiPrefs = rememberContentCardUiPrefs(settings)
 
     var query by rememberSaveable { mutableStateOf(viewModel.query) }
     var searchKind by rememberSaveable { mutableStateOf(viewModel.kind) }
@@ -258,6 +260,7 @@ fun SearchResultsRoute(
                 SearchResultsSection(
                     section = section,
                     gridScale = gridScale,
+                    cardUiPrefs = cardUiPrefs,
                     selectedItemsIds = selectedItemsIds,
                     selectionEnabled = selectedItemsIds.isNotEmpty() && !isPickMode,
                     onSectionClick = { onOpenSourceResults(section) },
@@ -536,6 +539,7 @@ private fun SearchSummaryRow(
 private fun SearchResultsSection(
     section: SearchResultsListModel,
     gridScale: Float,
+    cardUiPrefs: org.skepsun.kototoro.list.ui.compose.ContentCardUiPrefs,
     selectedItemsIds: Set<Long>,
     selectionEnabled: Boolean,
     onSectionClick: () -> Unit,
@@ -601,6 +605,7 @@ private fun SearchResultsSection(
                                 model = item,
                                 isSelected = item.id in selectedItemsIds,
                                 selectionModeActive = selectionEnabled,
+                                uiPrefs = cardUiPrefs,
                                 onClick = { onItemClick(item) },
                                 onLongClick = { onItemLongClick(item) },
                             )

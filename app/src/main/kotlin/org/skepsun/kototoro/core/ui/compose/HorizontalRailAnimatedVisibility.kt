@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -27,6 +28,8 @@ import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
 import kotlin.math.abs
 import kotlin.math.sign
+
+val LocalRailAnimationFactor = staticCompositionLocalOf<Float?> { null }
 
 @Composable
 fun rememberHorizontalRailScrollIntensity(
@@ -74,10 +77,12 @@ fun rememberHorizontalRailScrollIntensity(
 }
 
 @Composable
-fun rememberRailAnimationFactor(): Float {
+fun rememberRailAnimationFactor(settings: AppSettings? = null): Float {
+    LocalRailAnimationFactor.current?.let { return it }
     val context = LocalContext.current
-    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-    val animationIntensityPercent by settings.observeAsState(AppSettings.KEY_RAIL_ANIMATION_INTENSITY) {
+    val fallbackSettings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+    val resolvedSettings = settings ?: fallbackSettings
+    val animationIntensityPercent by resolvedSettings.observeAsState(AppSettings.KEY_RAIL_ANIMATION_INTENSITY) {
         railAnimationIntensityPercent
     }
     return (animationIntensityPercent / 100f).coerceIn(0f, 3f)

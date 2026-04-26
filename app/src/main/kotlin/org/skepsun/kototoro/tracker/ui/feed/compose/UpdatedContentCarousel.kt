@@ -30,7 +30,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -70,6 +69,7 @@ fun UpdatedContentCarousel(
 	val context = LocalContext.current
 	val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
 	val gridScale = settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize / 100f }.value
+	val badgesBottomRight = settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_RIGHT) { badgesBottomRight }.value
 	val posterStyle = remember(gridScale) { compactPosterRailCardStyle(gridScale) }
 	val listState = rememberLazyListState()
 	val scrollIntensity = rememberHorizontalRailScrollIntensity(listState)
@@ -122,6 +122,7 @@ fun UpdatedContentCarousel(
 					FeedUpdatedPosterCard(
 						model = contentModel,
 						posterStyle = posterStyle,
+						badgesBottomRight = badgesBottomRight,
 						onClick = { coverBounds -> onItemClick(contentModel, coverBounds) },
 						modifier = animatedModifier,
 					)
@@ -138,12 +139,11 @@ fun UpdatedContentCarousel(
 private fun FeedUpdatedPosterCard(
 	model: ContentListModel,
 	posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
+	badgesBottomRight: Set<String>,
 	onClick: (Rect?) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	val context = LocalContext.current
-	val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-	val badgesBottomRight = settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_RIGHT) { badgesBottomRight }.value
 	val imageRequest = remember(model.id, model.coverUrl) {
 		ImageRequest.Builder(context)
 			.data(model.coverUrl)

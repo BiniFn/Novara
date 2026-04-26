@@ -14,7 +14,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -62,12 +61,12 @@ fun AnimatedPanoramaBackdrop(
     prefs: PanoramaBackdropPrefs,
     model: Any?,
     contentAlpha: Float,
+    contentAlphaProvider: (() -> Float)? = null,
     backgroundColor: Color,
     crossfadeEnabled: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    val resolvedContentAlpha = contentAlpha.coerceIn(0f, 1f)
-    if (!prefs.isEnabled || resolvedContentAlpha <= 0.01f) return
+    if (!prefs.isEnabled || contentAlpha <= 0.01f) return
 
     val panoramaGradientAlphaFactor = (prefs.bottomGradientAlphaPercent / 100f).coerceIn(0f, 1f)
     val panoramaAnimationSpeedFactor = (prefs.animationSpeedPercent.coerceIn(50, 200)) / 100f
@@ -149,8 +148,8 @@ fun AnimatedPanoramaBackdrop(
                 scaleY = backgroundScale
                 translationX = backgroundTranslationX
                 translationY = backgroundTranslationY
+                alpha = (contentAlphaProvider?.invoke() ?: contentAlpha).coerceIn(0f, 1f)
             }
-            .alpha(resolvedContentAlpha),
     )
     Box(
         modifier = modifier

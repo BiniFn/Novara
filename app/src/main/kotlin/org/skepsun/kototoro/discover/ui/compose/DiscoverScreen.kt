@@ -27,15 +27,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
 import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
 import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
 import org.skepsun.kototoro.list.ui.compose.KototoroContentCard
+import org.skepsun.kototoro.list.ui.compose.rememberContentCardUiPrefs
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.ListModel
@@ -66,6 +70,10 @@ fun DiscoverScreen(
 		}
 		return
 	}
+	val context = LocalContext.current
+	val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+	val gridScale = settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize / 100f }.value
+	val cardUiPrefs = rememberContentCardUiPrefs(settings)
 
 	KototoroPullToRefreshBox(
 		isRefreshing = isRefreshing,
@@ -128,6 +136,8 @@ fun DiscoverScreen(
 				) { row ->
 					DiscoverCarousel(
 						row = row,
+						gridScale = gridScale,
+						badgesBottomRight = cardUiPrefs.badgesBottomRight,
 						onItemClick = onItemClick,
 						onMoreClick = onCategoryMoreClick
 					)
@@ -188,7 +198,8 @@ fun DiscoverScreen(
 						onClick = { coverBounds -> onItemClick(item, coverBounds) },
 						onLongClick = { },
 						isSelected = false,
-						selectionModeActive = false
+						selectionModeActive = false,
+						uiPrefs = cardUiPrefs,
 					)
 				}
 			}

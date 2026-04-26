@@ -37,8 +37,6 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
 import org.skepsun.kototoro.core.ui.compose.rememberRailAnimationFactor
 import org.skepsun.kototoro.core.ui.compose.unclippedBoundsInWindow
@@ -56,14 +54,13 @@ import org.skepsun.kototoro.list.ui.model.ContentListModel
 @Composable
 fun DiscoverCarousel(
 	row: DiscoverCarouselRow,
+	gridScale: Float,
+	badgesBottomRight: Set<String>,
 	onItemClick: (ContentListModel, Rect?) -> Unit,
 	onMoreClick: (org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCategory) -> Unit,
 	modifier: Modifier = Modifier
 ) {
 	val listState = rememberLazyListState()
-	val context = LocalContext.current
-	val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-	val gridScale = settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize / 100f }.value
 	val posterStyle = remember(gridScale) { compactPosterRailCardStyle(gridScale) }
 	val scrollIntensity = rememberHorizontalRailScrollIntensity(listState)
 
@@ -110,6 +107,7 @@ fun DiscoverCarousel(
 						DiscoverPosterCard(
 							model = model,
 							posterStyle = posterStyle,
+							badgesBottomRight = badgesBottomRight,
 							onClick = { coverBounds -> onItemClick(model, coverBounds) },
 							modifier = animatedModifier,
 						)
@@ -126,12 +124,11 @@ fun DiscoverCarousel(
 private fun DiscoverPosterCard(
 	model: ContentListModel,
 	posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
+	badgesBottomRight: Set<String>,
 	onClick: (Rect?) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	val context = LocalContext.current
-	val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-	val badgesBottomRight = settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_RIGHT) { badgesBottomRight }.value
 	val imageRequest = remember(model.id, model.coverUrl) {
 		ImageRequest.Builder(context)
 			.data(model.coverUrl)
