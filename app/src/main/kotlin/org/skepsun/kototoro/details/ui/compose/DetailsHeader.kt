@@ -192,15 +192,19 @@ fun DetailsHeader(
     }
     val isFavourite = favouriteCategories.isNotEmpty()
     val contentRating = content?.contentRating
-    val alternateTitles = buildList {
-        if (isShowingTranslation && originalTitle.isNotBlank() && originalTitle != displayTitle) {
-            add(originalTitle)
-        }
-        addAll(content?.altTitles.orEmpty().filter { it.isNotBlank() && it != displayTitle })
-    }.distinct()
-    val ratingLabel = content
-        ?.takeIf { it.hasRating }
-        ?.let { String.format(defaultLocale, "%.1f", it.rating * 10f) }
+    val alternateTitlesText = remember(isShowingTranslation, originalTitle, displayTitle, content?.altTitles) {
+        buildList {
+            if (isShowingTranslation && originalTitle.isNotBlank() && originalTitle != displayTitle) {
+                add(originalTitle)
+            }
+            addAll(content?.altTitles.orEmpty().filter { it.isNotBlank() && it != displayTitle })
+        }.distinct().joinToString(" / ")
+    }
+    val ratingLabel = remember(content?.hasRating, content?.rating, defaultLocale) {
+        content
+            ?.takeIf { it.hasRating }
+            ?.let { String.format(defaultLocale, "%.1f", it.rating * 10f) }
+    }
     val state = content?.state
     val progressLabel = if (historyInfo.history != null) {
         "${(historyInfo.percent * 100f).roundToInt()}%"
@@ -341,9 +345,9 @@ fun DetailsHeader(
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (alternateTitles.isNotEmpty()) {
+                if (alternateTitlesText.isNotEmpty()) {
                     Text(
-                        text = alternateTitles.joinToString(" / "),
+                        text = alternateTitlesText,
                         style = MaterialTheme.typography.labelMedium.copy(lineHeight = 16.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2,

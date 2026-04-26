@@ -22,7 +22,6 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +36,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getContentType
@@ -96,10 +96,10 @@ fun ChaptersPagesTabsContent(
     onChapterSelectionStateChange: (ChapterSelectionUiState?) -> Unit = {},
 	onSelectedTabIdChange: ((Int) -> Unit)? = null,
 ) {
-	val mangaDetails by viewModel.mangaDetails.collectAsState()
+	val mangaDetails by viewModel.mangaDetails.collectAsStateWithLifecycle()
 	val source = mangaDetails?.toContent()?.source
 	val contentType = source?.getContentType()
-	val emptyReason by viewModel.emptyReason.collectAsState(initial = null)
+	val emptyReason by viewModel.emptyReason.collectAsStateWithLifecycle(initialValue = null)
 
 	val isNovel = contentType == ContentType.NOVEL || contentType == ContentType.HENTAI_NOVEL
 	val isVideo = contentType == ContentType.VIDEO || contentType == ContentType.HENTAI_VIDEO
@@ -202,8 +202,6 @@ fun ChaptersPagesTabsContent(
 				state = pagerState,
 				modifier = Modifier.weight(1f).fillMaxWidth(),
 			) { page ->
-				if (router == null) return@HorizontalPager
-
 				when (tabsList[page].tabId) {
 					DETAILS_TAB_CHAPTERS -> DetailsChapterPanels(
 						viewModel = viewModel,

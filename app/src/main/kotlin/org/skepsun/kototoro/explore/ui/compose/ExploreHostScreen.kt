@@ -105,6 +105,7 @@ import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
 import org.skepsun.kototoro.explore.ui.ExploreViewModel
 import org.skepsun.kototoro.explore.ui.model.ContentSourceItem
 import org.skepsun.kototoro.list.ui.model.ContentListModel
+import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.core.parser.external.ExternalContentSource
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
@@ -130,6 +131,66 @@ private data class SourceQuickAccessGroup(
     val title: String?,
     val sources: List<ContentSourceItem>,
 )
+
+private data class BrowseShowcaseRow(
+    val row: DiscoverCarouselRow,
+    val items: List<ContentListModel>,
+)
+
+private data class BrowseDiscoverItems(
+    val heroRow: DiscoverCarouselRow?,
+    val heroItems: List<ContentListModel>,
+    val showcaseRows: List<BrowseShowcaseRow>,
+    val popularItems: List<ContentListModel>,
+    val isLoadingOnly: Boolean,
+)
+
+private fun prepareBrowseDiscoverItems(items: List<ListModel>): BrowseDiscoverItems {
+    val carouselRows = ArrayList<DiscoverCarouselRow>()
+    var isLoadingOnly = items.size <= 1
+    if (isLoadingOnly) {
+        isLoadingOnly = items.any { it is LoadingState }
+    }
+    items.forEach { item ->
+        if (item is DiscoverCarouselRow) {
+            carouselRows += item
+        }
+    }
+
+    var heroRow: DiscoverCarouselRow? = null
+    var heroItems: List<ContentListModel> = emptyList()
+    val showcaseRows = ArrayList<BrowseShowcaseRow>()
+    val popularItems = ArrayList<ContentListModel>()
+    val popularIds = HashSet<Long>()
+
+    carouselRows.forEach { row ->
+        val rowItems = row.items
+            .asSequence()
+            .filterIsInstance<ContentListModel>()
+            .toList()
+        if (heroRow == null && rowItems.isNotEmpty()) {
+            heroRow = row
+            heroItems = rowItems.take(6)
+        } else {
+            if (showcaseRows.size < 4 && rowItems.isNotEmpty()) {
+                showcaseRows += BrowseShowcaseRow(row = row, items = rowItems.take(12))
+            }
+            rowItems.forEach { item ->
+                if (popularIds.add(item.id)) {
+                    popularItems += item
+                }
+            }
+        }
+    }
+
+    return BrowseDiscoverItems(
+        heroRow = heroRow,
+        heroItems = heroItems,
+        showcaseRows = showcaseRows,
+        popularItems = popularItems,
+        isLoadingOnly = isLoadingOnly,
+    )
+}
 
 private fun sourceQuickAccessMetrics(gridScale: Float): SourceQuickAccessMetrics {
     val normalized = ((gridScale.coerceIn(0.75f, 1.4f) - 0.75f) / (1.4f - 0.75f)).coerceIn(0f, 1f)
@@ -183,27 +244,12 @@ fun KototoroExploreHostRoute(
         sourceItems.filterIsInstance<ContentSourceItem>()
     }
     var selectedSourceIds by rememberSaveable { mutableStateOf(emptySet<Long>()) }
-    val carouselRows = remember(discoverItems) {
-        discoverItems.filterIsInstance<DiscoverCarouselRow>()
-    }
-    val heroRow = remember(carouselRows) {
-        carouselRows.firstOrNull { row -> row.items.any { it is ContentListModel } }
-    }
-    val heroItems = remember(heroRow) {
-        heroRow?.items?.filterIsInstance<ContentListModel>()?.take(6).orEmpty()
-    }
-    val showcaseRows = remember(carouselRows, heroRow) {
-        carouselRows
-            .filterNot { row -> row.category.id == heroRow?.category?.id }
-            .take(4)
-    }
-    val popularItems = remember(carouselRows, heroRow) {
-        carouselRows
-            .filterNot { row -> row.category.id == heroRow?.category?.id }
-            .flatMap { row -> row.items.filterIsInstance<ContentListModel>() }
-            .distinctBy { it.id }
-    }
-    val isLoadingOnly = discoverItems.size <= 1 && discoverItems.any { it is LoadingState }
+    val browseDiscoverItems = remember(discoverItems) { prepareBrowseDiscoverItems(discoverItems) }
+    val heroRow = browseDiscoverItems.heroRow
+    val heroItems = browseDiscoverItems.heroItems
+    val showcaseRows = browseDiscoverItems.showcaseRows
+    val popularItems = browseDiscoverItems.popularItems
+    val isLoadingOnly = browseDiscoverItems.isLoadingOnly
     val heroOverlapDp = if (sources.isNotEmpty() || isLoadingOnly) BrowseHeroContentOverlap else 0.dp
     val heroHeightDp by remember(heroPx, density, heroOverlapDp) {
         derivedStateOf {
@@ -345,16 +391,14 @@ fun KototoroExploreHostRoute(
 
                 items(
                     items = showcaseRows,
-                    key = { "showcase_${it.category.id}" },
+                    key = { "showcase_${it.row.category.id}" },
                     contentType = { "showcase_row" },
-                ) { row ->
-                    val rowContentItems = remember(row) {
-                        row.items.filterIsInstance<ContentListModel>().take(12)
-                    }
-                    if (rowContentItems.isNotEmpty()) {
+                ) { showcaseRow ->
+                    val row = showcaseRow.row
+                    if (showcaseRow.items.isNotEmpty()) {
                         TrackingCategoryRow(
                             title = stringResource(row.category.nameResId),
-                            items = rowContentItems,
+                            items = showcaseRow.items,
                             posterStyle = posterStyle,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp),
                             onItemClick = { item ->
