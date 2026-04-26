@@ -187,27 +187,29 @@ fun DetailsScreen(
     sharedElementKey: String? = null,
     onActionClick: (DetailsAction) -> Unit = {},
 ) {
-    val mangaDetails by viewModel.mangaDetails.collectAsStateWithLifecycle()
-    val remoteContent by viewModel.remoteContent.collectAsStateWithLifecycle()
-    val favouriteCategories by viewModel.favouriteCategories.collectAsStateWithLifecycle()
-    val historyInfo by viewModel.historyInfo.collectAsStateWithLifecycle()
-    val branches by viewModel.branches.collectAsStateWithLifecycle()
+    val detailsPrimaryUiState by viewModel.detailsPrimaryUiState.collectAsStateWithLifecycle()
     val translationUiState by viewModel.translationUiState.collectAsStateWithLifecycle()
-    val isStatsAvailable by viewModel.isStatsAvailable.collectAsStateWithLifecycle()
-    val isChaptersReversed by viewModel.isChaptersReversed.collectAsStateWithLifecycle(initialValue = false)
-    val isChaptersInGridView by viewModel.isChaptersInGridView.collectAsStateWithLifecycle(initialValue = false)
-    val isDownloadedOnly by viewModel.isDownloadedOnly.collectAsStateWithLifecycle(initialValue = false)
+    val chaptersPaneControlsUiState by viewModel.chaptersPaneControlsUiState.collectAsStateWithLifecycle()
     val pagesGridScale by pagesViewModel.gridScale.collectAsStateWithLifecycle(initialValue = settings.gridSizePages / 100f)
-    val chapterEmptyReason by viewModel.emptyReason.collectAsStateWithLifecycle(initialValue = null)
-    val trackingSuggestion by viewModel.trackingMatchSuggestion.collectAsStateWithLifecycle()
-    val linkedTrackingItems by viewModel.linkedTrackingItems.collectAsStateWithLifecycle()
-    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
-    val entityRelationSections by viewModel.entityRelationSections.collectAsStateWithLifecycle()
     val sourceBindingUiState by viewModel.sourceBindingUiState.collectAsStateWithLifecycle()
     val trackingDetailsUiState by viewModel.trackingDetailsUiState.collectAsStateWithLifecycle()
     val metadataSearchUiState by viewModel.metadataSearchUiState.collectAsStateWithLifecycle()
     val readingSearchUiState by viewModel.readingSearchUiState.collectAsStateWithLifecycle()
-    val activeLocalBrowserContent by viewModel.activeLocalBrowserContent.collectAsStateWithLifecycle()
+    val mangaDetails = detailsPrimaryUiState.mangaDetails
+    val remoteContent = detailsPrimaryUiState.remoteContent
+    val favouriteCategories = detailsPrimaryUiState.favouriteCategories
+    val historyInfo = detailsPrimaryUiState.historyInfo
+    val branches = detailsPrimaryUiState.branches
+    val isStatsAvailable = detailsPrimaryUiState.isStatsAvailable
+    val trackingSuggestion = detailsPrimaryUiState.trackingSuggestion
+    val linkedTrackingItems = detailsPrimaryUiState.linkedTrackingItems
+    val isLoading = detailsPrimaryUiState.isLoading
+    val entityRelationSections = detailsPrimaryUiState.entityRelationSections
+    val activeLocalBrowserContent = detailsPrimaryUiState.activeLocalBrowserContent
+    val isChaptersReversed = chaptersPaneControlsUiState.isChaptersReversed
+    val isChaptersInGridView = chaptersPaneControlsUiState.isChaptersInGridView
+    val isDownloadedOnly = chaptersPaneControlsUiState.isDownloadedOnly
+    val chapterEmptyReason = chaptersPaneControlsUiState.emptyReason
     val activeLocalSourceOptions = sourceBindingUiState.activeLocalSourceOptions
     val entityChapterSourceInfo = sourceBindingUiState.entityChapterSourceInfo
     val metadataSourceOptions = sourceBindingUiState.metadataSourceOptions

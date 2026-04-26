@@ -65,6 +65,7 @@ import org.skepsun.kototoro.details.ui.model.DetailsSourceOption
 import org.skepsun.kototoro.details.ui.model.DetailsChapterSourceTab
 import org.skepsun.kototoro.details.ui.model.ChapterListItem.Companion.FLAG_DOWNLOADED
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
+import org.skepsun.kototoro.details.ui.pager.EmptyContentReason
 import org.skepsun.kototoro.discover.ui.details.LocalSearchState
 import org.skepsun.kototoro.download.ui.worker.DownloadWorker
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
@@ -177,6 +178,27 @@ data class TranslationUiState(
 	val showTranslateAction: Boolean = false,
 )
 
+data class DetailsPrimaryUiState(
+	val mangaDetails: ContentDetails? = null,
+	val remoteContent: Content? = null,
+	val favouriteCategories: Set<FavouriteCategory> = emptySet(),
+	val historyInfo: HistoryInfo = HistoryInfo(null, null, null, false, null),
+	val branches: List<ContentBranch> = emptyList(),
+	val isStatsAvailable: Boolean = false,
+	val trackingSuggestion: TrackingSiteMatchResult? = null,
+	val linkedTrackingItems: List<LinkedTrackingItemUiModel> = emptyList(),
+	val isLoading: Boolean = false,
+	val entityRelationSections: List<EntityRelationSection> = emptyList(),
+	val activeLocalBrowserContent: Content? = null,
+)
+
+data class ChaptersPaneControlsUiState(
+	val isChaptersReversed: Boolean = false,
+	val isChaptersInGridView: Boolean = false,
+	val isDownloadedOnly: Boolean = false,
+	val emptyReason: EmptyContentReason? = null,
+)
+
 private data class TrackingDiscussionUiState(
 	val commentThreads: List<TrackingSiteItemDetails.CommentThread> = emptyList(),
 	val commentsUrl: String? = null,
@@ -220,6 +242,22 @@ private data class TranslationTextUiState(
 	val translatedDescription: String? = null,
 	val isShowingTranslation: Boolean = false,
 	val hasTranslationCache: Boolean = false,
+)
+
+private data class DetailsHeaderUiState(
+	val mangaDetails: ContentDetails? = null,
+	val favouriteCategories: Set<FavouriteCategory> = emptySet(),
+	val historyInfo: HistoryInfo = HistoryInfo(null, null, null, false, null),
+	val trackingSuggestion: TrackingSiteMatchResult? = null,
+	val linkedTrackingItems: List<LinkedTrackingItemUiModel> = emptyList(),
+)
+
+private data class DetailsPaneSummaryUiState(
+	val remoteContent: Content? = null,
+	val branches: List<ContentBranch> = emptyList(),
+	val isStatsAvailable: Boolean = false,
+	val isLoading: Boolean = false,
+	val activeLocalBrowserContent: Content? = null,
 )
 
 @HiltViewModel
@@ -402,6 +440,19 @@ class DetailsViewModel @Inject constructor(
 			state = state,
 		)
 	}.stateIn(viewModelScope, SharingStarted.Eagerly, ReadingSearchUiState())
+	val chaptersPaneControlsUiState: StateFlow<ChaptersPaneControlsUiState> = combine(
+		isChaptersReversed,
+		isChaptersInGridView,
+		isDownloadedOnly,
+		emptyReason,
+	) { isChaptersReversed, isChaptersInGridView, isDownloadedOnly, emptyReason ->
+		ChaptersPaneControlsUiState(
+			isChaptersReversed = isChaptersReversed,
+			isChaptersInGridView = isChaptersInGridView,
+			isDownloadedOnly = isDownloadedOnly,
+			emptyReason = emptyReason,
+		)
+	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, ChaptersPaneControlsUiState())
 	val resolvedMetadataContentType = MutableStateFlow<ContentType?>(null)
 	val resolvedMetadataLanguage = MutableStateFlow<String?>(null)
 	val resolvedReadingLanguage = MutableStateFlow<String?>(null)
@@ -1728,6 +1779,56 @@ class DetailsViewModel @Inject constructor(
 			)
 		}.sortedWith(BranchComparator())
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, emptyList())
+
+	private val detailsHeaderUiState = combine(
+		mangaDetails,
+		favouriteCategories,
+		historyInfo,
+		trackingMatchSuggestion,
+		linkedTrackingItems,
+	) { mangaDetails, favouriteCategories, historyInfo, trackingSuggestion, linkedTrackingItems ->
+		DetailsHeaderUiState(
+			mangaDetails = mangaDetails,
+			favouriteCategories = favouriteCategories,
+			historyInfo = historyInfo,
+			trackingSuggestion = trackingSuggestion,
+			linkedTrackingItems = linkedTrackingItems,
+		)
+	}
+	private val detailsPaneSummaryUiState = combine(
+		remoteContent,
+		branches,
+		isStatsAvailable,
+		isLoading,
+		activeLocalBrowserContent,
+	) { remoteContent, branches, isStatsAvailable, isLoading, activeLocalBrowserContent ->
+		DetailsPaneSummaryUiState(
+			remoteContent = remoteContent,
+			branches = branches,
+			isStatsAvailable = isStatsAvailable,
+			isLoading = isLoading,
+			activeLocalBrowserContent = activeLocalBrowserContent,
+		)
+	}
+	val detailsPrimaryUiState: StateFlow<DetailsPrimaryUiState> = combine(
+		detailsHeaderUiState,
+		detailsPaneSummaryUiState,
+		entityRelationSections,
+	) { header, pane, entityRelationSections ->
+		DetailsPrimaryUiState(
+			mangaDetails = header.mangaDetails,
+			remoteContent = pane.remoteContent,
+			favouriteCategories = header.favouriteCategories,
+			historyInfo = header.historyInfo,
+			branches = pane.branches,
+			isStatsAvailable = pane.isStatsAvailable,
+			trackingSuggestion = header.trackingSuggestion,
+			linkedTrackingItems = header.linkedTrackingItems,
+			isLoading = pane.isLoading,
+			entityRelationSections = entityRelationSections,
+			activeLocalBrowserContent = pane.activeLocalBrowserContent,
+		)
+	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, DetailsPrimaryUiState())
 
 	val selectedBranchValue: String?
 		get() = selectedBranch.value
