@@ -38,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
@@ -122,6 +123,12 @@ private data class SourceQuickAccessMetrics(
     val gridSpacing: androidx.compose.ui.unit.Dp,
     val iconContainerSize: androidx.compose.ui.unit.Dp,
     val iconSize: androidx.compose.ui.unit.Dp,
+)
+
+@Immutable
+private data class ExploreScreenPrefs(
+    val gridScale: Float,
+    val isSourcesGroupedByLanguage: Boolean,
 )
 
 private data class SourceOriginBadgeInfo(
@@ -253,10 +260,17 @@ fun KototoroExploreHostRoute(
     val context = LocalContext.current
     val activity = context as? androidx.activity.ComponentActivity
     val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-    val gridScale by settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize / 100f }
-    val isSourcesGroupedByLanguage by settings.observeAsState(AppSettings.KEY_SOURCES_GROUPED_BY_LANGUAGE) {
-        isSourcesGroupedByLanguage
+    val screenPrefs by settings.observeAsState(
+        AppSettings.KEY_GRID_SIZE,
+        AppSettings.KEY_SOURCES_GROUPED_BY_LANGUAGE,
+    ) {
+        ExploreScreenPrefs(
+            gridScale = gridSize / 100f,
+            isSourcesGroupedByLanguage = isSourcesGroupedByLanguage,
+        )
     }
+    val gridScale = screenPrefs.gridScale
+    val isSourcesGroupedByLanguage = screenPrefs.isSourcesGroupedByLanguage
     val posterStyle = remember(gridScale) { compactPosterRailCardStyle(gridScale) }
     // 实时读取 LazyColumn 第一个 item 的滚动偏移，驱动 Hero 跟随滚动
     val heroScrollOffsetPx by remember(listState) {

@@ -21,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,8 +41,6 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
 import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
 import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
@@ -59,18 +58,21 @@ import org.skepsun.kototoro.core.ui.compose.rememberHorizontalRailScrollIntensit
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.tracker.ui.feed.model.UpdatedContentHeader
 
+@Immutable
+data class UpdatedContentCarouselPrefs(
+	val gridScale: Float,
+	val badgesBottomRight: Set<String>,
+)
+
 @Composable
 fun UpdatedContentCarousel(
 	header: UpdatedContentHeader,
+	prefs: UpdatedContentCarouselPrefs,
 	onItemClick: (ContentListModel, Rect?) -> Unit,
 	onMoreClick: () -> Unit,
 	modifier: Modifier = Modifier
 ) {
-	val context = LocalContext.current
-	val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-	val gridScale = settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize / 100f }.value
-	val badgesBottomRight = settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_RIGHT) { badgesBottomRight }.value
-	val posterStyle = remember(gridScale) { compactPosterRailCardStyle(gridScale) }
+	val posterStyle = remember(prefs.gridScale) { compactPosterRailCardStyle(prefs.gridScale) }
 	val listState = rememberLazyListState()
 	val scrollIntensity = rememberHorizontalRailScrollIntensity(listState)
 
@@ -122,7 +124,7 @@ fun UpdatedContentCarousel(
 					FeedUpdatedPosterCard(
 						model = contentModel,
 						posterStyle = posterStyle,
-						badgesBottomRight = badgesBottomRight,
+						badgesBottomRight = prefs.badgesBottomRight,
 						onClick = { coverBounds -> onItemClick(contentModel, coverBounds) },
 						modifier = animatedModifier,
 					)

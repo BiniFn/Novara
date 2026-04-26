@@ -66,7 +66,7 @@ fun AnimatedPanoramaBackdrop(
     crossfadeEnabled: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    if (!prefs.isEnabled || contentAlpha <= 0.01f) return
+    if (!prefs.isEnabled) return
 
     val panoramaGradientAlphaFactor = (prefs.bottomGradientAlphaPercent / 100f).coerceIn(0f, 1f)
     val panoramaAnimationSpeedFactor = (prefs.animationSpeedPercent.coerceIn(50, 200)) / 100f

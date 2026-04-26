@@ -31,6 +31,8 @@ import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.FavouriteCategory
 import org.skepsun.kototoro.core.model.FavouriteCategory.Companion.NO_ID
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.EmptyState
@@ -58,6 +60,16 @@ fun FeedScreen(
 ) {
 	val listState = rememberLazyListState()
 	val context = LocalContext.current
+	val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+	val carouselPrefs by settings.observeAsState(
+		AppSettings.KEY_GRID_SIZE,
+		AppSettings.KEY_BADGES_BOTTOM_RIGHT,
+	) {
+		UpdatedContentCarouselPrefs(
+			gridScale = gridSize / 100f,
+			badgesBottomRight = badgesBottomRight,
+		)
+	}
 	
 	// Trigger pagination threshold
 	val shouldLoadMore by remember {
@@ -129,6 +141,7 @@ fun FeedScreen(
 						// Here we render the horizontal carousel of updated contents
 						UpdatedContentCarousel(
 							header = item,
+							prefs = carouselPrefs,
 							onItemClick = onUpdatedContentItemClick,
 							onMoreClick = { onUpdatedContentMoreClick(item) }
 						)
