@@ -18,6 +18,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -38,8 +39,8 @@ import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
 import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
 import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
+import org.skepsun.kototoro.list.ui.compose.ContentCardUiPrefs
 import org.skepsun.kototoro.list.ui.compose.KototoroContentCard
-import org.skepsun.kototoro.list.ui.compose.rememberContentCardUiPrefs
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.ListModel
@@ -52,6 +53,12 @@ private data class DiscoverPreparedItems(
 	val emptyState: EmptyState?,
 	val heroRow: DiscoverCarouselRow?,
 	val heroItems: List<ContentListModel>,
+)
+
+@Immutable
+private data class DiscoverScreenPrefs(
+	val gridScale: Float,
+	val cardUiPrefs: ContentCardUiPrefs,
 )
 
 private fun prepareDiscoverItems(items: List<ListModel>): DiscoverPreparedItems {
@@ -119,8 +126,25 @@ fun DiscoverScreen(
 	}
 	val context = LocalContext.current
 	val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-	val gridScale = settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize / 100f }.value
-	val cardUiPrefs = rememberContentCardUiPrefs(settings)
+	val screenPrefs by settings.observeAsState(
+		AppSettings.KEY_GRID_SIZE,
+		AppSettings.KEY_BADGES_TOP_LEFT,
+		AppSettings.KEY_BADGES_TOP_RIGHT,
+		AppSettings.KEY_BADGES_BOTTOM_LEFT,
+		AppSettings.KEY_BADGES_BOTTOM_RIGHT,
+	) {
+		DiscoverScreenPrefs(
+			gridScale = gridSize / 100f,
+			cardUiPrefs = ContentCardUiPrefs(
+				badgesTopLeft = badgesTopLeft,
+				badgesTopRight = badgesTopRight,
+				badgesBottomLeft = badgesBottomLeft,
+				badgesBottomRight = badgesBottomRight,
+			),
+		)
+	}
+	val gridScale = screenPrefs.gridScale
+	val cardUiPrefs = screenPrefs.cardUiPrefs
 
 	KototoroPullToRefreshBox(
 		isRefreshing = isRefreshing,

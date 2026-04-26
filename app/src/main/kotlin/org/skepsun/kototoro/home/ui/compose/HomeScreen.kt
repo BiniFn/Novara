@@ -42,6 +42,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -107,11 +108,18 @@ import org.skepsun.kototoro.list.ui.compose.contentCardBadgeMetricsFor
 import org.skepsun.kototoro.list.ui.model.ContentGridModel
 import org.skepsun.kototoro.parsers.model.Content
 
+@Immutable
 private data class HomeCardBadgePrefs(
     val topLeft: Set<String>,
     val topRight: Set<String>,
     val bottomLeft: Set<String>,
     val bottomRight: Set<String>,
+)
+
+@Immutable
+private data class HomeScreenPrefs(
+    val gridScale: Float,
+    val badgePrefs: HomeCardBadgePrefs,
 )
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -141,20 +149,25 @@ fun HomeScreen(
     val systemBarsPadding = WindowInsets.systemBars.asPaddingValues()
     val context = LocalContext.current
     val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-    val gridScale by settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize / 100f }
-    val badgePrefs by settings.observeAsState(
+    val screenPrefs by settings.observeAsState(
+        AppSettings.KEY_GRID_SIZE,
         AppSettings.KEY_BADGES_TOP_LEFT,
         AppSettings.KEY_BADGES_TOP_RIGHT,
         AppSettings.KEY_BADGES_BOTTOM_LEFT,
         AppSettings.KEY_BADGES_BOTTOM_RIGHT,
     ) {
-        HomeCardBadgePrefs(
-            topLeft = badgesTopLeft,
-            topRight = badgesTopRight,
-            bottomLeft = badgesBottomLeft,
-            bottomRight = badgesBottomRight,
+        HomeScreenPrefs(
+            gridScale = gridSize / 100f,
+            badgePrefs = HomeCardBadgePrefs(
+                topLeft = badgesTopLeft,
+                topRight = badgesTopRight,
+                bottomLeft = badgesBottomLeft,
+                bottomRight = badgesBottomRight,
+            ),
         )
     }
+    val gridScale = screenPrefs.gridScale
+    val badgePrefs = screenPrefs.badgePrefs
     val panoramaPrefs = rememberPanoramaBackdropPrefs(settings)
     val posterStyle = remember(gridScale) { compactPosterRailCardStyle(gridScale) }
     val recentSearches = remember(state.recentSearches) { state.recentSearches.map { it.query } }
