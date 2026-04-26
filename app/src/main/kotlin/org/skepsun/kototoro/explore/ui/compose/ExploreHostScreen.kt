@@ -528,6 +528,7 @@ fun KototoroExploreHostRoute(
                 availableServices = availableServices,
                 isLoadingOnly = isLoadingOnly,
                 topContentInset = contentPadding.calculateTopPadding(),
+                settings = settings,
                 onSelectService = discoverViewModel::selectService,
                 onHeroItemClick = { item, sharedElementKey ->
                     openTrackingItem(
@@ -610,6 +611,7 @@ private fun BrowseHeroBlock(
     availableServices: List<ScrobblerService>,
     isLoadingOnly: Boolean,
     topContentInset: androidx.compose.ui.unit.Dp,
+    settings: AppSettings,
     onSelectService: (ScrobblerService) -> Unit,
     onHeroItemClick: (ContentListModel, String) -> Unit,
     sharedElementKeyForItem: (ContentListModel, Int) -> String,
@@ -625,6 +627,7 @@ private fun BrowseHeroBlock(
             onItemClick = { item, _, sharedElementKey -> onHeroItemClick(item, sharedElementKey) },
             topContentInset = topContentInset,
             detachedBottomContent = true,
+            settings = settings,
             sharedElementKeyForItem = sharedElementKeyForItem,
             modifier = modifier,
         )

@@ -245,7 +245,6 @@ fun DetailsScreen(
     val readingSearchState = readingSearchUiState.state
 
     val context = LocalContext.current
-    val panoramaExtraHeight by settings.observeAsState(AppSettings.KEY_PANORAMA_EXTRA_HEIGHT) { panoramaCoverExtraHeight }
     val panoramaPrefs = rememberPanoramaBackdropPrefs(settings)
     val downloadDialogViewModel: DownloadDialogViewModel = hiltViewModel()
     val content = mangaDetails?.toContent()
@@ -408,7 +407,7 @@ fun DetailsScreen(
             }
         }
     }
-    val panoramaExtraHeightDp = ((panoramaExtraHeight ?: 0).coerceAtLeast(0)).dp
+    val panoramaExtraHeightDp = panoramaPrefs.extraHeight.coerceAtLeast(0).dp
     val detailsHeaderTopSpacing = overlayTopBarInset + if (panoramaPrefs.isEnabled) panoramaExtraHeightDp else 0.dp
     val compactTopBarAlpha by animateFloatAsState(
         targetValue = if (isWideAdaptiveLayout) 1f else (1f - compactSheetExpansionProgress).coerceIn(0f, 1f),

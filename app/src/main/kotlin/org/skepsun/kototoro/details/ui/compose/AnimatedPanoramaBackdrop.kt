@@ -33,6 +33,7 @@ data class PanoramaBackdropPrefs(
     val bottomGradientAlphaPercent: Int,
     val isAnimationEnabled: Boolean,
     val animationSpeedPercent: Int,
+    val extraHeight: Int,
 )
 
 @Composable
@@ -44,6 +45,7 @@ fun rememberPanoramaBackdropPrefs(settings: AppSettings): PanoramaBackdropPrefs 
         AppSettings.KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA,
         AppSettings.KEY_PANORAMA_ANIMATION_ENABLED,
         AppSettings.KEY_PANORAMA_ANIMATION_SPEED,
+        AppSettings.KEY_PANORAMA_EXTRA_HEIGHT,
     ) {
         PanoramaBackdropPrefs(
             isEnabled = isPanoramaCoverEnabled,
@@ -51,6 +53,7 @@ fun rememberPanoramaBackdropPrefs(settings: AppSettings): PanoramaBackdropPrefs 
             bottomGradientAlphaPercent = panoramaBottomGradientAlpha,
             isAnimationEnabled = supportsRealtimeEffects && isPanoramaCoverAnimationEnabled,
             animationSpeedPercent = panoramaAnimationSpeed,
+            extraHeight = panoramaCoverExtraHeight,
         )
     }
     return prefs
