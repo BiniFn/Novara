@@ -101,7 +101,7 @@ fun VerticalRailAnimatedVisibility(
     val clampedScaleFactor = scaleFactor.coerceIn(0f, 1f)
     val animatedModifier = modifier.graphicsLayer {
         val entry = entryProgress.value
-        if (scrollIntensity > 0.85f) {
+        if (!listState.isScrollInProgress || scrollIntensity !in 0.04f..0.55f) {
             alpha = 1f - ((1f - entry) * 0.58f * clampedFactor)
             val entryScale = 1f - ((1f - entry) * 0.04f * clampedScaleFactor * clampedFactor)
             scaleX = entryScale

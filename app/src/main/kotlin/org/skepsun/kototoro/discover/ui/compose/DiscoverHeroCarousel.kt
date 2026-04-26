@@ -169,12 +169,13 @@ fun DiscoverHeroCarousel(
     val selectedItem = items[selectedIndex]
     var isServiceMenuExpanded by rememberSaveable { mutableStateOf(false) }
 
-    val backgroundScale: Float
-    val backgroundTranslationX: Float
-    val backgroundTranslationY: Float
-    if (panoramaPrefs.animationEnabled) {
-        val infiniteTransition = rememberInfiniteTransition(label = "discover_hero_background")
-        backgroundScale = infiniteTransition.animateFloat(
+    val infiniteTransition = if (panoramaPrefs.animationEnabled) {
+        rememberInfiniteTransition(label = "discover_hero_background")
+    } else {
+        null
+    }
+    val backgroundScaleState = if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
             initialValue = 1.15f,
             targetValue = 1.22f,
             animationSpec = infiniteRepeatable(
@@ -182,8 +183,12 @@ fun DiscoverHeroCarousel(
                 repeatMode = RepeatMode.Reverse,
             ),
             label = "discover_hero_background_scale",
-        ).value
-        backgroundTranslationX = infiniteTransition.animateFloat(
+        )
+    } else {
+        null
+    }
+    val backgroundTranslationXState = if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
             initialValue = -18f,
             targetValue = 18f,
             animationSpec = infiniteRepeatable(
@@ -191,8 +196,12 @@ fun DiscoverHeroCarousel(
                 repeatMode = RepeatMode.Reverse,
             ),
             label = "discover_hero_background_translation_x",
-        ).value
-        backgroundTranslationY = infiniteTransition.animateFloat(
+        )
+    } else {
+        null
+    }
+    val backgroundTranslationYState = if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
             initialValue = -12f,
             targetValue = 12f,
             animationSpec = infiniteRepeatable(
@@ -200,11 +209,9 @@ fun DiscoverHeroCarousel(
                 repeatMode = RepeatMode.Reverse,
             ),
             label = "discover_hero_background_translation_y",
-        ).value
+        )
     } else {
-        backgroundScale = 1f
-        backgroundTranslationX = 0f
-        backgroundTranslationY = 0f
+        null
     }
 
     HeroAutoAdvanceEffect(
@@ -259,10 +266,11 @@ fun DiscoverHeroCarousel(
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer {
+                            val backgroundScale = backgroundScaleState?.value ?: 1f
                             scaleX = backgroundScale
                             scaleY = backgroundScale
-                            translationX = backgroundTranslationX
-                            translationY = backgroundTranslationY
+                            translationX = backgroundTranslationXState?.value ?: 0f
+                            translationY = backgroundTranslationYState?.value ?: 0f
                         }
                         .alpha(0.94f),
                 )

@@ -74,12 +74,13 @@ fun AnimatedPanoramaBackdrop(
     val horizontalPanAnimationDuration = (16000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(4500)
     val verticalPanAnimationDuration = (12000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(3500)
 
-    val backgroundScale: Float
-    val backgroundTranslationX: Float
-    val backgroundTranslationY: Float
-    if (prefs.isAnimationEnabled) {
-        val infiniteTransition = rememberInfiniteTransition(label = "details_panorama_background")
-        val animatedScale by infiniteTransition.animateFloat(
+    val infiniteTransition = if (prefs.isAnimationEnabled) {
+        rememberInfiniteTransition(label = "details_panorama_background")
+    } else {
+        null
+    }
+    val backgroundScaleState = if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
             initialValue = 1.15f,
             targetValue = 1.22f,
             animationSpec = infiniteRepeatable(
@@ -88,7 +89,11 @@ fun AnimatedPanoramaBackdrop(
             ),
             label = "details_panorama_background_scale",
         )
-        val animatedTranslationX by infiniteTransition.animateFloat(
+    } else {
+        null
+    }
+    val backgroundTranslationXState = if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
             initialValue = -18f,
             targetValue = 18f,
             animationSpec = infiniteRepeatable(
@@ -97,7 +102,11 @@ fun AnimatedPanoramaBackdrop(
             ),
             label = "details_panorama_background_translation_x",
         )
-        val animatedTranslationY by infiniteTransition.animateFloat(
+    } else {
+        null
+    }
+    val backgroundTranslationYState = if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
             initialValue = -12f,
             targetValue = 12f,
             animationSpec = infiniteRepeatable(
@@ -106,13 +115,8 @@ fun AnimatedPanoramaBackdrop(
             ),
             label = "details_panorama_background_translation_y",
         )
-        backgroundScale = animatedScale
-        backgroundTranslationX = animatedTranslationX
-        backgroundTranslationY = animatedTranslationY
     } else {
-        backgroundScale = 1f
-        backgroundTranslationX = 0f
-        backgroundTranslationY = 0f
+        null
     }
 
     val context = LocalContext.current
@@ -144,10 +148,11 @@ fun AnimatedPanoramaBackdrop(
         modifier = modifier
             .fillMaxSize()
             .graphicsLayer {
+                val backgroundScale = backgroundScaleState?.value ?: 1f
                 scaleX = backgroundScale
                 scaleY = backgroundScale
-                translationX = backgroundTranslationX
-                translationY = backgroundTranslationY
+                translationX = backgroundTranslationXState?.value ?: 0f
+                translationY = backgroundTranslationYState?.value ?: 0f
                 alpha = (contentAlphaProvider?.invoke() ?: contentAlpha).coerceIn(0f, 1f)
             }
     )

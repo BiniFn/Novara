@@ -50,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -540,28 +541,26 @@ private fun HomeHeroCard(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.14f),
-                            Color.Black.copy(alpha = 0.70f),
+                .drawBehind {
+                    drawRect(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.14f),
+                                Color.Black.copy(alpha = 0.70f),
+                            ),
                         ),
-                    ),
-                ),
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.horizontalGradient(
-                        listOf(
-                            Color.Black.copy(alpha = edgeScrimAlpha),
-                            Color.Transparent,
-                            Color.Black.copy(alpha = edgeScrimAlpha * 0.86f),
+                    )
+                    drawRect(
+                        Brush.horizontalGradient(
+                            listOf(
+                                Color.Black.copy(alpha = edgeScrimAlpha),
+                                Color.Transparent,
+                                Color.Black.copy(alpha = edgeScrimAlpha * 0.86f),
+                            ),
                         ),
-                    ),
-                ),
+                    )
+                },
         )
         Row(
             modifier = Modifier

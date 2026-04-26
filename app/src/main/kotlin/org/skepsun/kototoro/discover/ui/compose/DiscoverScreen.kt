@@ -46,6 +46,53 @@ import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCategory
 
+private data class DiscoverPreparedItems(
+	val carouselRows: List<DiscoverCarouselRow>,
+	val gridItems: List<ContentListModel>,
+	val emptyState: EmptyState?,
+	val heroRow: DiscoverCarouselRow?,
+	val heroItems: List<ContentListModel>,
+)
+
+private fun prepareDiscoverItems(items: List<ListModel>): DiscoverPreparedItems {
+	val carouselRows = ArrayList<DiscoverCarouselRow>()
+	val gridItems = ArrayList<ContentListModel>()
+	var emptyState: EmptyState? = null
+	var heroRow: DiscoverCarouselRow? = null
+	var heroItems: List<ContentListModel> = emptyList()
+
+	items.forEach { item ->
+		when (item) {
+			is DiscoverCarouselRow -> {
+				carouselRows += item
+				if (heroRow == null) {
+					val rowHeroItems = item.items
+						.asSequence()
+						.filterIsInstance<ContentListModel>()
+						.take(6)
+						.toList()
+					if (rowHeroItems.isNotEmpty()) {
+						heroRow = item
+						heroItems = rowHeroItems
+					}
+				}
+			}
+			is ContentListModel -> gridItems += item
+			is EmptyState -> if (emptyState == null) {
+				emptyState = item
+			}
+		}
+	}
+
+	return DiscoverPreparedItems(
+		carouselRows = carouselRows,
+		gridItems = gridItems,
+		emptyState = emptyState,
+		heroRow = heroRow,
+		heroItems = heroItems,
+	)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiscoverScreen(
@@ -80,20 +127,13 @@ fun DiscoverScreen(
 		onRefresh = onRefresh,
 		modifier = modifier.fillMaxSize()
 	) {
-		val carouselRows = remember(items) { items.filterIsInstance<DiscoverCarouselRow>() }
-		val emptyState = remember(items) { items.filterIsInstance<EmptyState>().firstOrNull() }
+		val preparedItems = remember(items) { prepareDiscoverItems(items) }
+		val carouselRows = preparedItems.carouselRows
+		val emptyState = preparedItems.emptyState
 
 		if (isCarousel) {
-			val heroRow = remember(carouselRows) {
-				carouselRows.firstOrNull { row -> row.items.any { it is ContentListModel } }
-			}
-			val heroItems = remember(heroRow) {
-				heroRow
-					?.items
-					?.filterIsInstance<ContentListModel>()
-					?.take(6)
-					.orEmpty()
-			}
+			val heroRow = preparedItems.heroRow
+			val heroItems = preparedItems.heroItems
 
 			if (carouselRows.isEmpty() && emptyState != null) {
 				DiscoverEmptyState(
@@ -145,7 +185,7 @@ fun DiscoverScreen(
 			}
 		} else {
 			val gridState = rememberLazyGridState()
-			val gridItems = remember(items) { items.filterIsInstance<ContentListModel>() }
+			val gridItems = preparedItems.gridItems
 
 			// Trigger pagination threshold for grid
 			val shouldLoadMore by remember(gridState, gridSpanCount, gridItems.size) {

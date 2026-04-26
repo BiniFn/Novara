@@ -125,7 +125,7 @@ fun HorizontalRailAnimatedVisibility(
     val animatedModifier = modifier.graphicsLayer {
         val entry = entryProgress.value
         val clampedFactor = animationFactor.coerceIn(0f, 1f)
-        if (!enableScrollLinkedAnimation || scrollIntensity > 0.85f) {
+        if (!enableScrollLinkedAnimation || !listState.isScrollInProgress || scrollIntensity !in 0.04f..0.55f) {
             alpha = 1f - ((1f - entry) * 0.62f * clampedFactor)
             val entryScale = 1f - ((1f - entry) * 0.08f * clampedFactor)
             scaleX = entryScale
