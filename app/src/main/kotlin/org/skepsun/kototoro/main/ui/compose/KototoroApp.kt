@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -62,6 +63,27 @@ import org.skepsun.kototoro.core.ui.compose.LocalRailAnimationFactor
 import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
 import org.skepsun.kototoro.core.ui.compose.rememberRailAnimationFactor
 import kotlinx.coroutines.delay
+
+@Immutable
+private data class KototoroNavigationPrefs(
+    val isNavBarPinned: Boolean,
+    val isFloating: Boolean,
+)
+
+@Immutable
+private data class KototoroDisplayPrefs(
+    val activeSourcePresetId: Long,
+    val listMode: ListMode,
+    val gridSize: Int,
+    val cornerRadius: Int,
+)
+
+@Immutable
+private data class KototoroFilterVisibilityPrefs(
+    val isLanguagePresetFilterVisible: Boolean,
+    val isContentTypeFilterVisible: Boolean,
+    val isSourceTagFilterVisible: Boolean,
+)
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -126,17 +148,49 @@ fun KototoroApp(
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
-    val isNavBarPinned by appSettings.observeAsState(AppSettings.KEY_NAV_PINNED) { isNavBarPinned }
-    val isFloating by appSettings.observeAsState(AppSettings.KEY_NAV_FLOATING) { isNavFloating }
-    val activeSourcePresetId by appSettings.observeAsState(AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID) { activeSourcePresetId }
-    val listMode by appSettings.observeAsState(AppSettings.KEY_LIST_MODE) { listMode }
-    val gridSize by appSettings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize }
-    val cornerRadius by appSettings.observeAsState(AppSettings.KEY_POPUP_RADIUS) { cornerRadius }
+    val navigationPrefs by appSettings.observeAsState(
+        AppSettings.KEY_NAV_PINNED,
+        AppSettings.KEY_NAV_FLOATING,
+    ) {
+        KototoroNavigationPrefs(
+            isNavBarPinned = isNavBarPinned,
+            isFloating = isNavFloating,
+        )
+    }
+    val displayPrefs by appSettings.observeAsState(
+        AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID,
+        AppSettings.KEY_LIST_MODE,
+        AppSettings.KEY_GRID_SIZE,
+        AppSettings.KEY_POPUP_RADIUS,
+    ) {
+        KototoroDisplayPrefs(
+            activeSourcePresetId = activeSourcePresetId,
+            listMode = listMode,
+            gridSize = gridSize,
+            cornerRadius = cornerRadius,
+        )
+    }
+    val filterVisibilityPrefs by appSettings.observeAsState(
+        AppSettings.KEY_SHOW_LANGUAGE_PRESET_FILTER,
+        AppSettings.KEY_SHOW_CONTENT_TYPE_FILTER,
+        AppSettings.KEY_SHOW_SOURCE_TAG_FILTER,
+    ) {
+        KototoroFilterVisibilityPrefs(
+            isLanguagePresetFilterVisible = isShowLanguagePresetFilter,
+            isContentTypeFilterVisible = isShowContentTypeFilter,
+            isSourceTagFilterVisible = isShowSourceTagFilter,
+        )
+    }
+    val isNavBarPinned = navigationPrefs.isNavBarPinned
+    val isFloating = navigationPrefs.isFloating
+    val activeSourcePresetId = displayPrefs.activeSourcePresetId
+    val listMode = displayPrefs.listMode
+    val gridSize = displayPrefs.gridSize
+    val cornerRadius = displayPrefs.cornerRadius
     val isLandscapeNavigation = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    
-    val isLanguagePresetFilterVisibleSetting by appSettings.observeAsState(AppSettings.KEY_SHOW_LANGUAGE_PRESET_FILTER) { isShowLanguagePresetFilter }
-    val isContentTypeFilterVisibleSetting by appSettings.observeAsState(AppSettings.KEY_SHOW_CONTENT_TYPE_FILTER) { isShowContentTypeFilter }
-    val isSourceTagFilterVisibleSetting by appSettings.observeAsState(AppSettings.KEY_SHOW_SOURCE_TAG_FILTER) { isShowSourceTagFilter }
+    val isLanguagePresetFilterVisibleSetting = filterVisibilityPrefs.isLanguagePresetFilterVisible
+    val isContentTypeFilterVisibleSetting = filterVisibilityPrefs.isContentTypeFilterVisible
+    val isSourceTagFilterVisibleSetting = filterVisibilityPrefs.isSourceTagFilterVisible
     
     val effectiveLanguagePresetFilterVisible = isLanguagePresetFilterVisible && isLanguagePresetFilterVisibleSetting
     val effectiveContentTypeFilterVisible = isContentTypeFilterVisible && isContentTypeFilterVisibleSetting
