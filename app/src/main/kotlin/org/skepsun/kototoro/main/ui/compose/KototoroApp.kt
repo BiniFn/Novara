@@ -58,6 +58,7 @@ import org.skepsun.kototoro.search.domain.SearchKind
 import org.skepsun.kototoro.search.domain.AdvancedSearchParams
 import org.skepsun.kototoro.search.ui.compose.SearchNavigation
 import org.skepsun.kototoro.search.ui.compose.SearchNavigationRequest
+import org.skepsun.kototoro.search.ui.compose.SearchRoute
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import org.skepsun.kototoro.core.ui.compose.LocalRailAnimationFactor
@@ -250,7 +251,7 @@ fun KototoroApp(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     val currentRoute = navBackStackEntry?.destination?.route
-    val isSearchRoute = currentRoute?.startsWith(SearchNavigation.baseRoute) == true
+    val isSearchRoute = currentDestination?.hasRoute<SearchRoute>() == true
     val isDetailsRoute = currentDestination?.hasRoute<DetailsRoute>() == true
     val shouldShowChrome = !isSearchRoute
     var shouldKeepChromeVisible by remember {
@@ -375,7 +376,7 @@ fun KototoroApp(
                                 val route = SearchNavigation.createRoute(request)
                                 if (isSearchRoute) {
                                     navController.navigate(route) {
-                                        popUpTo(currentRoute ?: SearchNavigation.routePattern) { inclusive = true }
+                                        currentRoute?.let { popUpTo(it) { inclusive = true } }
                                         launchSingleTop = true
                                     }
                                 } else {
@@ -599,7 +600,7 @@ fun KototoroApp(
         val route = SearchNavigation.createRoute(request)
         if (isSearchRoute) {
             navController.navigate(route) {
-                popUpTo(currentRoute ?: SearchNavigation.routePattern) { inclusive = true }
+                currentRoute?.let { popUpTo(it) { inclusive = true } }
                 launchSingleTop = true
             }
         } else {

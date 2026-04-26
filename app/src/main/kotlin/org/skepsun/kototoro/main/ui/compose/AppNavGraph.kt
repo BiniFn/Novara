@@ -26,18 +26,15 @@ import org.skepsun.kototoro.favourites.ui.compose.KototoroFavoritesHostRoute
 import org.skepsun.kototoro.main.ui.MainActivity
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 import org.skepsun.kototoro.core.nav.router
-import org.skepsun.kototoro.core.nav.AppRouter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.geometry.Rect
 import androidx.fragment.app.FragmentActivity
-import androidx.navigation.NavType
-import androidx.navigation.navArgument
 import org.skepsun.kototoro.core.util.ShareHelper
 import org.skepsun.kototoro.core.model.isLocal
-import org.skepsun.kototoro.search.ui.compose.SearchNavigation
 import org.skepsun.kototoro.search.ui.compose.SearchNavigationRequest
 import org.skepsun.kototoro.search.ui.compose.SearchResultsRoute
+import org.skepsun.kototoro.search.ui.compose.SearchRoute
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -665,47 +662,7 @@ fun AppNavGraph(
                 )
             }
         }
-        composable(
-            route = SearchNavigation.routePattern,
-            arguments = listOf(
-                navArgument(AppRouter.KEY_QUERY) {
-                    type = NavType.StringType
-                    defaultValue = ""
-                },
-                navArgument(AppRouter.KEY_KIND) {
-                    type = NavType.StringType
-                    defaultValue = org.skepsun.kototoro.search.domain.SearchKind.SIMPLE.name
-                },
-                navArgument(AppRouter.KEY_SOURCE_TYPES) {
-                    type = NavType.StringType
-                    defaultValue = ""
-                },
-                navArgument(AppRouter.KEY_CONTENT_KINDS) {
-                    type = NavType.StringType
-                    defaultValue = ""
-                },
-                navArgument(AppRouter.KEY_ADVANCED_TITLE) {
-                    type = NavType.StringType
-                    defaultValue = ""
-                },
-                navArgument(AppRouter.KEY_ADVANCED_TAGS) {
-                    type = NavType.StringType
-                    defaultValue = ""
-                },
-                navArgument(AppRouter.KEY_ADVANCED_AUTHOR) {
-                    type = NavType.StringType
-                    defaultValue = ""
-                },
-                navArgument(AppRouter.KEY_PINNED_ONLY) {
-                    type = NavType.BoolType
-                    defaultValue = false
-                },
-                navArgument(AppRouter.KEY_HIDE_EMPTY) {
-                    type = NavType.BoolType
-                    defaultValue = false
-                },
-            ),
-        ) {
+        composable<SearchRoute> {
             val viewModel = hiltViewModel<org.skepsun.kototoro.search.ui.multi.SearchViewModel>()
             SearchResultsRoute(
                 viewModel = viewModel,
