@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,6 +45,7 @@ class TrackingDiscoverActivity : FragmentActivity() {
 				val isLoading = viewModel.isLoading.collectAsStateWithLifecycle(initialValue = false).value
 				val activeService = viewModel.activeService.collectAsStateWithLifecycle().value
 				val availableServices = viewModel.availableServices.collectAsStateWithLifecycle().value
+				val scheduleCategory = (activeService ?: initialService).let(viewModel::getScheduleCategory)
 
 				LaunchedEffect(initialService) {
 					viewModel.selectService(initialService)
@@ -67,6 +69,24 @@ class TrackingDiscoverActivity : FragmentActivity() {
 									)
 								}
 							},
+							actions = {
+								if (scheduleCategory != null) {
+									IconButton(
+										onClick = {
+											router.openTrackingDiscoveryCategory(
+												activeService ?: initialService,
+												scheduleCategory.id,
+												scheduleCategory.nameResId,
+											)
+										},
+									) {
+										Icon(
+											imageVector = Icons.Filled.DateRange,
+											contentDescription = stringResource(R.string.open_daily_schedule),
+										)
+									}
+								}
+							},
 						)
 					},
 				) { paddingValues ->
@@ -82,9 +102,25 @@ class TrackingDiscoverActivity : FragmentActivity() {
 						onLoadMore = viewModel::loadNextPage,
 						onItemClick = { item, _ ->
 							val service = activeService ?: initialService
-							router.openTrackingSiteDetails(service, item.manga.id, item.manga.url)
+							if (viewModel.supportsDetails(service)) {
+								router.openTrackingSiteDetails(service, item.manga.id, item.manga.url)
+							} else {
+								val url = item.manga.url.ifBlank { item.manga.publicUrl }
+								if (url.isNotBlank()) {
+									router.openExternalBrowser(url)
+								}
+							}
 						},
 						onSelectService = viewModel::selectService,
+						onOpenSchedule = scheduleCategory?.let { category ->
+							{
+								router.openTrackingDiscoveryCategory(
+									activeService ?: initialService,
+									category.id,
+									category.nameResId,
+								)
+							}
+						},
 						onCategoryMoreClick = { category ->
 							val service = activeService ?: initialService
 							router.openTrackingDiscoveryCategory(service, category.id, category.nameResId)

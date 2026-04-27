@@ -29,6 +29,10 @@
     <string name="captcha_solve">开始验证</string>
     <string name="cookies_saved">Cookies 已保存</string>
     <string name="today">今天</string>
+    <string name="select_date">选择日期</string>
+    <string name="open_daily_schedule">打开每日放送</string>
+    <string name="details_open_comments_site">站点评论</string>
+    <string name="details_open_reviews_site">站点评价</string>
     <string name="clear_cookies">清除 Cookies</string>
     <string name="new_sources_text">发现了新的可用内容源</string>
     <string name="suggestions_summary">根据你的喜好推荐作品</string>
@@ -401,6 +405,18 @@
     <string name="theme_name_rikka">Rikka</string>
     <string name="theme_name_sakura">Sakura</string>
     <string name="services">服务</string>
+    <string name="users">用户</string>
+    <string name="tracking_accounts">追踪账号</string>
+    <string name="not_signed_in">未登录</string>
+    <string name="statistics_pending_short">统计待接入</string>
+    <string name="anime_count_short">动画 %1$d</string>
+    <string name="manga_count_short">漫画 %1$d</string>
+    <string name="tv_count_short">剧集 %1$d</string>
+    <string name="movie_count_short">电影 %1$d</string>
+    <string name="episodes_watched_short">已看 %1$d 集</string>
+    <string name="chapters_read_short">已读 %1$d 章</string>
+    <string name="tv_episodes_watched_short">剧集 %1$d 集</string>
+    <string name="mean_score_short">均分 %1$s</string>
     <string name="theme_name_mamimi">Mamimi</string>
     <string name="theme_name_kanade">Kanade</string>
     <string name="nothing_here">一片荒漠</string>
@@ -1665,6 +1681,14 @@
     <string name="mu_category_recently_updated">最近更新</string>
     <string name="mu_category_by_year">按年份</string>
     <string name="mu_category_alphabetical">按字母</string>
+    <string name="simkl_category_anime_premieres">新番首播</string>
+    <string name="simkl_category_anime_airing">放送中动画</string>
+    <string name="simkl_category_anime_trending">热门动画</string>
+    <string name="simkl_category_anime_popular">人气动画</string>
+    <string name="simkl_category_tv_premieres">新剧首播</string>
+    <string name="simkl_category_tv_airing">放送中剧集</string>
+    <string name="simkl_category_movies_trending">热门电影</string>
+    <string name="simkl_category_movies_popular">人气电影</string>
     <!-- AniList discovery categories -->
     <string name="al_category_anime_trending">热门动画</string>
     <string name="al_category_anime_popular">人气动画</string>
@@ -2008,4 +2032,5 @@
     <string name="clear_translation">清除翻译</string>
     <string name="details_show_original">显示原文</string>
     <string name="details_show_translation">显示译文</string>
+    <string name="simkl" translatable="false">Simkl</string>
 </resources>

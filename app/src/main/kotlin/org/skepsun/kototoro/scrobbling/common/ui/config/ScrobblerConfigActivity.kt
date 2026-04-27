@@ -248,5 +248,6 @@ class ScrobblerConfigActivity : BaseActivity<ActivityScrobblerConfigBinding>(),
 		const val HOST_KITSU_AUTH = "kitsu-auth"
 		const val HOST_BANGUMI_AUTH = "bangumi-auth"
 		const val HOST_MANGAUPDATES_AUTH = "mangaupdates-auth"
+		const val HOST_SIMKL_AUTH = "simkl-auth"
 	}
 }

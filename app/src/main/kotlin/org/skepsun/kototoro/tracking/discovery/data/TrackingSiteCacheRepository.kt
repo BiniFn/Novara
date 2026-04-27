@@ -125,9 +125,14 @@ class TrackingSiteCacheRepository @Inject constructor(
 			remoteId = item.remoteId,
 			title = item.title,
 			altTitles = encodeStringList(listOfNotNull(item.altTitle).ifEmpty { existing?.altTitles?.let(::decodeStringList).orEmpty() }),
+			primaryTitle = item.primaryTitle ?: existing?.primaryTitle,
+			secondaryTitle = item.secondaryTitle ?: existing?.secondaryTitle,
 			rating = item.score ?: existing?.rating,
+			scoreMax = item.scoreMax ?: existing?.scoreMax,
 			rank = existing?.rank,
-			summary = existing?.summary,
+			summary = item.subtitle ?: existing?.summary,
+			progressText = item.progressText ?: existing?.progressText,
+			updatedAtText = item.updatedAtText ?: existing?.updatedAtText,
 			tags = existing?.tags,
 			year = existing?.year,
 			authors = existing?.authors,
@@ -151,9 +156,14 @@ class TrackingSiteCacheRepository @Inject constructor(
 			remoteId = details.remoteId,
 			title = details.title,
 			altTitles = encodeStringList(listOfNotNull(details.altTitle).ifEmpty { existing?.altTitles?.let(::decodeStringList).orEmpty() }),
+			primaryTitle = existing?.primaryTitle,
+			secondaryTitle = existing?.secondaryTitle,
 			rating = details.score ?: existing?.rating,
+			scoreMax = existing?.scoreMax,
 			rank = details.rank ?: existing?.rank,
 			summary = details.description ?: existing?.summary,
+			progressText = existing?.progressText,
+			updatedAtText = existing?.updatedAtText,
 			tags = encodeStringList(details.tags.ifEmpty { existing?.tags?.let(::decodeStringList).orEmpty() }),
 			year = details.year ?: existing?.year,
 			authors = encodeStringList(details.authors.ifEmpty { existing?.authors?.let(::decodeStringList).orEmpty() }),
@@ -173,9 +183,14 @@ class TrackingSiteCacheRepository @Inject constructor(
 			remoteId = remoteId,
 			title = title,
 			altTitle = altTitles.firstOrNull(),
+			primaryTitle = primaryTitle,
+			secondaryTitle = secondaryTitle,
+			progressText = progressText,
+			updatedAtText = updatedAtText,
 			coverUrl = coverUrl,
 			subtitle = summary,
 			score = rating,
+			scoreMax = scoreMax,
 			url = siteUrl,
 		)
 	}
@@ -601,10 +616,17 @@ class TrackingSiteCacheRepository @Inject constructor(
 						put("remoteId", item.remoteId)
 						put("title", item.title)
 						put("altTitle", item.altTitle)
+						put("primaryTitle", item.primaryTitle)
+						put("secondaryTitle", item.secondaryTitle)
+						put("progressText", item.progressText)
+						put("updatedAtText", item.updatedAtText)
 						put("coverUrl", item.coverUrl)
 						put("subtitle", item.subtitle)
 						if (item.score != null) {
 							put("score", item.score.toDouble())
+						}
+						if (item.scoreMax != null) {
+							put("scoreMax", item.scoreMax.toDouble())
 						}
 						put("url", item.url)
 					},
@@ -638,9 +660,14 @@ class TrackingSiteCacheRepository @Inject constructor(
 								remoteId = remoteId,
 								title = title,
 								altTitle = item.optString("altTitle").nullIfBlank(),
+								primaryTitle = item.optString("primaryTitle").nullIfBlank(),
+								secondaryTitle = item.optString("secondaryTitle").nullIfBlank(),
+								progressText = item.optString("progressText").nullIfBlank(),
+								updatedAtText = item.optString("updatedAtText").nullIfBlank(),
 								coverUrl = item.optString("coverUrl").nullIfBlank(),
 								subtitle = item.optString("subtitle").nullIfBlank(),
 								score = item.takeIf { it.has("score") }?.optDouble("score")?.toFloat(),
+								scoreMax = item.takeIf { it.has("scoreMax") }?.optDouble("scoreMax")?.toFloat(),
 								url = item.optString("url").nullIfBlank(),
 							),
 						)

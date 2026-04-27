@@ -9,6 +9,13 @@ data class ScrobblerContent(
 	val cover: String?,
 	val url: String,
 	val mediaType: String? = null,
+	val primaryTitle: String? = null,
+	val secondaryTitle: String? = null,
+	val subtitle: String? = null,
+	val progressText: String? = null,
+	val updatedAtText: String? = null,
+	val score: Float? = null,
+	val scoreMax: Float? = null,
 	val isBestMatch: Boolean = false,
 ) : ListModel {
 

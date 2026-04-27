@@ -12,6 +12,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsState
 import java.net.Proxy
 
 @Composable
@@ -21,9 +22,18 @@ fun ProxySettingsScreen(
     isTestRunning: Boolean,
     onTestConnection: () -> Unit,
 ) {
-
-    val proxyType = settings.proxyType
+    val proxyType by settings.observeAsState(AppSettings.KEY_PROXY_TYPE) { proxyType }
+    val proxyAddress by settings.observeAsState(AppSettings.KEY_PROXY_ADDRESS) { proxyAddress.orEmpty() }
+    val proxyPort by settings.observeAsState(AppSettings.KEY_PROXY_PORT) {
+        prefs.getString(AppSettings.KEY_PROXY_PORT, "").orEmpty()
+    }
+    val proxyLogin by settings.observeAsState(AppSettings.KEY_PROXY_LOGIN) { proxyLogin.orEmpty() }
+    val proxyPassword by settings.observeAsState(AppSettings.KEY_PROXY_PASSWORD) { proxyPassword.orEmpty() }
     val isProxyEnabled = proxyType != Proxy.Type.DIRECT
+    val isProxyConfigured = !isProxyEnabled || (
+        proxyAddress.isNotBlank() &&
+            proxyPort.toIntOrNull() in 1..0xFFFF
+        )
     val typeOptions = listOf(
         SettingsChoiceOption(Proxy.Type.DIRECT.name, stringResource(R.string.disabled)),
         SettingsChoiceOption(Proxy.Type.HTTP.name, "HTTP"),
@@ -46,7 +56,7 @@ fun ProxySettingsScreen(
         )
         SettingsTextInputPreference(
             title = stringResource(R.string.address),
-            value = settings.prefs.getString(AppSettings.KEY_PROXY_ADDRESS, "") ?: "",
+            value = proxyAddress,
             enabled = isProxyEnabled,
             onValueChange = { value ->
                 settings.prefs.edit().putString(AppSettings.KEY_PROXY_ADDRESS, value).apply()
@@ -54,7 +64,7 @@ fun ProxySettingsScreen(
         )
         SettingsTextInputPreference(
             title = stringResource(R.string.port),
-            value = settings.prefs.getString(AppSettings.KEY_PROXY_PORT, "") ?: "",
+            value = proxyPort,
             enabled = isProxyEnabled,
             onValueChange = { value ->
                 settings.prefs.edit().putString(AppSettings.KEY_PROXY_PORT, value).apply()
@@ -63,7 +73,7 @@ fun ProxySettingsScreen(
         SettingsPreferenceSection(title = stringResource(R.string.authorization_optional)) {
             SettingsTextInputPreference(
                 title = stringResource(R.string.username),
-                value = settings.prefs.getString(AppSettings.KEY_PROXY_LOGIN, "") ?: "",
+                value = proxyLogin,
                 enabled = isProxyEnabled,
                 onValueChange = { value ->
                     settings.prefs.edit().putString(AppSettings.KEY_PROXY_LOGIN, value).apply()
@@ -71,7 +81,7 @@ fun ProxySettingsScreen(
             )
             SettingsTextInputPreference(
                 title = stringResource(R.string.password),
-                value = settings.prefs.getString(AppSettings.KEY_PROXY_PASSWORD, "") ?: "",
+                value = proxyPassword,
                 enabled = isProxyEnabled,
                 isPassword = true,
                 onValueChange = { value ->
@@ -81,8 +91,12 @@ fun ProxySettingsScreen(
         }
         SettingsActionPreference(
             title = stringResource(R.string.test_connection),
-            summary = testSummary,
-            enabled = isProxyEnabled && !isTestRunning,
+            summary = testSummary ?: if (!isProxyConfigured) {
+                stringResource(R.string.invalid_proxy_configuration)
+            } else {
+                null
+            },
+            enabled = isProxyEnabled && isProxyConfigured && !isTestRunning,
             onClick = onTestConnection,
         )
     }

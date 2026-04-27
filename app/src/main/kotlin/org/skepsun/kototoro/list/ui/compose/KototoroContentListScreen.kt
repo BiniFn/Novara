@@ -473,13 +473,15 @@ private fun EmptyStateCard(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        val titleText = item.textPrimaryText?.toString()
         Text(
-            text = stringResource(item.textPrimary),
+            text = titleText ?: stringResource(item.textPrimary),
             style = MaterialTheme.typography.titleMedium,
         )
-        if (item.textSecondary != 0) {
+        val subtitleText = item.textSecondaryText?.toString()
+        if (item.textSecondary != 0 || !subtitleText.isNullOrBlank()) {
             Text(
-                text = stringResource(item.textSecondary),
+                text = subtitleText ?: stringResource(item.textSecondary),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

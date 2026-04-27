@@ -300,7 +300,8 @@ fun <T> SettingsChoicePreference(
     onValueChange: (T) -> Unit,
 ) {
     var isDialogVisible by remember { mutableStateOf(false) }
-    val selectedLabel = options.firstOrNull { it.value == value }?.label.orEmpty()
+    var currentValue by remember(value) { mutableStateOf(value) }
+    val selectedLabel = options.firstOrNull { it.value == currentValue }?.label.orEmpty()
 
     Row(
         modifier = Modifier
@@ -357,8 +358,9 @@ fun <T> SettingsChoicePreference(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .selectable(
-                                    selected = option.value == value,
+                                    selected = option.value == currentValue,
                                     onClick = {
+                                        currentValue = option.value
                                         onValueChange(option.value)
                                         isDialogVisible = false
                                     },
@@ -367,7 +369,7 @@ fun <T> SettingsChoicePreference(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             RadioButton(
-                                selected = option.value == value,
+                                selected = option.value == currentValue,
                                 onClick = null,
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -563,6 +565,8 @@ fun SettingsTextInputPreference(
     enabled: Boolean = true,
     onValueChange: (String) -> Unit,
 ) {
+    var currentValue by remember(value) { mutableStateOf(value) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -583,8 +587,11 @@ fun SettingsTextInputPreference(
             )
         }
         OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
+            value = currentValue,
+            onValueChange = {
+                currentValue = it
+                onValueChange(it)
+            },
             enabled = enabled,
             modifier = Modifier.fillMaxWidth(),
             placeholder = placeholder?.let {

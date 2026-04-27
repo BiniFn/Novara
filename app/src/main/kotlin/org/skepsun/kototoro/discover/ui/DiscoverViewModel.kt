@@ -26,6 +26,9 @@ import org.skepsun.kototoro.discover.ui.model.DiscoverItem
 import org.skepsun.kototoro.list.domain.ContentListMapper
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.list.ui.model.EmptyState
+import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
+import org.skepsun.kototoro.list.ui.model.ContentDetailedListModel
+import org.skepsun.kototoro.list.ui.model.ContentGridModel
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.list.ui.model.toErrorState
@@ -36,6 +39,11 @@ import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCatalog
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteDiscoveryService
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCategory
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItem
+import org.skepsun.kototoro.tracking.discovery.domain.displayScoreText
+import org.skepsun.kototoro.tracking.discovery.domain.displaySecondaryTitle
+import org.skepsun.kototoro.tracking.discovery.domain.displaySupportingText
+import org.skepsun.kototoro.tracking.discovery.domain.displaySubtitle
+import org.skepsun.kototoro.tracking.discovery.domain.displayTitle
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.core.model.ContentSource
 import javax.inject.Inject
@@ -160,9 +168,7 @@ class DiscoverViewModel @Inject constructor(
 	private suspend fun remapContentState() {
 		val service = activeService.value
 		val query = searchQuery.value.trim()
-		val currentTabId = settings.getSelectedGroupTab()
-		val currentTab = currentTabId?.let { org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.fromId(it) } 
-			?: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All
+		val currentTab = getCurrentBrowseGroupTab()
 		
 		if (query.isNotBlank()) {
 			val models = _items.value.toDiscoverModels()
@@ -175,10 +181,12 @@ class DiscoverViewModel @Inject constructor(
 				val flat = cached.toDiscoverModels()
 				_contentState.value = flat.ifEmpty { listOf(org.skepsun.kototoro.list.ui.model.EmptyState(icon = R.drawable.ic_bangumi_outline, textPrimary = R.string.discover_empty_title, textSecondary = R.string.discover_empty_text, actionStringRes = 0)) }
 			} else {
-				val rows = caps.discoveryCategories.mapNotNull { cat ->
-					if (!isCategoryVisibleInTab(cat.id, service, currentTab)) {
-						return@mapNotNull null
-					}
+				val visibleCategories = resolveVisibleCategoriesForTab(
+					service = service,
+					categories = caps.discoveryCategories,
+					currentTab = currentTab,
+				)
+				val rows = visibleCategories.mapNotNull { cat ->
 					val cached = cacheRepository.readCategoryCache(service, cat.id)
 					if (cached != null && cached.isNotEmpty()) {
 						DiscoverCarouselRow(category = cat, items = cached.toDiscoverModels())
@@ -194,9 +202,7 @@ class DiscoverViewModel @Inject constructor(
 	}
 
 	private suspend fun tryShowCachedDiscoverContent(service: ScrobblerService): Boolean {
-		val currentTabId = settings.getSelectedGroupTab()
-		val currentTab = currentTabId?.let { org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.fromId(it) }
-			?: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All
+		val currentTab = getCurrentBrowseGroupTab()
 		val caps = discoveryService.getCapabilities(service)
 		if (caps.discoveryCategories.isEmpty()) {
 			val cached = cacheRepository.readCategoryCache(service, "root_trending") ?: return false
@@ -214,10 +220,12 @@ class DiscoverViewModel @Inject constructor(
 			return true
 		}
 
-		val rows = caps.discoveryCategories.mapNotNull { cat ->
-			if (!isCategoryVisibleInTab(cat.id, service, currentTab)) {
-				return@mapNotNull null
-			}
+		val visibleCategories = resolveVisibleCategoriesForTab(
+			service = service,
+			categories = caps.discoveryCategories,
+			currentTab = currentTab,
+		)
+		val rows = visibleCategories.mapNotNull { cat ->
 			val cached = cacheRepository.readCategoryCache(service, cat.id)
 			if (cached.isNullOrEmpty()) {
 				return@mapNotNull null
@@ -300,13 +308,12 @@ class DiscoverViewModel @Inject constructor(
 			}
 			
 			// Parallel fetch top 10 for every category (with retry)
-			val rows = caps.discoveryCategories.mapNotNull { cat ->
-				val currentTabId = settings.getSelectedGroupTab()
-				val currentTab = currentTabId?.let { org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.fromId(it) } 
-					?: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All
-				if (!isCategoryVisibleInTab(cat.id, service, currentTab)) {
-					return@mapNotNull null
-				}
+			val visibleCategories = resolveVisibleCategoriesForTab(
+				service = service,
+				categories = caps.discoveryCategories,
+				currentTab = getCurrentBrowseGroupTab(),
+			)
+			val rows = visibleCategories.mapNotNull { cat ->
 
 				viewModelScope.async(Dispatchers.IO) {
 					val cached = cacheRepository.readCategoryCache(service, cat.id)
@@ -365,6 +372,26 @@ class DiscoverViewModel @Inject constructor(
 		}
 	}
 
+	private fun getCurrentBrowseGroupTab(): org.skepsun.kototoro.explore.ui.model.BrowseGroupTab {
+		val currentTabId = settings.getSelectedGroupTab()
+		return currentTabId?.let { org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.fromId(it) }
+			?: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All
+	}
+
+	private fun resolveVisibleCategoriesForTab(
+		service: ScrobblerService,
+		categories: List<TrackingSiteCategory>,
+		currentTab: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab,
+	): List<TrackingSiteCategory> {
+		if (currentTab == org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All) {
+			return categories
+		}
+		val filtered = categories.filter { category ->
+			isCategoryVisibleInTab(category.id, service, currentTab)
+		}
+		return filtered.ifEmpty { categories }
+	}
+
 	fun refresh() {
 		refreshTrigger.value += 1
 	}
@@ -410,6 +437,24 @@ class DiscoverViewModel @Inject constructor(
 		return discoveryService.getCapabilities(service).supportsDetails
 	}
 
+	fun getScheduleCategory(service: ScrobblerService): TrackingSiteCategory? {
+		val categories = discoveryService.getCapabilities(service).discoveryCategories
+		val priority = listOf(
+			"calendar",
+			"al_anime_airing",
+			"simkl_anime_airing",
+			"seasonal",
+			"shiki_seasonal",
+			"anime_airing",
+			"simkl_tv_airing",
+			"anime_upcoming",
+			"al_anime_upcoming",
+		)
+		return priority.firstNotNullOfOrNull { targetId ->
+			categories.firstOrNull { it.id == targetId }
+		}
+	}
+
 	private fun resolveAvailableServices(preferred: ScrobblerService): List<ScrobblerService> {
 		return buildList {
 			// Always include services that support trending discovery
@@ -444,14 +489,15 @@ class DiscoverViewModel @Inject constructor(
 	}
 
 	private suspend fun List<TrackingSiteItem>.toDiscoverModels(): List<ListModel> {
+		val itemById = associateBy { it.remoteId }
 		val proxyContents = this.map { item ->
 			Content(
 				id = item.remoteId,
-				title = item.title,
-				altTitles = setOfNotNull((item.subtitle ?: item.altTitle)),
+				title = item.displayTitle(),
+				altTitles = setOfNotNull(item.displaySecondaryTitle()),
 				url = item.url ?: "",
 				publicUrl = item.url ?: "",
-				rating = item.score ?: 0f,
+				rating = ((item.score ?: 0f) / (item.scoreMax ?: 10f)).coerceIn(0f, 1f),
 				contentRating = null,
 				coverUrl = item.coverUrl,
 				tags = emptySet(),
@@ -461,7 +507,33 @@ class DiscoverViewModel @Inject constructor(
 			)
 		}
 		val mode = settings.listMode
-		return contentListMapper.toListModelList(proxyContents, mode)
+		return contentListMapper.toListModelList(proxyContents, mode).map { model ->
+			val contentModel = model as? org.skepsun.kototoro.list.ui.model.ContentListModel ?: return@map model
+			val item = itemById[contentModel.id] ?: return@map model
+			val secondaryTitle = item.displaySecondaryTitle()
+			val supportingText = item.displaySupportingText()
+			val scoreText = item.displayScoreText()
+			when (contentModel) {
+				is ContentCompactListModel -> contentModel.copy(
+					subtitle = secondaryTitle,
+					supportingText = supportingText,
+					metadataTrackingService = item.service,
+					scoreText = scoreText,
+				)
+				is ContentDetailedListModel -> contentModel.copy(
+					subtitle = secondaryTitle,
+					supportingText = supportingText,
+					metadataTrackingService = item.service,
+					scoreText = scoreText,
+				)
+				is ContentGridModel -> contentModel.copy(
+					subtitle = secondaryTitle,
+					metadataTrackingService = item.service,
+					scoreText = scoreText,
+				)
+				else -> model
+			}
+		}
 	}
 
 	private data class DiscoverRequest(

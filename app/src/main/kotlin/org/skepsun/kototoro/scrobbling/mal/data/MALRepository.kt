@@ -8,6 +8,7 @@ import okhttp3.FormBody
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.jsoup.Jsoup
 import org.json.JSONObject
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.MangaDatabase
@@ -18,12 +19,15 @@ import org.skepsun.kototoro.parsers.util.json.mapJSONNotNull
 import org.skepsun.kototoro.parsers.util.parseJson
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerRepository
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerStorage
+import org.skepsun.kototoro.scrobbling.common.data.ScrobblerUserProfileRepository
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblingEntity
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerType
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUserProfile
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUserStats
 import java.security.SecureRandom
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -40,7 +44,7 @@ class MALRepository @Inject constructor(
 	@ScrobblerType(ScrobblerService.MAL) private val okHttp: OkHttpClient,
 	@ScrobblerType(ScrobblerService.MAL) private val storage: ScrobblerStorage,
 	private val db: MangaDatabase,
-) : ScrobblerRepository {
+) : ScrobblerRepository, ScrobblerUserProfileRepository {
 
 	private val clientId = context.getString(R.string.mal_clientId)
 	private val codeVerifier: String by lazy(::generateCodeVerifier)
@@ -81,11 +85,36 @@ class MALRepository @Inject constructor(
 	}
 
 	override suspend fun loadUser(): ScrobblerUser {
+		return loadUserProfile().user
+	}
+
+	override suspend fun loadUserProfile(): ScrobblerUserProfile {
 		val request = Request.Builder()
 			.get()
-			.url("${BASE_API_URL}/users/@me")
+			.url("${BASE_API_URL}/users/@me?fields=anime_statistics,manga_statistics")
 		val response = okHttp.newCall(request.build()).await().parseJson()
-		return MALUser(response).also { storage.user = it }
+		val user = MALUser(response).also { storage.user = it }
+		val animeStats = response.optJSONObject("anime_statistics")
+		val mangaStats = response.optJSONObject("manga_statistics")
+		return ScrobblerUserProfile(
+			user = user,
+			stats = ScrobblerUserStats(
+				animeCount = animeStats.optIntOrNull("num_items_watching")
+					?.plus(animeStats.optIntOrNull("num_items_completed") ?: 0)
+					?.plus(animeStats.optIntOrNull("num_items_on_hold") ?: 0)
+					?.plus(animeStats.optIntOrNull("num_items_dropped") ?: 0)
+					?.plus(animeStats.optIntOrNull("num_items_plan_to_watch") ?: 0),
+				mangaCount = mangaStats.optIntOrNull("num_items_reading")
+					?.plus(mangaStats.optIntOrNull("num_items_completed") ?: 0)
+					?.plus(mangaStats.optIntOrNull("num_items_on_hold") ?: 0)
+					?.plus(mangaStats.optIntOrNull("num_items_dropped") ?: 0)
+					?.plus(mangaStats.optIntOrNull("num_items_plan_to_read") ?: 0),
+				episodesWatched = animeStats.optIntOrNull("num_episodes_watched"),
+				chaptersRead = mangaStats.optIntOrNull("num_chapters_read"),
+				animeMeanScore = animeStats.optDoubleOrNull("mean_score"),
+				mangaMeanScore = mangaStats.optDoubleOrNull("mean_score"),
+			),
+		)
 	}
 
 	override suspend fun unregister(mangaId: Long) {
@@ -98,6 +127,7 @@ class MALRepository @Inject constructor(
 			.addPathSegment(endpoint)
 			.addQueryParameter("offset", offset.toString())
 			.addQueryParameter("nsfw", "true")
+			.addQueryParameter("fields", discoveryFields(endpoint))
 			// WARNING! MAL API throws a 400 when the query is over 64 characters
 			.addQueryParameter("q", query.take(64))
 			.build()
@@ -124,6 +154,7 @@ class MALRepository @Inject constructor(
 			.addQueryParameter("limit", limit.toString())
 			.addQueryParameter("offset", offset.toString())
 			.addQueryParameter("nsfw", "true")
+			.addQueryParameter("fields", discoveryFields(ANIME_ENDPOINT))
 			.build()
 		val request = Request.Builder().url(url)
 			.header("X-MAL-CLIENT-ID", clientId)
@@ -147,6 +178,7 @@ class MALRepository @Inject constructor(
 			.addQueryParameter("limit", limit.toString())
 			.addQueryParameter("offset", offset.toString())
 			.addQueryParameter("nsfw", "true")
+			.addQueryParameter("fields", discoveryFields(ANIME_ENDPOINT))
 			.build()
 		val request = Request.Builder().url(url)
 			.header("X-MAL-CLIENT-ID", clientId)
@@ -165,6 +197,7 @@ class MALRepository @Inject constructor(
 			.addQueryParameter("limit", limit.toString())
 			.addQueryParameter("offset", offset.toString())
 			.addQueryParameter("nsfw", "true")
+			.addQueryParameter("fields", discoveryFields(MANGA_ENDPOINT))
 			.build()
 		val request = Request.Builder().url(url)
 			.header("X-MAL-CLIENT-ID", clientId)
@@ -180,6 +213,7 @@ class MALRepository @Inject constructor(
 			.addPathSegment(ANIME_ENDPOINT)
 			.addQueryParameter("offset", offset.toString())
 			.addQueryParameter("nsfw", "true")
+			.addQueryParameter("fields", discoveryFields(ANIME_ENDPOINT))
 			.addQueryParameter("q", query.take(64))
 			.build()
 		val request = Request.Builder().url(url)
@@ -188,15 +222,7 @@ class MALRepository @Inject constructor(
 		val response = okHttp.newCall(request).await().parseJson()
 		check(response.has("data")) { "Invalid response: \"$response\"" }
 		return response.getJSONArray("data").mapJSONNotNull { jo ->
-			val node = jo.getJSONObject("node")
-			ScrobblerContent(
-				id = node.getLong("id"),
-				name = node.getString("title"),
-				altName = null,
-				cover = node.optJSONObject("main_picture")?.getStringOrNull("large"),
-				url = "$BASE_WEB_URL/anime/${node.getLong("id")}",
-				mediaType = ANIME_ENDPOINT,
-			)
+			createDiscoveryContent(jo.getJSONObject("node"), ANIME_ENDPOINT)
 		}
 	}
 
@@ -204,15 +230,22 @@ class MALRepository @Inject constructor(
 		val data = json.optJSONArray("data") ?: return emptyList()
 		return data.mapJSONNotNull { jo ->
 			val node = jo.getJSONObject("node")
-			ScrobblerContent(
-				id = node.getLong("id"),
-				name = node.getString("title"),
-				altName = null,
-				cover = node.optJSONObject("main_picture")?.getStringOrNull("large"),
-				url = "$BASE_WEB_URL/$mediaType/${node.getLong("id")}",
-				mediaType = mediaType,
-			)
+			createDiscoveryContent(node, mediaType)
 		}
+	}
+
+	private fun JSONObject?.optIntOrNull(key: String): Int? {
+		if (this == null || isNull(key)) {
+			return null
+		}
+		return optInt(key)
+	}
+
+	private fun JSONObject?.optDoubleOrNull(key: String): Double? {
+		if (this == null || isNull(key)) {
+			return null
+		}
+		return optDouble(key)
 	}
 
 	private suspend fun isAnime(mangaId: Long): Boolean {
@@ -242,13 +275,13 @@ class MALRepository @Inject constructor(
 		val response = requestContentInfo(id, endpoint)
 		if (response.has("id")) {
 			contentTypeHints[id] = endpoint
-			return ScrobblerContentInfo(response, endpoint)
+			return buildContentInfo(response, endpoint)
 		}
 		val fallbackEndpoint = alternateEndpoint(endpoint)
 		val fallbackResponse = requestContentInfo(id, fallbackEndpoint)
 		check(fallbackResponse.has("id")) { "Invalid MAL content response for $id: \"$fallbackResponse\"" }
 		contentTypeHints[id] = fallbackEndpoint
-		return ScrobblerContentInfo(fallbackResponse, fallbackEndpoint)
+		return buildContentInfo(fallbackResponse, fallbackEndpoint)
 	}
 
 	/**
@@ -265,7 +298,13 @@ class MALRepository @Inject constructor(
 			.header("X-MAL-CLIENT-ID", clientId)
 			.get().build()
 		val response = okHttp.newCall(request).await().parseJson()
-		return ScrobblerContentInfo(response, "anime")
+		return buildContentInfo(response, ANIME_ENDPOINT)
+	}
+
+	private suspend fun buildContentInfo(json: JSONObject, mediaType: String): ScrobblerContentInfo {
+		val baseInfo = ScrobblerContentInfo(json, mediaType)
+		val supplemental = fetchSupplementalContent(baseInfo.url)
+		return baseInfo.withSupplemental(supplemental)
 	}
 
 	override suspend fun createRate(mangaId: Long, content: ScrobblerContent) {
@@ -473,24 +512,223 @@ class MALRepository @Inject constructor(
 		}
 	}
 
+	private suspend fun fetchSupplementalContent(contentUrl: String): MalSupplementalContent {
+		return runCatching {
+			val request = Request.Builder()
+				.get()
+				.url(contentUrl)
+				.build()
+			val html = okHttp.newCall(request).await().body?.string().orEmpty()
+			if (html.isBlank()) {
+				return@runCatching MalSupplementalContent()
+			}
+			val doc = Jsoup.parse(html, contentUrl)
+			val reviews = parseMalReviews(doc)
+			val comments = buildList {
+				parseMalForumTopicStubs(doc).forEach { topic ->
+					fetchMalForumThread(topic)?.let(::add)
+				}
+			}
+			MalSupplementalContent(
+				commentThreads = comments,
+				reviews = reviews,
+			)
+		}.getOrDefault(MalSupplementalContent())
+	}
+
+	private fun parseMalReviews(doc: org.jsoup.nodes.Document): List<ScrobblerContentInfo.ReviewEntry> {
+		return doc.select(".review-element.js-review-element")
+			.take(5)
+			.mapNotNull { element ->
+				val authorLink = element.selectFirst(".username a") ?: return@mapNotNull null
+				val reviewLink = element.selectFirst(".bottom-navi .open a") ?: return@mapNotNull null
+				val reviewUrl = reviewLink.absUrl("href").ifBlank { reviewLink.attr("href") }
+				if (reviewUrl.isBlank()) {
+					return@mapNotNull null
+				}
+				val textBlock = element.selectFirst(".text")?.clone() ?: return@mapNotNull null
+				textBlock.select(".js-visible").remove()
+				val excerpt = textBlock.html().htmlToPlainText()
+				if (excerpt.isBlank()) {
+					return@mapNotNull null
+				}
+				val tagTitle = element.select(".tags .tag")
+					.eachText()
+					.map(String::trim)
+					.filter(String::isNotBlank)
+					.joinToString(" · ")
+				val reviewerScore = element.selectFirst(".rating .num")?.text()?.trim()
+				val title = listOfNotNull(
+					tagTitle.takeIf { it.isNotBlank() },
+					reviewerScore?.takeIf { it.isNotBlank() }?.let { "$it/10" },
+				).joinToString(" · ").ifBlank { "Review" }
+				ScrobblerContentInfo.ReviewEntry(
+					id = reviewUrl.substringAfter("id=").substringBefore('&').ifBlank { reviewUrl.hashCode().toString() },
+					title = title,
+					authorName = authorLink.text().trim(),
+					authorUrl = authorLink.absUrl("href").ifBlank { authorLink.attr("href") },
+					avatarUrl = element.selectFirst(".thumb img")?.let { image ->
+						image.attr("data-src").ifBlank { image.attr("src") }
+					}?.takeIf { it.isNotBlank() },
+					postedAt = element.selectFirst(".update_at")?.text()?.trim(),
+					excerpt = excerpt.truncateForDetailExcerpt(),
+					url = reviewUrl,
+				)
+			}
+	}
+
+	private fun parseMalForumTopicStubs(doc: org.jsoup.nodes.Document): List<MalForumTopicStub> {
+		return doc.select("#forumTopics tr[data-topic-id]")
+			.take(3)
+			.mapNotNull { row ->
+				val titleCell = row.selectFirst("td.forum_boardrow1 a[href*=/forum/?topicid=]") ?: return@mapNotNull null
+				val topicId = row.attr("data-topic-id").toLongOrNull() ?: return@mapNotNull null
+				val repliesText = row.select("td").getOrNull(2)?.text()?.substringBefore(" repl")?.trim()
+				MalForumTopicStub(
+					id = topicId,
+					title = titleCell.text().trim(),
+					url = titleCell.absUrl("href").ifBlank { "$BASE_WEB_URL${titleCell.attr("href")}" },
+					replyCount = repliesText?.replace(",", "")?.toIntOrNull(),
+				)
+			}
+	}
+
+	private suspend fun fetchMalForumThread(
+		topic: MalForumTopicStub,
+	): ScrobblerContentInfo.CommentThread? {
+		return runCatching {
+			val request = Request.Builder()
+				.get()
+				.url(topic.url)
+				.build()
+			val html = okHttp.newCall(request).await().body?.string().orEmpty()
+			if (html.isBlank()) {
+				return@runCatching null
+			}
+			val doc = Jsoup.parse(html, topic.url)
+			val messages = doc.select(".forum-topic-message.message[id]")
+				.filter { it.id().startsWith("msg") }
+			val firstMessage = messages.firstOrNull() ?: return@runCatching null
+			val content = firstMessage.extractMalForumMessageText()
+			if (content.isBlank()) {
+				return@runCatching null
+			}
+			val firstUserLink = firstMessage.selectFirst(".profile .username a")
+			ScrobblerContentInfo.CommentThread(
+				id = "topic_${topic.id}",
+				userName = firstUserLink?.text()?.trim().orEmpty().ifBlank { "MAL User" },
+				userUrl = firstUserLink?.absUrl("href")?.ifBlank { firstUserLink.attr("href") },
+				avatarUrl = firstMessage.selectFirst(".profile .forum-icon img")?.let { image ->
+					image.attr("data-src").ifBlank { image.attr("src") }
+				}?.takeIf { it.isNotBlank() },
+				status = buildString {
+					append(topic.title)
+					topic.replyCount?.let {
+						append(" · ")
+						append(it)
+						append(" replies")
+					}
+				},
+				postedAt = firstMessage.selectFirst(".message-header .date")?.text()?.trim(),
+				content = content,
+				replies = messages.drop(1).take(3).mapNotNull { reply ->
+					val replyUser = reply.selectFirst(".profile .username a")
+					val replyContent = reply.extractMalForumMessageText()
+					if (replyContent.isBlank()) {
+						return@mapNotNull null
+					}
+					ScrobblerContentInfo.CommentReply(
+						id = reply.id().removePrefix("msg").ifBlank { "${topic.id}_${reply.hashCode()}" },
+						userName = replyUser?.text()?.trim().orEmpty().ifBlank { "MAL User" },
+						userUrl = replyUser?.absUrl("href")?.ifBlank { replyUser.attr("href") },
+						avatarUrl = reply.selectFirst(".profile .forum-icon img")?.let { image ->
+							image.attr("data-src").ifBlank { image.attr("src") }
+						}?.takeIf { it.isNotBlank() },
+						postedAt = reply.selectFirst(".message-header .date")?.text()?.trim(),
+						content = replyContent,
+					)
+				},
+			)
+		}.getOrNull()
+	}
+
+	private fun org.jsoup.nodes.Element.extractMalForumMessageText(): String {
+		val contentCell = selectFirst(".content table.body td")?.clone() ?: return ""
+		contentCell.select("input, script, style").remove()
+		return contentCell.html().htmlToPlainText().truncateForDetailExcerpt(maxLength = 1200)
+	}
+
 	override fun logout() {
 		storage.clear()
 	}
 
 	private fun jsonToContent(json: JSONObject, sourceTitle: String, mediaType: String): ScrobblerContent {
 		val node = json.getJSONObject("node")
+		val content = createDiscoveryContent(node, mediaType)
+		return content.copy(
+			isBestMatch = sequenceOf(content.name, content.primaryTitle, content.secondaryTitle, content.altName)
+				.filterNotNull()
+				.any { it.equals(sourceTitle, ignoreCase = true) },
+		)
+	}
+
+	private fun createDiscoveryContent(node: JSONObject, mediaType: String): ScrobblerContent {
 		val title = node.getString("title")
 		val id = node.getLong("id")
 		contentTypeHints[id] = mediaType
+		val alternativeTitles = node.optJSONObject("alternative_titles")
+		val originalTitle = alternativeTitles?.getStringOrNull("ja")
+		val secondaryTitle = sequenceOf(
+			title,
+			alternativeTitles?.getStringOrNull("en"),
+		).filterNotNull().firstOrNull { !it.equals(originalTitle, ignoreCase = true) }
+		val subtitle = listOfNotNull(
+			node.getStringOrNull("status")?.replace("_", " "),
+			buildMalStartLabel(node, mediaType),
+		).joinToString(" · ").ifBlank { null }
+		val score = node.optDouble("mean").takeIf { !it.isNaN() && it > 0.0 }?.toFloat()
 		return ScrobblerContent(
 			id = id,
 			name = title,
-			altName = null,
+			altName = originalTitle,
 			cover = node.optJSONObject("main_picture")?.getStringOrNull("large"),
 			url = "$BASE_WEB_URL/$mediaType/$id",
 			mediaType = mediaType,
-			isBestMatch = title.equals(sourceTitle, ignoreCase = true),
+			primaryTitle = originalTitle ?: title,
+			secondaryTitle = secondaryTitle,
+			subtitle = subtitle,
+			progressText = buildMalProgressText(node, mediaType),
+			score = score,
+			scoreMax = 10f,
 		)
+	}
+
+	private fun discoveryFields(endpoint: String): String {
+		return if (endpoint == ANIME_ENDPOINT) {
+			"alternative_titles,mean,num_episodes,status,start_season"
+		} else {
+			"alternative_titles,mean,num_chapters,status,start_date"
+		}
+	}
+
+	private fun buildMalProgressText(node: JSONObject, mediaType: String): String? {
+		return if (mediaType == ANIME_ENDPOINT) {
+			node.optInt("num_episodes").takeIf { it > 0 }?.let { "EP $it" }
+		} else {
+			node.optInt("num_chapters").takeIf { it > 0 }?.let { "CH $it" }
+		}
+	}
+
+	private fun buildMalStartLabel(node: JSONObject, mediaType: String): String? {
+		return if (mediaType == ANIME_ENDPOINT) {
+			node.optJSONObject("start_season")?.let { season ->
+				val year = season.optInt("year").takeIf { it > 0 } ?: return@let null
+				val name = season.getStringOrNull("season")?.replaceFirstChar { it.uppercaseChar() } ?: return@let year.toString()
+				"$name $year"
+			}
+		} else {
+			node.getStringOrNull("start_date")?.takeIf { it.isNotBlank() }?.take(10)
+		}
 	}
 
 	private fun ScrobblerContentInfo(json: JSONObject, mediaType: String): ScrobblerContentInfo {
@@ -552,6 +790,46 @@ class MALRepository @Inject constructor(
 		)
 	}
 
+	private fun ScrobblerContentInfo.withSupplemental(
+		supplemental: MalSupplementalContent,
+	): ScrobblerContentInfo {
+		return ScrobblerContentInfo(
+			id = id,
+			name = name,
+			cover = cover,
+			url = url,
+			descriptionHtml = descriptionHtml,
+			contentType = contentType,
+			score = score,
+			rank = rank,
+			tags = tags,
+			authors = authors,
+			infoboxProperties = infoboxProperties,
+			episodes = episodes,
+			characters = characters,
+			commentThreads = supplemental.commentThreads,
+			reviews = supplemental.reviews,
+			relatedWorks = relatedWorks,
+			recommendations = recommendations,
+			extraSections = extraSections,
+			actions = actions,
+		)
+	}
+
+	private fun String.htmlToPlainText(): String {
+		return Jsoup.parseBodyFragment(this)
+			.text()
+			.replace(Regex("\\s+"), " ")
+			.trim()
+	}
+
+	private fun String.truncateForDetailExcerpt(maxLength: Int = 900): String {
+		if (length <= maxLength) {
+			return this
+		}
+		return take(maxLength).trimEnd() + "…"
+	}
+
 	@Suppress("FunctionName")
 	private fun MALUser(json: JSONObject) = ScrobblerUser(
 		id = json.getLong("id"),
@@ -569,5 +847,17 @@ class MALRepository @Inject constructor(
 	private data class RemoteListKey(
 		val endpoint: String,
 		val targetId: Long,
+	)
+
+	private data class MalSupplementalContent(
+		val commentThreads: List<ScrobblerContentInfo.CommentThread> = emptyList(),
+		val reviews: List<ScrobblerContentInfo.ReviewEntry> = emptyList(),
+	)
+
+	private data class MalForumTopicStub(
+		val id: Long,
+		val title: String,
+		val url: String,
+		val replyCount: Int?,
 	)
 }

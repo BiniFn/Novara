@@ -4,9 +4,11 @@ data class ChapterSelectionUiState(
     val selectedCount: Int,
     val canSelectAll: Boolean,
     val canDownload: Boolean,
-    val isSingleSelection: Boolean,
+    val canDelete: Boolean,
+    val canMarkCurrent: Boolean,
     val onClearSelection: () -> Unit,
     val onSelectAll: () -> Unit,
     val onDownload: () -> Unit,
+    val onDelete: () -> Unit,
     val onMarkCurrent: () -> Unit,
 )

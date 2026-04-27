@@ -6,6 +6,37 @@
 	android:orientation="vertical">
 
 	<!-- Calendar Date Strip (Hidden by default) -->
+	<LinearLayout
+		android:id="@+id/calendarActionRow"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:orientation="horizontal"
+		android:gravity="center_vertical"
+		android:paddingStart="16dp"
+		android:paddingEnd="16dp"
+		android:paddingTop="8dp"
+		android:paddingBottom="4dp"
+		android:visibility="gone"
+		android:background="?attr/colorSurfaceContainer">
+
+		<com.google.android.material.button.MaterialButton
+			android:id="@+id/calendarDateButton"
+			style="@style/Widget.Material3.Button.TonalButton"
+			android:layout_width="0dp"
+			android:layout_height="wrap_content"
+			android:layout_weight="1"
+			android:text="@string/select_date" />
+
+		<com.google.android.material.button.MaterialButton
+			android:id="@+id/calendarTodayButton"
+			style="@style/Widget.Material3.Button.TextButton"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_marginStart="8dp"
+			android:text="@string/today" />
+
+	</LinearLayout>
+
 	<HorizontalScrollView
 		android:id="@+id/calendarFilterScroll"
 		android:layout_width="match_parent"

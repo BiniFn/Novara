@@ -109,6 +109,8 @@ import org.skepsun.kototoro.explore.ui.model.ContentSourceItem
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
+import org.skepsun.kototoro.list.ui.model.secondaryTitleText
+import org.skepsun.kototoro.list.ui.model.supportingText
 import org.skepsun.kototoro.core.parser.external.ExternalContentSource
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.parsers.model.ContentType
@@ -533,6 +535,20 @@ fun KototoroExploreHostRoute(
                 topContentInset = contentPadding.calculateTopPadding(),
                 settings = settings,
                 onSelectService = discoverViewModel::selectService,
+                onOpenSchedule = activeService?.let { service ->
+                    val scheduleCategory = discoverViewModel.getScheduleCategory(service)
+                    if (scheduleCategory == null) {
+                        null
+                    } else {
+                        {
+                            appRouter.openTrackingDiscoveryCategory(
+                                service,
+                                scheduleCategory.id,
+                                scheduleCategory.nameResId,
+                            )
+                        }
+                    }
+                },
                 onHeroItemClick = { item, sharedElementKey ->
                     openTrackingItem(
                         appRouter = appRouter,
@@ -616,6 +632,7 @@ private fun BrowseHeroBlock(
     topContentInset: androidx.compose.ui.unit.Dp,
     settings: AppSettings,
     onSelectService: (ScrobblerService) -> Unit,
+    onOpenSchedule: (() -> Unit)? = null,
     onHeroItemClick: (ContentListModel, String) -> Unit,
     sharedElementKeyForItem: (ContentListModel, Int) -> String,
     modifier: Modifier = Modifier,
@@ -627,6 +644,7 @@ private fun BrowseHeroBlock(
             activeService = activeService,
             availableServices = availableServices,
             onSelectService = onSelectService,
+            onOpenSchedule = onOpenSchedule,
             onItemClick = { item, _, sharedElementKey -> onHeroItemClick(item, sharedElementKey) },
             topContentInset = topContentInset,
             detachedBottomContent = true,
@@ -1232,6 +1250,23 @@ private fun BrowsePopularListItem(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
                     )
+                    item.scoreText?.takeIf { it.isNotBlank() }?.let { scoreText ->
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+                        ) {
+                            Text(
+                                text = scoreText,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            )
+                        }
+                    }
                 }
                 Column(
                     modifier = Modifier.weight(1f),
@@ -1245,6 +1280,24 @@ private fun BrowsePopularListItem(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    item.secondaryTitleText()?.takeIf { it.isNotBlank() }?.let { secondaryTitle ->
+                        Text(
+                            text = secondaryTitle,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    item.supportingText()?.takeIf { it.isNotBlank() }?.let { supportingText ->
+                        Text(
+                            text = supportingText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     Surface(
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
                         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.70f),
@@ -1313,6 +1366,23 @@ private fun TrackingCompactPoster(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
+            item.scoreText?.takeIf { it.isNotBlank() }?.let { scoreText ->
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+                ) {
+                    Text(
+                        text = scoreText,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                }
+            }
         }
         Spacer(modifier = Modifier.height(6.dp))
         Text(

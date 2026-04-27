@@ -27,10 +27,12 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -79,6 +81,8 @@ import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
 import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.list.ui.model.ContentListModel
+import org.skepsun.kototoro.list.ui.model.secondaryTitleText
+import org.skepsun.kototoro.list.ui.model.supportingText
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 
 private val DiscoverHeroHeight = 340.dp
@@ -129,6 +133,7 @@ fun DiscoverHeroCarousel(
     availableServices: List<ScrobblerService>,
     onItemClick: (ContentListModel, Rect?, String) -> Unit,
     onSelectService: (ScrobblerService) -> Unit,
+    onOpenSchedule: (() -> Unit)? = null,
     topContentInset: Dp = 0.dp,
     modifier: Modifier = Modifier,
     bottomContent: (@Composable () -> Unit)? = null,
@@ -392,48 +397,61 @@ fun DiscoverHeroCarousel(
                     modifier = Modifier.weight(1f),
                 )
                 activeService?.let { service ->
-                    Box {
-                        AssistChip(
-                            onClick = {
-                                isServiceMenuExpanded = true
-                            },
-                            leadingIcon = {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (onOpenSchedule != null) {
+                            IconButton(onClick = onOpenSchedule) {
                                 Icon(
-                                    painter = rememberSafePainter(service.iconResId),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
+                                    imageVector = Icons.Filled.DateRange,
+                                    contentDescription = stringResource(R.string.open_daily_schedule),
                                 )
-                            },
-                            trailingIcon = {
-                                Icon(
-                                    imageVector = Icons.Filled.ArrowDropDown,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            },
-                            label = {
-                                Text(stringResource(service.titleResId))
-                            },
-                        )
-                        DropdownMenu(
-                            expanded = isServiceMenuExpanded,
-                            onDismissRequest = { isServiceMenuExpanded = false },
-                        ) {
-                            availableServices.forEach { candidate ->
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(candidate.titleResId)) },
-                                    leadingIcon = {
-                                        Icon(
-                                            painter = rememberSafePainter(candidate.iconResId),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp),
-                                        )
-                                    },
-                                    onClick = {
-                                        isServiceMenuExpanded = false
-                                        onSelectService(candidate)
-                                    },
-                                )
+                            }
+                        }
+                        Box {
+                            AssistChip(
+                                onClick = {
+                                    isServiceMenuExpanded = true
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        painter = rememberSafePainter(service.iconResId),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                },
+                                trailingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Filled.ArrowDropDown,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                },
+                                label = {
+                                    Text(stringResource(service.titleResId))
+                                },
+                            )
+                            DropdownMenu(
+                                expanded = isServiceMenuExpanded,
+                                onDismissRequest = { isServiceMenuExpanded = false },
+                            ) {
+                                availableServices.forEach { candidate ->
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(candidate.titleResId)) },
+                                        leadingIcon = {
+                                            Icon(
+                                                painter = rememberSafePainter(candidate.iconResId),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                        },
+                                        onClick = {
+                                            isServiceMenuExpanded = false
+                                            onSelectService(candidate)
+                                        },
+                                    )
+                                }
                             }
                         }
                     }
@@ -465,30 +483,49 @@ fun DiscoverHeroCarousel(
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    AsyncImage(
-                        model = posterRequest,
-                        contentDescription = item.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(width = 96.dp, height = 132.dp)
-                            .onGloballyPositioned { coordinates ->
-                                coverBounds = coordinates.unclippedBoundsInWindow()
+                    Box {
+                        AsyncImage(
+                            model = posterRequest,
+                            contentDescription = item.title,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(width = 96.dp, height = 132.dp)
+                                .onGloballyPositioned { coordinates ->
+                                    coverBounds = coordinates.unclippedBoundsInWindow()
+                                }
+                                .then(
+                                    if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                                        with(sharedTransitionScope) {
+                                            Modifier.sharedElement(
+                                                rememberSharedContentState(
+                                                    key = sharedElementKey,
+                                                ),
+                                                animatedVisibilityScope = animatedVisibilityScope,
+                                            )
+                                        }
+                                    } else Modifier,
+                                )
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                        )
+                        item.scoreText?.takeIf { it.isNotBlank() }?.let { scoreText ->
+                            Surface(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(8.dp),
+                                shape = RoundedCornerShape(999.dp),
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+                            ) {
+                                Text(
+                                    text = scoreText,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                )
                             }
-                            .then(
-                                if (sharedTransitionScope != null && animatedVisibilityScope != null) {
-                                    with(sharedTransitionScope) {
-                                        Modifier.sharedElement(
-                                            rememberSharedContentState(
-                                                key = sharedElementKey,
-                                            ),
-                                            animatedVisibilityScope = animatedVisibilityScope,
-                                        )
-                                    }
-                                } else Modifier,
-                            )
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                    )
+                        }
+                    }
                     Column(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -501,6 +538,24 @@ fun DiscoverHeroCarousel(
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        item.secondaryTitleText()?.takeIf { it.isNotBlank() }?.let { secondaryTitle ->
+                            Text(
+                                text = secondaryTitle,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        item.supportingText()?.takeIf { it.isNotBlank() }?.let { supportingText ->
+                            Text(
+                                text = supportingText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                         DiscoverHeroPill(text = item.source.getTitle(context))
                     }
                 }

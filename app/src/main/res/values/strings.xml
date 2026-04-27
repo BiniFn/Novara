@@ -184,6 +184,15 @@
     <string name="long_ago">Long ago</string>
     <string name="group">Group</string>
     <string name="today">Today</string>
+    <string name="select_date">Select date</string>
+    <string name="open_daily_schedule">Open daily schedule</string>
+    <string name="details_open_comments_site">Site comments</string>
+    <string name="details_open_reviews_site">Site reviews</string>
+    <string name="details_character_voice_actors">CV: %1$s</string>
+    <string name="details_character_voice_actors_more">CV: %1$s +%2$d</string>
+    <string name="details_character_role_label">Role</string>
+    <string name="details_character_voice_actors_label">Voice actors</string>
+    <string name="details_open_character_site">Open character page</string>
     <string name="tap_to_try_again">Tap to try again</string>
     <string name="reader_mode_hint">The chosen configuration will be remembered for this manga</string>
     <string name="silent">Silent</string>
@@ -246,8 +255,19 @@
     <string name="home_quick_access_subtitle">Open app-wide preferences without leaving the dashboard.</string>
     <string name="discover_empty_title">Nothing to discover yet</string>
     <string name="discover_empty_text">Trending discovery is currently available from Bangumi by default.</string>
+    <string name="discover_empty_simkl_airing_title">No Simkl schedule for this date</string>
+    <string name="discover_empty_simkl_airing_text">Simkl returned no airing entries for the selected date. Try another day.</string>
+    <string name="discover_empty_anilist_airing_title">No AniList schedule for this date</string>
+    <string name="discover_empty_anilist_airing_text">AniList returned no airing entries for the selected date. Try another day.</string>
+    <string name="discover_empty_tracking_seasonal_title">No seasonal titles for %1$s</string>
+    <string name="discover_empty_tracking_seasonal_text">This site returned no seasonal entries for %1$s. Try another date in a different quarter.</string>
     <string name="discover_search_empty_title">Nothing found</string>
     <string name="discover_search_empty_text">Try another query or switch site.</string>
+    <string name="tracking_season_winter">Winter</string>
+    <string name="tracking_season_spring">Spring</string>
+    <string name="tracking_season_summer">Summer</string>
+    <string name="tracking_season_fall">Fall</string>
+    <string name="tracking_season_label">%1$s %2$d</string>
     <string name="discover_open_site">Open site</string>
     <string name="discover_open_local">Open local</string>
     <string name="discover_bind_local">Bind local</string>
@@ -676,6 +696,18 @@
     <string name="sync_complete">Synced %1$d items</string>
     <string name="sync_not_supported">Sync is not supported for this service</string>
     <string name="services">Services</string>
+    <string name="users">Users</string>
+    <string name="tracking_accounts">Tracking accounts</string>
+    <string name="not_signed_in">Not signed in</string>
+    <string name="statistics_pending_short">Statistics pending</string>
+    <string name="anime_count_short">Anime %1$d</string>
+    <string name="manga_count_short">Manga %1$d</string>
+    <string name="tv_count_short">TV %1$d</string>
+    <string name="movie_count_short">Movies %1$d</string>
+    <string name="episodes_watched_short">Episodes %1$d</string>
+    <string name="chapters_read_short">Chapters %1$d</string>
+    <string name="tv_episodes_watched_short">TV eps %1$d</string>
+    <string name="mean_score_short">Mean %1$s</string>
     <string name="allow_unstable_updates">Allow unstable updates</string>
     <string name="allow_unstable_updates_summary">Receive notifications about unstable builds</string>
     <string name="download_started">Download started</string>
@@ -754,6 +786,7 @@
     <string name="invalid_value_message">Invalid value</string>
     <string name="kitsu" translatable="false">Kitsu</string>
     <string name="mangaupdates" translatable="false">MangaUpdates</string>
+    <string name="simkl" translatable="false">Simkl</string>
     <string name="email_password_enter_hint">Enter your email and password to continue</string>
     <string name="username_password_enter_hint">Enter your username and password to continue</string>
     <string name="downloaded">Downloaded</string>
@@ -2155,15 +2188,29 @@
     <string name="mu_category_recently_updated">Recently Updated</string>
     <string name="mu_category_by_year">By Year</string>
     <string name="mu_category_alphabetical">Alphabetical</string>
+    <string name="simkl_category_anime_premieres">Anime Premieres</string>
+    <string name="simkl_category_anime_airing">Airing Anime</string>
+    <string name="simkl_category_anime_trending">Trending Anime</string>
+    <string name="simkl_category_anime_popular">Popular Anime</string>
+    <string name="simkl_category_tv_premieres">TV Premieres</string>
+    <string name="simkl_category_tv_airing">Airing TV Shows</string>
+    <string name="simkl_category_movies_trending">Trending Movies</string>
+    <string name="simkl_category_movies_popular">Popular Movies</string>
     <!-- AniList discovery categories -->
     <string name="al_category_anime_trending">Trending Anime</string>
+    <string name="al_category_anime_airing">Airing Schedule</string>
     <string name="al_category_anime_popular">Popular Anime</string>
     <string name="al_category_anime_top">Top Rated Anime</string>
     <string name="al_category_anime_upcoming">Upcoming Anime</string>
+    <string name="al_category_anime_movies">Trending Movies</string>
+    <string name="al_category_anime_series">Top Rated Series</string>
+    <string name="al_category_anime_favourites">Most Favourited Series</string>
     <string name="al_category_manga_trending">Trending Manga</string>
     <string name="al_category_manga_popular">Popular Manga</string>
     <string name="al_category_manga_top">Top Rated Manga</string>
     <string name="al_category_manga_favourites">Most Favourited Manga</string>
+    <string name="al_category_manga_manhwa">Trending Manhwa</string>
+    <string name="al_category_manga_novels">Trending Novels</string>
 
     <!-- Extracted from hardcoded Chinese -->
     <string name="work_info">Work Info</string>

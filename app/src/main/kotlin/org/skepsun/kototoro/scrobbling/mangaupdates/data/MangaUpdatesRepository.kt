@@ -7,6 +7,8 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -26,6 +28,9 @@ import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
 import java.io.IOException
 
 private const val BASE_API_URL = "https://api.mangaupdates.com/v1"
+private const val BASE_WEB_URL = "https://www.mangaupdates.com"
+private const val COMMENTS_PAGE_SIZE = 10
+private const val REVIEW_PAGE_SIZE = 3
 private val CONTENT_TYPE = "application/vnd.api+json".toMediaType()
 
 class MangaUpdatesRepository(
@@ -129,6 +134,7 @@ class MangaUpdatesRepository(
 					cover = record.optJSONObject("image")?.optJSONObject("url")?.getStringOrNull("original"),
 					url = record.getString("url"),
 					mediaType = record.optString("type").takeIf { it.isNotBlank() },
+					subtitle = record.optString("year").takeIf { it.isNotBlank() },
 					isBestMatch = record.getString("title").equals(query, ignoreCase = true)
 				)
 			)
@@ -171,16 +177,17 @@ class MangaUpdatesRepository(
 			val record = result.getJSONObject("record")
 			val rating = record.optDouble("bayesian_rating", 0.0)
 			val year = record.optString("year", "").ifBlank { null }
-			val ratingStr = if (rating > 0) String.format("%.2f", rating) else null
-			val subtitle = listOfNotNull(year, ratingStr?.let { "★$it" }).joinToString(" · ").ifBlank { null }
 			mapped.add(
 				ScrobblerContent(
 					id = record.getLong("series_id"),
 					name = record.getString("title"),
-					altName = subtitle,
+					altName = null,
 					cover = record.optJSONObject("image")?.optJSONObject("url")?.getStringOrNull("original"),
 					url = record.getString("url"),
 					mediaType = record.optString("type").takeIf { it.isNotBlank() },
+					subtitle = year,
+					score = rating.takeIf { it > 0.0 }?.toFloat(),
+					scoreMax = 10f,
 					isBestMatch = false,
 				)
 			)
@@ -188,7 +195,7 @@ class MangaUpdatesRepository(
 		return mapped
 	}
 
-	private fun parseSeriesDetails(response: JSONObject): ScrobblerContentInfo {
+	private suspend fun parseSeriesDetails(response: JSONObject): ScrobblerContentInfo {
 		val genres = mutableListOf<String>()
 		response.optJSONArray("genres")?.let { arr ->
 			for (i in 0 until arr.length()) {
@@ -255,18 +262,149 @@ class MangaUpdatesRepository(
 		response.optString("status").takeIf { it.isNotBlank() }?.let { infoboxProperties.add("Status" to it) }
 		val rating = response.optDouble("bayesian_rating", 0.0)
 		if (rating > 0) infoboxProperties.add("Rating" to String.format("%.2f", rating))
+		val contentUrl = response.getString("url")
+		val supplemental = fetchSupplementalDetails(contentUrl)
 
 		return ScrobblerContentInfo(
 			id = response.getLong("series_id"),
 			name = response.getString("title"),
 			cover = response.optJSONObject("image")?.optJSONObject("url")?.getString("original").orEmpty(),
-			url = response.getString("url"),
+			url = contentUrl,
 			descriptionHtml = response.optString("description", "").replace("\n", "<br>"),
 			tags = genres + categories,
 			authors = authors,
 			infoboxProperties = infoboxProperties,
+			commentThreads = supplemental.commentThreads,
+			reviews = supplemental.reviews,
 			relatedWorks = relatedWorks,
 			recommendations = recommendations,
+			actions = supplemental.actions,
+		)
+	}
+
+	private suspend fun fetchSupplementalDetails(contentUrl: String): MangaUpdatesSupplementalPayload {
+		return runCatching {
+			val html = Request.Builder()
+				.get()
+				.url(contentUrl)
+				.build()
+				.let { okHttp.newCall(it).await().parseRaw() }
+			val doc = Jsoup.parse(html, contentUrl)
+			val commentThreads = parseSeriesComments(doc)
+			val reviewLinks = parseReviewLinks(doc)
+			val reviews = reviewLinks.take(REVIEW_PAGE_SIZE).mapNotNull { reviewUrl ->
+				runCatching {
+					fetchReviewEntry(reviewUrl)
+				}.getOrNull()
+			}
+			val actions = buildList {
+				if (commentThreads.isNotEmpty()) {
+					add(
+						ScrobblerContentInfo.ExternalAction(
+							title = "Comments",
+							url = "${contentUrl.trimEnd('/') }#comments",
+						),
+					)
+				}
+				if (reviews.isNotEmpty() || reviewLinks.isNotEmpty()) {
+					add(
+						ScrobblerContentInfo.ExternalAction(
+							title = "Reviews",
+							url = reviewLinks.firstOrNull() ?: contentUrl,
+						),
+					)
+				}
+			}
+			MangaUpdatesSupplementalPayload(
+				commentThreads = commentThreads,
+				reviews = reviews,
+				actions = actions,
+			)
+		}.getOrElse { MangaUpdatesSupplementalPayload() }
+	}
+
+	private fun parseSeriesComments(doc: Document): List<ScrobblerContentInfo.CommentThread> {
+		return doc.select("div[data-cy=comment-row]").take(COMMENTS_PAGE_SIZE).mapNotNull { row ->
+			val body = row.nextElementSibling()?.takeIf { it.selectFirst(".mu-markdown-module___SC9hG__mu_markdown") != null }
+				?: return@mapNotNull null
+			val title = row.selectFirst(".comment_title")?.text()?.trim().orEmpty()
+			val authorLink = row.selectFirst("a[href*=/member/]")
+			val authorName = authorLink?.text()?.trim().orEmpty().ifBlank { "MangaUpdates User" }
+			val avatarUrl = row.selectFirst("img[alt=user avatar]")?.absUrl("src").normalizeBlank()
+			val rating = row.selectFirst(".comment_rating")?.text()?.extractFractionalNumber()
+			val postedAt = row.selectFirst("time[datetime]")?.attr("datetime")?.takeIf { it.isNotBlank() }?.take(10)
+			val content = body.selectFirst(".mu-markdown-module___SC9hG__mu_markdown")
+				?.html()
+				?.toPlainText()
+				?.takeIf { it.isNotBlank() }
+				?: return@mapNotNull null
+			ScrobblerContentInfo.CommentThread(
+				id = row.selectFirst("a[id^=comment]")?.id()?.removePrefix("comment").orEmpty().ifBlank { title },
+				userName = authorName,
+				userUrl = authorLink?.absUrl("href").normalizeBlank(),
+				avatarUrl = avatarUrl,
+				rating = rating,
+				status = title.takeIf { it.isNotBlank() && !it.equals("No Subject", ignoreCase = true) },
+				postedAt = postedAt,
+				content = content,
+			)
+		}
+	}
+
+	private fun parseReviewLinks(doc: Document): List<String> {
+		val header = doc.select("div[data-cy=info-box-unknown-header] b").firstOrNull {
+			it.text().contains("User Reviews", ignoreCase = true)
+		} ?: return emptyList()
+		val content = header.parent()?.nextElementSibling() ?: return emptyList()
+		return content.select("a[href^=/review/], a[href*=/review/]")
+			.mapNotNull { anchor -> anchor.absUrl("href").normalizeBlank() }
+			.distinct()
+	}
+
+	private suspend fun fetchReviewEntry(reviewUrl: String): ScrobblerContentInfo.ReviewEntry? {
+		val html = Request.Builder()
+			.get()
+			.url(reviewUrl)
+			.build()
+			.let { okHttp.newCall(it).await().parseRaw() }
+		val doc = Jsoup.parse(html, reviewUrl)
+		val excerpt = doc.selectFirst(".mu-markdown-module___SC9hG__mu_markdown")
+			?.html()
+			?.toPlainText()
+			?.takeIf { it.isNotBlank() }
+			?: return null
+		val metadata = doc.select("div.p-1.col-12.text").firstOrNull { element ->
+			element.text().contains("by") && element.selectFirst("time[datetime]") != null
+		}
+		val authorLink = metadata?.selectFirst("a[href*=/member/]")
+		val authorName = authorLink?.text()?.trim()
+			?: metadata?.selectFirst("[class*=review-by-id-module__][class*=newsname]")?.text()?.trim()
+			?: metadata?.text()
+				?.substringAfter("by", missingDelimiterValue = "")
+				?.substringBefore(" on", missingDelimiterValue = "")
+				?.trim()
+				?.takeIf { it.isNotBlank() }
+			?: "MangaUpdates User"
+		val postedAt = doc.selectFirst("time[datetime]")?.attr("datetime")?.takeIf { it.isNotBlank() }?.take(10)
+		val rating = doc.selectFirst(".specialtext b")?.text()?.extractFractionalNumber()
+		val commentsCount = doc.select("div[data-cy=comment-row]").size.takeIf { it > 0 }
+		return ScrobblerContentInfo.ReviewEntry(
+			id = reviewUrl.substringAfterLast('/'),
+			title = excerpt.toReviewTitle(),
+			authorName = authorName,
+			authorUrl = authorLink?.absUrl("href").normalizeBlank(),
+			avatarUrl = null,
+			postedAt = postedAt,
+			excerpt = buildString {
+				rating?.let {
+					append("Rating ")
+					append(String.format("%.1f/10", it))
+					append(" · ")
+				}
+				append(excerpt)
+			},
+			url = reviewUrl,
+			repliesCount = commentsCount,
 		)
 	}
 
@@ -377,4 +515,34 @@ class MangaUpdatesRepository(
 		// Return -1 to indicate sync is not applicable for this service.
 		return -1
 	}
+
+	private fun String.toPlainText(): String {
+		return Jsoup.parse(this).text().normalizeWhitespace()
+	}
+
+	private fun String.normalizeWhitespace(): String {
+		return replace(Regex("\\s+"), " ").trim()
+	}
+
+	private fun String.toReviewTitle(): String {
+		return lineSequence()
+			.map { it.trim() }
+			.firstOrNull { it.isNotBlank() }
+			?.take(72)
+			?.takeIf { it.isNotBlank() }
+			?: "Review"
+	}
+
+	private fun String?.normalizeBlank(): String? = this?.trim()?.takeIf { it.isNotBlank() }
+
+	private fun String.extractFractionalNumber(): Float? {
+		val match = Regex("""(\d+(?:\.\d+)?)""").find(this) ?: return null
+		return match.groupValues.getOrNull(1)?.toFloatOrNull()
+	}
+
+	private data class MangaUpdatesSupplementalPayload(
+		val commentThreads: List<ScrobblerContentInfo.CommentThread> = emptyList(),
+		val reviews: List<ScrobblerContentInfo.ReviewEntry> = emptyList(),
+		val actions: List<ScrobblerContentInfo.ExternalAction> = emptyList(),
+	)
 }

@@ -117,6 +117,19 @@ class RootSettingsFragment : Fragment() {
             ),
         )
 
+        val usersSection = SettingsRootSection(
+            title = getString(R.string.users),
+            items = listOf(
+                settingsItem(
+                    key = "tracking_accounts",
+                    iconRes = R.drawable.ic_user,
+                    title = getString(R.string.tracking_accounts),
+                    summary = summaryOf(R.string.tracking, R.string.preferred_tracking_site, R.string.sync_settings),
+                    fragmentClass = UsersSettingsFragment::class.java,
+                ),
+            ),
+        )
+
         val servicesSection = SettingsRootSection(
             title = getString(R.string.services),
             items = buildList {
@@ -152,7 +165,7 @@ class RootSettingsFragment : Fragment() {
                         key = "services",
                         iconRes = R.drawable.ic_services,
                         title = getString(R.string.services),
-                        summary = summaryOf(R.string.sync_settings, R.string.suggestions, R.string.tracking),
+                        summary = summaryOf(R.string.anime_offline_database, R.string.suggestions, R.string.reading_stats),
                         fragmentClass = ServicesSettingsFragment::class.java,
                     )
                 )
@@ -169,7 +182,7 @@ class RootSettingsFragment : Fragment() {
             },
         )
 
-        return listOf(coreSection, servicesSection)
+        return listOf(usersSection, coreSection, servicesSection)
     }
 
     private fun buildOptionalDebugItem(): SettingsRootItem? {

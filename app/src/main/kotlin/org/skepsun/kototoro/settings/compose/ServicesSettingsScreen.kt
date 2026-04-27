@@ -1,6 +1,5 @@
 package org.skepsun.kototoro.settings.compose
 
-import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -8,26 +7,15 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
-
-data class ServicesTrackingItem(
-    val service: ScrobblerService,
-    val title: String,
-    val summary: String,
-    @DrawableRes val iconRes: Int,
-)
 
 data class ServicesSettingsUiState(
     val suggestionsSummary: String,
@@ -35,29 +23,24 @@ data class ServicesSettingsUiState(
     val isRelatedContentEnabled: Boolean,
     val isStatsEnabled: Boolean,
     val isReadingTimeEstimationEnabled: Boolean,
-    val trackingItems: List<ServicesTrackingItem>,
 )
 
 @Composable
 fun ServicesSettingsScreen(
     servicesTitle: String,
-    trackingTitle: String,
     state: ServicesSettingsUiState,
     snackbarHostState: SnackbarHostState,
-    pendingAuthService: ScrobblerService?,
-    onDismissAuthPrompt: () -> Unit,
-    onConfirmAuthPrompt: (ScrobblerService) -> Unit,
-    onSyncSettingsClick: () -> Unit,
     onAnimeOfflineClick: () -> Unit,
     onSuggestionsClick: () -> Unit,
     onRelatedContentChange: (Boolean) -> Unit,
     onStatsClick: () -> Unit,
     onStatsEnabledChange: (Boolean) -> Unit,
     onReadingTimeChange: (Boolean) -> Unit,
-    onTrackingServiceClick: (ScrobblerService) -> Unit,
     onDiscordSettingsClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Scaffold(
+        modifier = modifier,
         snackbarHost = {
             SnackbarHost(hostState = snackbarHostState)
         },
@@ -76,12 +59,6 @@ fun ServicesSettingsScreen(
         ) {
             item(key = "services") {
                 SettingsPreferenceSection(title = servicesTitle) {
-                    SettingsActionPreference(
-                        title = stringResource(R.string.sync_settings),
-                        summary = stringResource(R.string.sync_settings_summary),
-                        onClick = onSyncSettingsClick,
-                    )
-                    SettingsSectionDivider()
                     SettingsActionPreference(
                         title = stringResource(R.string.anime_offline_database),
                         summary = state.animeOfflineSummary,
@@ -128,46 +105,6 @@ fun ServicesSettingsScreen(
                     )
                 }
             }
-            item(key = "tracking") {
-                SettingsPreferenceSection(title = trackingTitle) {
-                    state.trackingItems.forEachIndexed { index, item ->
-                        SettingsActionPreference(
-                            title = item.title,
-                            summary = item.summary,
-                            iconRes = item.iconRes,
-                            onClick = { onTrackingServiceClick(item.service) },
-                        )
-                        if (index != state.trackingItems.lastIndex) {
-                            SettingsSectionDivider()
-                        }
-                    }
-                }
-            }
         }
-    }
-
-    pendingAuthService?.let { service ->
-        AlertDialog(
-            onDismissRequest = onDismissAuthPrompt,
-            title = { Text(text = stringResource(service.titleResId)) },
-            text = {
-                Text(
-                    text = stringResource(
-                        R.string.scrobbler_auth_intro,
-                        stringResource(service.titleResId),
-                    ),
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { onConfirmAuthPrompt(service) }) {
-                    Text(text = stringResource(R.string.sign_in))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = onDismissAuthPrompt) {
-                    Text(text = stringResource(android.R.string.cancel))
-                }
-            },
-        )
     }
 }

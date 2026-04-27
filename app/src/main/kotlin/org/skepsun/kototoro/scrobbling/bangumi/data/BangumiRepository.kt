@@ -22,12 +22,15 @@ import org.skepsun.kototoro.parsers.util.parseJson
 import org.jsoup.Jsoup
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerRepository
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerStorage
+import org.skepsun.kototoro.scrobbling.common.data.ScrobblerUserProfileRepository
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblingEntity
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerType
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUserProfile
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUserStats
 import org.skepsun.kototoro.parsers.model.ContentListFilter
 import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
 import org.skepsun.kototoro.parsers.model.ContentSource
@@ -53,7 +56,7 @@ class BangumiRepository @Inject constructor(
 	@ScrobblerType(ScrobblerService.BANGUMI) private val okHttp: OkHttpClient,
 	@ScrobblerType(ScrobblerService.BANGUMI) private val storage: ScrobblerStorage,
 	private val db: MangaDatabase,
-) : ScrobblerRepository {
+) : ScrobblerRepository, ScrobblerUserProfileRepository {
 
 	private val clientId = context.getString(R.string.bangumi_clientId)
 	private val clientSecret = context.getString(R.string.bangumi_clientSecret)
@@ -87,16 +90,30 @@ class BangumiRepository @Inject constructor(
 	}
 
 	override suspend fun loadUser(): ScrobblerUser {
+		return loadUserProfile().user
+	}
+
+	override suspend fun loadUserProfile(): ScrobblerUserProfile {
 		val request = Request.Builder()
 			.url("${API_URL}v0/me")
 			.get()
 		val jo = okHttp.newCall(request.build()).await().parseJson()
-		return ScrobblerUser(
+		val user = ScrobblerUser(
 			id = jo.getLong("id"),
 			nickname = jo.getString("nickname"),
 			avatar = jo.getJSONObject("avatar").getStringOrNull("medium"),
 			service = ScrobblerService.BANGUMI,
 		).also { storage.user = it }
+		val username = jo.getStringOrNull("username")
+		val stats = username?.let {
+			runCatching {
+				loadCollectionStats(it)
+			}.getOrNull()
+		}
+		return ScrobblerUserProfile(
+			user = user,
+			stats = stats,
+		)
 	}
 
 	override val cachedUser: ScrobblerUser?
@@ -108,6 +125,26 @@ class BangumiRepository @Inject constructor(
 
 	override fun logout() {
 		storage.clear()
+	}
+
+	private suspend fun loadCollectionStats(username: String): ScrobblerUserStats? {
+		val animeCount = loadCollectionTotal(username, subjectType = 2)
+		val mangaCount = loadCollectionTotal(username, subjectType = 1)
+		if (animeCount == null && mangaCount == null) {
+			return null
+		}
+		return ScrobblerUserStats(
+			animeCount = animeCount,
+			mangaCount = mangaCount,
+		)
+	}
+
+	private suspend fun loadCollectionTotal(username: String, subjectType: Int): Int? {
+		val request = Request.Builder()
+			.url("${API_URL}v0/users/$username/collections?subject_type=$subjectType&limit=1")
+			.get()
+		val response = okHttp.newCall(request.build()).await().parseJsonOrNull() ?: return null
+		return response.optInt("total").takeIf { it >= 0 }
 	}
 
 	override suspend fun findContent(query: String, offset: Int, isAnime: Boolean): List<ScrobblerContent> {

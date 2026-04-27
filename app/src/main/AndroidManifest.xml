@@ -316,6 +316,7 @@
 				<data android:host="kitsu-auth" />
 				<data android:host="bangumi-auth" />
 				<data android:host="mangaupdates-auth" />
+				<data android:host="simkl-auth" />
 			</intent-filter>
 
 		</activity>

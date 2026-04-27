@@ -33,11 +33,14 @@ class ProxyProvider @Inject constructor(
 	private val settings: AppSettings,
 ) {
 
-	private var cachedProxy: Proxy? = null
+	@Volatile
+	private var cachedSelection: CachedSelection? = null
+
+	private val directSelection = listOf(Proxy.NO_PROXY)
 
 	val selector = object : ProxySelector() {
 		override fun select(uri: URI?): List<Proxy> {
-			return listOf(getProxy())
+			return getSelection()
 		}
 
 		override fun connectFailed(uri: URI?, sa: SocketAddress?, ioe: IOException?) {
@@ -48,7 +51,6 @@ class ProxyProvider @Inject constructor(
 	val authenticator = ProxyAuthenticator()
 
 	init {
-		ProxySelector.setDefault(selector)
 		JavaAuthenticator.setDefault(authenticator)
 	}
 
@@ -69,18 +71,19 @@ class ProxyProvider @Inject constructor(
 					}
 				}
 			} else {
+				val proxyConfigData = requireProxyConfig()
 				val url = buildString {
-					when (settings.proxyType) {
+					when (proxyConfigData.type) {
 						Proxy.Type.DIRECT -> Unit
 						Proxy.Type.HTTP -> append("http")
 						Proxy.Type.SOCKS -> append("socks")
 					}
 					append("://")
-					append(settings.proxyAddress)
+					append(proxyConfigData.address)
 					append(':')
-					append(settings.proxyPort)
+					append(proxyConfigData.port)
 				}
-				if (settings.proxyType == Proxy.Type.SOCKS) {
+				if (proxyConfigData.type == Proxy.Type.SOCKS) {
 					System.setProperty("java.net.socks.username", settings.proxyLogin)
 					System.setProperty("java.net.socks.password", settings.proxyPassword)
 				}
@@ -101,26 +104,55 @@ class ProxyProvider @Inject constructor(
 
 	private fun isProxyEnabled() = settings.proxyType != Proxy.Type.DIRECT
 
-	private fun getProxy(): Proxy {
-		val type = settings.proxyType
-		val address = settings.proxyAddress
-		val port = settings.proxyPort
-		if (type == Proxy.Type.DIRECT) {
-			return Proxy.NO_PROXY
+	private fun getSelection(): List<Proxy> {
+		if (!isProxyEnabled()) {
+			return directSelection
 		}
-		if (address.isNullOrEmpty() || port < 0 || port > 0xFFFF) {
+		val proxyConfig = requireProxyConfig()
+		val snapshot = ProxySnapshot(
+			type = proxyConfig.type,
+			address = proxyConfig.address,
+			port = proxyConfig.port,
+		)
+		cachedSelection?.takeIf { it.snapshot == snapshot }?.let {
+			return it.proxies
+		}
+		val proxy = Proxy(proxyConfig.type, InetSocketAddress(proxyConfig.address, proxyConfig.port))
+		return listOf(proxy).also {
+			cachedSelection = CachedSelection(snapshot, it)
+		}
+	}
+
+	private fun requireProxyConfig(): ProxyConfigData {
+		val type = settings.proxyType
+		val address = settings.proxyAddress?.trim().orEmpty()
+		val port = settings.proxyPort
+		if (type == Proxy.Type.DIRECT || address.isEmpty() || port !in 1..0xFFFF) {
 			throw ProxyConfigException()
 		}
-		cachedProxy?.let {
-			val addr = it.address() as? InetSocketAddress
-			if (addr != null && it.type() == type && addr.port == port && addr.hostString == address) {
-				return it
-			}
-		}
-		val proxy = Proxy(type, InetSocketAddress(address, port))
-		cachedProxy = proxy
-		return proxy
+		return ProxyConfigData(
+			type = type,
+			address = address,
+			port = port,
+		)
 	}
+
+	private data class ProxySnapshot(
+		val type: Proxy.Type,
+		val address: String,
+		val port: Int,
+	)
+
+	private data class ProxyConfigData(
+		val type: Proxy.Type,
+		val address: String,
+		val port: Int,
+	)
+
+	private data class CachedSelection(
+		val snapshot: ProxySnapshot,
+		val proxies: List<Proxy>,
+	)
 
 	inner class ProxyAuthenticator : Authenticator, JavaAuthenticator() {
 

@@ -285,6 +285,7 @@ fun DetailsScreen(
     var showStatsDialog by remember { mutableStateOf(false) }
     var showCommentsDialog by remember { mutableStateOf(false) }
     var showReviewsDialog by remember { mutableStateOf(false) }
+    var selectedSupplementalRelationItem by remember { mutableStateOf<EntityRelationItem?>(null) }
     var showMetadataSourceDialog by remember { mutableStateOf(false) }
     var showReadingSourceDialog by remember { mutableStateOf(false) }
     LaunchedEffect(showMetadataSourceDialog) {
@@ -509,8 +510,8 @@ fun DetailsScreen(
     }
 
     val openPaneTab: (Int) -> Unit = remember(
-        compactPaneAnchor,
         isWideAdaptiveLayout,
+        compactPaneAnchor,
         persistSelectedPaneTab,
     ) {
         { requestedTabId ->
@@ -731,8 +732,8 @@ fun DetailsScreen(
                             coverVisualAlpha = 1f,
                             coverUrl = mangaDetails?.coverUrl?.takeIf { it.isNotBlank() } ?: content?.coverUrl,
                             fallbackCoverUrl = content?.coverUrl,
-                            showCommentsAction = supplementalCommentThreads.isNotEmpty() || !supplementalCommentsUrl.isNullOrBlank(),
-                            showReviewsAction = supplementalReviews.isNotEmpty() || !supplementalReviewsUrl.isNullOrBlank(),
+                            showCommentsAction = supplementalCommentThreads.isNotEmpty(),
+                            showReviewsAction = supplementalReviews.isNotEmpty(),
                             content = content,
                             sharedElementKey = sharedElementKey,
                             pendingTagSearch = { pendingTagSearch = it },
@@ -743,9 +744,19 @@ fun DetailsScreen(
 							onFavoriteClick = { showFavoriteDialog = true },
 							onCommentsClick = { showCommentsDialog = true },
 							onReviewsClick = { showReviewsDialog = true },
+                            onSupplementalRelationClick = { item ->
+                                when {
+                                    shouldOpenTrackingRelationSheet(item) -> {
+                                        selectedSupplementalRelationItem = item
+                                    }
+                                    !item.url.isNullOrBlank() -> {
+                                        handleActionClick(DetailsAction.OpenWebUrl(item.url))
+                                    }
+                                }
+                            },
 							onSelectActiveLocalSource = viewModel::selectActiveLocalSource,
                             onSelectMetadataSource = viewModel::selectMetadataSource,
-							onOpenMetadataSourceSheet = { showMetadataSourceDialog = true },
+                            onOpenMetadataSourceSheet = { showMetadataSourceDialog = true },
 							onOpenReadingSourceSheet = { showReadingSourceDialog = true },
 							onEntityClick = appRouter::openEntityDetails,
 							onActionClick = handleActionClick,
@@ -856,8 +867,8 @@ fun DetailsScreen(
                             coverVisualAlpha = headerCoverVisualAlpha,
                             coverUrl = mangaDetails?.coverUrl?.takeIf { it.isNotBlank() } ?: content?.coverUrl,
                             fallbackCoverUrl = content?.coverUrl,
-                            showCommentsAction = supplementalCommentThreads.isNotEmpty() || !supplementalCommentsUrl.isNullOrBlank(),
-                            showReviewsAction = supplementalReviews.isNotEmpty() || !supplementalReviewsUrl.isNullOrBlank(),
+                            showCommentsAction = supplementalCommentThreads.isNotEmpty(),
+                            showReviewsAction = supplementalReviews.isNotEmpty(),
                             content = content,
                             sharedElementKey = sharedElementKey,
                             pendingTagSearch = { pendingTagSearch = it },
@@ -868,9 +879,19 @@ fun DetailsScreen(
 							onFavoriteClick = { showFavoriteDialog = true },
 							onCommentsClick = { showCommentsDialog = true },
 							onReviewsClick = { showReviewsDialog = true },
+                            onSupplementalRelationClick = { item ->
+                                when {
+                                    shouldOpenTrackingRelationSheet(item) -> {
+                                        selectedSupplementalRelationItem = item
+                                    }
+                                    !item.url.isNullOrBlank() -> {
+                                        handleActionClick(DetailsAction.OpenWebUrl(item.url))
+                                    }
+                                }
+                            },
 							onSelectActiveLocalSource = viewModel::selectActiveLocalSource,
                             onSelectMetadataSource = viewModel::selectMetadataSource,
-							onOpenMetadataSourceSheet = { showMetadataSourceDialog = true },
+                            onOpenMetadataSourceSheet = { showMetadataSourceDialog = true },
 							onOpenReadingSourceSheet = { showReadingSourceDialog = true },
 							onEntityClick = appRouter::openEntityDetails,
 							onActionClick = handleActionClick,
@@ -1118,6 +1139,187 @@ fun DetailsScreen(
                     },
                 )
             }
+
+            selectedSupplementalRelationItem?.let { item ->
+                TrackingRelationItemSheet(
+                    item = item,
+                    onDismissRequest = { selectedSupplementalRelationItem = null },
+                    onOpenExternal = { url ->
+                        selectedSupplementalRelationItem = null
+                        handleActionClick(DetailsAction.OpenWebUrl(url))
+                    },
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TrackingRelationItemSheet(
+    item: EntityRelationItem,
+    onDismissRequest: () -> Unit,
+    onOpenExternal: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.92f)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .width(112.dp)
+                        .aspectRatio(0.72f),
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.36f),
+                ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        if (item.coverUrl.isNullOrBlank()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    painter = rememberSafePainter(R.drawable.ic_placeholder),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(32.dp),
+                                )
+                            }
+                        } else {
+                            AsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(item.coverUrl)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = item.name,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
+                                error = rememberSafePainter(R.drawable.ic_placeholder),
+                                placeholder = rememberSafePainter(R.drawable.ic_placeholder),
+                            )
+                        }
+                    }
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = item.name,
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    item.subtitle?.takeIf { it.isNotBlank() }?.let { subtitle ->
+                        Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        ) {
+                            Text(
+                                text = subtitle,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            )
+                        }
+                    }
+                    item.supportingText?.takeIf { it.isNotBlank() }?.let { supportingText ->
+                        Text(
+                            text = supportingText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
+            item.subtitle?.takeIf { it.isNotBlank() }?.let { role ->
+                TrackingRelationMetaBlock(
+                    label = stringResource(R.string.details_character_role_label),
+                    value = role,
+                )
+            }
+
+            item.detailLines
+                .takeIf { it.isNotEmpty() }
+                ?.joinToString(separator = "\n")
+                ?.let { voiceActors ->
+                    TrackingRelationMetaBlock(
+                        label = stringResource(R.string.details_character_voice_actors_label),
+                        value = voiceActors,
+                    )
+                }
+
+            item.url?.takeIf { it.isNotBlank() }?.let { url ->
+                Button(
+                    onClick = { onOpenExternal(url) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            painter = rememberSafePainter(R.drawable.ic_open_external),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Text(text = stringResource(R.string.details_open_character_site))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrackingRelationMetaBlock(
+    label: String,
+    value: String,
+) {
+    GlassSurface(
+        modifier = Modifier.fillMaxWidth(),
+        style = GlassDefaults.subtleStyle(),
+        shape = RoundedCornerShape(22.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
         }
     }
 }
@@ -1438,6 +1640,7 @@ private fun DetailsScrollableContent(
     onFavoriteClick: () -> Unit,
     onCommentsClick: () -> Unit,
     onReviewsClick: () -> Unit,
+    onSupplementalRelationClick: (EntityRelationItem) -> Unit,
     onSelectActiveLocalSource: (Long) -> Unit,
     onSelectMetadataSource: (DetailsSourceOption) -> Unit,
     onOpenMetadataSourceSheet: () -> Unit,
@@ -1448,6 +1651,14 @@ private fun DetailsScrollableContent(
 ) {
     val context = LocalContext.current
     val source = content?.source
+    val visibleSupplementalSections = remember(supplementalSections, entityRelationSections) {
+        val hasEntityCharacterSection = entityRelationSections.any { it.titleRes == R.string.entity_graph_section_characters }
+        if (hasEntityCharacterSection) {
+            supplementalSections.filterNot { it.titleRes == R.string.entity_graph_section_characters }
+        } else {
+            supplementalSections
+        }
+    }
     Column(
         modifier = modifier
             .padding(contentPadding)
@@ -1533,13 +1744,23 @@ private fun DetailsScrollableContent(
         if (supplementalMetadataProperties.isNotEmpty()) {
             DetailsSupplementMetadataCard(properties = supplementalMetadataProperties)
         }
-        if (supplementalSections.isNotEmpty()) {
+        if (visibleSupplementalSections.isNotEmpty()) {
             DetailsRelationSections(
-                sections = supplementalSections,
+                sections = visibleSupplementalSections,
                 onItemClick = { item ->
-                    val service = item.trackingService ?: return@DetailsRelationSections
-                    val remoteId = item.remoteId ?: return@DetailsRelationSections
-                    onActionClick(DetailsAction.OpenTrackingDetails(service, remoteId, item.url))
+                    val service = item.trackingService
+                    val remoteId = item.remoteId
+                    when {
+                        service != null && remoteId != null -> {
+                            onActionClick(DetailsAction.OpenTrackingDetails(service, remoteId, item.url))
+                        }
+                        shouldOpenTrackingRelationSheet(item) -> {
+                            onSupplementalRelationClick(item)
+                        }
+                        !item.url.isNullOrBlank() -> {
+                            onSupplementalRelationClick(item)
+                        }
+                    }
                 },
             )
         }
@@ -1553,6 +1774,13 @@ private fun DetailsScrollableContent(
         }
         Spacer(modifier = Modifier.height(bottomSpacerHeight))
     }
+}
+
+private fun shouldOpenTrackingRelationSheet(item: EntityRelationItem): Boolean {
+    return item.trackingService == null &&
+        item.remoteId == null &&
+        !item.url.isNullOrBlank() &&
+        (!item.subtitle.isNullOrBlank() || !item.supportingText.isNullOrBlank() || item.detailLines.isNotEmpty())
 }
 
 @Composable
@@ -2007,7 +2235,15 @@ private fun ChapterSelectionTopBar(
                     )
                 }
             }
-            if (state.isSingleSelection) {
+            if (state.canDelete) {
+                IconButton(onClick = state.onDelete) {
+                    Icon(
+                        painter = rememberSafePainter(R.drawable.ic_delete),
+                        contentDescription = stringResource(R.string.delete),
+                    )
+                }
+            }
+            if (state.canMarkCurrent) {
                 IconButton(onClick = state.onMarkCurrent) {
                     Icon(
                         painter = rememberSafePainter(R.drawable.ic_current_chapter),
@@ -2938,10 +3174,12 @@ fun EntityRelationCard(
     val type = item.type
     val typeLabel = type?.let { stringResource(entityRelationTypeLabelRes(it)) }
     val typeIconRes = type?.let { entityRelationTypeIconRes(it) }
+    val opensExternalPage = type == null && item.trackingService == null && item.remoteId == null && !item.url.isNullOrBlank()
     DetailsRelationItemCard(
         width = if (type != null) 148.dp else 132.dp,
         title = item.name,
         subtitle = item.subtitle,
+        supportingText = item.supportingText,
         onClick = onClick,
         footer = if (typeLabel != null && typeIconRes != null) {
             {
@@ -2958,6 +3196,35 @@ fun EntityRelationCard(
                     )
                     Text(
                         text = typeLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        painter = rememberSafePainter(R.drawable.ic_arrow_forward),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+            }
+        } else if (opensExternalPage) {
+            {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        painter = rememberSafePainter(R.drawable.ic_open_external),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Text(
+                        text = stringResource(R.string.open_website),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -3078,6 +3345,7 @@ private fun DetailsRelationItemCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
+    supportingText: String? = null,
     footer: (@Composable () -> Unit)? = null,
     cover: @Composable () -> Unit,
 ) {
@@ -3115,6 +3383,15 @@ private fun DetailsRelationItemCard(
                     Text(
                         text = it,
                         style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                supportingText?.takeIf { it.isNotBlank() }?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,

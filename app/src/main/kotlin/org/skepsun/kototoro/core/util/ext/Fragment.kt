@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.core.util.ext
 
 import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.MenuProvider
 import androidx.core.view.ancestors
 import androidx.fragment.app.Fragment
@@ -95,6 +96,34 @@ fun Fragment.setSupportTitle(titleRes: Int) {
 	} else {
 		setSupportTitle(null as CharSequence?)
 	}
+}
+
+fun Fragment.setSupportSubtitle(subtitle: CharSequence?) {
+	val act = activity
+	if (act != null) {
+		val detailContainerId = act.resources.getIdentifier("container", "id", act.packageName)
+		var isDetail = false
+		var f: Fragment? = this
+		while (f != null) {
+			if (f.id == detailContainerId) {
+				isDetail = true
+				break
+			}
+			f = f.parentFragment
+		}
+
+		if (isDetail) {
+			val toolbarId = act.resources.getIdentifier("toolbar_detail", "id", act.packageName)
+			if (toolbarId != 0) {
+				val detailToolbar = act.findViewById<androidx.appcompat.widget.Toolbar>(toolbarId)
+				if (detailToolbar != null) {
+					detailToolbar.subtitle = subtitle
+					return
+				}
+			}
+		}
+	}
+	(activity as? AppCompatActivity)?.supportActionBar?.subtitle = subtitle
 }
 
 fun Fragment.invalidateSupportMenu() {

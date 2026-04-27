@@ -246,7 +246,7 @@ class UpdatesViewModel @Inject constructor(
 			is ContentCompactListModel -> copy(
 				counter = group.totalNewChapters,
 				id = group.uiId,
-				subtitle = listOfNotNull(subtitle.takeIf { it.isNotBlank() }, groupSuffix).joinToString(" · "),
+				subtitle = listOfNotNull(subtitle?.takeIf { it.isNotBlank() }, groupSuffix).joinToString(" · "),
 			)
 			is ContentDetailedListModel -> copy(
 				counter = group.totalNewChapters,

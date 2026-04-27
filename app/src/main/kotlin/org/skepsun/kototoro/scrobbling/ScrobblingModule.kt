@@ -27,6 +27,9 @@ import org.skepsun.kototoro.scrobbling.kitsu.domain.KitsuScrobbler
 import org.skepsun.kototoro.scrobbling.mal.data.MALAuthenticator
 import org.skepsun.kototoro.scrobbling.mal.data.MALInterceptor
 import org.skepsun.kototoro.scrobbling.mal.domain.MALScrobbler
+import org.skepsun.kototoro.scrobbling.simkl.data.SimklInterceptor
+import org.skepsun.kototoro.scrobbling.simkl.data.SimklRepository
+import org.skepsun.kototoro.scrobbling.simkl.domain.SimklScrobbler
 import org.skepsun.kototoro.scrobbling.shikimori.data.ShikimoriAuthenticator
 import org.skepsun.kototoro.scrobbling.shikimori.data.ShikimoriInterceptor
 import org.skepsun.kototoro.scrobbling.shikimori.domain.ShikimoriScrobbler
@@ -152,6 +155,13 @@ object ScrobblingModule {
 
 	@Provides
 	@Singleton
+	@ScrobblerType(ScrobblerService.SIMKL)
+	fun provideSimklStorage(
+		@ApplicationContext context: Context,
+	): ScrobblerStorage = ScrobblerStorage(context, ScrobblerService.SIMKL)
+
+	@Provides
+	@Singleton
 	fun provideMangaUpdatesRepository(
 		@ApplicationContext context: Context,
 		@ScrobblerType(ScrobblerService.MANGAUPDATES) storage: ScrobblerStorage,
@@ -167,6 +177,32 @@ object ScrobblingModule {
 	}
 
 	@Provides
+	@Singleton
+	@ScrobblerType(ScrobblerService.SIMKL)
+	fun provideSimklHttpClient(
+		@ApplicationContext context: Context,
+		@BaseHttpClient baseHttpClient: OkHttpClient,
+		@ScrobblerType(ScrobblerService.SIMKL) storage: ScrobblerStorage,
+	): OkHttpClient = baseHttpClient.newBuilder().apply {
+		addInterceptor(
+			SimklInterceptor(
+				storage = storage,
+				clientId = context.getString(R.string.simkl_clientId),
+				appVersion = BuildConfig.VERSION_NAME,
+			),
+		)
+	}.build()
+
+	@Provides
+	@Singleton
+	fun provideSimklRepository(
+		@ApplicationContext context: Context,
+		@ScrobblerType(ScrobblerService.SIMKL) okHttp: OkHttpClient,
+		@ScrobblerType(ScrobblerService.SIMKL) storage: ScrobblerStorage,
+		database: MangaDatabase,
+	): SimklRepository = SimklRepository(context, okHttp, storage, database)
+
+	@Provides
 	@ElementsIntoSet
 	fun provideScrobblers(
 		shikimoriScrobbler: ShikimoriScrobbler,
@@ -174,6 +210,15 @@ object ScrobblingModule {
 		malScrobbler: MALScrobbler,
 		kitsuScrobbler: KitsuScrobbler,
 		bangumiScrobbler: BangumiScrobbler,
-		mangaUpdatesScrobbler: org.skepsun.kototoro.scrobbling.mangaupdates.domain.MangaUpdatesScrobbler
-	): Set<@JvmSuppressWildcards Scrobbler> = setOf(shikimoriScrobbler, aniListScrobbler, malScrobbler, kitsuScrobbler, bangumiScrobbler, mangaUpdatesScrobbler)
+		mangaUpdatesScrobbler: org.skepsun.kototoro.scrobbling.mangaupdates.domain.MangaUpdatesScrobbler,
+		simklScrobbler: SimklScrobbler,
+	): Set<@JvmSuppressWildcards Scrobbler> = setOf(
+		shikimoriScrobbler,
+		aniListScrobbler,
+		malScrobbler,
+		kitsuScrobbler,
+		bangumiScrobbler,
+		mangaUpdatesScrobbler,
+		simklScrobbler,
+	)
 }

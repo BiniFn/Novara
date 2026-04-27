@@ -17,6 +17,8 @@ data class EntityRelationItem(
     val entityId: Long? = null,
     val type: EntityType? = null,
     val subtitle: String? = null,
+    val supportingText: String? = null,
+    val detailLines: List<String> = emptyList(),
     val trackingService: ScrobblerService? = null,
     val remoteId: Long? = null,
     val url: String? = null,

@@ -10,6 +10,7 @@ import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 data class ContentGridModel(
 	override val manga: Content,
 	override val override: ContentOverride?,
+	val subtitle: String? = null,
 	override val counter: Int,
 	override val id: Long = manga.id,
 	val progress: ReadingProgress?,
@@ -17,15 +18,18 @@ data class ContentGridModel(
 	val isSaved: Boolean,
 	override val isPinned: Boolean = false,
 	override val metadataTrackingService: ScrobblerService? = null,
+	override val scoreText: String? = null,
 ) : ContentListModel() {
 
 	override fun getChangePayload(previousState: ListModel): Any? = when {
 		previousState !is ContentGridModel || previousState.manga != manga -> null
 
 		previousState.progress != progress -> PAYLOAD_PROGRESS_CHANGED
-		previousState.isFavorite != isFavorite ||
+		previousState.subtitle != subtitle ||
+			previousState.isFavorite != isFavorite ||
 			previousState.isSaved != isSaved ||
-			previousState.metadataTrackingService != metadataTrackingService -> PAYLOAD_ANYTHING_CHANGED
+			previousState.metadataTrackingService != metadataTrackingService ||
+			previousState.scoreText != scoreText -> PAYLOAD_ANYTHING_CHANGED
 
 		else -> super.getChangePayload(previousState)
 	}

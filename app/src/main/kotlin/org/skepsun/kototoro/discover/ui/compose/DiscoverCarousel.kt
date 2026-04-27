@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -27,6 +28,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -147,15 +149,32 @@ private fun DiscoverPosterCard(
 					color = MaterialTheme.colorScheme.surfaceVariant,
 					shape = MaterialTheme.shapes.medium,
 				),
-		) {
-			AsyncImage(
-				model = imageRequest,
-				contentDescription = model.title,
-				contentScale = ContentScale.Crop,
-				modifier = Modifier.matchParentSize(),
-			)
-			if ("nsfw" in badgesBottomRight) {
-				ContentCardCornerBadges(
+        ) {
+            AsyncImage(
+                model = imageRequest,
+                contentDescription = model.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize(),
+            )
+            model.scoreText?.takeIf { it.isNotBlank() }?.let { scoreText ->
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp),
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.84f),
+                ) {
+                    Text(
+                        text = scoreText,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                }
+            }
+            if ("nsfw" in badgesBottomRight) {
+                ContentCardCornerBadges(
 					badges = badgesBottomRight,
 					item = model.asBadgeModel(),
 					corner = Alignment.BottomEnd,

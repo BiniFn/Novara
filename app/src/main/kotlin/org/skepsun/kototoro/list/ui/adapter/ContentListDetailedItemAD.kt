@@ -27,7 +27,12 @@ fun mangaListDetailedItemAD(
 	bind { payloads ->
 		binding.textViewTitle.text = item.title
 		binding.textViewTitle.drawableStart = if (item.isPinned) iconPinned else null
-		binding.textViewAuthor.textAndVisible = item.manga.authors.joinToString(", ")
+		val isTrackingItem = item.metadataTrackingService != null
+		binding.textViewAuthor.textAndVisible = if (isTrackingItem) {
+			item.subtitle
+		} else {
+			item.manga.authors.joinToString(", ")
+		}
 		binding.progressView.setProgress(
 			value = item.progress,
 			animate = ListModelDiffCallback.PAYLOAD_PROGRESS_CHANGED in payloads,
@@ -57,8 +62,13 @@ fun mangaListDetailedItemAD(
 
 		androidx.core.view.ViewCompat.setTransitionName(binding.imageViewCover, "cover_${item.manga.source.name}_${item.manga.url}")
 		binding.imageViewCover.setImageAsync(item.coverUrl, item.manga)
-		binding.textViewTags.text = item.tags.joinToString(separator = ", ") { it.title ?: "" }
-		binding.badge.number = item.counter
-		binding.badge.isVisible = item.counter > 0
+		binding.textViewTags.textAndVisible = if (isTrackingItem) {
+			item.supportingText
+		} else {
+			item.tags.joinToString(separator = ", ") { it.title ?: "" }.ifBlank { null }
+		}
+		binding.badge.labelText = item.scoreText.takeIf { isTrackingItem && !it.isNullOrBlank() }
+		binding.badge.number = if (binding.badge.labelText == null) item.counter else 0
+		binding.badge.isVisible = binding.badge.labelText != null || item.counter > 0
 	}
 }

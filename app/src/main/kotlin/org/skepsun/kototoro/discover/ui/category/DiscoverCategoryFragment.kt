@@ -9,6 +9,8 @@ import androidx.core.view.isVisible
 import androidx.fragment.app.activityViewModels
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.chip.Chip
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.datepicker.MaterialDatePicker
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.AppRouter.Companion.KEY_ID
@@ -37,6 +39,14 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.tracking.discovery.domain.isTrackingDateDrivenCategory
+import org.skepsun.kototoro.tracking.discovery.domain.resolveTrackingSeason
+import org.skepsun.kototoro.tracking.discovery.domain.trackingCalendarDate
+import org.skepsun.kototoro.core.util.ext.setSupportSubtitle
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 @AndroidEntryPoint
 class DiscoverCategoryFragment : BaseFragment<FragmentDiscoverCategoryBinding>(), SwipeRefreshLayout.OnRefreshListener, org.skepsun.kototoro.filter.ui.FilterCoordinator.Owner {
@@ -44,6 +54,9 @@ class DiscoverCategoryFragment : BaseFragment<FragmentDiscoverCategoryBinding>()
 	private val viewModel by activityViewModels<DiscoverCategoryViewModel>()
 	private var paginationListener: PaginationScrollListener? = null
 	private var spanResolver: GridSpanResolver? = null
+	private val calendarChipIds = LinkedHashMap<Int, Int>()
+	private var screenCategoryId: String? = null
+	private var screenTitleResId: Int = 0
 	
 	override val filterCoordinator: org.skepsun.kototoro.filter.ui.FilterCoordinator
 		get() = viewModel.filterCoordinator
@@ -65,8 +78,10 @@ class DiscoverCategoryFragment : BaseFragment<FragmentDiscoverCategoryBinding>()
 		val serviceName = arguments?.getString(KEY_ID) ?: return
 		val categoryId = arguments?.getString(KEY_KIND) ?: return
 		val titleResId = arguments?.getInt(KEY_TITLE) ?: return
+		screenCategoryId = categoryId
+		screenTitleResId = titleResId
 
-		setSupportTitle(titleResId)
+		updateToolbarPresentation(categoryId, titleResId, null)
 
 		spanResolver = GridSpanResolver(binding.root.resources)
 		spanResolver?.setGridSize(settings.gridSize / 100f, binding.recyclerView)
@@ -135,9 +150,24 @@ class DiscoverCategoryFragment : BaseFragment<FragmentDiscoverCategoryBinding>()
 			binding.swipeRefreshLayout.isRefreshing = it
 		}
 
-		if (categoryId.startsWith("calendar")) {
+		if (isTrackingDateDrivenCategory(categoryId)) {
+			binding.calendarActionRow.isVisible = true
 			binding.calendarFilterScroll.isVisible = true
 			setupCalendarFilters(binding)
+			binding.calendarDateButton.setOnClickListener {
+				showCalendarDatePicker()
+			}
+			binding.calendarTodayButton.setOnClickListener {
+				viewModel.selectToday()
+			}
+			viewModel.selectedCalendarDateMillis.observe(viewLifecycleOwner) { selected ->
+				updateCalendarDateUi(binding, selected)
+				updateToolbarPresentation(
+					categoryId = screenCategoryId ?: categoryId,
+					titleResId = screenTitleResId,
+					selectedDateMillis = selected,
+				)
+			}
 		}
 
 		viewModel.initialize(serviceName, categoryId)
@@ -162,6 +192,7 @@ class DiscoverCategoryFragment : BaseFragment<FragmentDiscoverCategoryBinding>()
 	}
 
 	private fun setupCalendarFilters(binding: FragmentDiscoverCategoryBinding) {
+		calendarChipIds.clear()
 		val days: List<Pair<Int, Int>> = listOf(
 			1 to R.string.day_monday,
 			2 to R.string.day_tuesday,
@@ -186,7 +217,36 @@ class DiscoverCategoryFragment : BaseFragment<FragmentDiscoverCategoryBinding>()
 					viewModel.applyDayFilter(index)
 				}
 			}
+			calendarChipIds[index] = chip.id
 			binding.calendarChips.addView(chip)
+		}
+	}
+
+	private fun showCalendarDatePicker() {
+		val selection = viewModel.selectedCalendarDateMillis.value
+		val picker = MaterialDatePicker.Builder.datePicker()
+			.setTitleText(R.string.select_date)
+			.setSelection(selection)
+			.build()
+		picker.addOnPositiveButtonClickListener { selected ->
+			viewModel.applyDateFilter(selected)
+		}
+		picker.show(childFragmentManager, "tracking_calendar_date")
+	}
+
+	private fun updateCalendarDateUi(
+		binding: FragmentDiscoverCategoryBinding,
+		selectedDateMillis: Long?,
+	) {
+		val millis = selectedDateMillis ?: return
+		val selectedDate = Instant.ofEpochMilli(millis)
+			.atZone(ZoneId.systemDefault())
+			.toLocalDate()
+		val formatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+		binding.calendarDateButton.text = formatter.format(selectedDate)
+		val chipId = calendarChipIds[selectedDate.dayOfWeek.value] ?: return
+		if (binding.calendarChips.checkedChipId != chipId) {
+			binding.calendarChips.check(chipId)
 		}
 	}
 
@@ -196,6 +256,11 @@ class DiscoverCategoryFragment : BaseFragment<FragmentDiscoverCategoryBinding>()
 
 	override fun onCreateOptionsMenu(menu: android.view.Menu, inflater: android.view.MenuInflater) {
 		super.onCreateOptionsMenu(menu, inflater)
+		menu.add(0, R.id.action_sort, 0, R.string.sort_by).apply {
+			setIcon(R.drawable.ic_sort)
+			setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
+			isVisible = viewModel.getCurrentSortOptions().size > 1
+		}
 		menu.add(0, R.id.action_filter, 0, R.string.filter).apply {
 			setIcon(R.drawable.ic_filter_menu)
 			setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
@@ -204,6 +269,10 @@ class DiscoverCategoryFragment : BaseFragment<FragmentDiscoverCategoryBinding>()
 
 	override fun onOptionsItemSelected(item: android.view.MenuItem): Boolean {
 		return when (item.itemId) {
+			R.id.action_sort -> {
+				showSortDialog()
+				true
+			}
 			R.id.action_filter -> {
 				org.skepsun.kototoro.filter.ui.sheet.FilterSheetFragment().show(childFragmentManager, "filter")
 				true
@@ -214,6 +283,39 @@ class DiscoverCategoryFragment : BaseFragment<FragmentDiscoverCategoryBinding>()
 
 	fun onRetryClick(error: Throwable) {
 		viewModel.refresh()
+	}
+
+	private fun showSortDialog() {
+		val options = viewModel.getCurrentSortOptions()
+		if (options.size <= 1) {
+			return
+		}
+		val selectedId = viewModel.getSelectedSortOptionId()
+		val checkedItem = options.indexOfFirst { it.id == selectedId }.coerceAtLeast(0)
+		val labels = options.map { getString(it.nameResId) }.toTypedArray()
+		MaterialAlertDialogBuilder(requireContext())
+			.setTitle(R.string.sort_by)
+			.setSingleChoiceItems(labels, checkedItem) { dialog, which ->
+				val selected = options.getOrNull(which) ?: return@setSingleChoiceItems
+				val applied = viewModel.applySortOption(selected.id) ?: return@setSingleChoiceItems
+				if (applied.targetCategoryId != null) {
+					screenCategoryId = applied.targetCategoryId
+					screenTitleResId = applied.nameResId
+					updateToolbarPresentation(
+						categoryId = applied.targetCategoryId,
+						titleResId = applied.nameResId,
+						selectedDateMillis = viewModel.selectedCalendarDateMillis.value,
+					)
+				}
+				requireActivity().invalidateOptionsMenu()
+				dialog.dismiss()
+			}
+			.show()
+	}
+
+	override fun onDestroyView() {
+		setSupportSubtitle(null)
+		super.onDestroyView()
 	}
 
 	fun onEmptyActionClick() = Unit
@@ -227,5 +329,48 @@ class DiscoverCategoryFragment : BaseFragment<FragmentDiscoverCategoryBinding>()
 			systemBars.bottom
 		)
 		return insets
+	}
+
+	private fun updateToolbarPresentation(
+		categoryId: String,
+		titleResId: Int,
+		selectedDateMillis: Long?,
+	) {
+		setSupportTitle(titleResId)
+		val subtitle = when (categoryId) {
+			"al_anime_airing",
+			"simkl_anime_airing",
+			"simkl_tv_airing",
+			-> selectedDateMillis?.let(::formatToolbarDate)
+			"seasonal",
+			"shiki_seasonal",
+			-> selectedDateMillis?.let(::formatToolbarSeason)
+			else -> null
+		}
+		setSupportSubtitle(subtitle)
+	}
+
+	private fun formatToolbarDate(selectedDateMillis: Long): String {
+		return DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(
+			Instant.ofEpochMilli(selectedDateMillis)
+				.atZone(ZoneId.systemDefault())
+				.toLocalDate()
+		)
+	}
+
+	private fun formatToolbarSeason(selectedDateMillis: Long): String {
+		val date = trackingCalendarDate(selectedDateMillis) ?: return ""
+		val season = resolveTrackingSeason(date)
+		val seasonNameResId = when (season.malSeason) {
+			"winter" -> R.string.tracking_season_winter
+			"spring" -> R.string.tracking_season_spring
+			"summer" -> R.string.tracking_season_summer
+			else -> R.string.tracking_season_fall
+		}
+		return getString(
+			R.string.tracking_season_label,
+			getString(seasonNameResId),
+			season.year,
+		)
 	}
 }

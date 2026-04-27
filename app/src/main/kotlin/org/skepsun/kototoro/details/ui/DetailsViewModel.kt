@@ -1,7 +1,9 @@
 package org.skepsun.kototoro.details.ui
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitAll
@@ -131,6 +133,13 @@ private const val SOURCE_SEARCH_TIMEOUT_MS = 12_000L
 private val CHARACTER_VOICE_ACTOR_REGEX = Regex(
 	"""^\s*(.+?)\s*\((?:cv|cast|voice actor|voice|配音|声优)\s*[:：]?\s*(.+?)\)\s*$""",
 	RegexOption.IGNORE_CASE,
+)
+
+private data class TrackingCharacterPresentation(
+	val coverUrl: String?,
+	val role: String?,
+	val supportingText: String?,
+	val detailLines: List<String>,
 )
 
 data class DetailsSupplementUiState(
@@ -299,6 +308,7 @@ private data class DetailsPaneSummaryUiState(
 
 @HiltViewModel
 class DetailsViewModel @Inject constructor(
+	@ApplicationContext private val context: Context,
 	private val historyRepository: HistoryRepository,
 	bookmarksRepository: BookmarksRepository,
 	settings: AppSettings,
@@ -1533,18 +1543,25 @@ class DetailsViewModel @Inject constructor(
 			return
 		}
 		val commentsAction = details.actions.firstOrNull { action ->
-			action.url.contains("/comments") || action.title.contains("吐槽")
+			action.url.contains("/comments") ||
+				action.url.contains("#comments") ||
+				action.title.contains("吐槽", ignoreCase = true) ||
+				action.title.contains("comment", ignoreCase = true)
 		}
 		val reviewsAction = details.actions.firstOrNull { action ->
 			action.url.contains("/reviews") ||
-				action.title.contains("长评") ||
-				action.title.contains("评论")
+				action.url.contains("/review/") ||
+				action.title.contains("长评", ignoreCase = true) ||
+				action.title.contains("评论", ignoreCase = true) ||
+				action.title.contains("review", ignoreCase = true)
 		}
-		supplementalCommentsUrl.value = commentsAction?.url
+		val fallbackCommentsUrl = buildFallbackTrackingCommentsUrl(details)
+		val fallbackReviewsUrl = buildFallbackTrackingReviewsUrl(details)
+		supplementalCommentsUrl.value = commentsAction?.url ?: fallbackCommentsUrl
 		supplementalCommentThreads.value = details.commentThreads
-		supplementalReviewsUrl.value = reviewsAction?.url
+		supplementalReviewsUrl.value = reviewsAction?.url ?: fallbackReviewsUrl
 		supplementalReviews.value = details.reviews
-		supplementalActions.value = details.actions.filterNot { action ->
+		val baseActions = details.actions.filterNot { action ->
 			action == commentsAction || action == reviewsAction
 		}.map { action ->
 			DetailsSupplementAction(
@@ -1552,7 +1569,30 @@ class DetailsViewModel @Inject constructor(
 				url = action.url,
 			)
 		}
+		supplementalActions.value = baseActions.distinctBy { it.title to it.url }
 		supplementalSections.value = buildList {
+			details.characters
+				.takeIf { it.isNotEmpty() }
+				?.let { characters ->
+					add(
+						EntityRelationSection(
+							titleRes = R.string.entity_graph_section_characters,
+							items = characters.map { character ->
+								EntityRelationItem(
+									stableKey = "tracking:${details.service.id}:character:${character.id}",
+									name = character.name,
+									coverUrl = character.coverUrl.normalizedImageUrl(),
+									subtitle = character.role?.takeIf { it.isNotBlank() },
+									supportingText = buildTrackingCharacterVoiceActorsText(character),
+									detailLines = character.voiceActors
+										.mapNotNull { it.name.takeIf(String::isNotBlank) }
+										.distinct(),
+									url = character.url,
+								)
+							}.distinctBy(EntityRelationItem::stableKey),
+						),
+					)
+				}
 			details.relatedWorks
 				.takeIf { it.isNotEmpty() }
 				?.let { works ->
@@ -1614,6 +1654,54 @@ class DetailsViewModel @Inject constructor(
 					),
 				)
 			}
+		}
+	}
+
+	private fun buildTrackingCharacterVoiceActorsText(
+		character: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails.CharacterInfo,
+	): String? {
+		val voiceActors = character.voiceActors
+			.mapNotNull { it.name.takeIf(String::isNotBlank) }
+			.distinct()
+		return voiceActors
+			.take(2)
+			.takeIf { it.isNotEmpty() }
+			?.joinToString(" / ")
+			?.let { names ->
+				if (voiceActors.size > 2) {
+					context.getString(
+						R.string.details_character_voice_actors_more,
+						names,
+						voiceActors.size - 2,
+					)
+				} else {
+					context.getString(R.string.details_character_voice_actors, names)
+				}
+			}
+	}
+
+	private fun buildFallbackTrackingCommentsUrl(
+		details: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails,
+	): String? {
+		val baseUrl = details.url?.substringBefore('?')?.trimEnd('/') ?: return null
+		return when (details.service) {
+			ScrobblerService.BANGUMI -> "$baseUrl/comments"
+			ScrobblerService.MAL -> "$baseUrl/forum"
+			ScrobblerService.SHIKIMORI -> "$baseUrl/forum"
+			ScrobblerService.MANGAUPDATES -> "$baseUrl#comments"
+			else -> baseUrl
+		}
+	}
+
+	private fun buildFallbackTrackingReviewsUrl(
+		details: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails,
+	): String? {
+		val baseUrl = details.url?.substringBefore('?')?.trimEnd('/') ?: return null
+		return when (details.service) {
+			ScrobblerService.BANGUMI -> "$baseUrl/reviews"
+			ScrobblerService.MAL -> "$baseUrl/reviews"
+			ScrobblerService.SHIKIMORI -> "$baseUrl/reviews"
+			else -> baseUrl
 		}
 	}
 
@@ -1974,13 +2062,18 @@ class DetailsViewModel @Inject constructor(
 			val items = typeRelations.mapNotNull { relation ->
 				val relatedId = relation.relatedEntityId(entityId) ?: return@mapNotNull null
 				val related = relatedEntities[relatedId] ?: return@mapNotNull null
+				val trackingCharacterPresentation = resolveTrackingCharacterPresentation(related, trackingDetails)
 				EntityRelationItem(
 					stableKey = "entity:${related.id}",
 					entityId = related.id,
 					name = related.primaryName,
 					type = related.type,
 					coverUrl = resolveEntityCoverUrl(related.id)
+						?: trackingCharacterPresentation?.coverUrl
 						?: resolveTrackingRelatedCoverUrl(related, trackingDetails),
+					subtitle = trackingCharacterPresentation?.role,
+					supportingText = trackingCharacterPresentation?.supportingText,
+					detailLines = trackingCharacterPresentation?.detailLines.orEmpty(),
 				)
 			}.distinctBy(EntityRelationItem::stableKey)
 			val titleRes = relationSectionTitleRes(anchorEntity.type, typeRelations.first().type) ?: return@mapNotNull null
@@ -2007,11 +2100,73 @@ class DetailsViewModel @Inject constructor(
 		return details.characters.firstOrNull { it.id == characterId }?.coverUrl.normalizedImageUrl()
 	}
 
+	private suspend fun resolveTrackingCharacterPresentation(
+		entity: Entity,
+		details: TrackingSiteItemDetails?,
+	): TrackingCharacterPresentation? {
+		if (details == null || entity.type != EntityType.CHARACTER) {
+			return null
+		}
+		val bindings = entityGraphRepository.getBindings(entity.id)
+		val remoteIds = bindings
+			.filter { it.source == details.service.id.toString() }
+			.mapNotNull { it.externalId.toLongOrNull() }
+			.toSet()
+		val matched = details.characters.firstOrNull { it.id in remoteIds }
+			?: details.characters.firstOrNull { it.name.equals(entity.primaryName, ignoreCase = true) }
+			?: return null
+		val detailLines = matched.voiceActors
+			.mapNotNull { it.name.takeIf(String::isNotBlank) }
+			.distinct()
+		return TrackingCharacterPresentation(
+			coverUrl = matched.coverUrl.normalizedImageUrl(),
+			role = matched.role?.takeIf { it.isNotBlank() },
+			supportingText = buildTrackingCharacterVoiceActorsText(matched),
+			detailLines = detailLines,
+		)
+	}
+
 	private suspend fun resolveEntityCoverUrl(entityId: Long): String? {
+		val entity = entityGraphRepository.getEntity(entityId) ?: return null
 		val bindings = entityGraphRepository.getBindings(entityId)
 			.sortedWith(compareByDescending<EntityBinding> { it.isPrimary }.thenByDescending { it.confidence })
 		for (binding in bindings) {
 			resolveBindingCoverUrl(binding)?.let { return it }
+		}
+		if (entity.type == EntityType.CHARACTER) {
+			resolveCharacterCoverUrlFromRelatedWorks(entity, bindings)?.let { return it }
+		}
+		return null
+	}
+
+	private suspend fun resolveCharacterCoverUrlFromRelatedWorks(
+		entity: Entity,
+		bindings: List<EntityBinding>,
+	): String? {
+		val remoteIdsByService = bindings.mapNotNull { binding ->
+			val serviceId = binding.source.toIntOrNull() ?: return@mapNotNull null
+			val remoteId = binding.externalId.toLongOrNull() ?: return@mapNotNull null
+			serviceId to remoteId
+		}.groupBy(
+			keySelector = { it.first },
+			valueTransform = { it.second },
+		)
+		val workIds = entityGraphRepository.getRelations(entity.id)
+			.filter { it.type == RelationType.BELONGS_TO || it.type == RelationType.HAS_CHARACTER }
+			.mapNotNull { it.relatedEntityId(entity.id) }
+			.distinct()
+		for (workId in workIds) {
+			val workBindings = entityGraphRepository.getBindings(workId)
+			for (workBinding in workBindings) {
+				val serviceId = workBinding.source.toIntOrNull() ?: continue
+				val remoteId = workBinding.externalId.toLongOrNull() ?: continue
+				val service = ScrobblerService.entries.firstOrNull { it.id == serviceId } ?: continue
+				val details = trackingSiteCacheRepository.readDetails(service, remoteId) ?: continue
+				val candidateIds = remoteIdsByService[serviceId].orEmpty().toSet()
+				val matched = details.characters.firstOrNull { it.id in candidateIds }
+					?: details.characters.firstOrNull { it.name.equals(entity.primaryName, ignoreCase = true) }
+				matched?.coverUrl.normalizedImageUrl()?.let { return it }
+			}
 		}
 		return null
 	}

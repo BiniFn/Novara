@@ -38,6 +38,7 @@ import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
 import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
+import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
 import org.skepsun.kototoro.list.ui.compose.ContentCardUiPrefs
 import org.skepsun.kototoro.list.ui.compose.KototoroContentCard
@@ -114,6 +115,7 @@ fun DiscoverScreen(
 	onLoadMore: () -> Unit,
 	onItemClick: (ContentListModel, Rect?) -> Unit,
 	onSelectService: (ScrobblerService) -> Unit = {},
+	onOpenSchedule: (() -> Unit)? = null,
 	onCategoryMoreClick: (TrackingSiteCategory) -> Unit,
 	gridSpanCount: Int,
 	modifier: Modifier = Modifier
@@ -190,6 +192,7 @@ fun DiscoverScreen(
 								onItemClick(item, coverBounds)
 							},
 							onSelectService = onSelectService,
+							onOpenSchedule = onOpenSchedule,
 							settings = settings,
 							modifier = Modifier.padding(bottom = 4.dp)
 						)
@@ -334,7 +337,7 @@ private fun DiscoverServiceSwitcherChip(
 			onClick = { expanded = true },
 			leadingIcon = {
 				androidx.compose.material3.Icon(
-					painter = painterResource(activeService.iconResId),
+					painter = rememberSafePainter(activeService.iconResId),
 					contentDescription = null,
 					modifier = Modifier.padding(end = 2.dp),
 				)
@@ -356,7 +359,7 @@ private fun DiscoverServiceSwitcherChip(
 					text = { androidx.compose.material3.Text(stringResource(candidate.titleResId)) },
 					leadingIcon = {
 						androidx.compose.material3.Icon(
-							painter = painterResource(candidate.iconResId),
+							painter = rememberSafePainter(candidate.iconResId),
 							contentDescription = null,
 						)
 					},

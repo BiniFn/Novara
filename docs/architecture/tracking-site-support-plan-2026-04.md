@@ -88,6 +88,36 @@
 
 所以会出现简介残留 HTML 标记的问题。
 
+### 5. “用户系统”入口此前缺失，账号能力分散在服务页
+
+在本轮改造前，追踪站账号入口都堆在 `ServicesSettingsFragment`：
+
+- 登录
+- 已登录昵称摘要
+- 各站配置入口
+
+这带来两个问题：
+
+- “服务设置”和“用户/账号系统”语义混杂，后续很难继续扩用户能力
+- 即使站点 API 支持用户统计，UI 也没有统一承载位置
+
+当前进度（更新于 `2026-04-27`）：
+
+- 已完成：
+  - 根设置新增独立 `用户` 分区
+  - 追踪站账号入口从 `Services` 页迁移到新的 `UsersSettingsFragment`
+  - 用户页新增“默认浏览追踪网站”兜底设置，发现页顶部追踪源面板异常时仍可从设置切换浏览源
+  - `同步设定` 入口从 `Services` 页迁移到 `用户` 页，路径调整为 `设置 -> 用户 -> 同步设定`
+  - 新增统一 `ScrobblerUserProfile` / `ScrobblerUserStats` 模型
+  - 新增 `TrackingUserAccountSummaryProvider`
+  - `AniList` / `MAL` / `Simkl` 已补首批账号统计摘要
+  - 其他站点先回退为“昵称 + 登录状态”，后续逐站补统计
+
+- 尚未完成：
+  - `Bangumi` / `Shikimori` / `Kitsu` / `MangaUpdates` 的统计深挖
+  - 用户页内的更多能力入口，例如用户评论、列表跳转、远端收藏/历史概览
+  - 把“用户系统”继续扩展成跨站统一资料页，而不只是账号列表
+
 ## 改造目标
 
 完成后应达到以下状态：
@@ -119,6 +149,27 @@
 
 - 让 `Simkl` 正式成为 Kototoro 的追踪源之一
 
+当前进度（更新于 `2026-04-27`）：
+
+- 已完成：
+  - `ScrobblerService` 增加 `SIMKL`
+  - 新增 `SimklRepository` / `SimklInterceptor` / `SimklScrobbler`
+  - 接入 `ScrobblerRepositoryMap`
+  - 接入 `ScrobblingModule` 的 storage / `OkHttpClient` / repository provider / scrobbler set
+  - `ScrobblerConfigActivity` 与 `AndroidManifest.xml` 增加 `simkl-auth` 回调 host
+  - 设置页已增加 `Simkl` 登录入口
+  - OAuth code -> token -> `ScrobblerStorage` 保存链路已接通
+  - `DefaultTrackingSiteDiscoveryService` 已接入 Simkl 发现页分类与列表拉取
+  - 已基于官方文档补齐 Simkl 文本搜索接口
+  - 已基于官方文档补齐 Simkl 详情接口与 episode 列表读取
+  - 已基于官方文档补齐 Simkl `watchlist` / `history` / `ratings` / `sync/all-items` 写链路
+  - 已基于官方 `sync/activities` + `date_from` 改为增量同步，并补 `removed_from_list` 的 IDs-only 删除对比
+  - Simkl 已重新开放手动绑定、自动建联和状态同步入口
+
+- 尚未完成：
+  - `memo` 删除与更细粒度的远端注释同步策略
+  - 发现页分类之外的更多列表形态与时间维度筛选
+
 主要改动点：
 
 - `ScrobblerService` 增加 `SIMKL`
@@ -138,12 +189,40 @@
 
 - 可以在 Kototoro 中看到 Simkl 登录入口
 - OAuth 回调完成后可拿到 token 并保存
+- Simkl 可以作为“可浏览 + 可搜索 + 可查看详情 + 可绑定同步”的追踪站进入主流程
 
 ### 阶段 2：扩展发现页数据模型
 
 目标：
 
 - 让“浏览页卡片能显示更多信息”成为模型层能力，而不是 UI 临时拼接
+
+当前进度（更新于 `2026-04-27`）：
+
+- 已完成：
+  - `TrackingSiteItem` 已扩展 `primaryTitle`、`secondaryTitle`、`progressText`、`updatedAtText`、`scoreMax`
+  - `TrackingSiteCacheRepository` 与 `tracking_site_items` 表结构已同步扩展
+  - 已新增 `Migration39To40`
+  - `DiscoverViewModel` / `DiscoverCategoryViewModel` 已改为保留并透传标题、副标题、评分范围
+  - 浏览卡片右上角评分徽标已支持 `value/max` 显示
+  - 网格卡片与列表卡片已开始显示追踪站副标题
+  - `AniList` / `MAL` / `Kitsu` / `Shikimori` / `Simkl` / `MangaUpdates` 的发现列表已补第一批真实字段映射：
+    - 原文主标题
+    - 译名副标题
+    - 章节 / 集数统计
+    - 更新时间或播出日期
+    - 站点原生评分与评分上限
+
+- 尚未完成：
+  - `Bangumi` 排行页的真实评分 / 更新时间 / 章节统计还主要依赖页面抓取，字段颗粒度仍偏弱
+  - 副标题目前仍压缩为单行文本，后续可继续拆成更明确的多段信息区块
+  - “每日放送独立页面” 已有独立入口，且目前已形成分层能力：
+    - `Bangumi calendar` 已支持真实按日期切换
+    - `AniList airing schedule` 已支持真实按日期查询与独立页日期切换
+    - `Simkl anime/tv airing` 已支持把所选日期透传为真实 `date` 请求参数
+    - `MAL seasonal` 与 `Shikimori seasonal` 已支持把所选日期映射到对应季度并刷新列表
+    - 但 `MAL` / `Shikimori` 当前仍是“按日期映射季度”，不是真正的逐日 airing API
+  - 详情页评论按钮已支持内联阅读与站点外跳，但真正的“站内发评论 / 发长评 API 写入”仍需逐站单独深挖
 
 主要改动点：
 
@@ -176,6 +255,34 @@
 目标：
 
 - 把 AniList 从“可浏览”提升到“信息完整且图片质量够用”
+
+当前进度（更新于 `2026-04-27`）：
+
+- 已完成：
+  - 发现页分类已新增 `AniList airing schedule`
+  - 顶部“每日放送”入口已可优先跳转到 `AniList airing schedule`
+  - `AniListRepository` 已新增基于 `airingSchedules` 的按日期 GraphQL 查询
+  - 独立页日期选择已可真实驱动 `AniList` 每日放送列表
+  - `AniList airing` 已接入专用空态与顶部日期副标题
+  - `AniList airing` 卡片已开始展示本地放送时刻，而不只是日期
+  - `AniList` 发现分类已继续补齐首批高价值列表：
+    - `Trending Movies`
+    - `Top Rated Series`
+    - `Most Favourited Series`
+    - `Trending Manhwa`
+    - `Trending Novels`
+  - `AniList` 分类页切换按钮已可在更多 anime / manga 官方列表之间直接跳转
+  - `AniList` 详情页的关联作品 / 推荐作品封面已优先使用 `extraLarge/large`
+  - `AniList` 详情页已补角色列表与声优数据读取，角色图 / 声优头像优先使用更高质量图片
+  - 追踪站详情弹窗的简介已改为先解析 HTML 再显示，`AniList` 简介也补了首批段落/换行规范化
+  - 主详情页的追踪站补充区块已开始展示 `AniList` 角色卡片，并显示 `role + CV`
+  - 追踪站补充区块中的角色卡片已支持轻量详情弹层，进入后可查看完整声优列表
+  - 角色轻量详情弹层已补站点角色页外跳按钮，形成“卡片摘要 -> 弹层明细 -> 站点角色页”链路
+  - 角色卡片信息层级已细化为“标题 / 角色 / CV”，并增加明确的站外打开提示
+
+- 尚未完成：
+  - 详情页角色 / 推荐 / 关联封面仍有继续提高清晰度空间
+  - 简介清洗与更丰富的详情扩展区块仍待继续补齐
 
 主要改动点：
 

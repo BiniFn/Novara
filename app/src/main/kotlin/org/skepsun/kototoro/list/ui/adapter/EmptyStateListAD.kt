@@ -3,6 +3,7 @@ package org.skepsun.kototoro.list.ui.adapter
 import androidx.core.view.isVisible
 import com.hannesdorfmann.adapterdelegates4.dsl.adapterDelegateViewBinding
 import org.skepsun.kototoro.core.util.ext.setTextAndVisible
+import org.skepsun.kototoro.core.util.ext.textAndVisible
 import org.skepsun.kototoro.databinding.ItemEmptyStateBinding
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.ListModel
@@ -22,8 +23,9 @@ fun emptyStateListAD(
 		binding.icon.isVisible = false
 		binding.icon.disposeImage()
 		
-		binding.textPrimary.setText(item.textPrimary)
-		binding.textSecondary.setTextAndVisible(item.textSecondary)
+		binding.textPrimary.textAndVisible = item.textPrimaryText ?: binding.root.context.getText(item.textPrimary)
+		binding.textSecondary.textAndVisible = item.textSecondaryText
+			?: item.textSecondary.takeIf { it != 0 }?.let(binding.root.context::getText)
 		if (listener != null) {
 			binding.buttonRetry.setTextAndVisible(item.actionStringRes)
 		}

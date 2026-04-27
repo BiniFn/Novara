@@ -7,6 +7,8 @@ import org.skepsun.kototoro.scrobbling.kitsu.data.KitsuRepository
 import org.skepsun.kototoro.scrobbling.mal.data.MALRepository
 import org.skepsun.kototoro.scrobbling.mangaupdates.data.MangaUpdatesRepository
 import org.skepsun.kototoro.scrobbling.shikimori.data.ShikimoriRepository
+import org.skepsun.kototoro.scrobbling.simkl.data.SimklCatalogItem
+import org.skepsun.kototoro.scrobbling.simkl.data.SimklRepository
 import org.skepsun.kototoro.scrobbling.common.domain.ScrobblerRepositoryMap
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
@@ -17,8 +19,12 @@ import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCategory
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteDiscoveryService
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItem
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails
+import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteSortOption
+import org.skepsun.kototoro.tracking.discovery.domain.resolveTrackingSeason
+import org.skepsun.kototoro.tracking.discovery.domain.trackingCalendarDate
 import javax.inject.Inject
 import javax.inject.Singleton
+import java.time.LocalDate
 
 @Singleton
 class DefaultTrackingSiteDiscoveryService @Inject constructor(
@@ -29,8 +35,144 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 	private val malRepository: MALRepository,
 	private val mangaUpdatesRepository: MangaUpdatesRepository,
 	private val shikimoriRepository: ShikimoriRepository,
+	private val simklRepository: SimklRepository,
 	private val cacheRepository: TrackingSiteCacheRepository,
 ) : TrackingSiteDiscoveryService {
+
+	private fun siblingCategorySortOption(
+		id: String,
+		nameResId: Int,
+		targetCategoryId: String,
+	): TrackingSiteSortOption {
+		return TrackingSiteSortOption(
+			id = id,
+			nameResId = nameResId,
+			targetCategoryId = targetCategoryId,
+		)
+	}
+
+	private fun directSortOption(
+		id: String,
+		nameResId: Int,
+		trackingSortKey: String,
+	): TrackingSiteSortOption {
+		return TrackingSiteSortOption(
+			id = id,
+			nameResId = nameResId,
+			trackingSortKey = trackingSortKey,
+		)
+	}
+
+	private fun bangumiRankCategoryOptions(): List<TrackingSiteSortOption> {
+		return listOf(
+			directSortOption("bangumi_rank", org.skepsun.kototoro.R.string.sort_by_ranking, "rank"),
+			directSortOption("bangumi_popularity", org.skepsun.kototoro.R.string.sort_by_popularity_label, "popularity"),
+			directSortOption("bangumi_collection", org.skepsun.kototoro.R.string.sort_by_collection, "collection"),
+			directSortOption("bangumi_date", org.skepsun.kototoro.R.string.sort_by_date_label, "date"),
+			directSortOption("bangumi_name", org.skepsun.kototoro.R.string.sort_by_name_label, "name"),
+		)
+	}
+
+	private fun kitsuCategoryOptions(): List<TrackingSiteSortOption> {
+		return listOf(
+			directSortOption("kitsu_popularity", org.skepsun.kototoro.R.string.sort_by_popularity_label, "-userCount"),
+			directSortOption("kitsu_rating", org.skepsun.kototoro.R.string.sort_by_ranking, "-averageRating"),
+			directSortOption("kitsu_updated", org.skepsun.kototoro.R.string.sort_by_date_label, "-updatedAt"),
+			directSortOption("kitsu_name", org.skepsun.kototoro.R.string.sort_by_name_label, "canonicalTitle"),
+		)
+	}
+
+	private fun malAnimeCategoryOptions(): List<TrackingSiteSortOption> {
+		return listOf(
+			siblingCategorySortOption("anime_all", org.skepsun.kototoro.R.string.mal_category_anime_top, "anime_all"),
+			siblingCategorySortOption("anime_airing", org.skepsun.kototoro.R.string.mal_category_anime_airing, "anime_airing"),
+			siblingCategorySortOption("anime_upcoming", org.skepsun.kototoro.R.string.mal_category_anime_upcoming, "anime_upcoming"),
+			siblingCategorySortOption("anime_tv", org.skepsun.kototoro.R.string.mal_category_anime_tv, "anime_tv"),
+			siblingCategorySortOption("anime_movie", org.skepsun.kototoro.R.string.mal_category_anime_movie, "anime_movie"),
+			siblingCategorySortOption("anime_ova", org.skepsun.kototoro.R.string.mal_category_anime_ova, "anime_ova"),
+			siblingCategorySortOption("anime_special", org.skepsun.kototoro.R.string.mal_category_anime_special, "anime_special"),
+			siblingCategorySortOption("anime_bypopularity", org.skepsun.kototoro.R.string.mal_category_anime_popular, "anime_bypopularity"),
+			siblingCategorySortOption("anime_favorite", org.skepsun.kototoro.R.string.mal_category_anime_favorite, "anime_favorite"),
+		)
+	}
+
+	private fun malMangaCategoryOptions(): List<TrackingSiteSortOption> {
+		return listOf(
+			siblingCategorySortOption("manga_all", org.skepsun.kototoro.R.string.mal_category_manga_top, "manga_all"),
+			siblingCategorySortOption("manga_manga", org.skepsun.kototoro.R.string.mal_category_manga_manga, "manga_manga"),
+			siblingCategorySortOption("manga_novels", org.skepsun.kototoro.R.string.mal_category_manga_novels, "manga_novels"),
+			siblingCategorySortOption("manga_manhwa", org.skepsun.kototoro.R.string.mal_category_manga_manhwa, "manga_manhwa"),
+			siblingCategorySortOption("manga_manhua", org.skepsun.kototoro.R.string.mal_category_manga_manhua, "manga_manhua"),
+			siblingCategorySortOption("manga_oneshots", org.skepsun.kototoro.R.string.mal_category_manga_oneshots, "manga_oneshots"),
+			siblingCategorySortOption("manga_doujin", org.skepsun.kototoro.R.string.mal_category_manga_doujin, "manga_doujin"),
+			siblingCategorySortOption("manga_bypopularity", org.skepsun.kototoro.R.string.mal_category_manga_popular, "manga_bypopularity"),
+			siblingCategorySortOption("manga_favorite", org.skepsun.kototoro.R.string.mal_category_manga_favorite, "manga_favorite"),
+		)
+	}
+
+	private fun shikimoriAnimeCategoryOptions(): List<TrackingSiteSortOption> {
+		return listOf(
+			directSortOption("shiki_ranked", org.skepsun.kototoro.R.string.shiki_category_anime_ranked, "ranked"),
+			directSortOption("shiki_popularity", org.skepsun.kototoro.R.string.shiki_category_anime_popular, "popularity"),
+			directSortOption("shiki_aired_on", org.skepsun.kototoro.R.string.sort_by_date_label, "aired_on"),
+			directSortOption("shiki_name", org.skepsun.kototoro.R.string.sort_by_name_label, "name"),
+		)
+	}
+
+	private fun shikimoriMangaCategoryOptions(): List<TrackingSiteSortOption> {
+		return listOf(
+			directSortOption("shiki_ranked", org.skepsun.kototoro.R.string.shiki_category_manga_ranked, "ranked"),
+			directSortOption("shiki_popularity", org.skepsun.kototoro.R.string.shiki_category_manga_popular, "popularity"),
+			directSortOption("shiki_aired_on", org.skepsun.kototoro.R.string.sort_by_date_label, "aired_on"),
+			directSortOption("shiki_name", org.skepsun.kototoro.R.string.sort_by_name_label, "name"),
+		)
+	}
+
+	private fun simklAnimeCategoryOptions(): List<TrackingSiteSortOption> {
+		return listOf(
+			siblingCategorySortOption("simkl_anime_premieres", org.skepsun.kototoro.R.string.simkl_category_anime_premieres, "simkl_anime_premieres"),
+			siblingCategorySortOption("simkl_anime_airing", org.skepsun.kototoro.R.string.simkl_category_anime_airing, "simkl_anime_airing"),
+			siblingCategorySortOption("simkl_anime_trending", org.skepsun.kototoro.R.string.simkl_category_anime_trending, "simkl_anime_trending"),
+			siblingCategorySortOption("simkl_anime_popular", org.skepsun.kototoro.R.string.simkl_category_anime_popular, "simkl_anime_popular"),
+		)
+	}
+
+	private fun simklTvCategoryOptions(): List<TrackingSiteSortOption> {
+		return listOf(
+			siblingCategorySortOption("simkl_tv_premieres", org.skepsun.kototoro.R.string.simkl_category_tv_premieres, "simkl_tv_premieres"),
+			siblingCategorySortOption("simkl_tv_airing", org.skepsun.kototoro.R.string.simkl_category_tv_airing, "simkl_tv_airing"),
+		)
+	}
+
+	private fun simklMovieCategoryOptions(): List<TrackingSiteSortOption> {
+		return listOf(
+			siblingCategorySortOption("simkl_movies_trending", org.skepsun.kototoro.R.string.simkl_category_movies_trending, "simkl_movies_trending"),
+			siblingCategorySortOption("simkl_movies_popular", org.skepsun.kototoro.R.string.simkl_category_movies_popular, "simkl_movies_popular"),
+		)
+	}
+
+	private fun aniListAnimeCategoryOptions(): List<TrackingSiteSortOption> {
+		return listOf(
+			siblingCategorySortOption("al_anime_trending", org.skepsun.kototoro.R.string.al_category_anime_trending, "al_anime_trending"),
+			siblingCategorySortOption("al_anime_popular", org.skepsun.kototoro.R.string.al_category_anime_popular, "al_anime_popular"),
+			siblingCategorySortOption("al_anime_score", org.skepsun.kototoro.R.string.al_category_anime_top, "al_anime_score"),
+			siblingCategorySortOption("al_anime_upcoming", org.skepsun.kototoro.R.string.al_category_anime_upcoming, "al_anime_upcoming"),
+			siblingCategorySortOption("al_anime_movies", org.skepsun.kototoro.R.string.al_category_anime_movies, "al_anime_movies"),
+			siblingCategorySortOption("al_anime_series", org.skepsun.kototoro.R.string.al_category_anime_series, "al_anime_series"),
+			siblingCategorySortOption("al_anime_favourites", org.skepsun.kototoro.R.string.al_category_anime_favourites, "al_anime_favourites"),
+		)
+	}
+
+	private fun aniListMangaCategoryOptions(): List<TrackingSiteSortOption> {
+		return listOf(
+			siblingCategorySortOption("al_manga_trending", org.skepsun.kototoro.R.string.al_category_manga_trending, "al_manga_trending"),
+			siblingCategorySortOption("al_manga_popular", org.skepsun.kototoro.R.string.al_category_manga_popular, "al_manga_popular"),
+			siblingCategorySortOption("al_manga_score", org.skepsun.kototoro.R.string.al_category_manga_top, "al_manga_score"),
+			siblingCategorySortOption("al_manga_favourites", org.skepsun.kototoro.R.string.al_category_manga_favourites, "al_manga_favourites"),
+			siblingCategorySortOption("al_manga_manhwa", org.skepsun.kototoro.R.string.al_category_manga_manhwa, "al_manga_manhwa"),
+			siblingCategorySortOption("al_manga_novels", org.skepsun.kototoro.R.string.al_category_manga_novels, "al_manga_novels"),
+		)
+	}
 
 	override fun getCapabilities(service: ScrobblerService): TrackingSiteCapabilities = when (service) {
 		ScrobblerService.BANGUMI -> TrackingSiteCapabilities(
@@ -42,11 +184,36 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			supportsManualBinding = true,
 			discoveryCategories = listOf(
 				TrackingSiteCategory("calendar", org.skepsun.kototoro.R.string.discover_category_calendar),
-				TrackingSiteCategory("anime", org.skepsun.kototoro.R.string.discover_category_anime_rank),
-				TrackingSiteCategory("book", org.skepsun.kototoro.R.string.discover_category_book_rank),
-				TrackingSiteCategory("music", org.skepsun.kototoro.R.string.discover_category_music_rank),
-				TrackingSiteCategory("game", org.skepsun.kototoro.R.string.discover_category_game_rank),
-				TrackingSiteCategory("real", org.skepsun.kototoro.R.string.discover_category_real_rank),
+				TrackingSiteCategory(
+					id = "anime",
+					nameResId = org.skepsun.kototoro.R.string.discover_category_anime_rank,
+					sortOptions = bangumiRankCategoryOptions(),
+					defaultSortOptionId = "bangumi_rank",
+				),
+				TrackingSiteCategory(
+					id = "book",
+					nameResId = org.skepsun.kototoro.R.string.discover_category_book_rank,
+					sortOptions = bangumiRankCategoryOptions(),
+					defaultSortOptionId = "bangumi_rank",
+				),
+				TrackingSiteCategory(
+					"music",
+					org.skepsun.kototoro.R.string.discover_category_music_rank,
+					sortOptions = bangumiRankCategoryOptions(),
+					defaultSortOptionId = "bangumi_rank",
+				),
+				TrackingSiteCategory(
+					"game",
+					org.skepsun.kototoro.R.string.discover_category_game_rank,
+					sortOptions = bangumiRankCategoryOptions(),
+					defaultSortOptionId = "bangumi_rank",
+				),
+				TrackingSiteCategory(
+					"real",
+					org.skepsun.kototoro.R.string.discover_category_real_rank,
+					sortOptions = bangumiRankCategoryOptions(),
+					defaultSortOptionId = "bangumi_rank",
+				),
 			),
 		)
 
@@ -58,20 +225,20 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			supportsStatusSync = true,
 			supportsManualBinding = true,
 			discoveryCategories = listOf(
-				TrackingSiteCategory("trending_anime", org.skepsun.kototoro.R.string.kitsu_category_trending_anime),
-				TrackingSiteCategory("trending_manga", org.skepsun.kototoro.R.string.kitsu_category_trending_manga),
-				TrackingSiteCategory("action", org.skepsun.kototoro.R.string.kitsu_category_action),
-				TrackingSiteCategory("romance", org.skepsun.kototoro.R.string.kitsu_category_romance),
-				TrackingSiteCategory("fantasy", org.skepsun.kototoro.R.string.kitsu_category_fantasy),
-				TrackingSiteCategory("comedy", org.skepsun.kototoro.R.string.kitsu_category_comedy),
-				TrackingSiteCategory("science-fiction", org.skepsun.kototoro.R.string.kitsu_category_sci_fi),
-				TrackingSiteCategory("adventure", org.skepsun.kototoro.R.string.kitsu_category_adventure),
-				TrackingSiteCategory("slice-of-life", org.skepsun.kototoro.R.string.kitsu_category_slice_of_life),
-				TrackingSiteCategory("drama", org.skepsun.kototoro.R.string.kitsu_category_drama),
-				TrackingSiteCategory("ecchi", org.skepsun.kototoro.R.string.kitsu_category_ecchi),
-				TrackingSiteCategory("supernatural", org.skepsun.kototoro.R.string.kitsu_category_supernatural),
-				TrackingSiteCategory("horror", org.skepsun.kototoro.R.string.kitsu_category_horror),
-				TrackingSiteCategory("isekai", org.skepsun.kototoro.R.string.kitsu_category_isekai),
+				TrackingSiteCategory("trending_anime", org.skepsun.kototoro.R.string.kitsu_category_trending_anime, sortOptions = kitsuCategoryOptions(), defaultSortOptionId = "kitsu_popularity"),
+				TrackingSiteCategory("trending_manga", org.skepsun.kototoro.R.string.kitsu_category_trending_manga, sortOptions = kitsuCategoryOptions(), defaultSortOptionId = "kitsu_popularity"),
+				TrackingSiteCategory("action", org.skepsun.kototoro.R.string.kitsu_category_action, sortOptions = kitsuCategoryOptions(), defaultSortOptionId = "kitsu_popularity"),
+				TrackingSiteCategory("romance", org.skepsun.kototoro.R.string.kitsu_category_romance, sortOptions = kitsuCategoryOptions(), defaultSortOptionId = "kitsu_popularity"),
+				TrackingSiteCategory("fantasy", org.skepsun.kototoro.R.string.kitsu_category_fantasy, sortOptions = kitsuCategoryOptions(), defaultSortOptionId = "kitsu_popularity"),
+				TrackingSiteCategory("comedy", org.skepsun.kototoro.R.string.kitsu_category_comedy, sortOptions = kitsuCategoryOptions(), defaultSortOptionId = "kitsu_popularity"),
+				TrackingSiteCategory("science-fiction", org.skepsun.kototoro.R.string.kitsu_category_sci_fi, sortOptions = kitsuCategoryOptions(), defaultSortOptionId = "kitsu_popularity"),
+				TrackingSiteCategory("adventure", org.skepsun.kototoro.R.string.kitsu_category_adventure, sortOptions = kitsuCategoryOptions(), defaultSortOptionId = "kitsu_popularity"),
+				TrackingSiteCategory("slice-of-life", org.skepsun.kototoro.R.string.kitsu_category_slice_of_life, sortOptions = kitsuCategoryOptions(), defaultSortOptionId = "kitsu_popularity"),
+				TrackingSiteCategory("drama", org.skepsun.kototoro.R.string.kitsu_category_drama, sortOptions = kitsuCategoryOptions(), defaultSortOptionId = "kitsu_popularity"),
+				TrackingSiteCategory("ecchi", org.skepsun.kototoro.R.string.kitsu_category_ecchi, sortOptions = kitsuCategoryOptions(), defaultSortOptionId = "kitsu_popularity"),
+				TrackingSiteCategory("supernatural", org.skepsun.kototoro.R.string.kitsu_category_supernatural, sortOptions = kitsuCategoryOptions(), defaultSortOptionId = "kitsu_popularity"),
+				TrackingSiteCategory("horror", org.skepsun.kototoro.R.string.kitsu_category_horror, sortOptions = kitsuCategoryOptions(), defaultSortOptionId = "kitsu_popularity"),
+				TrackingSiteCategory("isekai", org.skepsun.kototoro.R.string.kitsu_category_isekai, sortOptions = kitsuCategoryOptions(), defaultSortOptionId = "kitsu_popularity"),
 			),
 		)
 
@@ -83,25 +250,34 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			supportsStatusSync = true,
 			supportsManualBinding = true,
 			discoveryCategories = listOf(
-				TrackingSiteCategory("seasonal", org.skepsun.kototoro.R.string.mal_category_seasonal),
+				TrackingSiteCategory(
+					id = "seasonal",
+					nameResId = org.skepsun.kototoro.R.string.mal_category_seasonal,
+					sortOptions = listOf(
+						directSortOption("mal_seasonal_popularity", org.skepsun.kototoro.R.string.sort_by_popularity_label, "anime_num_list_users"),
+						directSortOption("mal_seasonal_score", org.skepsun.kototoro.R.string.sort_by_ranking, "anime_score"),
+					),
+					defaultSortOptionId = "mal_seasonal_popularity",
+				),
 				TrackingSiteCategory("anime_all", org.skepsun.kototoro.R.string.mal_category_anime_top),
-				TrackingSiteCategory("anime_airing", org.skepsun.kototoro.R.string.mal_category_anime_airing),
-				TrackingSiteCategory("anime_upcoming", org.skepsun.kototoro.R.string.mal_category_anime_upcoming),
-				TrackingSiteCategory("anime_tv", org.skepsun.kototoro.R.string.mal_category_anime_tv),
-				TrackingSiteCategory("anime_movie", org.skepsun.kototoro.R.string.mal_category_anime_movie),
-				TrackingSiteCategory("anime_ova", org.skepsun.kototoro.R.string.mal_category_anime_ova),
-				TrackingSiteCategory("anime_special", org.skepsun.kototoro.R.string.mal_category_anime_special),
-				TrackingSiteCategory("anime_bypopularity", org.skepsun.kototoro.R.string.mal_category_anime_popular),
-				TrackingSiteCategory("anime_favorite", org.skepsun.kototoro.R.string.mal_category_anime_favorite),
-				TrackingSiteCategory("manga_all", org.skepsun.kototoro.R.string.mal_category_manga_top),
-				TrackingSiteCategory("manga_manga", org.skepsun.kototoro.R.string.mal_category_manga_manga),
-				TrackingSiteCategory("manga_novels", org.skepsun.kototoro.R.string.mal_category_manga_novels),
-				TrackingSiteCategory("manga_manhwa", org.skepsun.kototoro.R.string.mal_category_manga_manhwa),
-				TrackingSiteCategory("manga_manhua", org.skepsun.kototoro.R.string.mal_category_manga_manhua),
-				TrackingSiteCategory("manga_oneshots", org.skepsun.kototoro.R.string.mal_category_manga_oneshots),
-				TrackingSiteCategory("manga_doujin", org.skepsun.kototoro.R.string.mal_category_manga_doujin),
-				TrackingSiteCategory("manga_bypopularity", org.skepsun.kototoro.R.string.mal_category_manga_popular),
-				TrackingSiteCategory("manga_favorite", org.skepsun.kototoro.R.string.mal_category_manga_favorite),
+				TrackingSiteCategory("anime_all", org.skepsun.kototoro.R.string.mal_category_anime_top, sortOptions = malAnimeCategoryOptions(), defaultSortOptionId = "anime_all"),
+				TrackingSiteCategory("anime_airing", org.skepsun.kototoro.R.string.mal_category_anime_airing, sortOptions = malAnimeCategoryOptions(), defaultSortOptionId = "anime_airing"),
+				TrackingSiteCategory("anime_upcoming", org.skepsun.kototoro.R.string.mal_category_anime_upcoming, sortOptions = malAnimeCategoryOptions(), defaultSortOptionId = "anime_upcoming"),
+				TrackingSiteCategory("anime_tv", org.skepsun.kototoro.R.string.mal_category_anime_tv, sortOptions = malAnimeCategoryOptions(), defaultSortOptionId = "anime_tv"),
+				TrackingSiteCategory("anime_movie", org.skepsun.kototoro.R.string.mal_category_anime_movie, sortOptions = malAnimeCategoryOptions(), defaultSortOptionId = "anime_movie"),
+				TrackingSiteCategory("anime_ova", org.skepsun.kototoro.R.string.mal_category_anime_ova, sortOptions = malAnimeCategoryOptions(), defaultSortOptionId = "anime_ova"),
+				TrackingSiteCategory("anime_special", org.skepsun.kototoro.R.string.mal_category_anime_special, sortOptions = malAnimeCategoryOptions(), defaultSortOptionId = "anime_special"),
+				TrackingSiteCategory("anime_bypopularity", org.skepsun.kototoro.R.string.mal_category_anime_popular, sortOptions = malAnimeCategoryOptions(), defaultSortOptionId = "anime_bypopularity"),
+				TrackingSiteCategory("anime_favorite", org.skepsun.kototoro.R.string.mal_category_anime_favorite, sortOptions = malAnimeCategoryOptions(), defaultSortOptionId = "anime_favorite"),
+				TrackingSiteCategory("manga_all", org.skepsun.kototoro.R.string.mal_category_manga_top, sortOptions = malMangaCategoryOptions(), defaultSortOptionId = "manga_all"),
+				TrackingSiteCategory("manga_manga", org.skepsun.kototoro.R.string.mal_category_manga_manga, sortOptions = malMangaCategoryOptions(), defaultSortOptionId = "manga_manga"),
+				TrackingSiteCategory("manga_novels", org.skepsun.kototoro.R.string.mal_category_manga_novels, sortOptions = malMangaCategoryOptions(), defaultSortOptionId = "manga_novels"),
+				TrackingSiteCategory("manga_manhwa", org.skepsun.kototoro.R.string.mal_category_manga_manhwa, sortOptions = malMangaCategoryOptions(), defaultSortOptionId = "manga_manhwa"),
+				TrackingSiteCategory("manga_manhua", org.skepsun.kototoro.R.string.mal_category_manga_manhua, sortOptions = malMangaCategoryOptions(), defaultSortOptionId = "manga_manhua"),
+				TrackingSiteCategory("manga_oneshots", org.skepsun.kototoro.R.string.mal_category_manga_oneshots, sortOptions = malMangaCategoryOptions(), defaultSortOptionId = "manga_oneshots"),
+				TrackingSiteCategory("manga_doujin", org.skepsun.kototoro.R.string.mal_category_manga_doujin, sortOptions = malMangaCategoryOptions(), defaultSortOptionId = "manga_doujin"),
+				TrackingSiteCategory("manga_bypopularity", org.skepsun.kototoro.R.string.mal_category_manga_popular, sortOptions = malMangaCategoryOptions(), defaultSortOptionId = "manga_bypopularity"),
+				TrackingSiteCategory("manga_favorite", org.skepsun.kototoro.R.string.mal_category_manga_favorite, sortOptions = malMangaCategoryOptions(), defaultSortOptionId = "manga_favorite"),
 			),
 		)
 
@@ -113,10 +289,50 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			supportsStatusSync = true,
 			supportsManualBinding = true,
 			discoveryCategories = listOf(
-				TrackingSiteCategory("mu_score", org.skepsun.kototoro.R.string.mu_category_top_rated),
-				TrackingSiteCategory("mu_updated", org.skepsun.kototoro.R.string.mu_category_recently_updated),
-				TrackingSiteCategory("mu_year", org.skepsun.kototoro.R.string.mu_category_by_year),
-				TrackingSiteCategory("mu_title", org.skepsun.kototoro.R.string.mu_category_alphabetical),
+				TrackingSiteCategory(
+					id = "mu_score",
+					nameResId = org.skepsun.kototoro.R.string.mu_category_top_rated,
+					sortOptions = listOf(
+						siblingCategorySortOption("mu_score", org.skepsun.kototoro.R.string.mu_category_top_rated, "mu_score"),
+						siblingCategorySortOption("mu_updated", org.skepsun.kototoro.R.string.mu_category_recently_updated, "mu_updated"),
+						siblingCategorySortOption("mu_year", org.skepsun.kototoro.R.string.mu_category_by_year, "mu_year"),
+						siblingCategorySortOption("mu_title", org.skepsun.kototoro.R.string.mu_category_alphabetical, "mu_title"),
+					),
+					defaultSortOptionId = "mu_score",
+				),
+				TrackingSiteCategory(
+					id = "mu_updated",
+					nameResId = org.skepsun.kototoro.R.string.mu_category_recently_updated,
+					sortOptions = listOf(
+						siblingCategorySortOption("mu_score", org.skepsun.kototoro.R.string.mu_category_top_rated, "mu_score"),
+						siblingCategorySortOption("mu_updated", org.skepsun.kototoro.R.string.mu_category_recently_updated, "mu_updated"),
+						siblingCategorySortOption("mu_year", org.skepsun.kototoro.R.string.mu_category_by_year, "mu_year"),
+						siblingCategorySortOption("mu_title", org.skepsun.kototoro.R.string.mu_category_alphabetical, "mu_title"),
+					),
+					defaultSortOptionId = "mu_updated",
+				),
+				TrackingSiteCategory(
+					id = "mu_year",
+					nameResId = org.skepsun.kototoro.R.string.mu_category_by_year,
+					sortOptions = listOf(
+						siblingCategorySortOption("mu_score", org.skepsun.kototoro.R.string.mu_category_top_rated, "mu_score"),
+						siblingCategorySortOption("mu_updated", org.skepsun.kototoro.R.string.mu_category_recently_updated, "mu_updated"),
+						siblingCategorySortOption("mu_year", org.skepsun.kototoro.R.string.mu_category_by_year, "mu_year"),
+						siblingCategorySortOption("mu_title", org.skepsun.kototoro.R.string.mu_category_alphabetical, "mu_title"),
+					),
+					defaultSortOptionId = "mu_year",
+				),
+				TrackingSiteCategory(
+					id = "mu_title",
+					nameResId = org.skepsun.kototoro.R.string.mu_category_alphabetical,
+					sortOptions = listOf(
+						siblingCategorySortOption("mu_score", org.skepsun.kototoro.R.string.mu_category_top_rated, "mu_score"),
+						siblingCategorySortOption("mu_updated", org.skepsun.kototoro.R.string.mu_category_recently_updated, "mu_updated"),
+						siblingCategorySortOption("mu_year", org.skepsun.kototoro.R.string.mu_category_by_year, "mu_year"),
+						siblingCategorySortOption("mu_title", org.skepsun.kototoro.R.string.mu_category_alphabetical, "mu_title"),
+					),
+					defaultSortOptionId = "mu_title",
+				),
 			),
 		)
 
@@ -128,14 +344,88 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			supportsStatusSync = true,
 			supportsManualBinding = true,
 			discoveryCategories = listOf(
-				TrackingSiteCategory("al_anime_trending", org.skepsun.kototoro.R.string.al_category_anime_trending),
-				TrackingSiteCategory("al_anime_popular", org.skepsun.kototoro.R.string.al_category_anime_popular),
-				TrackingSiteCategory("al_anime_score", org.skepsun.kototoro.R.string.al_category_anime_top),
-				TrackingSiteCategory("al_anime_upcoming", org.skepsun.kototoro.R.string.al_category_anime_upcoming),
-				TrackingSiteCategory("al_manga_trending", org.skepsun.kototoro.R.string.al_category_manga_trending),
-				TrackingSiteCategory("al_manga_popular", org.skepsun.kototoro.R.string.al_category_manga_popular),
-				TrackingSiteCategory("al_manga_score", org.skepsun.kototoro.R.string.al_category_manga_top),
-				TrackingSiteCategory("al_manga_favourites", org.skepsun.kototoro.R.string.al_category_manga_favourites),
+				TrackingSiteCategory(
+					id = "al_anime_airing",
+					nameResId = org.skepsun.kototoro.R.string.al_category_anime_airing,
+				),
+				TrackingSiteCategory(
+					id = "al_anime_trending",
+					nameResId = org.skepsun.kototoro.R.string.al_category_anime_trending,
+					sortOptions = aniListAnimeCategoryOptions(),
+					defaultSortOptionId = "al_anime_trending",
+				),
+				TrackingSiteCategory(
+					id = "al_anime_popular",
+					nameResId = org.skepsun.kototoro.R.string.al_category_anime_popular,
+					sortOptions = aniListAnimeCategoryOptions(),
+					defaultSortOptionId = "al_anime_popular",
+				),
+				TrackingSiteCategory(
+					id = "al_anime_score",
+					nameResId = org.skepsun.kototoro.R.string.al_category_anime_top,
+					sortOptions = aniListAnimeCategoryOptions(),
+					defaultSortOptionId = "al_anime_score",
+				),
+				TrackingSiteCategory(
+					id = "al_anime_upcoming",
+					nameResId = org.skepsun.kototoro.R.string.al_category_anime_upcoming,
+					sortOptions = aniListAnimeCategoryOptions(),
+					defaultSortOptionId = "al_anime_upcoming",
+				),
+				TrackingSiteCategory(
+					id = "al_anime_movies",
+					nameResId = org.skepsun.kototoro.R.string.al_category_anime_movies,
+					sortOptions = aniListAnimeCategoryOptions(),
+					defaultSortOptionId = "al_anime_movies",
+				),
+				TrackingSiteCategory(
+					id = "al_anime_series",
+					nameResId = org.skepsun.kototoro.R.string.al_category_anime_series,
+					sortOptions = aniListAnimeCategoryOptions(),
+					defaultSortOptionId = "al_anime_series",
+				),
+				TrackingSiteCategory(
+					id = "al_anime_favourites",
+					nameResId = org.skepsun.kototoro.R.string.al_category_anime_favourites,
+					sortOptions = aniListAnimeCategoryOptions(),
+					defaultSortOptionId = "al_anime_favourites",
+				),
+				TrackingSiteCategory(
+					id = "al_manga_trending",
+					nameResId = org.skepsun.kototoro.R.string.al_category_manga_trending,
+					sortOptions = aniListMangaCategoryOptions(),
+					defaultSortOptionId = "al_manga_trending",
+				),
+				TrackingSiteCategory(
+					id = "al_manga_popular",
+					nameResId = org.skepsun.kototoro.R.string.al_category_manga_popular,
+					sortOptions = aniListMangaCategoryOptions(),
+					defaultSortOptionId = "al_manga_popular",
+				),
+				TrackingSiteCategory(
+					id = "al_manga_score",
+					nameResId = org.skepsun.kototoro.R.string.al_category_manga_top,
+					sortOptions = aniListMangaCategoryOptions(),
+					defaultSortOptionId = "al_manga_score",
+				),
+				TrackingSiteCategory(
+					id = "al_manga_favourites",
+					nameResId = org.skepsun.kototoro.R.string.al_category_manga_favourites,
+					sortOptions = aniListMangaCategoryOptions(),
+					defaultSortOptionId = "al_manga_favourites",
+				),
+				TrackingSiteCategory(
+					id = "al_manga_manhwa",
+					nameResId = org.skepsun.kototoro.R.string.al_category_manga_manhwa,
+					sortOptions = aniListMangaCategoryOptions(),
+					defaultSortOptionId = "al_manga_manhwa",
+				),
+				TrackingSiteCategory(
+					id = "al_manga_novels",
+					nameResId = org.skepsun.kototoro.R.string.al_category_manga_novels,
+					sortOptions = aniListMangaCategoryOptions(),
+					defaultSortOptionId = "al_manga_novels",
+				),
 			),
 		)
 
@@ -148,24 +438,70 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			supportsStatusSync = true,
 			supportsManualBinding = true,
 			discoveryCategories = listOf(
-				TrackingSiteCategory("shiki_anime_ranked", org.skepsun.kototoro.R.string.shiki_category_anime_ranked),
-				TrackingSiteCategory("shiki_anime_popular", org.skepsun.kototoro.R.string.shiki_category_anime_popular),
-				TrackingSiteCategory("shiki_anime_ongoing", org.skepsun.kototoro.R.string.shiki_category_anime_ongoing),
-				TrackingSiteCategory("shiki_anime_anons", org.skepsun.kototoro.R.string.shiki_category_anime_upcoming),
-				TrackingSiteCategory("shiki_seasonal", org.skepsun.kototoro.R.string.shiki_category_seasonal),
-				TrackingSiteCategory("shiki_manga_ranked", org.skepsun.kototoro.R.string.shiki_category_manga_ranked),
-				TrackingSiteCategory("shiki_manga_popular", org.skepsun.kototoro.R.string.shiki_category_manga_popular),
+				TrackingSiteCategory(
+					id = "shiki_anime_ranked",
+					nameResId = org.skepsun.kototoro.R.string.shiki_category_anime_ranked,
+					sortOptions = shikimoriAnimeCategoryOptions(),
+					defaultSortOptionId = "shiki_ranked",
+				),
+				TrackingSiteCategory(
+					id = "shiki_anime_popular",
+					nameResId = org.skepsun.kototoro.R.string.shiki_category_anime_popular,
+					sortOptions = shikimoriAnimeCategoryOptions(),
+					defaultSortOptionId = "shiki_popularity",
+				),
+				TrackingSiteCategory(
+					id = "shiki_anime_ongoing",
+					nameResId = org.skepsun.kototoro.R.string.shiki_category_anime_ongoing,
+					sortOptions = shikimoriAnimeCategoryOptions(),
+					defaultSortOptionId = "shiki_ranked",
+				),
+				TrackingSiteCategory(
+					id = "shiki_anime_anons",
+					nameResId = org.skepsun.kototoro.R.string.shiki_category_anime_upcoming,
+					sortOptions = shikimoriAnimeCategoryOptions(),
+					defaultSortOptionId = "shiki_popularity",
+				),
+				TrackingSiteCategory(
+					"shiki_seasonal",
+					org.skepsun.kototoro.R.string.shiki_category_seasonal,
+					sortOptions = shikimoriAnimeCategoryOptions(),
+					defaultSortOptionId = "shiki_popularity",
+				),
+				TrackingSiteCategory(
+					id = "shiki_manga_ranked",
+					nameResId = org.skepsun.kototoro.R.string.shiki_category_manga_ranked,
+					sortOptions = shikimoriMangaCategoryOptions(),
+					defaultSortOptionId = "shiki_ranked",
+				),
+				TrackingSiteCategory(
+					id = "shiki_manga_popular",
+					nameResId = org.skepsun.kototoro.R.string.shiki_category_manga_popular,
+					sortOptions = shikimoriMangaCategoryOptions(),
+					defaultSortOptionId = "shiki_popularity",
+				),
 			),
 		)
 
-		else -> TrackingSiteCapabilities(
-			supportsDiscovery = false,
-			supportsTrending = false,
+		ScrobblerService.SIMKL -> TrackingSiteCapabilities(
+			supportsDiscovery = true,
+			supportsTrending = true,
 			supportsSearch = true,
 			supportsDetails = true,
 			supportsStatusSync = true,
 			supportsManualBinding = true,
+			discoveryCategories = listOf(
+				TrackingSiteCategory("simkl_anime_premieres", org.skepsun.kototoro.R.string.simkl_category_anime_premieres, sortOptions = simklAnimeCategoryOptions(), defaultSortOptionId = "simkl_anime_premieres"),
+				TrackingSiteCategory("simkl_anime_airing", org.skepsun.kototoro.R.string.simkl_category_anime_airing, sortOptions = simklAnimeCategoryOptions(), defaultSortOptionId = "simkl_anime_airing"),
+				TrackingSiteCategory("simkl_anime_trending", org.skepsun.kototoro.R.string.simkl_category_anime_trending, sortOptions = simklAnimeCategoryOptions(), defaultSortOptionId = "simkl_anime_trending"),
+				TrackingSiteCategory("simkl_anime_popular", org.skepsun.kototoro.R.string.simkl_category_anime_popular, sortOptions = simklAnimeCategoryOptions(), defaultSortOptionId = "simkl_anime_popular"),
+				TrackingSiteCategory("simkl_tv_premieres", org.skepsun.kototoro.R.string.simkl_category_tv_premieres, sortOptions = simklTvCategoryOptions(), defaultSortOptionId = "simkl_tv_premieres"),
+				TrackingSiteCategory("simkl_tv_airing", org.skepsun.kototoro.R.string.simkl_category_tv_airing, sortOptions = simklTvCategoryOptions(), defaultSortOptionId = "simkl_tv_airing"),
+				TrackingSiteCategory("simkl_movies_trending", org.skepsun.kototoro.R.string.simkl_category_movies_trending, sortOptions = simklMovieCategoryOptions(), defaultSortOptionId = "simkl_movies_trending"),
+				TrackingSiteCategory("simkl_movies_popular", org.skepsun.kototoro.R.string.simkl_category_movies_popular, sortOptions = simklMovieCategoryOptions(), defaultSortOptionId = "simkl_movies_popular"),
+			),
 		)
+
 	}
 
 	override suspend fun getTrending(catalog: TrackingSiteCatalog): List<TrackingSiteItem> {
@@ -183,6 +519,9 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		}
 		if (catalog.service == ScrobblerService.SHIKIMORI) {
 			return getShikimoriTrending(catalog)
+		}
+		if (catalog.service == ScrobblerService.SIMKL) {
+			return getSimklTrending(catalog)
 		}
 		if (catalog.service != ScrobblerService.BANGUMI) {
 			return emptyList()
@@ -210,7 +549,7 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		return bangumiRepository.getRankings(
 			category = requestCategory, 
 			page = catalog.page + 1,
-			sortOrder = catalog.sortOrder,
+			sortOrder = catalog.trackingSortKey.toBangumiSortOrder() ?: catalog.sortOrder,
 			listFilter = catalog.listFilter
 		).map { item -> item.toTrackingListItem(ScrobblerService.BANGUMI) }
 	}
@@ -260,21 +599,32 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 	private suspend fun getKitsuTrending(catalog: TrackingSiteCatalog): List<TrackingSiteItem> {
 		val category = catalog.category ?: "trending_anime"
 		val page = catalog.page + 1 // convert 0-based to 1-based
+		val sort = catalog.trackingSortKey ?: "-userCount"
 
 		return when {
 			category == "trending_anime" -> {
-				if (catalog.page > 0) return emptyList() // trending endpoint returns all at once
-				kitsuRepository.getTrending("anime")
-					.map { it.toTrackingListItem(ScrobblerService.KITSU) }
+				if (catalog.trackingSortKey == null) {
+					if (catalog.page > 0) return emptyList() // trending endpoint returns all at once
+					kitsuRepository.getTrending("anime")
+						.map { it.toTrackingListItem(ScrobblerService.KITSU) }
+				} else {
+					kitsuRepository.getRankings("anime", null, page, sort)
+						.map { it.toTrackingListItem(ScrobblerService.KITSU) }
+				}
 			}
 			category == "trending_manga" -> {
-				if (catalog.page > 0) return emptyList()
-				kitsuRepository.getTrending("manga")
-					.map { it.toTrackingListItem(ScrobblerService.KITSU) }
+				if (catalog.trackingSortKey == null) {
+					if (catalog.page > 0) return emptyList()
+					kitsuRepository.getTrending("manga")
+						.map { it.toTrackingListItem(ScrobblerService.KITSU) }
+				} else {
+					kitsuRepository.getRankings("manga", null, page, sort)
+						.map { it.toTrackingListItem(ScrobblerService.KITSU) }
+				}
 			}
 			else -> {
 				// Genre-based categories browse anime by default
-				kitsuRepository.getRankings("anime", category, page)
+				kitsuRepository.getRankings("anime", category, page, sort)
 					.map { it.toTrackingListItem(ScrobblerService.KITSU) }
 			}
 		}
@@ -289,16 +639,15 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 
 		// Handle seasonal anime separately
 		if (category == "seasonal") {
-			val cal = java.util.Calendar.getInstance()
-			val year = cal.get(java.util.Calendar.YEAR)
-			val month = cal.get(java.util.Calendar.MONTH) // 0-based
-			val season = when (month) {
-				in 0..2 -> "winter"
-				in 3..5 -> "spring"
-				in 6..8 -> "summer"
-				else -> "fall"
-			}
-			return malRepository.getSeasonalAnime(year, season, limit = limit, offset = offset)
+			val date = trackingCalendarDate(catalog.calendarDateMillis) ?: LocalDate.now()
+			val season = resolveTrackingSeason(date)
+			return malRepository.getSeasonalAnime(
+				year = season.year,
+				season = season.malSeason,
+				sort = catalog.trackingSortKey ?: "anime_num_list_users",
+				limit = limit,
+				offset = offset,
+			)
 				.map { it.toTrackingListItem(ScrobblerService.MAL) }
 		}
 
@@ -319,7 +668,7 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		val category = catalog.category ?: "mu_score"
 		val page = catalog.page + 1 // convert 0-based to 1-based
 
-		val orderby = when {
+		val orderby = catalog.trackingSortKey ?: when {
 			category.contains("score") -> "score"
 			category.contains("updated") -> "updated"
 			category.contains("year") -> "year"
@@ -336,18 +685,44 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 	private suspend fun getAniListTrending(catalog: TrackingSiteCatalog): List<TrackingSiteItem> {
 		val category = catalog.category ?: "al_anime_trending"
 		val page = catalog.page + 1
+		if (category == "al_anime_airing") {
+			val dateMillis = catalog.calendarDateMillis ?: System.currentTimeMillis()
+			return aniListRepository.getAiringSchedule(dateMillis = dateMillis, page = page)
+				.map { it.toTrackingListItem(ScrobblerService.ANILIST) }
+		}
 
 		val mediaType = if (category.contains("manga")) "MANGA" else "ANIME"
-		val sort = when {
+		val sort = catalog.trackingSortKey ?: when {
 			category.contains("trending") -> "TRENDING_DESC"
 			category.contains("popular") -> "POPULARITY_DESC"
 			category.contains("score") -> "SCORE_DESC"
 			category.contains("upcoming") -> "START_DATE_DESC"
 			category.contains("favourites") -> "FAVOURITES_DESC"
+			category == "al_anime_movies" -> "POPULARITY_DESC"
+			category == "al_anime_series" -> "SCORE_DESC"
+			category == "al_manga_manhwa" -> "POPULARITY_DESC"
+			category == "al_manga_novels" -> "POPULARITY_DESC"
 			else -> "TRENDING_DESC"
 		}
+		val format = when (category) {
+			"al_anime_movies" -> "MOVIE"
+			"al_anime_series", "al_anime_favourites" -> "TV"
+			"al_manga_novels" -> "NOVEL"
+			else -> null
+		}
+		val countryOfOrigin = when (category) {
+			"al_manga_manhwa" -> "KR"
+			"al_manga_novels" -> "JP"
+			else -> null
+		}
 
-		return aniListRepository.getTrending(mediaType, sort, page)
+		return aniListRepository.getTrending(
+			mediaType = mediaType,
+			sort = sort,
+			page = page,
+			format = format,
+			countryOfOrigin = countryOfOrigin,
+		)
 			.map { it.toTrackingListItem(ScrobblerService.ANILIST) }
 	}
 
@@ -421,32 +796,26 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		val category = catalog.category ?: "shiki_anime_ranked"
 		val page = catalog.page + 1
 		val limit = 20
+		val order = catalog.trackingSortKey
 
 		if (category == "shiki_seasonal") {
-			val cal = java.util.Calendar.getInstance()
-			val year = cal.get(java.util.Calendar.YEAR)
-			val month = cal.get(java.util.Calendar.MONTH) // 0-based
-			val season = when (month) {
-				in 0..2 -> "winter"
-				in 3..5 -> "spring"
-				in 6..8 -> "summer"
-				else -> "fall"
-			}
+			val date = trackingCalendarDate(catalog.calendarDateMillis) ?: LocalDate.now()
+			val season = resolveTrackingSeason(date)
 			return shikimoriRepository.getAnimeList(
-				order = "popularity",
-				season = "${season}_${year}",
+				order = order ?: "popularity",
+				season = season.shikimoriSeason,
 				page = page,
 				limit = limit,
 			).map { it.toTrackingListItem(ScrobblerService.SHIKIMORI) }
 		}
 
 		return when (category) {
-			"shiki_anime_ranked" -> shikimoriRepository.getAnimeList(order = "ranked", page = page, limit = limit)
-			"shiki_anime_popular" -> shikimoriRepository.getAnimeList(order = "popularity", page = page, limit = limit)
-			"shiki_anime_ongoing" -> shikimoriRepository.getAnimeList(order = "ranked", status = "ongoing", page = page, limit = limit)
-			"shiki_anime_anons" -> shikimoriRepository.getAnimeList(order = "popularity", status = "anons", page = page, limit = limit)
-			"shiki_manga_ranked" -> shikimoriRepository.getMangaList(order = "ranked", page = page, limit = limit)
-			"shiki_manga_popular" -> shikimoriRepository.getMangaList(order = "popularity", page = page, limit = limit)
+			"shiki_anime_ranked" -> shikimoriRepository.getAnimeList(order = order ?: "ranked", page = page, limit = limit)
+			"shiki_anime_popular" -> shikimoriRepository.getAnimeList(order = order ?: "popularity", page = page, limit = limit)
+			"shiki_anime_ongoing" -> shikimoriRepository.getAnimeList(order = order ?: "ranked", status = "ongoing", page = page, limit = limit)
+			"shiki_anime_anons" -> shikimoriRepository.getAnimeList(order = order ?: "popularity", status = "anons", page = page, limit = limit)
+			"shiki_manga_ranked" -> shikimoriRepository.getMangaList(order = order ?: "ranked", page = page, limit = limit)
+			"shiki_manga_popular" -> shikimoriRepository.getMangaList(order = order ?: "popularity", page = page, limit = limit)
 			else -> emptyList()
 		}.map { it.toTrackingListItem(ScrobblerService.SHIKIMORI) }
 	}
@@ -469,13 +838,64 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		)
 	}
 
+	private suspend fun getSimklTrending(catalog: TrackingSiteCatalog): List<TrackingSiteItem> {
+		val category = catalog.category ?: "simkl_anime_trending"
+		return simklRepository.getDiscoveryItems(
+			categoryId = category,
+			page = catalog.page,
+			calendarDateMillis = catalog.calendarDateMillis,
+		)
+			.map { it.toTrackingListItem(ScrobblerService.SIMKL) }
+	}
+
+	private fun String?.toBangumiSortOrder(): org.skepsun.kototoro.parsers.model.SortOrder? {
+		return when (this) {
+			"rank" -> org.skepsun.kototoro.parsers.model.SortOrder.RATING
+			"popularity" -> org.skepsun.kototoro.parsers.model.SortOrder.POPULARITY
+			"collection" -> org.skepsun.kototoro.parsers.model.SortOrder.ADDED
+			"date" -> org.skepsun.kototoro.parsers.model.SortOrder.NEWEST
+			"name" -> org.skepsun.kototoro.parsers.model.SortOrder.ALPHABETICAL
+			else -> null
+		}
+	}
+
 	private fun ScrobblerContent.toTrackingListItem(service: ScrobblerService): TrackingSiteItem {
+		val fallbackTitlePair = when (service) {
+			ScrobblerService.BANGUMI -> (altName ?: name) to name.takeIf { altName != null && altName != name }
+			ScrobblerService.ANILIST,
+			ScrobblerService.SHIKIMORI,
+			-> (altName ?: name) to name.takeIf { altName != null && altName != name }
+			else -> name to altName
+		}
 		return TrackingSiteItem(
 			service = service,
 			remoteId = id,
 			title = name,
 			altTitle = altName,
+			primaryTitle = primaryTitle ?: fallbackTitlePair.first,
+			secondaryTitle = secondaryTitle ?: fallbackTitlePair.second,
+			progressText = progressText,
+			updatedAtText = updatedAtText,
 			coverUrl = cover,
+			subtitle = subtitle,
+			score = score,
+			scoreMax = scoreMax,
+			url = url,
+		)
+	}
+
+	private fun SimklCatalogItem.toTrackingListItem(service: ScrobblerService): TrackingSiteItem {
+		return TrackingSiteItem(
+			service = service,
+			remoteId = remoteId,
+			title = title,
+			altTitle = altTitle,
+			primaryTitle = title,
+			secondaryTitle = altTitle,
+			coverUrl = coverUrl,
+			subtitle = subtitle,
+			score = score,
+			scoreMax = 10f,
 			url = url,
 		)
 	}

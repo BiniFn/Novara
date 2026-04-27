@@ -2,6 +2,7 @@ package org.skepsun.kototoro.details.ui.pager.chapters.compose
 
 import android.content.Context
 import android.view.View
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,17 +23,20 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.android.material.snackbar.Snackbar
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.ReaderIntent
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.details.ui.model.ChapterListItem
 import org.skepsun.kototoro.details.ui.compose.state.DetailsPaneState
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
 import org.skepsun.kototoro.details.ui.pager.chapters.ChapterGroupsManager
 import org.skepsun.kototoro.details.ui.withVolumeHeaders
+import org.skepsun.kototoro.local.ui.LocalChaptersRemoveService
 import org.skepsun.kototoro.parsers.model.ContentType
 
 @Composable
@@ -113,6 +117,8 @@ fun ChaptersScreenRoot(
     val handleSelectionAction: (Int) -> Unit = remember(
         context,
         router,
+        selectedIds,
+        selectedItems,
         selectedItemIds,
         viewForSnackbar,
         viewModel,
@@ -138,6 +144,31 @@ fun ChaptersScreenRoot(
                             viewModel.markChapterAsCurrent(selectedIds.first())
                         }
                     }
+
+                    R.id.action_delete -> {
+                        val manga = viewModel.getContentOrNull()
+                        when {
+                            manga == null -> Unit
+                            selectedIds.size == manga.chapters?.size -> viewModel.deleteLocal()
+                            else -> {
+                                LocalChaptersRemoveService.start(context, manga, selectedIds)
+                                try {
+                                    Snackbar.make(
+                                        viewForSnackbar,
+                                        R.string.chapters_will_removed_background,
+                                        Snackbar.LENGTH_LONG,
+                                    ).show()
+                                } catch (e: IllegalArgumentException) {
+                                    e.printStackTraceDebug()
+                                    Toast.makeText(
+                                        context,
+                                        R.string.chapters_will_removed_background,
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
+                            }
+                        }
+                    }
                 }
                 selectedItemIds.clear()
             }
@@ -150,14 +181,16 @@ fun ChaptersScreenRoot(
             ChapterSelectionUiState(
                 selectedCount = selectedIds.size,
                 canSelectAll = selectedIds.size < visibleSelectableIds.size,
-                canDownload = selectedItems.any { !it.isDownloaded && !it.chapter.source.isLocal },
-                isSingleSelection = selectedIds.size == 1,
+                canDownload = selectedItems.isNotEmpty() && selectedItems.all { !it.isDownloaded && !it.chapter.source.isLocal },
+                canDelete = selectedItems.isNotEmpty() && selectedItems.all { it.isDownloaded || it.chapter.source.isLocal },
+                canMarkCurrent = selectedItems.size == 1 && !selectedItems.first().isCurrent,
                 onClearSelection = { selectedItemIds.clear() },
                 onSelectAll = {
                     selectedItemIds.clear()
                     selectedItemIds.addAll(visibleSelectableIds)
                 },
                 onDownload = { handleSelectionAction(R.id.action_save) },
+                onDelete = { handleSelectionAction(R.id.action_delete) },
                 onMarkCurrent = { handleSelectionAction(R.id.action_mark_current) },
             )
         }

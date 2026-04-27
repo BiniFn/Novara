@@ -26,9 +26,17 @@ fun mangaListItemAD(
 		itemView.setTooltipCompat(item.getSummary(context))
 		binding.textViewTitle.text = item.title
 		binding.textViewTitle.drawableStart = if (item.isPinned) iconPinned else null
-		binding.textViewSubtitle.textAndVisible = item.subtitle
+		binding.textViewSubtitle.textAndVisible = if (item.metadataTrackingService != null) {
+			listOfNotNull(
+				item.subtitle?.takeIf { it.isNotBlank() },
+				item.supportingText?.takeIf { it.isNotBlank() },
+			).joinToString(" · ").ifBlank { null }
+		} else {
+			item.subtitle
+		}
 		binding.imageViewCover.setImageAsync(item.coverUrl, item.manga)
-		binding.badge.number = item.counter
-		binding.badge.isVisible = item.counter > 0
+		binding.badge.labelText = item.scoreText.takeIf { item.metadataTrackingService != null && !it.isNullOrBlank() }
+		binding.badge.number = if (binding.badge.labelText == null) item.counter else 0
+		binding.badge.isVisible = binding.badge.labelText != null || item.counter > 0
 	}
 }

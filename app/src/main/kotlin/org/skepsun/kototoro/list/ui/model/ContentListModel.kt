@@ -19,6 +19,7 @@ sealed class ContentListModel : ListModel {
 	abstract val counter: Int
 	open val isPinned: Boolean = false
 	open val metadataTrackingService: ScrobblerService? = null
+	open val scoreText: String? = null
 
 	open val id: Long
 		get() = manga.id
@@ -55,4 +56,16 @@ sealed class ContentListModel : ListModel {
 		previousState.counter != counter -> PAYLOAD_ANYTHING_CHANGED
 		else -> null
 	}
+}
+
+fun ContentListModel.secondaryTitleText(): String? = when (this) {
+	is ContentCompactListModel -> subtitle
+	is ContentDetailedListModel -> subtitle
+	is ContentGridModel -> subtitle
+}
+
+fun ContentListModel.supportingText(): String? = when (this) {
+	is ContentCompactListModel -> supportingText
+	is ContentDetailedListModel -> supportingText
+	else -> null
 }

@@ -59,6 +59,8 @@ import org.skepsun.kototoro.list.ui.model.ContentGridModel
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.ContentDetailedListModel
 import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
+import org.skepsun.kototoro.list.ui.model.secondaryTitleText
+import org.skepsun.kototoro.list.ui.model.supportingText
 import java.util.Locale
 import androidx.compose.foundation.layout.Arrangement
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -297,11 +299,15 @@ fun KototoroContentCardGrid(
             )
 
             // Top Right Badges (includes counter if not handled by badges)
-            val effectiveTopRightBadges = remember(resolvedUiPrefs.badgesTopRight, item.counter) {
-                if (item.counter > 0 && "counter" !in resolvedUiPrefs.badgesTopRight) {
-                    resolvedUiPrefs.badgesTopRight + "counter"
-                } else {
-                    resolvedUiPrefs.badgesTopRight
+            val effectiveTopRightBadges = remember(resolvedUiPrefs.badgesTopRight, item.counter, item.scoreText) {
+                buildSet {
+                    addAll(resolvedUiPrefs.badgesTopRight)
+                    if (item.counter > 0) {
+                        add("counter")
+                    }
+                    if (!item.scoreText.isNullOrBlank()) {
+                        add("score")
+                    }
                 }
             }
             ContentCardCornerBadges(
@@ -360,7 +366,7 @@ fun KototoroContentCardGrid(
         }
 
         Text(
-            text = manga.title,
+            text = item.title,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 2,
@@ -370,6 +376,19 @@ fun KototoroContentCardGrid(
                 .fillMaxWidth()
                 .padding(top = 8.dp)
         )
+        if (!item.subtitle.isNullOrBlank()) {
+            Text(
+                text = item.subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .widthIn(max = posterStyle.itemWidth)
+                    .fillMaxWidth()
+                    .padding(top = 2.dp)
+            )
+        }
     }
 }
 
@@ -469,11 +488,15 @@ fun KototoroContentCardList(
     val badgeMetrics = remember { contentCardBadgeMetricsFor(48.dp) }
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
-    val effectiveTopRightBadges = remember(resolvedUiPrefs.badgesTopRight, item.counter) {
-        if (item.counter > 0 && "counter" !in resolvedUiPrefs.badgesTopRight) {
-            resolvedUiPrefs.badgesTopRight + "counter"
-        } else {
-            resolvedUiPrefs.badgesTopRight
+    val effectiveTopRightBadges = remember(resolvedUiPrefs.badgesTopRight, item.counter, item.scoreText) {
+        buildSet {
+            addAll(resolvedUiPrefs.badgesTopRight)
+            if (item.counter > 0) {
+                add("counter")
+            }
+            if (!item.scoreText.isNullOrBlank()) {
+                add("score")
+            }
         }
     }
     Row(
@@ -571,6 +594,16 @@ fun KototoroContentCardList(
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
+            if (!item.supportingText.isNullOrBlank()) {
+                Text(
+                    text = item.supportingText.orEmpty(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
         }
     }
 }
@@ -599,10 +632,11 @@ fun ContentCardCornerBadges(
     val showSource = "source" in badges
     val showLanguage = "language" in badges && !langText.isNullOrBlank()
     val showCounter = "counter" in badges && item.counter > 0
+    val showScore = "score" in badges && !item.scoreText.isNullOrBlank()
     val showNsfw = "nsfw" in badges && item.manga.isNsfw()
-    val showOnlyNsfw = showNsfw && !showTracker && !showFavorite && !showSaved && !showSource && !showLanguage && !showCounter
+    val showOnlyNsfw = showNsfw && !showTracker && !showFavorite && !showSaved && !showSource && !showLanguage && !showCounter && !showScore
 
-    if (!showTracker && !showFavorite && !showSaved && !showSource && !showLanguage && !showCounter && !showNsfw) {
+    if (!showTracker && !showFavorite && !showSaved && !showSource && !showLanguage && !showCounter && !showScore && !showNsfw) {
         return
     }
 
@@ -696,6 +730,19 @@ fun ContentCardCornerBadges(
                         )
                     }
                 }
+                "score" -> {
+                    item.scoreText?.takeIf { it.isNotBlank() }?.let { scoreText ->
+                        Text(
+                            text = scoreText,
+                            color = if (showOnlyNsfw) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onSurface,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = metrics.textSize,
+                                lineHeight = metrics.textSize,
+                            ),
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
                 "nsfw" -> {
                     if (item.manga.isNsfw()) {
                         Text(
@@ -748,11 +795,15 @@ fun KototoroContentCardDetailedList(
     val badgeMetrics = remember { contentCardBadgeMetricsFor(80.dp) }
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
-    val effectiveTopRightBadges = remember(resolvedUiPrefs.badgesTopRight, item.counter) {
-        if (item.counter > 0 && "counter" !in resolvedUiPrefs.badgesTopRight) {
-            resolvedUiPrefs.badgesTopRight + "counter"
-        } else {
-            resolvedUiPrefs.badgesTopRight
+    val effectiveTopRightBadges = remember(resolvedUiPrefs.badgesTopRight, item.counter, item.scoreText) {
+        buildSet {
+            addAll(resolvedUiPrefs.badgesTopRight)
+            if (item.counter > 0) {
+                add("counter")
+            }
+            if (!item.scoreText.isNullOrBlank()) {
+                add("score")
+            }
         }
     }
     Row(
@@ -840,8 +891,28 @@ fun KototoroContentCardDetailedList(
                 overflow = TextOverflow.Ellipsis
             )
             
-            val authorText = remember(item.manga.authors) {
-                item.manga.authors.joinToString(", ")
+			val authorText = remember(item.manga.authors) {
+				item.manga.authors.joinToString(", ")
+			}
+			if (!item.subtitle.isNullOrBlank()) {
+				Text(
+					text = item.subtitle.orEmpty(),
+					style = MaterialTheme.typography.bodyMedium,
+					color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+            if (!item.supportingText.isNullOrBlank()) {
+                Text(
+                    text = item.supportingText.orEmpty(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
             if (authorText.isNotBlank()) {
                 Text(
@@ -878,6 +949,7 @@ fun ContentListModel.asBadgeModel(
     return ContentGridModel(
         manga = manga,
         override = override,
+        subtitle = null,
         counter = counter,
         id = id,
         progress = null,
@@ -885,6 +957,7 @@ fun ContentListModel.asBadgeModel(
         isSaved = isSaved,
         isPinned = isPinned,
         metadataTrackingService = metadataTrackingService,
+        scoreText = scoreText,
     )
 }
 

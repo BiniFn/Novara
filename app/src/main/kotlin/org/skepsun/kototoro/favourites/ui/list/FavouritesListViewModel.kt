@@ -323,7 +323,7 @@ class FavouritesListViewModel @dagger.assisted.AssistedInject constructor(
 		return when (this) {
 			is ContentCompactListModel -> copy(
 				id = group.uiId,
-				subtitle = listOfNotNull(subtitle.takeIf { it.isNotBlank() }, groupSuffix).joinToString(" · "),
+				subtitle = listOfNotNull(subtitle?.takeIf { it.isNotBlank() }, groupSuffix).joinToString(" · "),
 				isPinned = isPinned,
 			)
 			is ContentDetailedListModel -> copy(

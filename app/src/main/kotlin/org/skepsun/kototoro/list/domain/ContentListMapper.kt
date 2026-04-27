@@ -135,7 +135,7 @@ class ContentListMapper @Inject constructor(
 	) = ContentCompactListModel(
 		manga = manga,
 		override = override,
-		subtitle = manga.tags.joinToString(", ") { it.title },
+		subtitle = manga.tags.joinToString(", ") { it.title }.ifBlank { null },
 		counter = getCounter(manga.id, options),
 		isPinned = isPinned(manga.id, options),
 	)
@@ -163,6 +163,7 @@ class ContentListMapper @Inject constructor(
 	) = ContentGridModel(
 		manga = manga,
 		override = override,
+		subtitle = manga.altTitles.firstOrNull(),
 		counter = getCounter(manga.id, options),
 		progress = getProgress(manga.id, options),
 		isFavorite = isFavorite(manga.id, options),
