@@ -383,13 +383,14 @@ class DiscoverViewModel @Inject constructor(
 		categories: List<TrackingSiteCategory>,
 		currentTab: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab,
 	): List<TrackingSiteCategory> {
+		val uniqueCategories = categories.distinctBy { it.id }
 		if (currentTab == org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All) {
-			return categories
+			return uniqueCategories
 		}
-		val filtered = categories.filter { category ->
+		val filtered = uniqueCategories.filter { category ->
 			isCategoryVisibleInTab(category.id, service, currentTab)
 		}
-		return filtered.ifEmpty { categories }
+		return filtered.ifEmpty { uniqueCategories }
 	}
 
 	fun refresh() {

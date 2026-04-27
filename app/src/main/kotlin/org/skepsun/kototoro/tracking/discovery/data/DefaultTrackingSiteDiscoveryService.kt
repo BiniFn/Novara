@@ -259,7 +259,6 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 					),
 					defaultSortOptionId = "mal_seasonal_popularity",
 				),
-				TrackingSiteCategory("anime_all", org.skepsun.kototoro.R.string.mal_category_anime_top),
 				TrackingSiteCategory("anime_all", org.skepsun.kototoro.R.string.mal_category_anime_top, sortOptions = malAnimeCategoryOptions(), defaultSortOptionId = "anime_all"),
 				TrackingSiteCategory("anime_airing", org.skepsun.kototoro.R.string.mal_category_anime_airing, sortOptions = malAnimeCategoryOptions(), defaultSortOptionId = "anime_airing"),
 				TrackingSiteCategory("anime_upcoming", org.skepsun.kototoro.R.string.mal_category_anime_upcoming, sortOptions = malAnimeCategoryOptions(), defaultSortOptionId = "anime_upcoming"),
