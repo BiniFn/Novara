@@ -369,11 +369,9 @@ fun rememberDetailsPaneState(
     val state = remember(
         density,
         coroutineScope,
+        collapsedHeight,
         paneHeight,
         hoveredHeight,
-        initialPageGridSizeValue,
-        initialSelectedTabId,
-        initialChapterQuery,
         initialAnchor,
     ) {
         DetailsPaneState(
