@@ -203,6 +203,9 @@ fun KototoroApp(
     var topBarOffset by remember { mutableFloatStateOf(0f) }
     var bottomNavOffset by remember { mutableFloatStateOf(0f) }
     var isSearchOverlayVisible by rememberSaveable { mutableStateOf(false) }
+    var isSearchOverlayMounted by rememberSaveable { mutableStateOf(false) }
+    var searchOverlayInitialQuery by rememberSaveable { mutableStateOf("") }
+    var isSearchOverlayQueryCommitted by rememberSaveable { mutableStateOf(false) }
     var topBarOverrideState by remember { mutableStateOf<TopBarOverrideState?>(null) }
 
     val nestedScrollConnection = remember(
@@ -210,11 +213,11 @@ fun KototoroApp(
         isLandscapeNavigation,
         topBarHeightPx,
         bottomNavHeightPx,
-        isSearchOverlayVisible,
+        isSearchOverlayMounted,
     ) {
         object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
             override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
-                if (isSearchOverlayVisible) {
+                if (isSearchOverlayMounted) {
                     return androidx.compose.ui.geometry.Offset.Zero
                 }
                 val dy = available.y
@@ -234,8 +237,8 @@ fun KototoroApp(
         }
     }
 
-    LaunchedEffect(isSearchOverlayVisible) {
-        if (isSearchOverlayVisible) {
+    LaunchedEffect(isSearchOverlayMounted) {
+        if (isSearchOverlayMounted) {
             topBarOffset = 0f
             bottomNavOffset = 0f
         }
@@ -458,7 +461,12 @@ fun KototoroApp(
                     } else {
                         KototoroTopBar(
                             query = query,
-                            onSearchClick = { isSearchOverlayVisible = true },
+                            onSearchClick = {
+                                searchOverlayInitialQuery = query
+                                isSearchOverlayQueryCommitted = false
+                                isSearchOverlayMounted = true
+                                isSearchOverlayVisible = true
+                            },
                             onOpenListOptions = onOpenListOptions,
                             onSettingsClick = onSettingsClick,
                             onSourceSettingsClick = onSourceSettingsClick,
@@ -539,8 +547,9 @@ fun KototoroApp(
                     }
                 }
 
-                if (isSearchOverlayVisible) {
+                if (isSearchOverlayMounted) {
                     KototoroSearchOverlay(
+                        visible = isSearchOverlayVisible,
                         query = query,
                         suggestions = suggestions,
                         initialSearchKind = initialSearchKind,
@@ -548,10 +557,12 @@ fun KototoroApp(
                         initialContentKinds = initialSearchContentKinds,
                         onQueryChanged = onQueryChanged,
                         onSearch = {
+                            isSearchOverlayQueryCommitted = true
                             onSearch(it)
                             isSearchOverlayVisible = false
                         },
                         onSearchWithOptions = { searchQuery, kind, sourceTypes, contentKinds, advancedQuery, pinnedOnly, hideEmpty ->
+                            isSearchOverlayQueryCommitted = true
                             onSearchWithOptions(
                                 searchQuery,
                                 kind,
@@ -564,6 +575,15 @@ fun KototoroApp(
                             isSearchOverlayVisible = false
                         },
                         onDismissRequest = { isSearchOverlayVisible = false },
+                        onExitFinished = {
+                            if (!isSearchOverlayVisible) {
+                                if (!isSearchOverlayQueryCommitted) {
+                                    onQueryChanged(searchOverlayInitialQuery)
+                                }
+                                isSearchOverlayMounted = false
+                                onSearchOverlayDismiss()
+                            }
+                        },
                         onSourceTypesChange = onSearchOverlaySourceTypesChange,
                         onContentKindsChange = onSearchOverlayContentKindsChange,
                         onContentSuggestionClick = {
@@ -587,12 +607,6 @@ fun KototoroApp(
                     )
                 }
             }
-        }
-    }
-
-    LaunchedEffect(isSearchOverlayVisible) {
-        if (!isSearchOverlayVisible) {
-            onSearchOverlayDismiss()
         }
     }
 

@@ -3,7 +3,9 @@ package org.skepsun.kototoro.main.ui.compose
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,8 +27,15 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDp
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
+import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
@@ -46,7 +56,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,6 +68,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -67,11 +78,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import kotlinx.coroutines.delay
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.jsonsource.SourceType
 import org.skepsun.kototoro.core.model.titleResId
@@ -90,9 +100,15 @@ import org.skepsun.kototoro.search.domain.SearchContentKind
 import org.skepsun.kototoro.search.domain.SearchKind
 import org.skepsun.kototoro.search.ui.suggestion.model.SearchSuggestionItem
 
+private const val SearchOverlayAnimationDurationMillis = 260
+private val SearchOverlayCollapsedHeight = 64.dp
+private val SearchOverlayCollapsedHorizontalPadding = 10.dp
+private val SearchOverlayCollapsedCornerRadius = 24.dp
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun KototoroSearchOverlay(
+    visible: Boolean,
     query: String,
     suggestions: List<SearchSuggestionItem>,
     initialSearchKind: SearchKind,
@@ -118,10 +134,13 @@ fun KototoroSearchOverlay(
     onAuthorSuggestionClick: (String) -> Unit,
     onDeleteQuery: (String) -> Unit,
     onVoiceInput: () -> Unit,
+    onExitFinished: () -> Unit = {},
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues()
+    val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val focusRequester = remember { FocusRequester() }
+    var animatedVisible by remember { mutableStateOf(false) }
     var showOptionsSheet by remember { mutableStateOf(false) }
     var searchKind by remember { mutableStateOf(initialSearchKind) }
     var selectedSourceTypes by remember(initialSourceTypes) { mutableStateOf(initialSourceTypes.ifEmpty { ALL_SOURCE_TYPES }) }
@@ -132,9 +151,18 @@ fun KototoroSearchOverlay(
     var advancedTags by remember { mutableStateOf("") }
     var advancedAuthor by remember { mutableStateOf("") }
 
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-        keyboardController?.show()
+    LaunchedEffect(visible) {
+        animatedVisible = visible
+        if (visible) {
+            delay(90)
+            focusRequester.requestFocus()
+            keyboardController?.show()
+        } else {
+            showOptionsSheet = false
+            keyboardController?.hide()
+            delay(SearchOverlayAnimationDurationMillis.toLong())
+            onExitFinished()
+        }
     }
 
     LaunchedEffect(selectedSourceTypes) {
@@ -165,134 +193,189 @@ fun KototoroSearchOverlay(
         )
     }
 
-    Dialog(
-        onDismissRequest = onDismissRequest,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false,
-        ),
+    BackHandler(enabled = visible) {
+        onDismissRequest()
+    }
+
+    val transition = updateTransition(
+        targetState = animatedVisible,
+        label = "search_overlay_transition",
+    )
+    val progress by transition.animateFloat(
+        transitionSpec = {
+            tween(
+                durationMillis = SearchOverlayAnimationDurationMillis,
+                easing = FastOutSlowInEasing,
+            )
+        },
+        label = "search_overlay_progress",
+    ) { isVisible -> if (isVisible) 1f else 0f }
+    val horizontalPadding by transition.animateDp(
+        transitionSpec = {
+            tween(
+                durationMillis = SearchOverlayAnimationDurationMillis,
+                easing = FastOutSlowInEasing,
+            )
+        },
+        label = "search_overlay_horizontal_padding",
+    ) { isVisible -> if (isVisible) 0.dp else SearchOverlayCollapsedHorizontalPadding }
+    val cornerRadius by transition.animateDp(
+        transitionSpec = {
+            tween(
+                durationMillis = SearchOverlayAnimationDurationMillis,
+                easing = FastOutSlowInEasing,
+            )
+        },
+        label = "search_overlay_corner_radius",
+    ) { isVisible -> if (isVisible) 0.dp else SearchOverlayCollapsedCornerRadius }
+    val suggestionsAlpha = ((progress - 0.28f) / 0.72f).coerceIn(0f, 1f)
+
+    BoxWithConstraints(
+        modifier = Modifier.fillMaxSize(),
     ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.surface,
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surface),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(onClick = onDismissRequest) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                        )
-                    }
-                    Surface(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 2.dp),
-                        shape = RoundedCornerShape(18.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.52f),
-                        border = BorderStroke(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.24f),
-                        ),
-                        tonalElevation = 0.dp,
-                        shadowElevation = 0.dp,
-                    ) {
-                        TextField(
-                            value = query,
-                            onValueChange = onQueryChanged,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
-                                .focusRequester(focusRequester),
-                            singleLine = true,
-                            placeholder = { Text(stringResource(R.string.search_content)) },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Filled.Search,
-                                    contentDescription = stringResource(R.string.search),
-                                )
-                            },
-                            trailingIcon = {
-                                if (query.isNotEmpty()) {
-                                    IconButton(onClick = { onQueryChanged("") }) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Clear,
-                                            contentDescription = stringResource(R.string.clear),
-                                        )
-                                    }
-                                }
-                            },
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                            keyboardActions = KeyboardActions(
-                                onSearch = {
-                                    submitSearch(query)
-                                },
-                            ),
-                            shape = RoundedCornerShape(18.dp),
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                disabledContainerColor = Color.Transparent,
-                                errorContainerColor = Color.Transparent,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent,
-                                disabledIndicatorColor = Color.Transparent,
-                                errorIndicatorColor = Color.Transparent,
-                            ),
-                        )
-                    }
-                    IconButton(onClick = { showOptionsSheet = true }) {
-                        Icon(
-                            painter = androidx.compose.ui.res.painterResource(R.drawable.ic_filter_menu),
-                            contentDescription = stringResource(R.string.display_options),
-                        )
-                    }
-                    IconButton(onClick = onVoiceInput) {
-                        Icon(
-                            painter = androidx.compose.ui.res.painterResource(R.drawable.ic_voice_input),
-                            contentDescription = stringResource(R.string.voice_search),
-                        )
-                    }
-                }
-                HorizontalDivider()
-                SuggestionList(
-                    suggestions = suggestions,
-                    bottomPadding = navigationBarPadding.calculateBottomPadding(),
-                    onRecentQueryClick = { recentQuery ->
-                        onQueryChanged(recentQuery)
-                        submitSearch(recentQuery)
-                    },
-                    onHintClick = { hint ->
-                        onQueryChanged(hint)
-                        submitSearch(hint)
-                    },
-                    onAuthorSuggestionClick = { author ->
-                        onQueryChanged(author)
-                        submitSearch(author)
-                    },
-                    onContentSuggestionClick = onContentSuggestionClick,
-                    onTagSuggestionClick = { tag ->
-                        onQueryChanged(tag.title)
-                        onTagSuggestionClick(tag)
-                    },
-                    onSourceSuggestionClick = onSourceSuggestionClick,
-                    onDeleteQuery = onDeleteQuery,
+        val panelHeight by transition.animateDp(
+            transitionSpec = {
+                tween(
+                    durationMillis = SearchOverlayAnimationDurationMillis,
+                    easing = FastOutSlowInEasing,
                 )
+            },
+            label = "search_overlay_panel_height",
+        ) { isVisible ->
+            if (isVisible) {
+                maxHeight
+            } else {
+                statusBarPadding + SearchOverlayCollapsedHeight
             }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.38f * progress)),
+        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .padding(horizontal = horizontalPadding)
+                .height(panelHeight)
+                .clip(RoundedCornerShape(cornerRadius))
+                .background(MaterialTheme.colorScheme.surface),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onDismissRequest) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.back),
+                    )
+                }
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 2.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.52f),
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.24f),
+                    ),
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp,
+                ) {
+                    SearchInputField(
+                        value = query,
+                        onValueChange = onQueryChanged,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .focusRequester(focusRequester),
+                        placeholder = {
+                            Text(
+                                text = stringResource(R.string.search_content),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.Search,
+                                contentDescription = stringResource(R.string.search),
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        },
+                        trailingIcon = {
+                            if (query.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { onQueryChanged("") },
+                                    modifier = Modifier.size(40.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Clear,
+                                        contentDescription = stringResource(R.string.clear),
+                                        modifier = Modifier.size(20.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(
+                            onSearch = {
+                                submitSearch(query)
+                            },
+                        ),
+                    )
+                }
+                IconButton(onClick = { showOptionsSheet = true }) {
+                    Icon(
+                        painter = androidx.compose.ui.res.painterResource(R.drawable.ic_filter_menu),
+                        contentDescription = stringResource(R.string.display_options),
+                    )
+                }
+                IconButton(onClick = onVoiceInput) {
+                    Icon(
+                        painter = androidx.compose.ui.res.painterResource(R.drawable.ic_voice_input),
+                        contentDescription = stringResource(R.string.voice_search),
+                    )
+                }
+            }
+            HorizontalDivider()
+            SuggestionList(
+                suggestions = suggestions,
+                bottomPadding = navigationBarPadding.calculateBottomPadding(),
+                modifier = Modifier.graphicsLayer { alpha = suggestionsAlpha },
+                onRecentQueryClick = { recentQuery ->
+                    onQueryChanged(recentQuery)
+                    submitSearch(recentQuery)
+                },
+                onHintClick = { hint ->
+                    onQueryChanged(hint)
+                    submitSearch(hint)
+                },
+                onAuthorSuggestionClick = { author ->
+                    onQueryChanged(author)
+                    submitSearch(author)
+                },
+                onContentSuggestionClick = onContentSuggestionClick,
+                onTagSuggestionClick = { tag ->
+                    onQueryChanged(tag.title)
+                    onTagSuggestionClick(tag)
+                },
+                onSourceSuggestionClick = onSourceSuggestionClick,
+                onDeleteQuery = onDeleteQuery,
+            )
         }
     }
 
-    if (showOptionsSheet) {
+    if (showOptionsSheet && visible) {
         SearchOptionsSheet(
             searchKind = searchKind,
             onSearchKindChange = { searchKind = it },
@@ -317,6 +400,70 @@ fun KototoroSearchOverlay(
             onDismissRequest = { showOptionsSheet = false },
         )
     }
+}
+
+@Composable
+private fun SearchInputField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    placeholder: @Composable () -> Unit,
+    leadingIcon: @Composable () -> Unit,
+    trailingIcon: @Composable (() -> Unit)?,
+    keyboardOptions: KeyboardOptions,
+    keyboardActions: KeyboardActions,
+) {
+    val textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface)
+
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier,
+        singleLine = true,
+        textStyle = textStyle,
+        keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+        decorationBox = { innerTextField ->
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(start = 14.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier.size(20.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    leadingIcon()
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 10.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    if (value.isEmpty()) {
+                        Box(
+                            modifier = Modifier.matchParentSize(),
+                            contentAlignment = Alignment.CenterStart,
+                        ) {
+                            placeholder()
+                        }
+                    }
+                    innerTextField()
+                }
+                if (trailingIcon != null) {
+                    Box(
+                        modifier = Modifier.size(40.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        trailingIcon()
+                    }
+                }
+            }
+        },
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -508,6 +655,7 @@ private val SearchKind.titleResId: Int
 private fun SuggestionList(
     suggestions: List<SearchSuggestionItem>,
     bottomPadding: Dp,
+    modifier: Modifier = Modifier,
     onRecentQueryClick: (String) -> Unit,
     onHintClick: (String) -> Unit,
     onAuthorSuggestionClick: (String) -> Unit,
@@ -517,7 +665,7 @@ private fun SuggestionList(
     onDeleteQuery: (String) -> Unit,
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(top = 8.dp, bottom = bottomPadding + 8.dp),
     ) {
         items(
@@ -629,9 +777,19 @@ private fun SuggestionList(
                 }
 
                 is SearchSuggestionItem.ContentList -> {
-                    Column {
-                        item.items.forEach { content ->
-                            ContentSuggestionRow(
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items(
+                            items = item.items,
+                            key = { content -> content.id },
+                            contentType = { "content_card" },
+                        ) { content ->
+                            ContentSuggestionCard(
                                 content = content,
                                 onClick = { onContentSuggestionClick(content) },
                             )
@@ -658,42 +816,50 @@ private fun SourceSuggestionRow(
     onClick: () -> Unit,
 ) {
     val sourceTitle = rememberResolvedSourceTitle(source)
-    ListItem(
-        headlineContent = {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            ContentSourceIcon(
+                source = source,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 12.dp),
+            verticalArrangement = Arrangement.Center,
+        ) {
             Text(
                 text = sourceTitle,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.labelMedium,
             )
-        },
-        supportingContent = {
             Text(
                 text = stringResource(source.contentType.titleResId),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        },
-        leadingContent = {
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center,
-            ) {
-                ContentSourceIcon(
-                    source = source,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-        },
-        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.clickable(onClick = onClick),
-    )
+        }
+    }
 }
 
 @Composable
-private fun ContentSuggestionRow(
+private fun ContentSuggestionCard(
     content: Content,
     onClick: () -> Unit,
 ) {
@@ -707,34 +873,45 @@ private fun ContentSuggestionRow(
             .build()
     }
 
-    ListItem(
-        headlineContent = {
-            Text(
-                text = content.title,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        },
-        supportingContent = {
-            Text(
-                text = sourceTitle,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        },
-        leadingContent = {
+    Surface(
+        modifier = Modifier
+            .width(112.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f),
+        ),
+    ) {
+        Column {
             AsyncImage(
                 model = imageRequest,
                 contentDescription = content.title,
                 modifier = Modifier
-                    .width(40.dp)
-                    .size(width = 40.dp, height = 56.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .fillMaxWidth()
+                    .aspectRatio(0.72f)
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentScale = ContentScale.Crop,
             )
-        },
-        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.clickable(onClick = onClick),
-    )
+            Column(
+                modifier = Modifier.padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = content.title,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    text = sourceTitle,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
 }
