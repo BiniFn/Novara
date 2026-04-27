@@ -114,7 +114,12 @@ class DetailsPaneState internal constructor(
         get() = (fullOffsetPx + collapsedOffsetPx) / 2f
 
     val translationY: Float
-        get() = anchoredState.offset.takeIf { it.isFinite() } ?: collapsedOffsetPx
+        get() = anchoredState.offset.takeIf { it.isFinite() } ?: compactPaneOffsetForAnchor(
+            anchor = anchor,
+            fullOffset = fullOffsetPx,
+            hoveredOffset = hoveredOffsetPx,
+            collapsedOffset = collapsedOffsetPx,
+        )
 
     val expansionProgress: Float
         get() {
