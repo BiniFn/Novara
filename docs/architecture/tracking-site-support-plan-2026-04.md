@@ -23,85 +23,88 @@
 
 ## 当前现状
 
-基于 `2026-04-27` 的代码排查，当前关键结论如下：
+基于 `2026-04-27` 的代码排查，当前关键结论如下。本文档此前记录的是改造起点，多个条目已经落地；后续应把它作为进度台账维护，而不是继续按旧状态执行。
 
-### 1. Simkl 尚未进入 Kototoro 的追踪站基础设施
+### 1. Simkl 基础设施已进入主流程
 
-当前 `Simkl` 不在：
+`Simkl` 已经接入追踪站基础设施：
 
 - `app/src/main/kotlin/org/skepsun/kototoro/scrobbling/common/domain/model/ScrobblerService.kt`
 - `app/src/main/kotlin/org/skepsun/kototoro/scrobbling/common/domain/ScrobblerRepositoryMap.kt`
 - `app/src/main/kotlin/org/skepsun/kototoro/tracking/discovery/data/DefaultTrackingSiteDiscoveryService.kt`
 - `app/src/main/AndroidManifest.xml` 的 scrobbler auth host 列表
 
-这意味着它现在不是“功能不完整”，而是“体系内不存在”。
+当前状态不是“体系内不存在”，而是“基础浏览、详情、绑定和同步链路已接入，剩余站点能力细化”。
 
-### 2. 发现页卡片当前是轻量模型，信息在中途丢失
+已完成：
 
-当前发现页主模型是：
+- `ScrobblerService` 增加 `SIMKL`
+- `SimklRepository` / `SimklInterceptor` / `SimklScrobbler` 已接入
+- `ScrobblingModule`、`ScrobblerRepositoryMap`、设置页登录入口和 OAuth callback 已接入
+- 发现页分类、搜索、详情、episode 列表、推荐、状态同步、增量同步和 `removed_from_list` 删除对比已形成首批闭环
 
-- `app/src/main/kotlin/org/skepsun/kototoro/tracking/discovery/domain/TrackingDiscoveryModels.kt`
+剩余重点：
 
-其中 `TrackingSiteItem` 只有：
+- `memo` 删除与更细粒度远端注释同步策略
+- 发现页分类之外的更多时间维度筛选
+- 避免伪造 Simkl 不具备的 manga / 角色 / person 域
 
-- 标题
-- 副标题 / 别名
-- 封面
-- 评分
-- URL
+### 2. 发现页数据模型已完成首批扩展
 
-而 `DiscoverViewModel` / `DiscoverCategoryViewModel` 在转换成 `Content` 时，并没有保留你希望展示的更多字段，例如：
+`TrackingSiteItem` 已扩展为可承载更多站点字段：
 
-- 每日放送
-- 已更新章节 / 集数
-- 原名 / 译名双标题
-- 更完整的副信息
+- `primaryTitle`
+- `secondaryTitle`
+- `progressText`
+- `updatedAtText`
+- `scoreMax`
 
-因此即使后端接口能拿到数据，卡片层也显示不出来。
+`TrackingSiteItemEntity`、`TrackingSiteCacheRepository` 与 `Migration39To40` 已同步；`DiscoverViewModel` / `DiscoverCategoryViewModel` 已开始保留标题、副标题、评分范围等字段。
 
-### 3. AniList / MAL 详情已接通基础能力，但数据颗粒度不足
+剩余重点：
+
+- `Bangumi` 排行页字段仍偏依赖页面抓取，评分、章节、更新时间颗粒度需继续验证
+- 副标题目前仍是单行摘要，后续可拆成更明确的多段信息区块
+- `MAL` / `Shikimori` 的“每日放送”仍主要是按日期映射季度，不是真正逐日 airing API
+
+### 3. AniList / MAL / Simkl 详情能力已有明显推进
 
 相关实现主要在：
 
 - `app/src/main/kotlin/org/skepsun/kototoro/scrobbling/anilist/data/AniListRepository.kt`
 - `app/src/main/kotlin/org/skepsun/kototoro/scrobbling/mal/data/MALRepository.kt`
+- `app/src/main/kotlin/org/skepsun/kototoro/scrobbling/simkl/data/SimklRepository.kt`
 - `app/src/main/kotlin/org/skepsun/kototoro/tracking/discovery/data/DefaultTrackingSiteDiscoveryService.kt`
 
-现存问题：
+已完成：
 
-- `AniList` 推荐、关联、角色等区块很多地方仍在使用 `medium` 图
-- `MAL` 详情字段偏少，推荐 / 人物 / 更高质量图片没有完整接入
-- `discover` 列表层对这些富数据没有统一映射
+- `AniList` 已接入 airing schedule、characters、voice actors、related、recommendations、高质量图片字段和 HTML 简介规整
+- `MAL` 已接入 ranking / seasonal、large cover、details、reviews / forum、characters、related、recommendations
+- `Simkl` 已接入 discovery categories、overview、recommendations、sync activities 与 removed list
+- 主详情页追踪站补充区块已能展示角色卡片、角色弹层、声优列表与外跳站点页
 
-### 4. 简介清洗不足
+剩余重点：
 
-当前 `details` / `scrobbling sheet` 侧常见是直接对字符串做 `sanitize()`：
+- 角色、声优、person 实体详情页仍需从各站点实际详情页补齐真实图片和外链
+- MAL / Bangumi / Shikimori / Kitsu 的人物与角色页信息深度仍不均衡
+- 站点缺少角色/person 域时必须降级展示，不能虚构字段
+
+### 4. 简介清洗已开始统一，但仍需收口
+
+历史问题是 `details` / `scrobbling sheet` 侧常见直接对字符串做 `sanitize()`：
 
 - `app/src/main/kotlin/org/skepsun/kototoro/core/util/ext/String.kt`
 
-这个逻辑只是在处理异常替代字符，不负责：
+当前 AniList 等详情已开始做 HTML 段落和换行规整，但仍需继续统一规则：
 
-- 去掉 `<p>`
-- 去掉 `<br/>`
-- 规整多余空行
-- 将 HTML 简介转成更干净的纯文本或可控富文本
+- HTML 简介优先转干净文本
+- `br` / `p` 转换为合理换行
+- 去除多余空白与残余标签
+- 在 repository / discovery 映射阶段尽早清洗，避免 UI 层重复兜底
 
-所以会出现简介残留 HTML 标记的问题。
+### 5. 用户系统入口已完成首批迁移
 
-### 5. “用户系统”入口此前缺失，账号能力分散在服务页
-
-在本轮改造前，追踪站账号入口都堆在 `ServicesSettingsFragment`：
-
-- 登录
-- 已登录昵称摘要
-- 各站配置入口
-
-这带来两个问题：
-
-- “服务设置”和“用户/账号系统”语义混杂，后续很难继续扩用户能力
-- 即使站点 API 支持用户统计，UI 也没有统一承载位置
-
-当前进度（更新于 `2026-04-27`）：
+当前进度：
 
 - 已完成：
   - 根设置新增独立 `用户` 分区
@@ -117,6 +120,22 @@
   - `Bangumi` / `Shikimori` / `Kitsu` / `MangaUpdates` 的统计深挖
   - 用户页内的更多能力入口，例如用户评论、列表跳转、远端收藏/历史概览
   - 把“用户系统”继续扩展成跨站统一资料页，而不只是账号列表
+
+### 6. 下一步计划：角色 / 声优 / Person 实体详情增强
+
+用户给出的当前方向是“改善角色、声优、person 实体详情页，正确读取各个网站的网页实际内容和图片”。建议按低风险顺序推进：
+
+1. 不先扩 Room 表结构，优先从已有追踪站详情缓存动态解析角色图、声优头像、角色页 / person 页外链，避免为首批展示能力引入 migration。
+2. 统一实体关系卡片的数据来源：角色、声优、person 页面都通过 `TrackingSiteItemDetails.CharacterInfo` / `PersonInfo` 获取真实图片、职责、声优列表和 URL。
+3. 逐站补齐仓库层字段映射，优先使用站点实际详情页或官方 API 已提供的高清字段；缺字段时优雅降级，不写站点特化 UI 分支。
+4. 第一批重点站点顺序：`AniList`、`MAL`、`Bangumi`。`Simkl` 仅处理其真实支持的作品域，不伪造角色/person。
+5. 验证路径优先覆盖：从作品详情进入角色卡片、从角色进入实体详情、从声优 / person 进入实体详情、外链按钮打开站点真实页面、图片加载成功。
+
+本次推进记录：
+
+- 已在 `DetailsViewModel` 侧增强实体详情动态解析：角色实体继续从关联作品的追踪站详情回补角色图、职责、声优列表和角色页 URL。
+- 已新增 person / 声优头像回补策略：Person 实体通过其配音角色所在作品详情匹配 `PersonInfo`，优先使用站点实际提供的 `avatarUrl`。
+- 暂不新增实体图谱图片字段和 Room migration，保持 KISS/YAGNI；如果后续需要离线展示或跨进程稳定缓存，再单独设计实体展示元数据表。
 
 ## 改造目标
 
@@ -312,7 +331,19 @@
 
 - 补齐 MAL 浏览与详情的信息深度
 
-主要改动点：
+当前进度（更新于 `2026-04-27`）：
+
+- 已完成：
+  - ranking / seasonal 浏览已接入
+  - 详情页已补 large cover、基础详情字段、reviews / forum 入口
+  - characters、related works、recommendations 已接入首批网页解析
+
+- 尚未完成：
+  - 角色详情页 / people 页的真实正文、头像和外链仍需逐页验证
+  - “每日放送 / 当日更新”仍不是 MAL 官方逐日 airing API
+  - MAL 网页结构变化风险高，解析应保持小函数和可降级策略
+
+后续改动点：
 
 - 为 MAL 增加“每日放送 / 当日更新”的发现入口
 - 扩展详情字段：
@@ -333,14 +364,26 @@
 
 - MAL 不再只停留在 ranking / seasonal 的浅层浏览
 - 详情页信息密度与 AniList 基本对齐
+- 角色和 people 实体页能显示 MAL 实际网页提供的图片和外链；解析失败时不阻塞作品详情
 
-### 阶段 5：新增 Simkl 发现页与详情页
+### 阶段 5：完善 Simkl 发现页与详情页
 
 目标：
 
-- 把 Simkl 从“能登录”扩展到“能浏览、能看详情、能看推荐”
+- 把 Simkl 从“基础可用”继续扩展到“浏览、详情、同步体验更完整”
 
-主要改动点：
+当前进度（更新于 `2026-04-27`）：
+
+- 已完成：
+  - 登录、搜索、发现分类、详情、episode 列表、overview、recommendations 已进入主流程
+  - `sync/activities` 增量同步和 `removed_from_list` 删除对比已接入
+
+- 尚未完成：
+  - `memo` 删除与远端注释同步策略
+  - 更多列表形态和时间维度筛选
+  - Simkl 不提供稳定角色/person 域时，不应为了统一 UI 伪造角色或声优实体
+
+后续改动点：
 
 - 发现页接入：
   - trending
@@ -367,6 +410,7 @@
 交付标准：
 
 - Simkl 可作为实际可用的浏览源进入主流程
+- Simkl 缺失角色/person 数据时展示为空或隐藏对应区块，而不是展示错误占位数据
 
 ### 阶段 6：统一详情页与浏览页展示
 
@@ -374,7 +418,19 @@
 
 - 真正把新增字段“显示出来”，而不是只停在仓库层
 
-主要改动点：
+当前进度（更新于 `2026-04-27`）：
+
+- 已完成：
+  - 浏览卡片已开始消费扩展后的标题、副标题、评分范围
+  - 详情页追踪站补充区块已支持角色、关联、推荐、额外区块
+  - 角色卡片和角色弹层已能展示角色图、职责、声优列表和站点外链
+  - 本次新增：实体详情页能从关联作品追踪站详情动态回补角色图、角色职责、声优列表、角色页 URL 和 person / 声优头像
+
+- 尚未完成：
+  - Person 实体页还需要补正文、代表作、更多站点外链等信息
+  - 角色 / person 页仍主要依赖已缓存作品详情；如果缓存缺失，需要逐站设计安全的详情补抓策略
+
+后续改动点：
 
 - `discover` 卡片展示逻辑
 - `details` 头部信息展示逻辑
@@ -393,6 +449,7 @@
 - 浏览页卡片信息更完整
 - 详情页补充区块真正使用高清图
 - 各站点字段缺失时展示能优雅降级
+- 从作品、角色、声优三个入口进入实体详情时，图片和外链来源一致且可解释
 
 ### 阶段 7：简介清洗与统一图片策略
 
@@ -400,7 +457,18 @@
 
 - 解决“简介脏”和“列表图清晰、详情区反而糊”的问题
 
-主要改动点：
+当前进度（更新于 `2026-04-27`）：
+
+- 已完成：
+  - AniList 简介已开始 HTML 段落 / 换行规整
+  - 追踪站详情弹窗已开始使用清洗后的简介
+  - 角色、声优、关联作品、推荐作品已优先使用详情接口提供的较高质量图片字段
+
+- 尚未完成：
+  - 清洗函数尚未完全收口为站点无关工具
+  - MAL / Bangumi 等网页解析来源仍需按实际 HTML 验证残留标签、实体转义和图片 URL 归一化
+
+后续改动点：
 
 - 抽离统一的 tracking 描述清洗函数
 - 在 repository / discovery 映射阶段就完成 HTML 清洗
@@ -420,21 +488,18 @@
 
 ## 建议实施顺序
 
-建议按下面顺序落地，降低回归风险：
+旧的阶段 1 到阶段 3 已基本完成，后续建议按下面顺序推进，降低回归风险：
 
-1. 阶段 1：Simkl 基础设施
-2. 阶段 2：发现页数据模型扩展
-3. 阶段 3：AniList 增强
-4. 阶段 4：MAL 增强
-5. 阶段 5：Simkl 浏览与详情
-6. 阶段 6：统一 UI 展示
-7. 阶段 7：简介清洗与图片策略收尾
+1. 阶段 6：先把角色 / 声优 / person 实体详情的数据展示链路补稳。
+2. 阶段 4：补 MAL 角色页 / people 页真实内容、图片和外链解析。
+3. 阶段 7：收口简介清洗与图片 URL 归一化。
+4. 阶段 5：继续完善 Simkl 真实支持的作品域能力，明确不支持角色/person 时的降级。
 
 这样做的原因：
 
-- 先把站点能力纳入统一抽象
-- 再扩数据模型
-- 最后补 UI 和清洗，避免重复返工
+- 先让实体详情页消费现有数据，避免过早扩库表
+- 再补站点仓库层字段，能直接看到 UI 收益
+- 最后统一清洗和图片策略，减少重复解析逻辑
 
 ## 验证清单
 
