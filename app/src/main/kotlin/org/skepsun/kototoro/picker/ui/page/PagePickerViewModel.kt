@@ -14,11 +14,9 @@ import org.skepsun.kototoro.core.nav.ContentIntent
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsStateFlow
 import org.skepsun.kototoro.core.ui.BaseViewModel
-import org.skepsun.kototoro.core.util.ext.firstNotNull
 import org.skepsun.kototoro.details.data.ContentDetails
 import org.skepsun.kototoro.details.domain.DetailsLoadUseCase
-import org.skepsun.kototoro.details.ui.pager.pages.PageThumbnail
-import org.skepsun.kototoro.list.ui.model.ListHeader
+import org.skepsun.kototoro.details.ui.pager.pages.buildPageThumbnailList
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.reader.domain.ChaptersLoader
 import javax.inject.Inject
@@ -32,12 +30,9 @@ class PagePickerViewModel @Inject constructor(
 ) : BaseViewModel() {
 
 	private val intent = ContentIntent(savedStateHandle)
-
-	private var loadingJob: Job? = null
 	private var loadingNextJob: Job? = null
 
 	val thumbnails = MutableStateFlow<List<ListModel>>(emptyList())
-	val isLoadingDown = MutableStateFlow(false)
 	val manga = MutableStateFlow(intent.manga?.let { ContentDetails(it) })
 
 	val isNoChapters = manga.map {
@@ -51,7 +46,7 @@ class PagePickerViewModel @Inject constructor(
 	)
 
 	init {
-		loadingJob = launchLoadingJob(Dispatchers.Default) {
+		launchLoadingJob(Dispatchers.Default) {
 			doInit()
 		}
 	}
@@ -62,45 +57,23 @@ class PagePickerViewModel @Inject constructor(
 			.first { x -> x.isLoaded }
 		chaptersLoader.init(details)
 		val initialChapterId = details.allChapters.firstOrNull()?.id ?: return
-		if (!chaptersLoader.hasPages(initialChapterId)) {
-			chaptersLoader.loadSingleChapter(initialChapterId)
-		}
+		chaptersLoader.loadSingleChapter(initialChapterId)
 		updateList()
 	}
 
 	fun loadNextChapter() {
-		if (loadingJob?.isActive == true || loadingNextJob?.isActive == true) {
+		if (isLoading.value || loadingNextJob?.isActive == true || chaptersLoader.snapshot().isEmpty()) {
 			return
 		}
 		loadingNextJob = launchJob(Dispatchers.Default) {
-			isLoadingDown.value = true
-			try {
-				val currentId = chaptersLoader.last().chapterId
-				chaptersLoader.loadPrevNextChapter(manga.firstNotNull(), currentId, isNext = true)
-				updateList()
-			} finally {
-				isLoadingDown.value = false
-			}
+			val details = manga.value ?: return@launchJob
+			val currentId = chaptersLoader.last().chapterId
+			chaptersLoader.loadPrevNextChapter(details, currentId, isNext = true)
+			updateList()
 		}
 	}
 
 	private fun updateList() {
-		val snapshot = chaptersLoader.snapshot()
-		val pages = buildList(snapshot.size + chaptersLoader.size + 2) {
-			var previousChapterId = 0L
-			for (page in snapshot) {
-				if (page.chapterId != previousChapterId) {
-					chaptersLoader.peekChapter(page.chapterId)?.let {
-						add(ListHeader(it))
-					}
-					previousChapterId = page.chapterId
-				}
-				this += PageThumbnail(
-					isCurrent = false,
-					page = page,
-				)
-			}
-		}
-		thumbnails.value = pages
+		thumbnails.value = chaptersLoader.buildPageThumbnailList()
 	}
 }

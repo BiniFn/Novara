@@ -73,6 +73,8 @@ fun PagesScreenRoot(
 		emptyMessageResId = null,
 		isLoading = isLoading,
 		detailsPaneState = detailsPaneState,
+		onLoadPrevious = viewModel::loadPrevChapter,
+		onLoadNext = viewModel::loadNextChapter,
 		onItemClick = { item ->
 			val thumbnail = item as PageThumbnail
 			if (selectedItemIds.isNotEmpty()) {

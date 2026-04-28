@@ -18,6 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,11 +28,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
 import org.skepsun.kototoro.details.ui.compose.state.DetailsPaneState
 import org.skepsun.kototoro.details.ui.compose.state.rememberDetailsPaneNestedScrollConnection
 import org.skepsun.kototoro.details.ui.pager.pages.PageThumbnail
 import org.skepsun.kototoro.list.ui.model.ListHeader
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -57,15 +61,19 @@ fun PageThumbnailCard(
 		border = if (isSelected) BorderStroke(4.dp, MaterialTheme.colorScheme.primary) else null,
 	) {
 		Box(modifier = Modifier.fillMaxSize()) {
-			val model = thumbnail.page.preview ?: thumbnail.page.url
-			if (model != null) {
-				AsyncImage(
-					model = model,
-					contentDescription = "Page Thumbnail",
-					contentScale = ContentScale.Crop,
-					modifier = Modifier.fillMaxSize(),
-				)
+			val context = LocalContext.current
+			val model = remember(thumbnail.page) {
+				ImageRequest.Builder(context)
+					.data(thumbnail.page.toContentPage())
+					.mangaSourceExtra(thumbnail.page.source)
+					.build()
 			}
+			AsyncImage(
+				model = model,
+				contentDescription = "Page Thumbnail",
+				contentScale = ContentScale.Crop,
+				modifier = Modifier.fillMaxSize(),
+			)
 
 			Surface(
 				modifier = Modifier
@@ -123,6 +131,8 @@ fun PagesScreen(
 	emptyMessageResId: Int?,
 	isLoading: Boolean,
 	detailsPaneState: DetailsPaneState? = null,
+	onLoadPrevious: () -> Unit = {},
+	onLoadNext: () -> Unit = {},
 	onItemClick: (PageThumbnail) -> Unit,
 	onItemLongClick: (PageThumbnail) -> Unit,
 	onSelectionActionClick: (Int) -> Unit,
@@ -161,7 +171,29 @@ fun PagesScreen(
                     item is PageThumbnail && item.isCurrent
                 }
 				if (currentIndex >= 0 && listState.firstVisibleItemIndex == 0) {
-					listState.animateScrollToItem(currentIndex)
+					listState.scrollToItem(currentIndex)
+				}
+			}
+
+			LaunchedEffect(items, isLoading) {
+				snapshotFlow {
+					if (isLoading) {
+						false to false
+					} else {
+						val layoutInfo = listState.layoutInfo
+						val visibleItems = layoutInfo.visibleItemsInfo
+						val firstIndex = visibleItems.firstOrNull()?.index ?: return@snapshotFlow false to false
+						val lastIndex = visibleItems.lastOrNull()?.index ?: return@snapshotFlow false to false
+						(firstIndex <= LOAD_MORE_THRESHOLD) to
+							(lastIndex >= layoutInfo.totalItemsCount - LOAD_MORE_THRESHOLD - 1)
+					}
+				}.distinctUntilChanged().collect { (loadPrevious, loadNext) ->
+					if (loadPrevious) {
+						onLoadPrevious()
+					}
+					if (loadNext) {
+						onLoadNext()
+					}
 				}
 			}
 
@@ -254,3 +286,5 @@ fun PagesScreen(
 		}
 	}
 }
+
+private const val LOAD_MORE_THRESHOLD = 6
