@@ -276,6 +276,7 @@ fun AppNavGraph(
                     contentPadding = contentPadding,
                     exploreViewModel = exploreViewModel,
                     onSourceSelectionTopBarChanged = onExploreSourceSelectionTopBarChanged,
+                    onNavigateToDetails = navigateToDetailsWithOrigin,
                 )
             }
         }

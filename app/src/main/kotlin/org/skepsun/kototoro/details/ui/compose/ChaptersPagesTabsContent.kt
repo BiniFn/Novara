@@ -143,7 +143,14 @@ fun ChaptersPagesTabsContent(
 				initialPage = validInitialPage,
 				pageCount = { tabsList.size },
 			)
-			val currentTabId = tabsList[pagerState.currentPage].tabId
+			val safeCurrentPage = pagerState.currentPage.coerceIn(0, tabsList.lastIndex)
+			val currentTabId = tabsList[safeCurrentPage].tabId
+
+			LaunchedEffect(tabsList) {
+				if (pagerState.currentPage !in tabsList.indices) {
+					pagerState.scrollToPage(safeCurrentPage)
+				}
+			}
 
 			LaunchedEffect(selectedTabId, tabsList) {
 				if (selectedTabId == null) {
@@ -155,8 +162,8 @@ fun ChaptersPagesTabsContent(
 				}
 			}
 
-			LaunchedEffect(pagerState.currentPage, tabsList) {
-				onSelectedTabIdChange?.invoke(tabsList[pagerState.currentPage].tabId)
+			LaunchedEffect(safeCurrentPage, tabsList) {
+				onSelectedTabIdChange?.invoke(tabsList[safeCurrentPage].tabId)
 			}
 
 			LaunchedEffect(currentTabId) {
@@ -167,7 +174,7 @@ fun ChaptersPagesTabsContent(
 
 			if (showTabStrip && tabsList.size > 1) {
 				TabRow(
-					selectedTabIndex = pagerState.currentPage,
+					selectedTabIndex = safeCurrentPage,
 					containerColor = Color.Transparent,
 					modifier = Modifier
 						.fillMaxWidth()
@@ -204,7 +211,7 @@ fun ChaptersPagesTabsContent(
 				state = pagerState,
 				modifier = Modifier.weight(1f).fillMaxWidth(),
 			) { page ->
-				when (tabsList[page].tabId) {
+				when (tabsList.getOrNull(page)?.tabId ?: return@HorizontalPager) {
 					DETAILS_TAB_CHAPTERS -> DetailsChapterPanels(
 						viewModel = viewModel,
 						router = router,

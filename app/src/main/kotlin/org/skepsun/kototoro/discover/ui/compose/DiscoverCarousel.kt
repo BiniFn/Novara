@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.discover.ui.compose
 
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -36,9 +37,12 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
+import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
+import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
 import org.skepsun.kototoro.core.ui.compose.rememberRailAnimationFactor
 import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
 import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
 import org.skepsun.kototoro.list.ui.compose.ContentCardCornerBadges
 import org.skepsun.kototoro.list.ui.compose.ContentCardNsfwBadge
 import org.skepsun.kototoro.list.ui.compose.asBadgeModel
@@ -53,7 +57,7 @@ fun DiscoverCarousel(
 	row: DiscoverCarouselRow,
 	gridScale: Float,
 	badgesBottomRight: Set<String>,
-	onItemClick: (ContentListModel, Rect?) -> Unit,
+	onItemClick: (ContentListModel, Rect?, String?) -> Unit,
 	onMoreClick: (org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCategory) -> Unit,
 	modifier: Modifier = Modifier
 ) {
@@ -101,11 +105,19 @@ fun DiscoverCarousel(
 						animationFactor = railAnimationFactor,
 						enableScrollLinkedAnimation = false,
 					) { animatedModifier ->
+						val sharedElementKey = remember(row.category.id, model.id, model.coverUrl, model.manga.source.name) {
+							contentCoverSharedKey(
+								model.manga.source.name,
+								model.coverUrl.orEmpty(),
+								instanceKey = "discover_carousel_${row.category.id}_${model.id}",
+							)
+						}
 						DiscoverPosterCard(
 							model = model,
 							posterStyle = posterStyle,
 							badgesBottomRight = badgesBottomRight,
-							onClick = { onItemClick(model, null) },
+							sharedElementKey = sharedElementKey,
+							onClick = { onItemClick(model, null, sharedElementKey) },
 							modifier = animatedModifier,
 						)
 					}
@@ -117,11 +129,13 @@ fun DiscoverCarousel(
 	}
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun DiscoverPosterCard(
 	model: ContentListModel,
 	posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
 	badgesBottomRight: Set<String>,
+	sharedElementKey: String,
 	onClick: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
@@ -133,6 +147,8 @@ private fun DiscoverPosterCard(
 			.build()
 	}
 	val badgeMetrics = remember(posterStyle.itemWidth) { contentCardBadgeMetricsFor(posterStyle.itemWidth) }
+	val sharedTransitionScope = LocalSharedTransitionScope.current
+	val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
 
 	Column(
 		modifier = modifier
@@ -144,6 +160,18 @@ private fun DiscoverPosterCard(
 			modifier = Modifier
 				.fillMaxWidth()
 				.height(posterStyle.posterHeight)
+				.then(
+					if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+						with(sharedTransitionScope) {
+							Modifier.sharedElement(
+								rememberSharedContentState(key = sharedElementKey),
+								animatedVisibilityScope = animatedVisibilityScope,
+							)
+						}
+					} else {
+						Modifier
+					},
+				)
 				.clip(MaterialTheme.shapes.medium)
 				.background(
 					color = MaterialTheme.colorScheme.surfaceVariant,

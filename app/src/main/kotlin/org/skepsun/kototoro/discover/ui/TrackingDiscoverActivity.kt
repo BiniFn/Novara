@@ -100,7 +100,7 @@ class TrackingDiscoverActivity : FragmentActivity() {
 						availableServices = availableServices,
 						onRefresh = viewModel::refresh,
 						onLoadMore = viewModel::loadNextPage,
-						onItemClick = { item, _ ->
+						onItemClick = { item, _, _ ->
 							val service = activeService ?: initialService
 							if (viewModel.supportsDetails(service)) {
 								router.openTrackingSiteDetails(service, item.manga.id, item.manga.url)

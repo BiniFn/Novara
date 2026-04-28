@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.discover.ui.compose
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,12 +9,12 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -24,6 +25,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +40,7 @@ import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
 import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
+import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
 import org.skepsun.kototoro.list.ui.compose.ContentCardUiPrefs
@@ -101,7 +104,7 @@ private fun prepareDiscoverItems(items: List<ListModel>): DiscoverPreparedItems 
 	)
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun DiscoverScreen(
 	contentPadding: PaddingValues = PaddingValues(0.dp),
@@ -113,7 +116,7 @@ fun DiscoverScreen(
 	availableServices: List<ScrobblerService> = emptyList(),
 	onRefresh: () -> Unit,
 	onLoadMore: () -> Unit,
-	onItemClick: (ContentListModel, Rect?) -> Unit,
+	onItemClick: (ContentListModel, Rect?, String?) -> Unit,
 	onSelectService: (ScrobblerService) -> Unit = {},
 	onOpenSchedule: (() -> Unit)? = null,
 	onCategoryMoreClick: (TrackingSiteCategory) -> Unit,
@@ -172,7 +175,9 @@ fun DiscoverScreen(
 				return@KototoroPullToRefreshBox
 			}
 
-			val listState = rememberLazyListState()
+			val listState = rememberSaveable(saver = LazyListState.Saver) {
+				LazyListState()
+			}
 			LazyColumn(
 				state = listState,
 				contentPadding = PaddingValues(
@@ -189,7 +194,7 @@ fun DiscoverScreen(
 							activeService = activeService,
 							availableServices = availableServices,
 							onItemClick = { item, coverBounds, sharedElementKey ->
-								onItemClick(item, coverBounds)
+								onItemClick(item, coverBounds, sharedElementKey)
 							},
 							onSelectService = onSelectService,
 							onOpenSchedule = onOpenSchedule,
@@ -212,7 +217,9 @@ fun DiscoverScreen(
 				}
 			}
 		} else {
-			val gridState = rememberLazyGridState()
+			val gridState = rememberSaveable(saver = LazyGridState.Saver) {
+				LazyGridState()
+			}
 			val gridItems = preparedItems.gridItems
 
 			// Trigger pagination threshold for grid
@@ -260,10 +267,13 @@ fun DiscoverScreen(
 					items = gridItems,
 					key = { it.manga.id }
 				) { item ->
+					val sharedElementKey = remember(item.manga.source.name, item.coverUrl) {
+						contentCoverSharedKey(item.manga.source.name, item.coverUrl.orEmpty())
+					}
 					KototoroContentCard(
 						model = item,
 						isListLayout = false,
-						onClick = { coverBounds -> onItemClick(item, coverBounds) },
+						onClick = { coverBounds -> onItemClick(item, coverBounds, sharedElementKey) },
 						onLongClick = { },
 						isSelected = false,
 						selectionModeActive = false,
