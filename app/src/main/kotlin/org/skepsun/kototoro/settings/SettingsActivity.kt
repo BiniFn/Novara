@@ -5,6 +5,7 @@ import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
+import android.view.Gravity
 import androidx.activity.viewModels
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
@@ -39,7 +40,7 @@ import org.skepsun.kototoro.settings.search.SettingsSearchFragment
 import org.skepsun.kototoro.settings.search.SettingsSearchViewModel
 import org.skepsun.kototoro.settings.sources.SourceSettingsHostFragment
 import org.skepsun.kototoro.settings.sources.SourcesSettingsFragment
-import org.skepsun.kototoro.settings.sources.manage.SourcesManageFragment
+import org.skepsun.kototoro.settings.sources.unified.UnifiedSourcesFragment
 import org.skepsun.kototoro.settings.tracker.TrackerSettingsFragment
 import org.skepsun.kototoro.settings.userdata.BackupsSettingsFragment
 import org.skepsun.kototoro.core.util.FoldableUtils
@@ -129,6 +130,29 @@ class SettingsActivity :
 		} ?: setTitle(title ?: getString(R.string.settings))
 	}
 
+	fun setSectionToolbarActions(view: View?) {
+		val toolbar = viewBinding.toolbarDetail ?: viewBinding.toolbar
+		val tag = "section_toolbar_actions"
+		(0 until toolbar.childCount)
+			.map { toolbar.getChildAt(it) }
+			.firstOrNull { it.tag == tag }
+			?.let(toolbar::removeView)
+		if (view == null) return
+
+		view.tag = tag
+		val maxActionWidth = (420 * resources.displayMetrics.density).toInt()
+		val actionWidth = (resources.displayMetrics.widthPixels * 0.62f).toInt()
+			.coerceAtMost(maxActionWidth)
+		toolbar.addView(
+			view,
+			androidx.appcompat.widget.Toolbar.LayoutParams(
+				actionWidth,
+				ViewGroup.LayoutParams.MATCH_PARENT,
+				Gravity.END or Gravity.CENTER_VERTICAL,
+			),
+		)
+	}
+
 	fun openFragment(fragmentClass: Class<out Fragment>, args: Bundle?, isFromRoot: Boolean) {
 		viewModel.discardSearch()
 		val hasFragment = supportFragmentManager.findFragmentById(R.id.container) != null
@@ -180,7 +204,7 @@ class SettingsActivity :
 				ContentSource(intent.getStringExtra(AppRouter.KEY_SOURCE)),
 			)
 
-			AppRouter.ACTION_MANAGE_SOURCES -> SourcesManageFragment()
+			AppRouter.ACTION_MANAGE_SOURCES -> UnifiedSourcesFragment()
 			Intent.ACTION_VIEW -> {
 				when (intent.data?.host) {
 					HOST_ABOUT -> AboutSettingsFragment()

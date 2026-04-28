@@ -1244,7 +1244,9 @@
     <string name="mihon_extensions_summary">管理 Mihon 扩展源</string>
     <string name="aniyomi_extensions">Aniyomi 扩展</string>
     <string name="aniyomi_extensions_summary">管理 Aniyomi 扩展源</string>
-    <string name="extensions">APK拓展管理</string>
+<string name="extensions">APK拓展管理</string>
+<string name="extension_management">拓展管理</string>
+<string name="extension_management_summary">管理仓库、JSON 源、APK 拓展和 JAR 解析器</string>
     <string name="extensions_summary_pattern">mihon %1$d aniyomi %2$d ireader %3$d</string>
     <string name="filter_extensions_by_language">按语言过滤扩展</string>
     <string name="filter_extensions_by_language_summary">仅显示与您选择的内容语言相匹配的 Mihon 和 Aniyomi 扩展</string>

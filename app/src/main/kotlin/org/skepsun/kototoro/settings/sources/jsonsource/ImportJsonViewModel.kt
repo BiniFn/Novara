@@ -103,6 +103,7 @@ class ImportJsonViewModel @Inject constructor(
 		jsonContent: String,
 		sourceType: JsonSourceType,
 		sourceLocator: String? = null,
+		sourceTitle: String? = null,
 	) {
 		viewModelScope.launch(Dispatchers.Default) {
 			_uiState.value = ImportUiState.Loading
@@ -123,9 +124,15 @@ class ImportJsonViewModel @Inject constructor(
 					JsonSourceType.LEGADO -> jsonSourceManager.importLegadoJson(
 						jsonContent,
 						skipUnreachable = skipUnreachableSources,
-						skipNoExplore = skipNoExploreSources
+						skipNoExplore = skipNoExploreSources,
+						sourceLocator = sourceLocator,
+						sourceTitle = sourceTitle,
 					)
-					JsonSourceType.TVBOX -> jsonSourceManager.importTvBoxJson(jsonContent, sourceLocator)
+					JsonSourceType.TVBOX -> jsonSourceManager.importTvBoxJson(
+						jsonContent,
+						sourceLocator = sourceLocator,
+						sourceTitle = sourceTitle,
+					)
 					JsonSourceType.JS -> jsonSourceManager.importJsSource(jsonContent)
 					JsonSourceType.LNREADER -> jsonSourceManager.importLNReaderPlugin(jsonContent)
 				}
@@ -161,9 +168,15 @@ class ImportJsonViewModel @Inject constructor(
 					JsonSourceType.LEGADO -> jsonSourceManager.importLegadoJson(
 						jsonContent,
 						skipUnreachable = skipUnreachableSources,
-						skipNoExplore = skipNoExploreSources
+						skipNoExplore = skipNoExploreSources,
+						sourceLocator = uri.toString(),
+						sourceTitle = resolveDisplayName(uri, contentResolver),
 					)
-					JsonSourceType.TVBOX -> jsonSourceManager.importTvBoxJson(jsonContent, uri.toString())
+					JsonSourceType.TVBOX -> jsonSourceManager.importTvBoxJson(
+						jsonContent,
+						sourceLocator = uri.toString(),
+						sourceTitle = resolveDisplayName(uri, contentResolver),
+					)
 					JsonSourceType.JS -> jsonSourceManager.importJsSource(jsonContent)
 					JsonSourceType.LNREADER -> jsonSourceManager.importLNReaderPlugin(jsonContent)
 				}
@@ -173,6 +186,17 @@ class ImportJsonViewModel @Inject constructor(
 				_uiState.value = ImportUiState.Error(e.message ?: "Unknown error occurred")
 			}
 		}
+	}
+
+	private fun resolveDisplayName(uri: Uri, contentResolver: android.content.ContentResolver): String? {
+		return runCatching {
+			contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+				?.use { cursor ->
+					if (!cursor.moveToFirst()) return@use null
+					val index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+					cursor.getString(index.takeIf { it >= 0 } ?: return@use null)
+				}
+		}.getOrNull() ?: uri.lastPathSegment
 	}
 
 	private fun handleImportResult(result: Result<Int>) {

@@ -215,7 +215,9 @@
     </plurals>
     <string name="select_all">全选</string>
     <string name="deselect_all">全不选</string>
-    <string name="extensions">APK拓展管理</string>
+<string name="extensions">APK拓展管理</string>
+<string name="extension_management">拓展管理</string>
+<string name="extension_management_summary">管理仓库、JSON 源、APK 拓展和 JAR 解析器</string>
     <string name="extensions_summary_pattern">mihon %1$d aniyomi %2$d ireader %3$d</string>
     <string name="filter_extensions_by_language">按照语言过滤插件</string>
     <string name="filter_extensions_by_language_summary">仅显示符合应用所选内容语言的 Mihon 和 Aniyomi 插件</string>

@@ -537,7 +537,9 @@ class JsonSourceManager @Inject constructor(
 	suspend fun importLegadoJson(
 		jsonContent: String,
 		skipUnreachable: Boolean = false,
-		skipNoExplore: Boolean = false
+		skipNoExplore: Boolean = false,
+		sourceLocator: String? = null,
+		sourceTitle: String? = null,
 	): Result<Int> {
 		val startTime = System.currentTimeMillis()
 		JsonSourceLogger.logImportStart("LEGADO", jsonContent.length)
@@ -562,7 +564,14 @@ class JsonSourceManager @Inject constructor(
 				// Process sources sequentially for now
 				// TODO: Re-enable parallel processing once Kotlin coroutines API stabilizes
 				val results = sources.mapIndexed { index, source ->
-					processSource(index, source, skipUnreachable, skipNoExplore)
+					processSource(
+						index = index,
+						source = source,
+						skipUnreachable = skipUnreachable,
+						skipNoExplore = skipNoExplore,
+						sourceLocator = sourceLocator,
+						sourceTitle = sourceTitle,
+					)
 				}
 				
 				// Collect results
@@ -632,6 +641,7 @@ class JsonSourceManager @Inject constructor(
 	suspend fun importTvBoxJson(
 		jsonContent: String,
 		sourceLocator: String? = null,
+		sourceTitle: String? = null,
 	): Result<Int> {
 		val startTime = System.currentTimeMillis()
 		JsonSourceLogger.logImportStart("TVBOX", jsonContent.length)
@@ -645,7 +655,7 @@ class JsonSourceManager @Inject constructor(
 			processTvBoxDocument(
 				rawContent = jsonContent,
 				sourceLocator = sourceLocator,
-				sourceTitle = null,
+				sourceTitle = sourceTitle,
 				depth = 0,
 				visitedUrls = visitedUrls,
 				entities = entities,
@@ -691,7 +701,9 @@ class JsonSourceManager @Inject constructor(
 		index: Int,
 		source: org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource,
 		skipUnreachable: Boolean,
-		skipNoExplore: Boolean
+		skipNoExplore: Boolean,
+		sourceLocator: String?,
+		sourceTitle: String?,
 	): SourceProcessResult {
 		return try {
 			// Validate the source
@@ -726,7 +738,14 @@ class JsonSourceManager @Inject constructor(
 			val configJson = json.encodeToString(
 				org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource.serializer(),
 				source
-			)
+			).let { rawConfig ->
+				JsonSourceImportMetadata.attach(
+					rawConfig = rawConfig,
+					sourceLocator = sourceLocator,
+					sourceTitle = sourceTitle,
+					importKind = sourceLocator?.let(::resolveImportKind),
+				)
+			}
 			
 			// Create entity
 			val timestamp = System.currentTimeMillis()
@@ -745,6 +764,16 @@ class JsonSourceManager @Inject constructor(
 			SourceProcessResult.Success(entity)
 		} catch (e: Exception) {
 			SourceProcessResult.Error("Source ${index + 1} (${source.bookSourceName}): ${e.message}")
+		}
+	}
+
+	private fun resolveImportKind(sourceLocator: String): String {
+		return when {
+			sourceLocator.startsWith("content://", ignoreCase = true) -> "file"
+			sourceLocator.startsWith("file://", ignoreCase = true) -> "file"
+			sourceLocator.startsWith("http://", ignoreCase = true) -> "url"
+			sourceLocator.startsWith("https://", ignoreCase = true) -> "url"
+			else -> "inline"
 		}
 	}
 	

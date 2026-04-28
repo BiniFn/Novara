@@ -129,7 +129,6 @@ fun SourcesSettingsScreen(
                     SettingsActionPreference(
                         title = stringResource(R.string.built_in_sources_directory),
                         summary = state.builtInSourcesSummary,
-                        enabled = !state.isAllSourcesEnabled,
                         onClick = onBuiltInSourcesClick,
                     )
                     SettingsSectionDivider()

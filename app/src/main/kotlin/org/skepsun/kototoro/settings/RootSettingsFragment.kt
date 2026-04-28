@@ -94,6 +94,13 @@ class RootSettingsFragment : Fragment() {
                     fragmentClass = org.skepsun.kototoro.settings.sources.SourcesSettingsFragment::class.java,
                 ),
                 settingsItem(
+                    key = "extension_management",
+                    iconRes = R.drawable.ic_extension,
+                    title = getString(R.string.extension_management),
+                    summary = getString(R.string.extension_management_summary),
+                    fragmentClass = org.skepsun.kototoro.settings.sources.unified.UnifiedSourcesFragment::class.java,
+                ),
+                settingsItem(
                     key = "reader",
                     iconRes = R.drawable.ic_book_page,
                     title = getString(R.string.reader_settings),

@@ -26,9 +26,7 @@ import org.skepsun.kototoro.settings.SettingsActivity
 import org.skepsun.kototoro.settings.compose.SettingsChoiceOption
 import org.skepsun.kototoro.settings.compose.SourcesSettingsScreen
 import org.skepsun.kototoro.settings.compose.SourcesSettingsUiState
-import org.skepsun.kototoro.settings.sources.extensions.ExtensionsRootFragment
-import org.skepsun.kototoro.settings.sources.jsonsource.JsonSourcesRootFragment
-import org.skepsun.kototoro.settings.sources.manage.SourcesManageFragment
+import org.skepsun.kototoro.settings.sources.unified.UnifiedSourcesFragment
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -135,14 +133,16 @@ class SourcesSettingsFragment : Fragment() {
                     onSourcesGroupedByLanguageChange = { settings.isSourcesGroupedByLanguage = it },
                     onSetupWizardClick = { router.showWelcomeSheet() },
                     onManageSourcesClick = {
-                        (activity as? SettingsActivity)?.openFragment(SourcesManageFragment::class.java, null, false)
+                        (activity as? SettingsActivity)?.openFragment(UnifiedSourcesFragment::class.java, null, false)
                     },
-                    onBuiltInSourcesClick = { router.openSourcesCatalog() },
+                    onBuiltInSourcesClick = {
+                        (activity as? SettingsActivity)?.openFragment(UnifiedSourcesFragment::class.java, null, false)
+                    },
                     onJsonSourcesClick = {
-                        (activity as? SettingsActivity)?.openFragment(JsonSourcesRootFragment::class.java, null, false)
+                        (activity as? SettingsActivity)?.openFragment(UnifiedSourcesFragment::class.java, null, false)
                     },
                     onExtensionsClick = {
-                        (activity as? SettingsActivity)?.openFragment(ExtensionsRootFragment::class.java, null, false)
+                        (activity as? SettingsActivity)?.openFragment(UnifiedSourcesFragment::class.java, null, false)
                     },
                     onJarPriorityOrderChange = { settings.jarPriorityOrder = it },
                     onAllSourcesEnabledChange = { settings.isAllSourcesEnabled = it },
