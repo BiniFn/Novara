@@ -53,6 +53,7 @@ class PagePickerFragment : BaseFragment<FragmentPagePickerBinding>() {
 						emptyMessageResId = if (isNoChapters) R.string.no_chapters else null,
 						isLoading = isLoading,
 						onLoadNext = viewModel::loadNextChapter,
+						onVisiblePlaceholder = viewModel::loadTowardsChapter,
 						onItemClick = { item ->
 							val manga = viewModel.manga.value?.toContent() ?: return@PagesScreen
 							(activity as PageImagePickActivity).onPagePicked(manga, item.page)

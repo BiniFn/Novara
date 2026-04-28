@@ -34,6 +34,7 @@ import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
 import org.skepsun.kototoro.details.ui.compose.state.DetailsPaneState
 import org.skepsun.kototoro.details.ui.compose.state.rememberDetailsPaneNestedScrollConnection
 import org.skepsun.kototoro.details.ui.pager.pages.PageThumbnail
+import org.skepsun.kototoro.details.ui.pager.pages.PageThumbnailPlaceholder
 import org.skepsun.kototoro.list.ui.model.ListHeader
 import kotlinx.coroutines.flow.distinctUntilChanged
 
@@ -124,6 +125,36 @@ fun PageThumbnailCard(
 }
 
 @Composable
+fun PageThumbnailPlaceholderCard(
+	modifier: Modifier = Modifier,
+) {
+	Card(
+		modifier = modifier
+			.fillMaxWidth()
+			.aspectRatio(0.7f),
+		shape = RoundedCornerShape(8.dp),
+		colors = CardDefaults.cardColors(
+			containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+		),
+		border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+	) {
+		Box(
+			modifier = Modifier
+				.fillMaxSize()
+				.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+			contentAlignment = Alignment.Center,
+		) {
+			Icon(
+				painter = painterResource(id = R.drawable.ic_images),
+				contentDescription = null,
+				tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+				modifier = Modifier.size(32.dp),
+			)
+		}
+	}
+}
+
+@Composable
 fun PagesScreen(
 	items: List<org.skepsun.kototoro.list.ui.model.ListModel>,
 	gridMinSize: Dp,
@@ -133,6 +164,7 @@ fun PagesScreen(
 	detailsPaneState: DetailsPaneState? = null,
 	onLoadPrevious: () -> Unit = {},
 	onLoadNext: () -> Unit = {},
+	onVisiblePlaceholder: (Long) -> Unit = {},
 	onItemClick: (PageThumbnail) -> Unit,
 	onItemLongClick: (PageThumbnail) -> Unit,
 	onSelectionActionClick: (Int) -> Unit,
@@ -178,21 +210,32 @@ fun PagesScreen(
 			LaunchedEffect(items, isLoading) {
 				snapshotFlow {
 					if (isLoading) {
-						false to false
+						VisibleLoadRequest()
 					} else {
 						val layoutInfo = listState.layoutInfo
 						val visibleItems = layoutInfo.visibleItemsInfo
-						val firstIndex = visibleItems.firstOrNull()?.index ?: return@snapshotFlow false to false
-						val lastIndex = visibleItems.lastOrNull()?.index ?: return@snapshotFlow false to false
-						(firstIndex <= LOAD_MORE_THRESHOLD) to
-							(lastIndex >= layoutInfo.totalItemsCount - LOAD_MORE_THRESHOLD - 1)
+						val firstIndex = visibleItems.firstOrNull()?.index ?: return@snapshotFlow VisibleLoadRequest()
+						val lastIndex = visibleItems.lastOrNull()?.index ?: return@snapshotFlow VisibleLoadRequest()
+						val placeholderChapterId = visibleItems
+							.asSequence()
+							.mapNotNull { info -> items.getOrNull(info.index) as? PageThumbnailPlaceholder }
+							.firstOrNull()
+							?.chapterId
+						VisibleLoadRequest(
+							loadPrevious = firstIndex <= LOAD_MORE_THRESHOLD,
+							loadNext = lastIndex >= layoutInfo.totalItemsCount - LOAD_MORE_THRESHOLD - 1,
+							placeholderChapterId = placeholderChapterId,
+						)
 					}
-				}.distinctUntilChanged().collect { (loadPrevious, loadNext) ->
-					if (loadPrevious) {
+				}.distinctUntilChanged().collect { request ->
+					if (request.loadPrevious) {
 						onLoadPrevious()
 					}
-					if (loadNext) {
+					if (request.loadNext) {
 						onLoadNext()
+					}
+					if (request.placeholderChapterId != null) {
+						onVisiblePlaceholder(request.placeholderChapterId)
 					}
 				}
 			}
@@ -212,6 +255,7 @@ fun PagesScreen(
                     key = { index ->
                         when (val item = items[index]) {
                             is PageThumbnail -> "page_${item.page.id}"
+                            is PageThumbnailPlaceholder -> "placeholder_${item.chapterId}"
                             is ListHeader -> "header_${item.getText(context)}_$index"
                             else -> "item_${item::class.java.simpleName}_$index"
                         }
@@ -232,6 +276,10 @@ fun PagesScreen(
                                 onClick = { onItemClick(item) },
                                 onLongClick = { onItemLongClick(item) },
                             )
+                        }
+
+                        is PageThumbnailPlaceholder -> {
+                            PageThumbnailPlaceholderCard()
                         }
 
                         is ListHeader -> {
@@ -286,5 +334,11 @@ fun PagesScreen(
 		}
 	}
 }
+
+private data class VisibleLoadRequest(
+	val loadPrevious: Boolean = false,
+	val loadNext: Boolean = false,
+	val placeholderChapterId: Long? = null,
+)
 
 private const val LOAD_MORE_THRESHOLD = 6

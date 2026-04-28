@@ -75,6 +75,7 @@ fun PagesScreenRoot(
 		detailsPaneState = detailsPaneState,
 		onLoadPrevious = viewModel::loadPrevChapter,
 		onLoadNext = viewModel::loadNextChapter,
+		onVisiblePlaceholder = viewModel::loadTowardsChapter,
 		onItemClick = { item ->
 			val thumbnail = item as PageThumbnail
 			if (selectedItemIds.isNotEmpty()) {

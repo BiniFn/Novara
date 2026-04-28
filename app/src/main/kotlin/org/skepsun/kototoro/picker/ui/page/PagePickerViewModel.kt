@@ -31,6 +31,8 @@ class PagePickerViewModel @Inject constructor(
 
 	private val intent = ContentIntent(savedStateHandle)
 	private var loadingNextJob: Job? = null
+	private var targetChapterJob: Job? = null
+	private var pendingTargetChapterId: Long? = null
 
 	val thumbnails = MutableStateFlow<List<ListModel>>(emptyList())
 	val manga = MutableStateFlow(intent.manga?.let { ContentDetails(it) })
@@ -73,7 +75,54 @@ class PagePickerViewModel @Inject constructor(
 		}
 	}
 
+	fun loadTowardsChapter(chapterId: Long) {
+		if (chaptersLoader.hasPages(chapterId)) {
+			return
+		}
+		pendingTargetChapterId = chapterId
+		if (targetChapterJob?.isActive == true) {
+			return
+		}
+		targetChapterJob = launchJob(Dispatchers.Default) {
+			while (true) {
+				loadingNextJob?.join()
+				val targetId = pendingTargetChapterId ?: break
+				if (chaptersLoader.hasPages(targetId)) {
+					if (pendingTargetChapterId == targetId) {
+						pendingTargetChapterId = null
+					}
+					continue
+				}
+				val details = manga.value ?: break
+				val targetIndex = details.allChapters.indexOfFirst { it.id == targetId }
+				if (targetIndex < 0 || chaptersLoader.snapshot().isEmpty()) {
+					if (pendingTargetChapterId == targetId) {
+						pendingTargetChapterId = null
+					}
+					break
+				}
+				val lastIndex = details.allChapters.indexOfFirst { it.id == chaptersLoader.last().chapterId }
+				if (lastIndex < 0 || targetIndex <= lastIndex) {
+					if (pendingTargetChapterId == targetId) {
+						pendingTargetChapterId = null
+					}
+					break
+				}
+				val currentId = chaptersLoader.last().chapterId
+				if (!chaptersLoader.loadPrevNextChapter(details, currentId, isNext = true)) {
+					if (pendingTargetChapterId == targetId) {
+						pendingTargetChapterId = null
+					}
+					break
+				}
+				updateList()
+			}
+		}
+	}
+
 	private fun updateList() {
-		thumbnails.value = chaptersLoader.buildPageThumbnailList()
+		thumbnails.value = chaptersLoader.buildPageThumbnailList(
+			chapters = manga.value?.allChapters,
+		)
 	}
 }
