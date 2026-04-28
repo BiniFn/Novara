@@ -33,8 +33,12 @@ import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUserProfile
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUserStats
 import org.skepsun.kototoro.scrobbling.kitsu.data.KitsuInterceptor.Companion.VND_JSON
+import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.ZoneId
 
 private const val BASE_WEB_URL = "https://kitsu.app"
+private const val DISCOVERY_PAGE_LIMIT = 20
 
 class KitsuRepository(
 	@ApplicationContext context: Context,
@@ -152,7 +156,7 @@ class KitsuRepository(
 		page: Int,
 		sort: String = "-userCount",
 	): List<ScrobblerContent> {
-		val limit = 20
+		val limit = DISCOVERY_PAGE_LIMIT
 		val offset = (page - 1) * limit
 		val urlBuilder = StringBuilder("$BASE_WEB_URL/api/edge/$mediaType?page[limit]=$limit&page[offset]=$offset&sort=${sort.urlEncoded()}")
 		if (!categorySlug.isNullOrBlank()) {
@@ -162,6 +166,46 @@ class KitsuRepository(
 			.get()
 			.url(urlBuilder.toString())
 		return parseMediaList(okHttp.newCall(request.build()).await().parseJson().ensureSuccess(), mediaType)
+	}
+
+	/**
+	 * Kitsu does not expose a calendar filter. Build the daily schedule from current anime:
+	 * prefer nextRelease weekday and fall back to startDate weekday when nextRelease is absent.
+	 */
+	suspend fun getDailySchedule(date: LocalDate, page: Int): List<ScrobblerContent> {
+		val targetDay = date.dayOfWeek
+		val requiredCount = (page + 1) * DISCOVERY_PAGE_LIMIT
+		val matches = ArrayList<ScrobblerContent>(requiredCount)
+		var offset = 0
+		var total = Int.MAX_VALUE
+
+		while (matches.size < requiredCount && offset < total) {
+			val request = Request.Builder()
+				.get()
+				.url(
+					"$BASE_WEB_URL/api/edge/anime?page[limit]=$DISCOVERY_PAGE_LIMIT" +
+						"&page[offset]=$offset&filter[status]=current&sort=-userCount"
+				)
+			val json = okHttp.newCall(request.build()).await().parseJson().ensureSuccess()
+			total = json.optJSONObject("meta")?.optInt("count", total) ?: total
+			val data = json.optJSONArray("data") ?: break
+			if (data.length() == 0) break
+
+			data.mapJSON { entry ->
+				val attrs = entry.getJSONObject("attributes")
+				val releaseDate = attrs.getStringOrNull("nextRelease")?.toKitsuReleaseDate()
+				val startDate = attrs.getStringOrNull("startDate")?.toKitsuStartDate()
+				val scheduleDay = releaseDate?.dayOfWeek ?: startDate?.dayOfWeek
+				if (scheduleDay == targetDay) {
+					matches += createDiscoveryContent(entry, attrs, "anime")
+				}
+			}
+			offset += DISCOVERY_PAGE_LIMIT
+		}
+
+		return matches
+			.drop(page * DISCOVERY_PAGE_LIMIT)
+			.take(DISCOVERY_PAGE_LIMIT)
 	}
 
 	/**
@@ -221,6 +265,18 @@ class KitsuRepository(
 			score = attrs.getStringOrNull("averageRating")?.toFloatOrNull(),
 			scoreMax = 100f,
 		)
+	}
+
+	private fun String.toKitsuReleaseDate(): LocalDate? {
+		return runCatching {
+			OffsetDateTime.parse(this)
+				.atZoneSameInstant(ZoneId.systemDefault())
+				.toLocalDate()
+		}.getOrNull()
+	}
+
+	private fun String.toKitsuStartDate(): LocalDate? {
+		return runCatching { LocalDate.parse(this) }.getOrNull()
 	}
 	
 	private suspend fun isAnimeContent(mangaId: Long): Boolean {

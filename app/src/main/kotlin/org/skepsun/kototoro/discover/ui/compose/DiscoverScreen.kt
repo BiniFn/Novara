@@ -121,6 +121,7 @@ fun DiscoverScreen(
 	onOpenSchedule: (() -> Unit)? = null,
 	onCategoryMoreClick: (TrackingSiteCategory) -> Unit,
 	gridSpanCount: Int,
+	cardUiPrefsOverride: ContentCardUiPrefs? = null,
 	modifier: Modifier = Modifier
 ) {
 	if (isLoadingOnly) {
@@ -149,7 +150,7 @@ fun DiscoverScreen(
 		)
 	}
 	val gridScale = screenPrefs.gridScale
-	val cardUiPrefs = screenPrefs.cardUiPrefs
+	val cardUiPrefs = cardUiPrefsOverride ?: screenPrefs.cardUiPrefs
 
 	KototoroPullToRefreshBox(
 		isRefreshing = isRefreshing,
@@ -308,18 +309,22 @@ private fun DiscoverEmptyState(
 			horizontalAlignment = Alignment.CenterHorizontally,
 			verticalArrangement = Arrangement.spacedBy(12.dp),
 		) {
+			val primaryText = state.textPrimaryText?.toString()
+				?: if (state.textPrimary != 0) stringResource(state.textPrimary) else ""
+			val secondaryText = state.textSecondaryText?.toString()
+				?: if (state.textSecondary != 0) stringResource(state.textSecondary) else ""
 			Image(
 				painter = painterResource(state.icon),
 				contentDescription = null,
 				modifier = Modifier.align(Alignment.CenterHorizontally),
 			)
 			androidx.compose.material3.Text(
-				text = stringResource(state.textPrimary),
+				text = primaryText,
 				style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
 				textAlign = TextAlign.Center,
 			)
 			androidx.compose.material3.Text(
-				text = stringResource(state.textSecondary),
+				text = secondaryText,
 				style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
 				color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
 				textAlign = TextAlign.Center,

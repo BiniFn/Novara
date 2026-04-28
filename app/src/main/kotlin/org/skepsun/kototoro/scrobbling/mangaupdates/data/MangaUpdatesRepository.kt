@@ -3,6 +3,11 @@ package org.skepsun.kototoro.scrobbling.mangaupdates.data
 import android.content.Context
 import androidx.room.withTransaction
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -26,11 +31,13 @@ import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
 import java.io.IOException
+import java.time.LocalDate
 
 private const val BASE_API_URL = "https://api.mangaupdates.com/v1"
 private const val BASE_WEB_URL = "https://www.mangaupdates.com"
 private const val COMMENTS_PAGE_SIZE = 10
 private const val REVIEW_PAGE_SIZE = 3
+private const val DISCOVERY_PAGE_SIZE = 25
 private val CONTENT_TYPE = "application/vnd.api+json".toMediaType()
 
 class MangaUpdatesRepository(
@@ -151,10 +158,15 @@ class MangaUpdatesRepository(
 		return parseSeriesDetails(response)
 	}
 
-	suspend fun getRankings(orderby: String, page: Int, type: String? = null, genre: String? = null): List<ScrobblerContent> {
+	suspend fun getRankings(
+		orderby: String,
+		page: Int,
+		type: String? = null,
+		genre: String? = null,
+	): List<ScrobblerContent> {
 		val payload = JSONObject().apply {
 			put("page", page)
-			put("perpage", 25)
+			put("perpage", DISCOVERY_PAGE_SIZE)
 			put("orderby", orderby)
 			if (type != null) {
 				put("type", JSONArray().apply { put(type) })
@@ -193,6 +205,103 @@ class MangaUpdatesRepository(
 			)
 		}
 		return mapped
+	}
+
+	suspend fun getDailyReleases(date: LocalDate, page: Int): List<ScrobblerContent> {
+		val releaseDate = date.toString()
+		val payload = JSONObject().apply {
+			put("page", page)
+			put("perpage", DISCOVERY_PAGE_SIZE)
+			put("orderby", "date")
+			put("start_date", releaseDate)
+			put("end_date", releaseDate)
+			put("include_metadata", true)
+		}
+
+		val request = Request.Builder()
+			.post(payload.toString().toRequestBody(CONTENT_TYPE))
+			.url("$BASE_API_URL/releases/search")
+
+		val response = okHttp.newCall(request.build()).await().parseJson()
+		val results = response.optJSONArray("results") ?: return emptyList()
+		val mapped = ArrayList<ScrobblerContent>(results.length())
+		for (i in 0 until results.length()) {
+			val result = results.optJSONObject(i) ?: continue
+			val record = result.optJSONObject("record") ?: continue
+			val series = result.optJSONObject("metadata")?.optJSONObject("series") ?: continue
+			val seriesId = series.optLong("series_id", 0L).takeIf { it > 0L } ?: continue
+			val seriesTitle = series.getStringOrNull("title")
+			val releaseTitle = record.optString("title").takeIf { it.isNotBlank() }
+			val chapter = record.optString("chapter").takeIf { it.isNotBlank() }
+			val volume = record.optString("volume").takeIf { it.isNotBlank() }
+			val groupNames = record.optJSONArray("groups")?.let { groups ->
+				buildList {
+					for (groupIndex in 0 until minOf(groups.length(), 2)) {
+						groups.optJSONObject(groupIndex)
+							?.optString("name")
+							?.takeIf { it.isNotBlank() }
+							?.let(::add)
+					}
+				}
+			}.orEmpty()
+			val releaseLabel = listOfNotNull(
+				volume?.let { "Vol $it" },
+				chapter?.let { "Ch $it" },
+			).joinToString(" ").takeIf { it.isNotBlank() }
+			val releaseDateText = record.optString("release_date").takeIf { it.isNotBlank() }
+			mapped += ScrobblerContent(
+				id = seriesId,
+				name = seriesTitle ?: releaseTitle.orEmpty(),
+				altName = releaseTitle?.takeIf { it != seriesTitle },
+				cover = null,
+				url = series.getStringOrNull("url") ?: "$BASE_WEB_URL/series/$seriesId",
+				mediaType = "Release",
+				subtitle = listOfNotNull(releaseLabel, groupNames.joinToString(", ").takeIf { it.isNotBlank() })
+					.joinToString(" · ")
+					.takeIf { it.isNotBlank() },
+				progressText = releaseLabel,
+				updatedAtText = releaseDateText,
+				isBestMatch = false,
+			)
+		}
+		return mapped.distinctBy { it.id }.withReleaseCovers()
+	}
+
+	private suspend fun List<ScrobblerContent>.withReleaseCovers(): List<ScrobblerContent> = coroutineScope {
+		val seriesIds = asSequence()
+			.filter { it.cover.isNullOrBlank() }
+			.map { it.id }
+			.distinct()
+			.toList()
+		if (seriesIds.isEmpty()) {
+			return@coroutineScope this@withReleaseCovers
+		}
+
+		val semaphore = Semaphore(6)
+		val coversById = seriesIds.map { seriesId ->
+			async {
+				seriesId to semaphore.withPermit { fetchSeriesCover(seriesId) }
+			}
+		}.awaitAll()
+			.mapNotNull { (seriesId, cover) -> cover?.let { seriesId to it } }
+			.toMap()
+
+		map { content ->
+			val cover = coversById[content.id]
+			if (cover.isNullOrBlank()) content else content.copy(cover = cover)
+		}
+	}
+
+	private suspend fun fetchSeriesCover(seriesId: Long): String? {
+		return runCatching {
+			val request = Request.Builder()
+				.get()
+				.url("$BASE_API_URL/series/$seriesId")
+			okHttp.newCall(request.build()).await().parseJson()
+				.optJSONObject("image")
+				?.optJSONObject("url")
+				?.getStringOrNull("original")
+		}.getOrNull()
 	}
 
 	private suspend fun parseSeriesDetails(response: JSONObject): ScrobblerContentInfo {

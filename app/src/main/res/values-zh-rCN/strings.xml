@@ -1678,6 +1678,7 @@
     <string name="mal_category_manga_favorite">最多收藏漫画</string>
     <!-- MangaUpdates discovery categories -->
     <string name="mu_category_top_rated">评分最高</string>
+    <string name="mu_category_daily_releases">每日更新</string>
     <string name="mu_category_recently_updated">最近更新</string>
     <string name="mu_category_by_year">按年份</string>
     <string name="mu_category_alphabetical">按字母</string>

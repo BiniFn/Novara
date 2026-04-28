@@ -225,6 +225,7 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			supportsStatusSync = true,
 			supportsManualBinding = true,
 			discoveryCategories = listOf(
+				TrackingSiteCategory("calendar", org.skepsun.kototoro.R.string.discover_category_calendar),
 				TrackingSiteCategory("trending_anime", org.skepsun.kototoro.R.string.kitsu_category_trending_anime, sortOptions = kitsuCategoryOptions(), defaultSortOptionId = "kitsu_popularity"),
 				TrackingSiteCategory("trending_manga", org.skepsun.kototoro.R.string.kitsu_category_trending_manga, sortOptions = kitsuCategoryOptions(), defaultSortOptionId = "kitsu_popularity"),
 				TrackingSiteCategory("action", org.skepsun.kototoro.R.string.kitsu_category_action, sortOptions = kitsuCategoryOptions(), defaultSortOptionId = "kitsu_popularity"),
@@ -288,6 +289,10 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			supportsStatusSync = true,
 			supportsManualBinding = true,
 			discoveryCategories = listOf(
+				TrackingSiteCategory(
+					id = "calendar",
+					nameResId = org.skepsun.kototoro.R.string.mu_category_daily_releases,
+				),
 				TrackingSiteCategory(
 					id = "mu_score",
 					nameResId = org.skepsun.kototoro.R.string.mu_category_top_rated,
@@ -601,6 +606,11 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		val sort = catalog.trackingSortKey ?: "-userCount"
 
 		return when {
+			category.startsWith("calendar") -> {
+				val date = trackingCalendarDate(catalog.calendarDateMillis) ?: LocalDate.now()
+				kitsuRepository.getDailySchedule(date = date, page = catalog.page)
+					.map { it.toTrackingListItem(ScrobblerService.KITSU) }
+			}
 			category == "trending_anime" -> {
 				if (catalog.trackingSortKey == null) {
 					if (catalog.page > 0) return emptyList() // trending endpoint returns all at once
@@ -666,6 +676,11 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 	private suspend fun getMangaUpdatesTrending(catalog: TrackingSiteCatalog): List<TrackingSiteItem> {
 		val category = catalog.category ?: "mu_score"
 		val page = catalog.page + 1 // convert 0-based to 1-based
+		if (category.startsWith("calendar")) {
+			val date = trackingCalendarDate(catalog.calendarDateMillis) ?: LocalDate.now()
+			return mangaUpdatesRepository.getDailyReleases(date = date, page = page)
+				.map { it.toTrackingListItem(ScrobblerService.MANGAUPDATES) }
+		}
 
 		val orderby = catalog.trackingSortKey ?: when {
 			category.contains("score") -> "score"

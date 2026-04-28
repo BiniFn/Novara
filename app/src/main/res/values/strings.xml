@@ -2185,6 +2185,7 @@
     <string name="mal_category_manga_favorite">Most Favorited Manga</string>
     <!-- MangaUpdates discovery categories -->
     <string name="mu_category_top_rated">Top Rated</string>
+    <string name="mu_category_daily_releases">Daily Updates</string>
     <string name="mu_category_recently_updated">Recently Updated</string>
     <string name="mu_category_by_year">By Year</string>
     <string name="mu_category_alphabetical">Alphabetical</string>

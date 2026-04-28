@@ -225,6 +225,13 @@ class DiscoverViewModel @Inject constructor(
 			categories = caps.discoveryCategories,
 			currentTab = currentTab,
 		)
+		val scheduleCategoryId = getScheduleCategory(service)?.id
+		if (scheduleCategoryId != null &&
+			visibleCategories.firstOrNull()?.id == scheduleCategoryId &&
+			cacheRepository.readCategoryCache(service, scheduleCategoryId).isNullOrEmpty()
+		) {
+			return false
+		}
 		val rows = visibleCategories.mapNotNull { cat ->
 			val cached = cacheRepository.readCategoryCache(service, cat.id)
 			if (cached.isNullOrEmpty()) {
@@ -385,12 +392,23 @@ class DiscoverViewModel @Inject constructor(
 	): List<TrackingSiteCategory> {
 		val uniqueCategories = categories.distinctBy { it.id }
 		if (currentTab == org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All) {
-			return uniqueCategories
+			return uniqueCategories.withScheduleCategoryFirst(service)
 		}
 		val filtered = uniqueCategories.filter { category ->
 			isCategoryVisibleInTab(category.id, service, currentTab)
 		}
-		return filtered.ifEmpty { uniqueCategories }
+		return filtered.ifEmpty { uniqueCategories }.withScheduleCategoryFirst(service)
+	}
+
+	private fun List<TrackingSiteCategory>.withScheduleCategoryFirst(
+		service: ScrobblerService,
+	): List<TrackingSiteCategory> {
+		val scheduleCategory = getScheduleCategory(service) ?: return this
+		val index = indexOfFirst { it.id == scheduleCategory.id }
+		if (index <= 0) {
+			return this
+		}
+		return listOf(this[index]) + filterIndexed { itemIndex, _ -> itemIndex != index }
 	}
 
 	fun refresh() {
