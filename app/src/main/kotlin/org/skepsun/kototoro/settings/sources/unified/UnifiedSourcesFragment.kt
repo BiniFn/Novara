@@ -35,6 +35,7 @@ class UnifiedSourcesFragment : Fragment() {
 
 	private val viewModel by viewModels<UnifiedSourcesViewModel>()
 	private var pendingFileImportKind: UnifiedSourceKind? = null
+	private var toolbarSearchActive = false
 
 	private val openRepositoryFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
 		if (uri == null) return@registerForActivityResult
@@ -107,13 +108,11 @@ class UnifiedSourcesFragment : Fragment() {
 
 	override fun onResume() {
 		super.onResume()
-		(activity as? SettingsActivity)?.let { settingsActivity ->
-			settingsActivity.setSectionTitle(getString(R.string.extension_management))
-			settingsActivity.setSectionToolbarActions(createToolbarActionsView())
-		}
+		updateToolbarPresentation()
 	}
 
 	override fun onPause() {
+		toolbarSearchActive = false
 		(activity as? SettingsActivity)?.setSectionToolbarActions(null)
 		super.onPause()
 	}
@@ -139,6 +138,16 @@ class UnifiedSourcesFragment : Fragment() {
 			.show()
 	}
 
+	private fun updateToolbarPresentation() {
+		(activity as? SettingsActivity)?.let { settingsActivity ->
+			settingsActivity.setSectionTitle(if (toolbarSearchActive) "" else getString(R.string.extension_management))
+			settingsActivity.setSectionToolbarActions(
+				createToolbarActionsView(),
+				fillAvailableWidth = toolbarSearchActive,
+			)
+		}
+	}
+
 	private fun createToolbarActionsView(): View {
 		return ComposeView(requireContext()).apply {
 			setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
@@ -147,9 +156,17 @@ class UnifiedSourcesFragment : Fragment() {
 					val state by viewModel.uiState.collectAsStateWithLifecycle()
 					UnifiedSourcesToolbarControls(
 						state = state,
+						searchActive = toolbarSearchActive,
+						onSearchClick = {
+							toolbarSearchActive = true
+							updateToolbarPresentation()
+						},
+						onSearchClose = {
+							toolbarSearchActive = false
+							viewModel.setSearchQuery("")
+							updateToolbarPresentation()
+						},
 						onSearchQueryChange = viewModel::setSearchQuery,
-						onPrimaryContentTypeSelected = viewModel::setPrimaryContentTypeFilter,
-						onKindClick = viewModel::toggleKind,
 						onLanguageClick = viewModel::toggleLanguage,
 						onEnabledFilterClick = viewModel::setEnabledFilter,
 						onLocationTypeClick = viewModel::toggleLocationType,

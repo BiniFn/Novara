@@ -130,7 +130,7 @@ class SettingsActivity :
 		} ?: setTitle(title ?: getString(R.string.settings))
 	}
 
-	fun setSectionToolbarActions(view: View?) {
+	fun setSectionToolbarActions(view: View?, fillAvailableWidth: Boolean = false) {
 		val toolbar = viewBinding.toolbarDetail ?: viewBinding.toolbar
 		val tag = "section_toolbar_actions"
 		(0 until toolbar.childCount)
@@ -146,7 +146,7 @@ class SettingsActivity :
 		toolbar.addView(
 			view,
 			androidx.appcompat.widget.Toolbar.LayoutParams(
-				actionWidth,
+				if (fillAvailableWidth) ViewGroup.LayoutParams.MATCH_PARENT else actionWidth,
 				ViewGroup.LayoutParams.MATCH_PARENT,
 				Gravity.END or Gravity.CENTER_VERTICAL,
 			),

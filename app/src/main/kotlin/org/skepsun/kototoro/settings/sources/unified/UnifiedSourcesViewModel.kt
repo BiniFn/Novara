@@ -96,6 +96,12 @@ class UnifiedSourcesViewModel @Inject constructor(
 		}
 	}
 
+	fun setKindFilter(kind: UnifiedSourceKind?) {
+		filterState.update { state ->
+			state.copy(kinds = kind?.let(::setOf) ?: emptySet())
+		}
+	}
+
 	fun toggleContentType(contentType: ContentType) {
 		filterState.update { state ->
 			state.copy(contentTypes = state.contentTypes.toggle(contentType))
@@ -103,6 +109,10 @@ class UnifiedSourcesViewModel @Inject constructor(
 	}
 
 	fun setPrimaryContentTypeFilter(contentType: ContentType?) {
+		setContentTypeFilter(contentType)
+	}
+
+	fun setContentTypeFilter(contentType: ContentType?) {
 		filterState.update { state ->
 			state.copy(contentTypes = contentType?.let(::setOf) ?: emptySet())
 		}
@@ -952,9 +962,9 @@ private fun UnifiedSourceKind.displayNameForMessage(): String {
 
 private fun normalizeRepositoryUrlForAction(url: String): String {
 	return url.trim()
-		.removeSuffix("/")
+		.trimEnd('/')
 		.removeSuffix("/index.min.json")
-		.removeSuffix("/")
+		.trimEnd('/')
 }
 
 private fun resolveRepositoryLocationTypeForAction(locator: String): UnifiedRepositoryLocationType {

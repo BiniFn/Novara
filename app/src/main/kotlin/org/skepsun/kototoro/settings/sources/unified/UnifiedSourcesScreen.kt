@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -42,14 +43,18 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -64,12 +69,10 @@ import org.skepsun.kototoro.core.model.titleResId
 import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
 import org.skepsun.kototoro.core.util.ext.getDisplayName
 import org.skepsun.kototoro.core.util.ext.toLocaleOrNull
-import org.skepsun.kototoro.main.ui.compose.SwipeableFilterChip
 import org.skepsun.kototoro.parsers.model.ContentType
 import java.util.Locale
 
 private enum class UnifiedToolbarFilterPanel {
-	SOURCE_KIND,
 	LANGUAGE,
 	MORE,
 }
@@ -93,11 +96,10 @@ fun UnifiedSourcesRoute(
 		state = state,
 		isLoading = isLoading,
 		updateAllInProgress = updateAllInProgress,
-		showInlineControls = false,
 		onBack = onBack,
 		onSearchQueryChange = viewModel::setSearchQuery,
-		onKindClick = viewModel::toggleKind,
-		onContentTypeClick = viewModel::toggleContentType,
+		onKindClick = viewModel::setKindFilter,
+		onContentTypeClick = viewModel::setContentTypeFilter,
 		onLocationTypeClick = viewModel::toggleLocationType,
 		onLanguageClick = viewModel::toggleLanguage,
 		onEnabledFilterClick = viewModel::setEnabledFilter,
@@ -122,9 +124,10 @@ fun UnifiedSourcesRoute(
 @Composable
 fun UnifiedSourcesToolbarControls(
 	state: UnifiedSourcesUiState,
+	searchActive: Boolean,
+	onSearchClick: () -> Unit,
+	onSearchClose: () -> Unit,
 	onSearchQueryChange: (String) -> Unit,
-	onPrimaryContentTypeSelected: (ContentType?) -> Unit,
-	onKindClick: (UnifiedSourceKind) -> Unit,
 	onLanguageClick: (String) -> Unit,
 	onEnabledFilterClick: (UnifiedEnabledFilter) -> Unit,
 	onLocationTypeClick: (UnifiedRepositoryLocationType) -> Unit,
@@ -135,10 +138,6 @@ fun UnifiedSourcesToolbarControls(
 		return
 	}
 	var activePanel by rememberSaveable { mutableStateOf<UnifiedToolbarFilterPanel?>(null) }
-	val primaryContentType = state.filters.contentTypes.primaryContentType()
-	val enabledContentTypes = state.availableContentTypes
-		.filterTo(LinkedHashSet()) { it in topBarContentTypes }
-		.ifEmpty { topBarContentTypes }
 
 	Row(
 		modifier = modifier
@@ -147,24 +146,32 @@ fun UnifiedSourcesToolbarControls(
 		verticalAlignment = Alignment.CenterVertically,
 		horizontalArrangement = Arrangement.spacedBy(4.dp),
 	) {
-		ToolbarSearchField(
-			query = state.filters.query,
-			onQueryChange = onSearchQueryChange,
-			modifier = Modifier
-				.weight(1f)
-				.widthIn(min = 96.dp),
-		)
-		SwipeableFilterChip(
-			selectedType = primaryContentType,
-			enabledTypes = enabledContentTypes,
-			onTypeSelected = onPrimaryContentTypeSelected,
-		)
-		ToolbarFilterIconButton(
-			iconRes = R.drawable.ic_extension,
-			activeCount = state.filters.kinds.size,
-			contentDescription = "Source type filters",
-			onClick = { activePanel = UnifiedToolbarFilterPanel.SOURCE_KIND },
-		)
+		if (searchActive) {
+			ToolbarSearchField(
+				query = state.filters.query,
+				onQueryChange = onSearchQueryChange,
+				autofocus = true,
+				modifier = Modifier
+					.weight(1f)
+					.widthIn(min = 96.dp),
+			)
+			IconButton(
+				onClick = onSearchClose,
+				modifier = Modifier.size(40.dp),
+			) {
+				Icon(
+					Icons.Filled.Close,
+					contentDescription = "Close search",
+					modifier = Modifier.size(20.dp),
+				)
+			}
+		} else {
+			Spacer(modifier = Modifier.weight(1f))
+			ToolbarSearchIconButton(
+				active = state.filters.query.isNotBlank(),
+				onClick = onSearchClick,
+			)
+		}
 		ToolbarFilterIconButton(
 			iconRes = R.drawable.ic_language,
 			activeCount = state.filters.languages.size,
@@ -180,21 +187,6 @@ fun UnifiedSourcesToolbarControls(
 	}
 
 	when (activePanel) {
-		UnifiedToolbarFilterPanel.SOURCE_KIND -> UnifiedFilterGroupDialog(
-			title = "Source type",
-			onDismiss = { activePanel = null },
-			onClear = onClearFilters,
-		) {
-			FilterSection(title = "Source type") {
-				items(state.availableKinds) { kind ->
-					CompactFilterChip(
-						selected = kind in state.filters.kinds,
-						onClick = { onKindClick(kind) },
-						text = kind.displayLabel(),
-					)
-				}
-			}
-		}
 		UnifiedToolbarFilterPanel.LANGUAGE -> UnifiedFilterGroupDialog(
 			title = "Language",
 			onDismiss = { activePanel = null },
@@ -243,7 +235,14 @@ private fun ToolbarSearchField(
 	query: String,
 	onQueryChange: (String) -> Unit,
 	modifier: Modifier = Modifier,
+	autofocus: Boolean = false,
 ) {
+	val focusRequester = remember { FocusRequester() }
+	if (autofocus) {
+		LaunchedEffect(Unit) {
+			focusRequester.requestFocus()
+		}
+	}
 	Surface(
 		modifier = modifier.height(40.dp),
 		shape = RoundedCornerShape(20.dp),
@@ -253,7 +252,9 @@ private fun ToolbarSearchField(
 		BasicTextField(
 			value = query,
 			onValueChange = onQueryChange,
-			modifier = Modifier.fillMaxSize(),
+			modifier = Modifier
+				.fillMaxSize()
+				.focusRequester(focusRequester),
 			singleLine = true,
 			textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
 			decorationBox = { innerTextField ->
@@ -283,6 +284,38 @@ private fun ToolbarSearchField(
 				}
 			},
 		)
+	}
+}
+
+@Composable
+private fun ToolbarSearchIconButton(
+	active: Boolean,
+	onClick: () -> Unit,
+) {
+	Box(contentAlignment = Alignment.TopEnd) {
+		IconButton(
+			onClick = onClick,
+			modifier = Modifier.size(40.dp),
+		) {
+			Icon(
+				Icons.Filled.Search,
+				contentDescription = "Search",
+				modifier = Modifier.size(20.dp),
+				tint = if (active) {
+					MaterialTheme.colorScheme.primary
+				} else {
+					MaterialTheme.colorScheme.onSurfaceVariant
+				},
+			)
+		}
+		if (active) {
+			Surface(
+				modifier = Modifier.size(8.dp),
+				shape = RoundedCornerShape(4.dp),
+				color = MaterialTheme.colorScheme.primary,
+				contentColor = MaterialTheme.colorScheme.onPrimary,
+			) {}
+		}
 	}
 }
 
@@ -358,11 +391,10 @@ fun UnifiedSourcesScreen(
 	state: UnifiedSourcesUiState,
 	isLoading: Boolean,
 	updateAllInProgress: Boolean,
-	showInlineControls: Boolean = true,
 	onBack: () -> Unit,
 	onSearchQueryChange: (String) -> Unit,
-	onKindClick: (UnifiedSourceKind) -> Unit,
-	onContentTypeClick: (org.skepsun.kototoro.parsers.model.ContentType) -> Unit,
+	onKindClick: (UnifiedSourceKind?) -> Unit,
+	onContentTypeClick: (ContentType?) -> Unit,
 	onLocationTypeClick: (UnifiedRepositoryLocationType) -> Unit,
 	onLanguageClick: (String) -> Unit,
 	onEnabledFilterClick: (UnifiedEnabledFilter) -> Unit,
@@ -405,18 +437,11 @@ fun UnifiedSourcesScreen(
 					if (isLoading) {
 						LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
 					}
-					if (showInlineControls) {
-						UnifiedSourcesCompactFilters(
-							state = state,
-							onSearchQueryChange = onSearchQueryChange,
-							onKindClick = onKindClick,
-							onContentTypeClick = onContentTypeClick,
-							onLocationTypeClick = onLocationTypeClick,
-							onLanguageClick = onLanguageClick,
-							onEnabledFilterClick = onEnabledFilterClick,
-							onClearFilters = onClearFilters,
-						)
-					}
+					UnifiedSourcesFilterTabs(
+						state = state,
+						onContentTypeClick = onContentTypeClick,
+						onKindClick = onKindClick,
+					)
 					TabRow(selectedTabIndex = selectedTab) {
 						Tab(
 							selected = selectedTab == 0,
@@ -460,6 +485,57 @@ fun UnifiedSourcesScreen(
 						)
 					}
 				}
+			}
+		}
+	}
+}
+
+@Composable
+private fun UnifiedSourcesFilterTabs(
+	state: UnifiedSourcesUiState.Ready,
+	onContentTypeClick: (ContentType?) -> Unit,
+	onKindClick: (UnifiedSourceKind?) -> Unit,
+) {
+	Column(
+		modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+		verticalArrangement = Arrangement.spacedBy(4.dp),
+	) {
+		LazyRow(
+			horizontalArrangement = Arrangement.spacedBy(6.dp),
+			contentPadding = PaddingValues(horizontal = 1.dp),
+		) {
+			item(key = "content_all") {
+				CompactFilterChip(
+					selected = state.filters.contentTypes.isEmpty(),
+					onClick = { onContentTypeClick(null) },
+					text = "All content",
+				)
+			}
+			items(state.availableContentTypes, key = { it.name }) { type ->
+				CompactFilterChip(
+					selected = type in state.filters.contentTypes,
+					onClick = { onContentTypeClick(type) },
+					text = stringResource(type.titleResId),
+				)
+			}
+		}
+		LazyRow(
+			horizontalArrangement = Arrangement.spacedBy(6.dp),
+			contentPadding = PaddingValues(horizontal = 1.dp),
+		) {
+			item(key = "kind_all") {
+				CompactFilterChip(
+					selected = state.filters.kinds.isEmpty(),
+					onClick = { onKindClick(null) },
+					text = "All sources",
+				)
+			}
+			items(state.availableKinds, key = { it.name }) { kind ->
+				CompactFilterChip(
+					selected = kind in state.filters.kinds,
+					onClick = { onKindClick(kind) },
+					text = kind.displayLabel(),
+				)
 			}
 		}
 	}
@@ -891,20 +967,19 @@ private fun UnifiedRepositoryList(
 							style = MaterialTheme.typography.titleSmall,
 							fontWeight = FontWeight.SemiBold,
 						)
-						AssistChip(
-							onClick = {
-								if (item.isConfigured) {
-									onRefreshRepository(item)
-								} else {
-									onAddRepository(item)
-								}
-							},
-							label = { Text(if (item.isConfigured) "Refresh" else "Add") },
-						)
 						if (item.isConfigured) {
+							AssistChip(
+								onClick = { onRefreshRepository(item) },
+								label = { Text("Refresh") },
+							)
 							AssistChip(
 								onClick = { onDeleteRepository(item) },
 								label = { Text("Delete") },
+							)
+						} else if (item.isPreset) {
+							AssistChip(
+								onClick = { onAddRepository(item) },
+								label = { Text("Add") },
 							)
 						}
 					}

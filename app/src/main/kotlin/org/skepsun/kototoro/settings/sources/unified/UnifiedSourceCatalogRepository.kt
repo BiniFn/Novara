@@ -616,9 +616,9 @@ private fun packageId(kind: UnifiedSourceKind, value: String): String {
 
 private fun normalizeRepositoryUrl(url: String): String {
 	return url.trim()
-		.removeSuffix("/")
+		.trimEnd('/')
 		.removeSuffix("/index.min.json")
-		.removeSuffix("/")
+		.trimEnd('/')
 }
 
 private fun resolveLocationType(locator: String): UnifiedRepositoryLocationType {
