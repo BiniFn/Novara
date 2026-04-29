@@ -130,7 +130,10 @@ fun ChaptersScreen(
                         userScrollEnabled = isScrollEnabled,
                         modifier = Modifier
                             .fillMaxSize()
-                            .verticalScrollbar(gridState)
+                            .verticalScrollbar(
+                                state = gridState,
+                                draggable = false,
+                            )
                             .then(paneNestedScrollModifier),
                     ) {
                         items(
@@ -173,7 +176,10 @@ fun ChaptersScreen(
                         userScrollEnabled = isScrollEnabled,
                         modifier = Modifier
                             .fillMaxSize()
-                            .verticalScrollbar(listState)
+                            .verticalScrollbar(
+                                state = listState,
+                                labelProvider = { index -> "${index + 1}" },
+                            )
                             .then(paneNestedScrollModifier),
                     ) {
                         items(

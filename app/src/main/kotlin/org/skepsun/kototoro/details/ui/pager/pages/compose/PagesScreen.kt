@@ -249,7 +249,10 @@ fun PagesScreen(
 				verticalArrangement = Arrangement.spacedBy(8.dp),
 				modifier = Modifier
                     .fillMaxSize()
-                    .verticalScrollbar(listState)
+                    .verticalScrollbar(
+                        state = listState,
+                        labelProvider = { index -> "${index + 1}" },
+                    )
                     .then(paneNestedScrollModifier),
 			) {
                 items(
