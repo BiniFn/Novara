@@ -32,6 +32,8 @@
 		android:valueFrom="0"
 		android:visibility="visible"
 		app:labelBehavior="floating"
+		app:thumbRadius="10dp"
+		app:trackHeight="4dp"
 		tools:value="6"
 		tools:valueTo="20" />
 
