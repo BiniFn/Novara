@@ -2,53 +2,174 @@ package org.skepsun.kototoro.settings
 
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.net.Uri
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.view.Gravity
+import android.webkit.CookieManager
+import android.webkit.WebStorage
+import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.core.content.edit
+import androidx.core.net.toUri
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePaddingRelative
+import androidx.documentfile.provider.DocumentFile
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentFactory
 import androidx.fragment.app.FragmentTransaction
 import androidx.fragment.app.commit
+import androidx.fragment.app.commitNow
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
-import kotlinx.coroutines.launch
+import androidx.preference.PreferenceManager
 import com.google.android.material.appbar.AppBarLayout
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.backups.domain.BackupUtils
+import org.skepsun.kototoro.backups.ui.backup.BackupService
+import org.skepsun.kototoro.backups.ui.periodical.PeriodicalBackupSettingsViewModel
+import org.skepsun.kototoro.core.github.AppVersion
 import org.skepsun.kototoro.core.model.ContentSource
 import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.core.network.BaseHttpClient
+import org.skepsun.kototoro.core.os.AppShortcutManager
+import org.skepsun.kototoro.core.os.OpenDocumentTreeHelper
+import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.BaseActivity
+import org.skepsun.kototoro.core.ui.theme.KototoroTheme
+import org.skepsun.kototoro.core.ui.util.ActivityRecreationHandle
+import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
+import org.skepsun.kototoro.core.util.FileSize
+import org.skepsun.kototoro.core.util.FoldableUtils
 import org.skepsun.kototoro.core.util.ext.buildBundle
 import org.skepsun.kototoro.core.util.ext.end
-import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.util.ext.getDisplayMessage
+import org.skepsun.kototoro.core.util.ext.getQuantityStringSafe
 import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.start
 import org.skepsun.kototoro.core.util.ext.textAndVisible
-import org.skepsun.kototoro.databinding.ActivitySettingsBinding
-
-import org.skepsun.kototoro.settings.about.AboutSettingsFragment
-import org.skepsun.kototoro.settings.discord.DiscordSettingsFragment
+import org.skepsun.kototoro.core.util.ext.tryLaunch
+import org.skepsun.kototoro.download.ui.worker.DownloadWorker
+import org.skepsun.kototoro.explore.data.SourcePresetsRepository
+import org.skepsun.kototoro.local.data.LocalStorageManager
+import org.skepsun.kototoro.parsers.util.await
+import org.skepsun.kototoro.reader.translate.data.OnnxModelManager
+import org.skepsun.kototoro.scrobbling.common.ui.ScrobblerAuthHelper
+import org.skepsun.kototoro.settings.about.AboutSettingsRoute
+import org.skepsun.kototoro.settings.about.AboutSettingsViewModel
+import org.skepsun.kototoro.settings.about.AppUpdateActivity
+import org.skepsun.kototoro.settings.about.changelog.ChangelogRoute
+import org.skepsun.kototoro.settings.about.changelog.ChangelogViewModel
+import org.skepsun.kototoro.settings.compose.SettingsChoiceOption
+import org.skepsun.kototoro.settings.compose.SettingsRootScreen
+import org.skepsun.kototoro.settings.compose.SettingsSectionScaffold
+import org.skepsun.kototoro.settings.compose.buildSettingsRootSections
+import org.skepsun.kototoro.settings.nav.NavConfigRoute
+import org.skepsun.kototoro.settings.nav.NavConfigViewModel
+import org.skepsun.kototoro.settings.userdata.storage.DataCleanupSettingsRoute
+import org.skepsun.kototoro.settings.userdata.storage.DataCleanupSettingsViewModel
+import org.skepsun.kototoro.settings.discord.DiscordSettingsRoute
+import org.skepsun.kototoro.settings.discord.DiscordSettingsViewModel
+import org.skepsun.kototoro.settings.protect.ProtectSetupActivity
 import org.skepsun.kototoro.settings.search.SettingsItem
-import org.skepsun.kototoro.settings.search.SettingsSearchFragment
 import org.skepsun.kototoro.settings.search.SettingsSearchViewModel
+import org.skepsun.kototoro.settings.support.TranslationApiSettingsSupport
+import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.settings.sources.SourceSettingsHostFragment
-import org.skepsun.kototoro.settings.sources.SourcesSettingsFragment
-import org.skepsun.kototoro.settings.sources.unified.UnifiedSourcesFragment
-import org.skepsun.kototoro.settings.tracker.TrackerSettingsFragment
-import org.skepsun.kototoro.settings.userdata.BackupsSettingsFragment
-import org.skepsun.kototoro.core.util.FoldableUtils
+import org.skepsun.kototoro.settings.sources.SourcesSettingsRoute
+import org.skepsun.kototoro.settings.sources.SourcesSettingsViewModel
+import org.skepsun.kototoro.settings.sources.unified.UnifiedSourcesActivity
+import org.skepsun.kototoro.settings.tracker.TrackerSettingsRoute
+import org.skepsun.kototoro.settings.tracker.TrackerSettingsViewModel
+import org.skepsun.kototoro.settings.userdata.BackupsSettingsRoute
+import org.skepsun.kototoro.settings.utils.RingtonePickContract
+import org.skepsun.kototoro.suggestions.ui.SuggestionsWorker
+import org.skepsun.kototoro.settings.users.TrackingUserAccountSummaryProvider
+import org.skepsun.kototoro.sync.data.SyncSettings
+import org.skepsun.kototoro.sync.ui.SyncHostDialogFragment
+import org.skepsun.kototoro.tracker.ui.debug.TrackerDebugActivity
+import org.skepsun.kototoro.tracker.work.TrackerNotificationHelper
+import org.skepsun.kototoro.tracking.animeoffline.data.AnimeOfflineRepository
+import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteDiscoveryService
+import org.skepsun.kototoro.video.ui.VideoSuperResolutionAdvancedSheet
+import org.skepsun.kototoro.scrobbling.discord.ui.DiscordAuthActivity
+import kotlin.coroutines.cancellation.CancellationException
 
 @AndroidEntryPoint
 class SettingsActivity :
-	BaseActivity<ActivitySettingsBinding>(),
+	BaseActivity<SettingsActivityLayoutBinding>(),
 	PreferenceFragmentCompat.OnPreferenceStartFragmentCallback {
+
+	@Inject
+	lateinit var activityRecreationHandle: ActivityRecreationHandle
+
+	@Inject
+	lateinit var appShortcutManager: AppShortcutManager
+
+	@Inject
+	lateinit var sourcePresetsRepository: SourcePresetsRepository
+
+	@Inject
+	lateinit var storageManager: LocalStorageManager
+
+	@Inject
+	lateinit var downloadsScheduler: DownloadWorker.Scheduler
+
+	@Inject
+	lateinit var animeOfflineRepository: AnimeOfflineRepository
+
+	@Inject
+	lateinit var scrobblerAuthHelper: ScrobblerAuthHelper
+
+	@Inject
+	lateinit var trackingUserAccountSummaryProvider: TrackingUserAccountSummaryProvider
+
+	@Inject
+	lateinit var trackingDiscoveryService: TrackingSiteDiscoveryService
+
+	@Inject
+	lateinit var trackerNotificationHelper: TrackerNotificationHelper
+
+	@Inject
+	@BaseHttpClient
+	lateinit var okHttpClient: OkHttpClient
+
+	@Inject
+	lateinit var suggestionsScheduler: SuggestionsWorker.Scheduler
+
+	@Inject
+	lateinit var onnxModelManager: OnnxModelManager
+
+	@Inject
+	lateinit var syncSettings: SyncSettings
 
 	private val isMasterDetails
 		get() = viewBinding.containerMaster != null && if (kototoroAppSettings.tabletUiMode == org.skepsun.kototoro.core.prefs.TabletUiMode.STRICT) {
@@ -58,41 +179,158 @@ class SettingsActivity :
 		}
 
 	private val viewModel: SettingsSearchViewModel by viewModels()
+	private val rootSettingsViewModel: RootSettingsViewModel by viewModels()
+	private val aboutSettingsViewModel: AboutSettingsViewModel by viewModels()
+	private val periodicalBackupSettingsViewModel: PeriodicalBackupSettingsViewModel by viewModels()
+	private val discordSettingsViewModel: DiscordSettingsViewModel by viewModels()
+	private val sourcesSettingsViewModel: SourcesSettingsViewModel by viewModels()
+	private val storageAndNetworkSettingsViewModel: StorageAndNetworkSettingsViewModel by viewModels()
+	private val dataCleanupSettingsViewModel: DataCleanupSettingsViewModel by viewModels()
+	private val navConfigViewModel: NavConfigViewModel by viewModels()
+	private val changelogViewModel: ChangelogViewModel by viewModels()
+	private val trackerSettingsViewModel: TrackerSettingsViewModel by viewModels()
 
 	private var isFoldUnfolded = false
+	private var composeDestination: SettingsDestination? = null
+	private val composeNavigationStack = ArrayDeque<SettingsDestination>()
+	private var shouldRestoreFragmentOnComposeExit = false
+	private var composeDestinationToRestore: SettingsDestination? = null
+	private var ttsSettingsCoordinator: TtsSettingsCoordinator? = null
+	private var isDataCleanupObserversBound = false
+	private var translationApiFetchModelsJob: Job? = null
+	private var translationE2EApiFetchModelsJob: Job? = null
+	private var proxyTestJob: Job? = null
+	private val downloadsStorageTick = MutableStateFlow(0)
+	private val downloadsDozeTick = MutableStateFlow(0)
+	private val usersResumeTick = MutableStateFlow(0)
+	private val trackerDozeTick = MutableStateFlow(0)
+	private val trackerNotificationTick = MutableStateFlow(0)
+	private val proxyTestSummaryFlow = MutableStateFlow<String?>(null)
+	private val proxyIsTestRunningFlow = MutableStateFlow(false)
+	private val suggestionsExcludeTagsFlow = MutableStateFlow("")
+	private val suggestionsPreferredTagsFlow = MutableStateFlow("")
+	private val syncUrlFlow = MutableStateFlow("")
+
+	private val composeBackCallback = object : OnBackPressedCallback(false) {
+		override fun handleOnBackPressed() {
+			handleComposeNavigateUp()
+		}
+	}
+
+	private val pickDownloadsPagesDirectory = OpenDocumentTreeHelper(this) { uri ->
+		if (uri == null) return@OpenDocumentTreeHelper
+		onDownloadsPagesDirectoryPicked(uri)
+	}
+
+	private val ignoreDownloadsDozeLauncher = registerForActivityResult(
+		ActivityResultContracts.StartActivityForResult(),
+	) {
+		downloadsDozeTick.update { it + 1 }
+	}
+
+	private val ignoreTrackerDozeLauncher = registerForActivityResult(
+		ActivityResultContracts.StartActivityForResult(),
+	) {
+		trackerDozeTick.update { it + 1 }
+	}
+
+	private val backupSelectCall = registerForActivityResult(
+		ActivityResultContracts.OpenDocument(),
+	) { uri ->
+		if (uri != null) {
+			router.showBackupRestoreDialog(uri)
+		}
+	}
+
+	private val backupCreateCall = registerForActivityResult(
+		ActivityResultContracts.CreateDocument("application/zip"),
+	) { uri ->
+		if (uri != null && !BackupService.start(this, uri)) {
+			Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_SHORT).show()
+		}
+	}
+
+	private val backupOutputSelectCall = OpenDocumentTreeHelper(this) { uri ->
+		if (uri != null) {
+			val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+			contentResolver.takePersistableUriPermission(uri, takeFlags)
+			kototoroAppSettings.periodicalBackupDirectory = uri
+			periodicalBackupSettingsViewModel.updateSummaryData()
+		}
+	}
+
+	private val ringtonePickContract = registerForActivityResult(
+		RingtonePickContract(R.string.notification_sound),
+	) { uri ->
+		kototoroAppSettings.notificationSound = uri ?: return@registerForActivityResult
+	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-		setContentView(ActivitySettingsBinding.inflate(layoutInflater))
+		setContentView(SettingsActivityLayoutBinding.inflate(layoutInflater))
 		setDisplayHomeAsUp(isEnabled = true, showUpAsClose = false)
+		onBackPressedDispatcher.addCallback(this, composeBackCallback)
+		viewBinding.containerCompose.setViewCompositionStrategy(
+			ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed,
+		)
+		syncUrlFlow.value = syncSettings.syncUrl ?: ""
+		supportFragmentManager.setFragmentResultListener(SyncHostDialogFragment.REQUEST_KEY, this) { _, _ ->
+			syncUrlFlow.value = syncSettings.syncUrl ?: ""
+		}
+		masterContainerComposeView()?.setViewCompositionStrategy(
+			ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed,
+		)
+		renderMasterSettingsRoot()
+		supportFragmentManager.addOnBackStackChangedListener {
+			restoreComposeDestinationIfNeeded()
+		}
 		val fm = supportFragmentManager
 		val currentFragment = fm.findFragmentById(R.id.container)
-		if (currentFragment == null || (isMasterDetails && currentFragment is RootSettingsFragment)) {
+		val restoredDestination = savedInstanceState?.toComposeDestination()
+		composeDestinationToRestore = savedInstanceState
+			?.getBoolean(STATE_PENDING_RESTORE_ROOT)
+			?.takeIf { it }
+			?.let { SettingsDestination.Root }
+		if (currentFragment == null) {
 			openDefaultFragment()
 		}
-		if (isMasterDetails && fm.findFragmentById(R.id.container_master) == null) {
-			supportFragmentManager.commit {
-				setReorderingAllowed(true)
-				replace(R.id.container_master, RootSettingsFragment())
-			}
-		} else if (!isMasterDetails) {
-			val zombieMaster = fm.findFragmentById(R.id.container_master)
-			if (zombieMaster != null) {
-				fm.commit {
-					remove(zombieMaster)
-				}
-			}
-		}
-		viewModel.isSearchActive.observe(this, ::toggleSearchMode)
 		viewModel.onNavigateToPreference.observeEvent(this, ::navigateToPreference)
-		
+		aboutSettingsViewModel.onUpdateAvailable.observeEvent(this, ::onAboutUpdateAvailable)
+		changelogViewModel.onError.observeEvent(this, SnackbarErrorObserver(viewBinding.root, null))
+		restoredDestination?.let { openComposeDestination(it, shouldRestoreFragment = savedInstanceState.getBoolean(STATE_COMPOSE_RESTORE_FRAGMENT)) }
+
 		observeFoldableState()
 	}
 
 	override fun onResume() {
 		super.onResume()
+		when (composeDestination) {
+			SettingsDestination.DownloadsSettings -> {
+				downloadsStorageTick.update { it + 1 }
+				downloadsDozeTick.update { it + 1 }
+			}
+			SettingsDestination.UsersSettings -> {
+				usersResumeTick.update { it + 1 }
+			}
+			SettingsDestination.SuggestionsSettings -> {
+				refreshSuggestionsTags()
+			}
+			SettingsDestination.TrackerSettings -> {
+				trackerDozeTick.update { it + 1 }
+				trackerNotificationTick.update { it + 1 }
+			}
+			else -> Unit
+		}
 		// 从后台恢复或状态变化后，立即按当前折叠状态调整布局
 		adjustLayoutForFoldableState()
+	}
+
+	override fun onDestroy() {
+		translationApiFetchModelsJob?.cancel()
+		translationE2EApiFetchModelsJob?.cancel()
+		ttsSettingsCoordinator?.stop()
+		ttsSettingsCoordinator = null
+		super.onDestroy()
 	}
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
@@ -121,6 +359,139 @@ class SettingsActivity :
 			isFromRoot = false,
 		)
 		return true
+	}
+
+	override fun onSupportNavigateUp(): Boolean {
+		if (composeDestination != null) {
+			handleComposeNavigateUp()
+			return true
+		}
+		return super.onSupportNavigateUp()
+	}
+
+	override fun onSaveInstanceState(outState: Bundle) {
+		super.onSaveInstanceState(outState)
+			when (val destination = composeDestination) {
+				SettingsDestination.Root -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_ROOT)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.AppearanceSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_APPEARANCE_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.UsersSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_USERS_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.AISettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_AI_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.OcrModelsSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_OCR_MODELS_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.AiImageEnhancementSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_AI_IMAGE_ENHANCEMENT_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.AiVideoEnhancementSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_AI_VIDEO_ENHANCEMENT_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.TtsSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_TTS_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.PlaybackSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_PLAYBACK_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.ReaderSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_READER_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.SourcesSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_SOURCES_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.SuggestionsSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_SUGGESTIONS_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.BackupsSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_BACKUPS_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.SyncSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_SYNC_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.TranslationSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_TRANSLATION_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.TranslationApiSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_TRANSLATION_API_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.TranslationE2EApiSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_TRANSLATION_E2E_API_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.StorageAndNetworkSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_STORAGE_AND_NETWORK_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.DataCleanupSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_DATA_CLEANUP_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.DownloadsSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_DOWNLOADS_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.TrackerSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_TRACKER_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.NotificationSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_NOTIFICATION_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.ServicesSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_SERVICES_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.DiscordSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_DISCORD_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.ProxySettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_PROXY_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.NavConfigSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_NAV_CONFIG_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.ChangelogSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_CHANGELOG_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				SettingsDestination.AboutSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_ABOUT_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
+				is SettingsDestination.UnifiedSources -> Unit
+				null,
+				is SettingsDestination.FragmentDestination -> Unit
+			}
+		outState.putBoolean(
+			STATE_PENDING_RESTORE_ROOT,
+			composeDestinationToRestore == SettingsDestination.Root,
+		)
 	}
 
 	fun setSectionTitle(title: CharSequence?) {
@@ -153,7 +524,49 @@ class SettingsActivity :
 		)
 	}
 
+	private fun setLegacyTopBarVisible(isVisible: Boolean) {
+		viewBinding.legacyTopBarHost.isVisible = isVisible
+		viewBinding.appbarDetail?.isVisible = isVisible
+	}
+
+	private fun renderComposeContent(
+		showLegacyTopBar: Boolean,
+		content: @Composable () -> Unit,
+	) {
+		setLegacyTopBarVisible(showLegacyTopBar)
+		viewBinding.containerCompose.setContent {
+			KototoroTheme {
+				content()
+			}
+		}
+	}
+
+	private fun renderComposeSection(
+		title: String,
+		actions: (@Composable BoxScope.() -> Unit)? = null,
+		content: @Composable () -> Unit,
+	) {
+		setTitle(title)
+		renderComposeContent(showLegacyTopBar = false) {
+			SettingsSectionScaffold(
+				title = title,
+				onNavigateUp = ::handleComposeNavigateUp,
+				actions = actions,
+				content = content,
+			)
+		}
+	}
+
 	fun openFragment(fragmentClass: Class<out Fragment>, args: Bundle?, isFromRoot: Boolean) {
+		composeDestinationToRestore = composeDestination.takeIf { it == SettingsDestination.Root }
+		composeNavigationStack.clear()
+		val shouldPopHiddenFragment = composeDestination != null &&
+			shouldRestoreFragmentOnComposeExit &&
+			supportFragmentManager.backStackEntryCount > 0
+		closeComposeDestination(restorePreviousFragment = false)
+		if (shouldPopHiddenFragment) {
+			supportFragmentManager.popBackStackImmediate()
+		}
 		viewModel.discardSearch()
 		val hasFragment = supportFragmentManager.findFragmentById(R.id.container) != null
 		supportFragmentManager.commit {
@@ -166,68 +579,150 @@ class SettingsActivity :
 		}
 	}
 
-	private fun toggleSearchMode(isEnabled: Boolean) {
-		viewBinding.containerSearch.isVisible = isEnabled
-		val searchFragment = supportFragmentManager.findFragmentById(R.id.container_search)
-		if (searchFragment != null) {
-			if (!isEnabled) {
-				invalidateOptionsMenu()
-				supportFragmentManager.commit {
-					setReorderingAllowed(true)
-					remove(searchFragment)
-					setTransition(FragmentTransaction.TRANSIT_FRAGMENT_CLOSE)
-				}
-			}
-		} else if (isEnabled) {
-			supportFragmentManager.commit {
+	fun replaceCurrentFragmentWithDestination(destination: SettingsDestination) {
+		if (destination is SettingsDestination.UnifiedSources) {
+			startActivity(
+				UnifiedSourcesActivity.newIntent(
+					context = this,
+					initialRepositoryKind = destination.initialRepositoryKind,
+					initialRepositoryUrl = destination.initialRepositoryUrl,
+				),
+			)
+			return
+		}
+		if (supportFragmentManager.isStateSaved) {
+			return
+		}
+		composeNavigationStack.clear()
+		val currentFragment = supportFragmentManager.findFragmentById(R.id.container)
+		closeComposeDestination(restorePreviousFragment = false)
+		if (currentFragment != null) {
+			supportFragmentManager.commitNow {
 				setReorderingAllowed(true)
-				add(R.id.container_search, SettingsSearchFragment::class.java, null)
-				setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN)
+				remove(currentFragment)
 			}
 		}
+		viewModel.discardSearch()
+		composeDestinationToRestore = null
+		composeDestination = destination
+		shouldRestoreFragmentOnComposeExit = false
+		viewBinding.containerCompose.isVisible = true
+		renderComposeDestination(destination)
+		composeBackCallback.isEnabled = true
 	}
 
-	private fun openDefaultFragment() {
-		val fragment = when (intent?.action) {
-			AppRouter.ACTION_READER -> ReaderSettingsFragment()
-			AppRouter.ACTION_SUGGESTIONS -> SuggestionsSettingsFragment()
-			AppRouter.ACTION_HISTORY -> BackupsSettingsFragment()
-			AppRouter.ACTION_SYNC_SETTINGS -> BackupsSettingsFragment()
-			AppRouter.ACTION_TRACKER -> TrackerSettingsFragment()
-			AppRouter.ACTION_TRANSLATION -> org.skepsun.kototoro.settings.TranslationSettingsFragment()
-			AppRouter.ACTION_PERIODIC_BACKUP -> BackupsSettingsFragment()
-			AppRouter.ACTION_SOURCES -> SourcesSettingsFragment()
-			AppRouter.ACTION_MANAGE_DISCORD -> DiscordSettingsFragment()
-			AppRouter.ACTION_PROXY -> ProxySettingsFragment()
-			AppRouter.ACTION_MANAGE_DOWNLOADS -> DownloadsSettingsFragment()
+		fun openDestination(destination: SettingsDestination, args: Bundle?, isFromRoot: Boolean) {
+			when (destination) {
+				SettingsDestination.Root -> openComposeDestination(
+					destination,
+					shouldRestoreFragment = false,
+					pushCurrentToStack = false,
+				)
+				SettingsDestination.AppearanceSettings,
+				SettingsDestination.UsersSettings,
+				SettingsDestination.AISettings,
+				SettingsDestination.OcrModelsSettings,
+				SettingsDestination.AiImageEnhancementSettings,
+				SettingsDestination.AiVideoEnhancementSettings,
+				SettingsDestination.TtsSettings,
+				SettingsDestination.PlaybackSettings,
+				SettingsDestination.ReaderSettings,
+				SettingsDestination.SourcesSettings,
+				SettingsDestination.SuggestionsSettings,
+				SettingsDestination.BackupsSettings,
+				SettingsDestination.SyncSettings,
+				SettingsDestination.TranslationSettings,
+				SettingsDestination.TranslationApiSettings,
+				SettingsDestination.TranslationE2EApiSettings -> openComposeDestination(
+					destination,
+					shouldRestoreFragment = shouldRestoreFragmentForNextDestination(isFromRoot),
+				)
+				SettingsDestination.StorageAndNetworkSettings,
+				SettingsDestination.DataCleanupSettings,
+				SettingsDestination.DownloadsSettings,
+				SettingsDestination.TrackerSettings,
+				SettingsDestination.NotificationSettings,
+				SettingsDestination.ServicesSettings,
+				SettingsDestination.DiscordSettings,
+				SettingsDestination.ProxySettings,
+				SettingsDestination.NavConfigSettings,
+				SettingsDestination.ChangelogSettings,
+				SettingsDestination.AboutSettings -> openComposeDestination(
+					destination,
+					shouldRestoreFragment = shouldRestoreFragmentForNextDestination(isFromRoot),
+				)
+				is SettingsDestination.FragmentDestination -> openFragment(destination.fragmentClass, args, isFromRoot)
+				is SettingsDestination.UnifiedSources -> {
+					startActivity(
+						UnifiedSourcesActivity.newIntent(
+							context = this,
+							initialRepositoryKind = destination.initialRepositoryKind,
+							initialRepositoryUrl = destination.initialRepositoryUrl,
+						),
+					)
+				}
+			}
+		}
+
+		private fun openDefaultFragment() {
+			if (intent?.action == AppRouter.ACTION_MANAGE_SOURCES) {
+				startActivity(UnifiedSourcesActivity.newIntent(this))
+				finishAfterTransition()
+				return
+			}
+			if (intent?.action == Intent.ACTION_VIEW && intent.data?.host == "add-repo") {
+				startActivity(Intent(this, UnifiedSourcesActivity::class.java).setData(intent.data))
+				finishAfterTransition()
+				return
+			}
+			val composeDestination = when (intent?.action) {
+				AppRouter.ACTION_SUGGESTIONS -> SettingsDestination.SuggestionsSettings
+				AppRouter.ACTION_SYNC_SETTINGS,
+				AppRouter.ACTION_PERIODIC_BACKUP,
+				AppRouter.ACTION_HISTORY -> SettingsDestination.BackupsSettings
+				AppRouter.ACTION_TRANSLATION -> SettingsDestination.TranslationSettings
+				AppRouter.ACTION_TRACKER -> SettingsDestination.TrackerSettings
+				AppRouter.ACTION_MANAGE_DISCORD -> SettingsDestination.DiscordSettings
+				AppRouter.ACTION_PROXY -> SettingsDestination.ProxySettings
+				AppRouter.ACTION_READER -> SettingsDestination.ReaderSettings
+				AppRouter.ACTION_SOURCES -> SettingsDestination.SourcesSettings
+				AppRouter.ACTION_MANAGE_DOWNLOADS -> SettingsDestination.DownloadsSettings
+				AppRouter.ACTION_MANAGE_SOURCES -> null
+				Intent.ACTION_VIEW -> when (intent.data?.host) {
+				"add-repo" -> null
+				HOST_ABOUT -> SettingsDestination.AboutSettings
+				HOST_SYNC_SETTINGS -> SettingsDestination.SyncSettings
+				else -> null
+			}
+			else -> null
+		}
+		if (composeDestination != null) {
+			openComposeDestination(composeDestination, shouldRestoreFragment = false)
+			return
+		}
+		if (!isMasterDetails) {
+			openComposeDestination(SettingsDestination.Root, shouldRestoreFragment = false)
+			return
+		}
+
+			val fragment = when (intent?.action) {
+				AppRouter.ACTION_SOURCES -> null
 			AppRouter.ACTION_SOURCE -> SourceSettingsHostFragment.newInstance(
 				ContentSource(intent.getStringExtra(AppRouter.KEY_SOURCE)),
 			)
-
-			AppRouter.ACTION_MANAGE_SOURCES -> UnifiedSourcesFragment()
 			Intent.ACTION_VIEW -> {
 				when (intent.data?.host) {
-					HOST_ABOUT -> AboutSettingsFragment()
-					HOST_SYNC_SETTINGS -> SyncSettingsFragment()
-					"add-repo" -> {
-						val url = intent.data?.getQueryParameter("url")
-						val type = when (intent.data?.scheme) {
-							"aniyomi", "anikku" -> org.skepsun.kototoro.extensions.repo.ExternalExtensionType.ANIYOMI
-							else -> org.skepsun.kototoro.extensions.repo.ExternalExtensionType.MIHON
-						}
-						org.skepsun.kototoro.settings.sources.extensions.ExtensionRepositoriesFragment().apply {
-							arguments = Bundle().apply {
-								putString(org.skepsun.kototoro.settings.sources.extensions.ARG_EXTENSION_TYPE, type.name)
-								putString("add_repo_url", url)
-							}
-						}
-					}
+					HOST_ABOUT -> null
+					HOST_SYNC_SETTINGS -> null
 					else -> null
 				}
 			}
-
 			else -> null
-		} ?: if (isMasterDetails) AppearanceSettingsFragment() else RootSettingsFragment()
+		}
+		if (fragment == null) {
+			openComposeDestination(SettingsDestination.AppearanceSettings, shouldRestoreFragment = false)
+			return
+		}
 		supportFragmentManager.commit {
 			setReorderingAllowed(true)
 			replace(R.id.container, fragment)
@@ -238,14 +733,1019 @@ class SettingsActivity :
 		val args = buildBundle(1) {
 			putString(ARG_PREF_KEY, item.key)
 		}
-		openFragment(item.fragmentClass, args, true)
+		openDestination(item.destination, args, true)
+	}
+
+	private fun shouldRestoreFragmentForNextDestination(isFromRoot: Boolean): Boolean {
+		val hasFragment = supportFragmentManager.findFragmentById(R.id.container) != null
+		return !isMasterDetails || (hasFragment && !isFromRoot)
+	}
+
+	private fun openComposeDestination(
+		destination: SettingsDestination,
+		shouldRestoreFragment: Boolean,
+		pushCurrentToStack: Boolean = true,
+	) {
+		viewModel.discardSearch()
+		if (supportFragmentManager.isStateSaved) {
+			return
+		}
+		val currentComposeDestination = composeDestination
+		if (
+			pushCurrentToStack &&
+			currentComposeDestination != null &&
+			currentComposeDestination != destination
+		) {
+			composeNavigationStack.addLast(currentComposeDestination)
+		}
+		val currentFragment = supportFragmentManager.findFragmentById(R.id.container)
+		if (currentComposeDestination == null && currentFragment != null && !currentFragment.isHidden) {
+			supportFragmentManager.commit {
+				setReorderingAllowed(true)
+				hide(currentFragment)
+				if (shouldRestoreFragment) {
+					addToBackStack(COMPOSE_HIDE_BACKSTACK_NAME)
+				}
+			}
+		}
+		composeDestination = destination
+		shouldRestoreFragmentOnComposeExit = shouldRestoreFragment
+		viewBinding.containerCompose.isVisible = true
+		renderComposeDestination(destination)
+		composeBackCallback.isEnabled = true
+	}
+
+		private fun renderComposeDestination(destination: SettingsDestination) {
+			when (destination) {
+				SettingsDestination.Root -> renderRootComposeDestination()
+				SettingsDestination.AppearanceSettings -> renderAppearanceSettingsComposeDestination()
+				SettingsDestination.UsersSettings -> renderUsersSettingsComposeDestination()
+				SettingsDestination.AISettings -> renderAiSettingsComposeDestination()
+				SettingsDestination.OcrModelsSettings -> renderOcrModelsComposeDestination()
+				SettingsDestination.AiImageEnhancementSettings -> renderAiImageEnhancementComposeDestination()
+				SettingsDestination.AiVideoEnhancementSettings -> renderAiVideoEnhancementComposeDestination()
+				SettingsDestination.TtsSettings -> renderTtsComposeDestination()
+				SettingsDestination.PlaybackSettings -> renderPlaybackSettingsComposeDestination()
+				SettingsDestination.ReaderSettings -> renderReaderSettingsComposeDestination()
+				SettingsDestination.SourcesSettings -> renderSourcesSettingsComposeDestination()
+				SettingsDestination.SuggestionsSettings -> renderSuggestionsComposeDestination()
+				SettingsDestination.BackupsSettings -> renderBackupsComposeDestination()
+				SettingsDestination.SyncSettings -> renderSyncComposeDestination()
+				SettingsDestination.TranslationSettings -> renderTranslationComposeDestination()
+				SettingsDestination.TranslationApiSettings -> renderTranslationApiComposeDestination()
+				SettingsDestination.TranslationE2EApiSettings -> renderTranslationE2EApiComposeDestination()
+				SettingsDestination.StorageAndNetworkSettings -> renderStorageAndNetworkComposeDestination()
+				SettingsDestination.DataCleanupSettings -> renderDataCleanupComposeDestination()
+				SettingsDestination.DownloadsSettings -> renderDownloadsComposeDestination()
+				SettingsDestination.TrackerSettings -> renderTrackerComposeDestination()
+				SettingsDestination.NotificationSettings -> renderNotificationComposeDestination()
+				SettingsDestination.ServicesSettings -> renderServicesComposeDestination()
+				SettingsDestination.DiscordSettings -> renderDiscordComposeDestination()
+				SettingsDestination.ProxySettings -> renderProxyComposeDestination()
+				SettingsDestination.NavConfigSettings -> renderNavConfigComposeDestination()
+				SettingsDestination.ChangelogSettings -> renderChangelogComposeDestination()
+				SettingsDestination.AboutSettings -> renderAboutComposeDestination()
+				is SettingsDestination.UnifiedSources -> Unit
+				is SettingsDestination.FragmentDestination -> Unit
+			}
+		}
+
+	private fun renderRootComposeDestination() {
+		setTitle(getString(R.string.settings))
+		renderComposeContent(showLegacyTopBar = false) {
+			val enabledSourcesCount by rootSettingsViewModel.enabledSourcesCount.collectAsStateWithLifecycle()
+			val searchResults by viewModel.content.collectAsStateWithLifecycle()
+			val searchQuery by viewModel.queryText.collectAsStateWithLifecycle()
+			SettingsRootScreen(
+				sections = buildSettingsRootSections(
+					context = this,
+					enabledSourcesCount = enabledSourcesCount,
+					totalSourcesCount = rootSettingsViewModel.totalSourcesCount,
+					classLoader = classLoader,
+					onOpenFragment = { fragmentClass ->
+						openFragment(fragmentClass, null, true)
+					},
+					onOpenDestination = { composeDestination ->
+						openDestination(composeDestination, null, true)
+					},
+				),
+				title = getString(R.string.settings),
+				subtitle = getString(R.string.app_version, org.skepsun.kototoro.BuildConfig.VERSION_NAME),
+				searchQuery = searchQuery,
+				searchResults = searchResults,
+				onSearchQueryChange = viewModel::setSearchQuery,
+				onSearchResultClick = { item -> navigateToPreference(item) },
+				modifier = Modifier.fillMaxSize(),
+			)
+		}
+	}
+
+	private fun renderAppearanceSettingsComposeDestination() {
+		renderComposeSection(title = getString(R.string.appearance)) {
+			AppearanceSettingsRoute(
+				settings = kototoroAppSettings,
+				activityRecreationHandle = activityRecreationHandle,
+				appShortcutManager = appShortcutManager,
+				sourcePresetsRepository = sourcePresetsRepository,
+				onOpenNavConfig = {
+					openDestination(SettingsDestination.NavConfigSettings, null, false)
+				},
+				onOpenProtectSetup = {
+					startActivity(Intent(this, ProtectSetupActivity::class.java))
+				},
+			)
+		}
+	}
+
+	private fun renderUsersSettingsComposeDestination() {
+		usersResumeTick.update { it + 1 }
+		renderComposeSection(title = getString(R.string.users)) {
+			val refreshKey by usersResumeTick.collectAsStateWithLifecycle()
+			UsersSettingsRoute(
+				settings = kototoroAppSettings,
+				scrobblerAuthHelper = scrobblerAuthHelper,
+				trackingUserAccountSummaryProvider = trackingUserAccountSummaryProvider,
+				trackingDiscoveryService = trackingDiscoveryService,
+				refreshKey = refreshKey,
+				onSyncSettingsClick = {
+					openDestination(SettingsDestination.BackupsSettings, null, false)
+				},
+				onOpenScrobblerSettings = { service ->
+					router.openScrobblerSettings(service)
+				},
+			)
+		}
+	}
+
+	private fun renderAiSettingsComposeDestination() {
+		renderComposeSection(title = getString(R.string.ai_settings)) {
+			AISettingsRoute(
+				onOpenOcrModels = { openDestination(SettingsDestination.OcrModelsSettings, null, false) },
+				onOpenApiSettings = { openDestination(SettingsDestination.TranslationApiSettings, null, false) },
+				onOpenE2eApiSettings = { openDestination(SettingsDestination.TranslationE2EApiSettings, null, false) },
+				onOpenTranslationSettings = { openDestination(SettingsDestination.TranslationSettings, null, false) },
+				onOpenImageEnhancementSettings = {
+					openDestination(SettingsDestination.AiImageEnhancementSettings, null, false)
+				},
+				onOpenTtsSettings = { openDestination(SettingsDestination.TtsSettings, null, false) },
+				onOpenVideoEnhancementSettings = {
+					openDestination(SettingsDestination.AiVideoEnhancementSettings, null, false)
+				},
+			)
+		}
+	}
+
+	private fun renderOcrModelsComposeDestination() {
+		renderComposeSection(title = getString(R.string.reader_translation_ocr_models_title)) {
+			OcrModelsRoute(
+				onnxModelManager = onnxModelManager,
+				modifier = Modifier.fillMaxSize(),
+			)
+		}
+	}
+
+	private fun renderAiImageEnhancementComposeDestination() {
+		renderComposeSection(title = getString(R.string.ai_image_enhancement_settings)) {
+			AIImageEnhancementSettingsRoute(
+				settings = kototoroAppSettings,
+				onnxModelManager = onnxModelManager,
+				onClearCacheClick = ::clearSuperResolutionCache,
+				modifier = Modifier.fillMaxSize(),
+			)
+		}
+	}
+
+	private fun renderAiVideoEnhancementComposeDestination() {
+		renderComposeSection(title = getString(R.string.ai_video_enhancement_settings)) {
+			AIVideoEnhancementSettingsRoute(
+				settings = kototoroAppSettings,
+				onAdvancedSettingsClick = ::showVideoSuperResolutionAdvancedSheet,
+			)
+		}
+	}
+
+	private fun renderTtsComposeDestination() {
+		val coordinator = ttsSettingsCoordinator ?: TtsSettingsCoordinator(this, kototoroAppSettings).also {
+			it.start()
+			ttsSettingsCoordinator = it
+		}
+		renderComposeSection(title = getString(R.string.tts_settings_title)) {
+			TtsSettingsRoute(
+				settings = kototoroAppSettings,
+				coordinator = coordinator,
+				modifier = Modifier.fillMaxSize(),
+			)
+		}
+	}
+
+	private fun renderPlaybackSettingsComposeDestination() {
+		renderComposeSection(title = getString(R.string.playback_settings)) {
+			PlaybackSettingsRoute(
+				settings = kototoroAppSettings,
+				onMpvConfClick = {
+					org.skepsun.kototoro.video.player.MpvConfigManager.showMpvConfigDialog(this, viewBinding.containerCompose)
+				},
+				onAiSettingsClick = {
+					openDestination(SettingsDestination.AISettings, null, false)
+				},
+			)
+		}
+	}
+
+	private fun renderMasterSettingsRoot() {
+		val masterComposeView = masterContainerComposeView() ?: return
+		masterComposeView.setContent {
+			KototoroTheme {
+				val enabledSourcesCount by rootSettingsViewModel.enabledSourcesCount.collectAsStateWithLifecycle()
+				val searchQuery by viewModel.queryText.collectAsStateWithLifecycle()
+				val searchResults by viewModel.content.collectAsStateWithLifecycle()
+				SettingsRootScreen(
+					sections = buildSettingsRootSections(
+						context = this,
+						enabledSourcesCount = enabledSourcesCount,
+						totalSourcesCount = rootSettingsViewModel.totalSourcesCount,
+						classLoader = classLoader,
+						onOpenFragment = { fragmentClass ->
+							openFragment(fragmentClass, null, true)
+						},
+						onOpenDestination = { composeDestination ->
+							openDestination(composeDestination, null, true)
+						},
+					),
+					title = getString(R.string.settings),
+					subtitle = getString(R.string.app_version, org.skepsun.kototoro.BuildConfig.VERSION_NAME),
+					searchQuery = searchQuery,
+					searchResults = searchResults,
+					onSearchQueryChange = viewModel::setSearchQuery,
+					onSearchResultClick = { item -> navigateToPreference(item) },
+					modifier = Modifier.fillMaxSize(),
+				)
+			}
+		}
+	}
+
+	private fun renderReaderSettingsComposeDestination() {
+		renderComposeSection(title = getString(R.string.reader_settings)) {
+			ReaderSettingsRoute(
+				settings = kototoroAppSettings,
+				onReaderTapActionsClick = {
+					startActivity(Intent(this, org.skepsun.kototoro.settings.reader.ReaderTapGridConfigActivity::class.java))
+				},
+				onReaderAiSettingsEntryClick = {
+					openDestination(SettingsDestination.AISettings, null, false)
+				},
+			)
+		}
+	}
+
+	private fun renderStorageAndNetworkComposeDestination() {
+		renderComposeSection(title = getString(R.string.storage_and_network)) {
+			StorageAndNetworkSettingsRoute(
+				settings = kototoroAppSettings,
+				viewModel = storageAndNetworkSettingsViewModel,
+				onOpenProxySettings = {
+					openDestination(SettingsDestination.ProxySettings, null, false)
+				},
+				onOpenDataCleanupSettings = {
+					openDestination(SettingsDestination.DataCleanupSettings, null, false)
+				},
+			)
+		}
+	}
+
+	private fun renderDataCleanupComposeDestination() {
+		bindDataCleanupObservers()
+		renderComposeSection(title = getString(R.string.data_removal)) {
+			DataCleanupSettingsRoute(
+				settings = kototoroAppSettings,
+				viewModel = dataCleanupSettingsViewModel,
+				onClearSearchHistory = ::confirmClearSearchHistory,
+				onClearCookies = ::confirmClearCookies,
+				onDeleteReadChapters = ::confirmCleanupChapters,
+				modifier = Modifier.fillMaxSize(),
+			)
+		}
+	}
+
+	private fun renderSuggestionsComposeDestination() {
+		refreshSuggestionsTags()
+		renderComposeSection(title = getString(R.string.suggestions)) {
+			SuggestionsSettingsRoute(
+				settings = kototoroAppSettings,
+				suggestionsScheduler = suggestionsScheduler,
+				excludeTagsFlow = suggestionsExcludeTagsFlow,
+				preferredTagsFlow = suggestionsPreferredTagsFlow,
+			)
+		}
+	}
+
+	private fun renderBackupsComposeDestination() {
+		periodicalBackupSettingsViewModel.updateSummaryData()
+		renderComposeSection(title = getString(R.string.sync_settings)) {
+			BackupsSettingsRoute(
+				settings = kototoroAppSettings,
+				viewModel = periodicalBackupSettingsViewModel,
+				onBackupOutputClick = {
+					if (!backupOutputSelectCall.tryLaunch(null)) {
+						Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_SHORT).show()
+					}
+				},
+				onCreateBackupClick = {
+					if (!backupCreateCall.tryLaunch(BackupUtils.generateFileName(this))) {
+						Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_SHORT).show()
+					}
+				},
+				onRestoreBackupClick = {
+					if (!backupSelectCall.tryLaunch(arrayOf("*/*"))) {
+						Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_SHORT).show()
+					}
+				},
+			)
+		}
+	}
+
+	private fun renderSyncComposeDestination() {
+		syncUrlFlow.value = syncSettings.syncUrl ?: ""
+		renderComposeSection(title = getString(R.string.sync_settings)) {
+			SyncSettingsRoute(
+				settings = kototoroAppSettings,
+				syncUrlFlow = syncUrlFlow,
+				onSyncUrlClick = {
+					SyncHostDialogFragment.show(supportFragmentManager, syncSettings.syncUrl)
+				},
+				modifier = Modifier.fillMaxSize(),
+			)
+		}
+	}
+
+	private fun renderTranslationComposeDestination() {
+		renderComposeSection(title = getString(R.string.translation_settings)) {
+			TranslationSettingsRoute(
+				settings = kototoroAppSettings,
+				onnxModelManager = onnxModelManager,
+				onOpenOcrModels = { openDestination(SettingsDestination.OcrModelsSettings, null, false) },
+				onOpenApiSettings = { openDestination(SettingsDestination.TranslationApiSettings, null, false) },
+				onOpenE2eApiSettings = { openDestination(SettingsDestination.TranslationE2EApiSettings, null, false) },
+			)
+		}
+	}
+
+	private fun renderTranslationApiComposeDestination() {
+		renderComposeSection(title = getString(R.string.ai_api_settings)) {
+			TranslationApiSettingsRoute(
+				settings = kototoroAppSettings,
+				onFetchModelsClick = ::fetchAndPickTranslationApiModel,
+				modifier = Modifier.fillMaxSize(),
+			)
+		}
+	}
+
+	private fun renderTranslationE2EApiComposeDestination() {
+		renderComposeSection(title = getString(R.string.reader_translation_e2e_api_settings_title)) {
+			TranslationE2EApiSettingsRoute(
+				settings = kototoroAppSettings,
+				onFetchModelsClick = ::fetchAndPickTranslationE2EApiModel,
+			)
+		}
+	}
+
+	private fun renderDownloadsComposeDestination() {
+		downloadsStorageTick.update { it + 1 }
+		downloadsDozeTick.update { it + 1 }
+		renderComposeSection(title = getString(R.string.downloads)) {
+			val storageRefreshKey by downloadsStorageTick.collectAsStateWithLifecycle()
+			val dozeRefreshKey by downloadsDozeTick.collectAsStateWithLifecycle()
+			DownloadsSettingsRoute(
+				settings = kototoroAppSettings,
+				storageManager = storageManager,
+				storageRefreshKey = storageRefreshKey,
+				dozeRefreshKey = dozeRefreshKey,
+				onOpenMangaDirectories = { router.openDirectoriesSettings() },
+				onOpenMangaStorage = { router.showDirectorySelectDialog() },
+				onOpenNovelStorage = {
+					router.showDirectorySelectDialog(
+						org.skepsun.kototoro.settings.storage.ContentDirectorySelectDialog.CONTENT_TYPE_NOVEL,
+					)
+				},
+				onOpenVideoStorage = {
+					router.showDirectorySelectDialog(
+						org.skepsun.kototoro.settings.storage.ContentDirectorySelectDialog.CONTENT_TYPE_VIDEO,
+					)
+				},
+				onAllowMeteredNetworkChange = { option ->
+					kototoroAppSettings.allowDownloadOnMeteredNetwork = option
+					updateDownloadsConstraints()
+				},
+				onRequestIgnoreDoze = ::startDownloadsIgnoreDozeActivity,
+				onPickPagesDirectory = { initialUri ->
+					pickDownloadsPagesDirectory.tryLaunch(initialUri)
+				},
+			)
+		}
+	}
+
+	private fun renderTrackerComposeDestination() {
+		trackerDozeTick.update { it + 1 }
+		trackerNotificationTick.update { it + 1 }
+		renderComposeSection(title = getString(R.string.check_for_new_chapters)) {
+			val dozeRefreshKey by trackerDozeTick.collectAsStateWithLifecycle()
+			val notificationRefreshKey by trackerNotificationTick.collectAsStateWithLifecycle()
+			TrackerSettingsRoute(
+				settings = kototoroAppSettings,
+				notificationHelper = trackerNotificationHelper,
+				viewModel = trackerSettingsViewModel,
+				dozeRefreshKey = dozeRefreshKey,
+				notificationRefreshKey = notificationRefreshKey,
+				onTrackCategoriesClick = { router.showTrackerCategoriesConfigSheet() },
+				onOpenNotificationsSettings = ::openTrackerNotificationsSettings,
+				onOpenTrackerDebug = {
+					startActivity(Intent(this, TrackerDebugActivity::class.java))
+				},
+				onRequestIgnoreDoze = ::startTrackerIgnoreDozeActivity,
+				onOpenTrackerWarning = ::openTrackerWarning,
+			)
+		}
+	}
+
+	private fun renderNotificationComposeDestination() {
+		renderComposeSection(title = getString(R.string.notifications)) {
+			NotificationSettingsRoute(
+				settings = kototoroAppSettings,
+				onNotificationSoundClick = {
+					ringtonePickContract.launch(kototoroAppSettings.notificationSound)
+				},
+			)
+		}
+	}
+
+	private fun bindDataCleanupObservers() {
+		if (isDataCleanupObserversBound) return
+		isDataCleanupObserversBound = true
+		dataCleanupSettingsViewModel.onError.observeEvent(this, SnackbarErrorObserver(viewBinding.root, null))
+		dataCleanupSettingsViewModel.onActionDone.observeEvent(this, ReversibleActionObserver(viewBinding.root))
+		dataCleanupSettingsViewModel.onChaptersCleanedUp.observeEvent(this, ::onDataCleanupChaptersCleanedUp)
+	}
+
+	private fun onDataCleanupChaptersCleanedUp(result: Pair<Int, Long>) {
+		val text = if (result.first == 0 && result.second == 0L) {
+			getString(R.string.no_chapters_deleted)
+		} else {
+			getString(
+				R.string.chapters_deleted_pattern,
+				resources.getQuantityStringSafe(R.plurals.chapters, result.first, result.first),
+				FileSize.BYTES.format(this, result.second),
+			)
+		}
+		Snackbar.make(viewBinding.root, text, Snackbar.LENGTH_SHORT).show()
+	}
+
+	private fun confirmClearSearchHistory() {
+		MaterialAlertDialogBuilder(this)
+			.setTitle(R.string.clear_search_history)
+			.setMessage(R.string.text_clear_search_history_prompt)
+			.setNegativeButton(android.R.string.cancel, null)
+			.setPositiveButton(R.string.clear) { _, _ ->
+				dataCleanupSettingsViewModel.clearSearchHistory()
+			}
+			.show()
+	}
+
+	private fun confirmClearCookies() {
+		MaterialAlertDialogBuilder(this)
+			.setTitle(R.string.clear_cookies)
+			.setMessage(R.string.text_clear_cookies_prompt)
+			.setNegativeButton(android.R.string.cancel, null)
+			.setPositiveButton(R.string.clear) { _, _ ->
+				dataCleanupSettingsViewModel.clearCookies()
+			}
+			.show()
+	}
+
+	private fun confirmCleanupChapters() {
+		MaterialAlertDialogBuilder(this)
+			.setTitle(R.string.delete_read_chapters)
+			.setMessage(R.string.delete_read_chapters_prompt)
+			.setNegativeButton(android.R.string.cancel, null)
+			.setPositiveButton(R.string.delete) { _, _ ->
+				dataCleanupSettingsViewModel.cleanupChapters()
+			}
+			.show()
+	}
+
+	private fun fetchAndPickTranslationApiModel() {
+		translationApiFetchModelsJob?.cancel()
+		translationApiFetchModelsJob = lifecycleScope.launch {
+			try {
+				val endpoint = kototoroAppSettings.readerTranslationApiEndpoint.trim()
+				if (endpoint.isBlank()) {
+					Toast.makeText(this@SettingsActivity, R.string.reader_translation_api_endpoint_missing, Toast.LENGTH_SHORT).show()
+					return@launch
+				}
+				val modelsUrl = TranslationApiSettingsSupport.buildModelsUrl(endpoint)
+				val key = kototoroAppSettings.readerTranslationApiKey.trim()
+				val models = withContext(Dispatchers.IO) {
+					val requestBuilder = Request.Builder().get().url(modelsUrl)
+					if (key.isNotBlank()) {
+						requestBuilder.header("Authorization", "Bearer $key")
+						requestBuilder.header("X-API-Key", key)
+					}
+					okHttpClient.newCall(requestBuilder.build()).execute().use { response ->
+						if (!response.isSuccessful) return@withContext emptyList<String>()
+						TranslationApiSettingsSupport.parseModelIds(response.body?.string().orEmpty())
+					}
+				}
+				if (models.isEmpty()) {
+					Toast.makeText(this@SettingsActivity, R.string.reader_translation_api_models_fetch_failed, Toast.LENGTH_SHORT).show()
+					return@launch
+				}
+				showTranslationApiModelPicker(models)
+			} catch (_: Throwable) {
+				Toast.makeText(this@SettingsActivity, R.string.reader_translation_api_models_fetch_failed, Toast.LENGTH_SHORT).show()
+			}
+		}
+	}
+
+	private fun showTranslationApiModelPicker(models: List<String>) {
+		val current = kototoroAppSettings.readerTranslationApiModel.trim()
+		val selected = models.indexOf(current).coerceAtLeast(0)
+		MaterialAlertDialogBuilder(this)
+			.setTitle(R.string.reader_translation_api_models_pick_title)
+			.setSingleChoiceItems(models.toTypedArray(), selected) { dialog, which ->
+				val chosen = models.getOrNull(which).orEmpty()
+				if (chosen.isNotBlank()) {
+					PreferenceManager.getDefaultSharedPreferences(this).edit {
+						putString(AppSettings.KEY_READER_TRANSLATION_API_MODEL, chosen)
+					}
+				}
+				dialog.dismiss()
+			}
+			.setNegativeButton(android.R.string.cancel, null)
+			.show()
+	}
+
+	private fun fetchAndPickTranslationE2EApiModel() {
+		if (translationE2EApiFetchModelsJob?.isActive == true) return
+
+		val endpoint = kototoroAppSettings.readerE2eApiEndpoint
+		val apiKey = kototoroAppSettings.readerE2eApiKey
+		if (endpoint.isEmpty() || apiKey.isEmpty()) {
+			Toast.makeText(this, R.string.reader_translation_api_endpoint_missing, Toast.LENGTH_SHORT).show()
+			return
+		}
+
+		val request = Request.Builder()
+			.url(endpoint.removeSuffix("/chat/completions").removeSuffix("/") + "/models")
+			.get()
+			.header("Authorization", "Bearer $apiKey")
+			.build()
+
+		translationE2EApiFetchModelsJob = lifecycleScope.launch(Dispatchers.IO) {
+			try {
+				val response = okHttpClient.newCall(request).execute()
+				val bodyStr = response.body?.string()
+				if (!response.isSuccessful || bodyStr == null) {
+					withContext(Dispatchers.Main) {
+						Toast.makeText(this@SettingsActivity, R.string.reader_translation_api_models_fetch_failed, Toast.LENGTH_SHORT).show()
+					}
+					return@launch
+				}
+				val models = TranslationApiSettingsSupport.parseModelIds(bodyStr)
+				withContext(Dispatchers.Main) {
+					if (models.isEmpty()) {
+						Toast.makeText(this@SettingsActivity, R.string.reader_translation_api_models_fetch_failed, Toast.LENGTH_SHORT).show()
+						return@withContext
+					}
+					MaterialAlertDialogBuilder(this@SettingsActivity)
+						.setTitle(R.string.reader_translation_api_models_fetch)
+						.setItems(models.toTypedArray()) { _, which ->
+							kototoroAppSettings.prefs.edit()
+								.putString(AppSettings.KEY_READER_E2E_API_MODEL, models[which])
+								.apply()
+						}
+						.setNegativeButton(android.R.string.cancel, null)
+						.show()
+				}
+			} catch (_: Exception) {
+				withContext(Dispatchers.Main) {
+					Toast.makeText(this@SettingsActivity, R.string.reader_translation_api_models_fetch_failed, Toast.LENGTH_SHORT).show()
+				}
+			}
+		}
+	}
+
+	private fun renderServicesComposeDestination() {
+		renderComposeSection(title = getString(R.string.services)) {
+			ServicesSettingsRoute(
+				settings = kototoroAppSettings,
+				animeOfflineRepository = animeOfflineRepository,
+				onAnimeOfflineUpdate = {
+					org.skepsun.kototoro.tracking.animeoffline.work.AnimeOfflineUpdateWorker.enqueue(
+						applicationContext,
+						force = true,
+					)
+				},
+				onSuggestionsClick = {
+					openDestination(SettingsDestination.SuggestionsSettings, null, false)
+				},
+				onStatsClick = { router.openStatistic() },
+				onDiscordSettingsClick = {
+					openDestination(SettingsDestination.DiscordSettings, null, false)
+				},
+			)
+		}
+	}
+
+	private fun renderDiscordComposeDestination() {
+		renderComposeSection(title = getString(R.string.discord)) {
+			DiscordSettingsRoute(
+				settings = kototoroAppSettings,
+				viewModel = discordSettingsViewModel,
+				onTokenClick = ::openDiscordSignIn,
+				onLogoutClick = ::logoutDiscord,
+			)
+		}
+	}
+
+	private fun renderProxyComposeDestination() {
+		renderComposeSection(title = getString(R.string.proxy)) {
+			ProxySettingsRoute(
+				settings = kototoroAppSettings,
+				testSummaryFlow = proxyTestSummaryFlow,
+				isTestRunningFlow = proxyIsTestRunningFlow,
+				onTestConnection = ::testProxyConnection,
+			)
+		}
+	}
+
+	private fun renderNavConfigComposeDestination() {
+		renderComposeSection(title = getString(R.string.main_screen_sections)) {
+			NavConfigRoute(
+				viewModel = navConfigViewModel,
+				modifier = Modifier.fillMaxSize(),
+			)
+		}
+	}
+
+	private fun renderChangelogComposeDestination() {
+		renderComposeSection(title = getString(R.string.changelog)) {
+			ChangelogRoute(
+				viewModel = changelogViewModel,
+				modifier = Modifier.fillMaxSize(),
+			)
+		}
+	}
+
+	private fun renderAboutComposeDestination() {
+		renderComposeSection(title = getString(R.string.about)) {
+			AboutSettingsRoute(
+				settings = kototoroAppSettings,
+				viewModel = aboutSettingsViewModel,
+				onChangelogClick = {
+					openDestination(SettingsDestination.ChangelogSettings, null, false)
+				},
+				onLinkClick = { key -> openAboutLink(key) },
+				onCrashLogsClick = {
+					startActivity(org.skepsun.kototoro.settings.about.crashlog.CrashLogActivity.newIntent(this))
+				},
+			)
+		}
+	}
+
+	private fun renderSourcesSettingsComposeDestination() {
+		sourcesSettingsViewModel.refreshLinksEnabled()
+		renderComposeSection(title = getString(R.string.remote_sources)) {
+			SourcesSettingsRoute(
+				settings = kototoroAppSettings,
+				viewModel = sourcesSettingsViewModel,
+				onSetupWizardClick = { router.showWelcomeSheet() },
+			)
+		}
+	}
+
+	private fun handleComposeNavigateUp() {
+		if (composeDestination == null) {
+			return
+		}
+		if (composeDestination == SettingsDestination.Root) {
+			closeComposeDestination(restorePreviousFragment = false)
+			dispatchNavigateUp()
+			return
+		}
+		val shouldRestore = shouldRestoreFragmentOnComposeExit && supportFragmentManager.backStackEntryCount > 0
+		closeComposeDestination(restorePreviousFragment = false)
+		if (shouldRestore) {
+			supportFragmentManager.popBackStack()
+		} else if (composeNavigationStack.isNotEmpty()) {
+			val previousDestination = composeNavigationStack.removeLast()
+			openComposeDestination(
+				destination = previousDestination,
+				shouldRestoreFragment = false,
+				pushCurrentToStack = false,
+			)
+		} else {
+			dispatchNavigateUp()
+		}
+	}
+
+	private fun closeComposeDestination(restorePreviousFragment: Boolean) {
+		val destination = composeDestination ?: return
+		if (destination == SettingsDestination.TtsSettings) {
+			ttsSettingsCoordinator?.stop()
+			ttsSettingsCoordinator = null
+		}
+		viewBinding.containerCompose.disposeComposition()
+		viewBinding.containerCompose.isVisible = false
+		setLegacyTopBarVisible(true)
+		setSectionToolbarActions(null)
+		composeDestination = null
+		shouldRestoreFragmentOnComposeExit = false
+		composeBackCallback.isEnabled = false
+		if (restorePreviousFragment && supportFragmentManager.backStackEntryCount > 0) {
+			supportFragmentManager.popBackStack()
+		}
+	}
+
+	private fun restoreComposeDestinationIfNeeded() {
+		if (composeDestination != null || supportFragmentManager.isStateSaved) {
+			return
+		}
+		if (supportFragmentManager.backStackEntryCount != 0) {
+			return
+		}
+		if (supportFragmentManager.findFragmentById(R.id.container) != null) {
+			return
+		}
+		val destination = composeDestinationToRestore ?: return
+		composeDestinationToRestore = null
+		openComposeDestination(destination, shouldRestoreFragment = false)
+	}
+
+	private fun clearToolbarMenu() {
+		(viewBinding.toolbarDetail ?: viewBinding.toolbar).menu.clear()
+	}
+
+	private fun masterContainerComposeView(): ComposeView? {
+		return findViewById(R.id.container_master) as? ComposeView
+	}
+
+	private fun refreshSuggestionsTags() {
+		suggestionsExcludeTagsFlow.value =
+			kototoroAppSettings.prefs.getString(AppSettings.KEY_SUGGESTIONS_EXCLUDE_TAGS, "") ?: ""
+		suggestionsPreferredTagsFlow.value =
+			kototoroAppSettings.prefs.getString(AppSettings.KEY_SUGGESTIONS_PREFERRED_TAGS, "") ?: ""
+	}
+
+	private fun clearSuperResolutionCache() {
+		lifecycleScope.launch(Dispatchers.IO) {
+			val srCacheDir = java.io.File(cacheDir, "sr_cache")
+			var deletedCount = 0
+			if (srCacheDir.exists() && srCacheDir.isDirectory) {
+				srCacheDir.listFiles()?.forEach { file ->
+					if (file.delete()) {
+						deletedCount++
+					}
+				}
+			}
+			withContext(Dispatchers.Main) {
+				Toast.makeText(
+					this@SettingsActivity,
+					getString(R.string.reader_super_resolution_cache_cleared) + " ($deletedCount files)",
+					Toast.LENGTH_SHORT,
+				).show()
+			}
+		}
+	}
+
+	private fun showVideoSuperResolutionAdvancedSheet() {
+		VideoSuperResolutionAdvancedSheet().show(
+			supportFragmentManager,
+			"VideoSuperResolutionAdvancedSheet",
+		)
+	}
+
+	private fun openDiscordSignIn() {
+		startActivity(Intent(this, DiscordAuthActivity::class.java))
+	}
+
+	private fun logoutDiscord() {
+		kototoroAppSettings.discordToken = null
+		val webStorage = WebStorage.getInstance()
+		runCatching { webStorage.deleteOrigin(DISCORD_ORIGIN) }
+		runCatching { webStorage.deleteOrigin(DISCORD_WWW_ORIGIN) }
+
+		val cookieManager = CookieManager.getInstance()
+		cookieManager.removeSessionCookies(null)
+		cookieManager.removeAllCookies(null)
+		cookieManager.flush()
+	}
+
+	private fun onDownloadsPagesDirectoryPicked(uri: Uri) {
+		storageManager.takePermissions(uri)
+		val doc = DocumentFile.fromTreeUri(this, uri)?.takeIf { it.canWrite() }
+		kototoroAppSettings.setPagesSaveDir(doc?.uri)
+		downloadsStorageTick.update { it + 1 }
+	}
+
+	private fun openTrackerNotificationsSettings(onUnsupported: () -> Unit) {
+		when {
+			android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O -> {
+				val intent = Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+					.putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
+				if (!startSettingsActivitySafe(intent)) {
+					onUnsupported()
+				}
+			}
+			!trackerNotificationHelper.getAreNotificationsEnabled() -> {
+				val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+					.setData(android.net.Uri.fromParts("package", packageName, null))
+				if (!startSettingsActivitySafe(intent)) {
+					onUnsupported()
+				}
+			}
+			else -> {
+				openDestination(SettingsDestination.NotificationSettings, null, false)
+			}
+		}
+	}
+
+	private fun openTrackerWarning(onUnsupported: () -> Unit) {
+		val intent = Intent(Intent.ACTION_VIEW, "https://dontkillmyapp.com/".toUri())
+		if (!startSettingsActivitySafe(intent)) {
+			onUnsupported()
+		}
+	}
+
+	private fun startTrackerIgnoreDozeActivity(): Boolean {
+		return startIgnoreDozeActivity(this, ignoreTrackerDozeLauncher)
+	}
+
+	private fun updateDownloadsConstraints() {
+		lifecycleScope.launch {
+			runCatching {
+				when (kototoroAppSettings.allowDownloadOnMeteredNetwork) {
+					org.skepsun.kototoro.core.prefs.TriStateOption.ENABLED -> downloadsScheduler.updateConstraints(true)
+					org.skepsun.kototoro.core.prefs.TriStateOption.ASK -> Unit
+					org.skepsun.kototoro.core.prefs.TriStateOption.DISABLED -> downloadsScheduler.updateConstraints(false)
+				}
+			}.onFailure {
+				it.printStackTrace()
+			}
+		}
+	}
+
+	private fun startDownloadsIgnoreDozeActivity(): Boolean {
+		return startIgnoreDozeActivity(this, ignoreDownloadsDozeLauncher)
+	}
+
+	private fun testProxyConnection() {
+		proxyTestJob?.cancel()
+		proxyTestJob = lifecycleScope.launch {
+			proxyTestSummaryFlow.value = getString(R.string.loading_)
+			proxyIsTestRunningFlow.value = true
+			try {
+				withContext(Dispatchers.Default) {
+					val request = Request.Builder()
+						.get()
+						.url("http://neverssl.com")
+						.build()
+					okHttpClient.newCall(request).await().use { response ->
+						check(response.isSuccessful) { response.message }
+					}
+				}
+				showProxyTestResult(null)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Throwable) {
+				e.printStackTraceDebug()
+				showProxyTestResult(e)
+			} finally {
+				proxyIsTestRunningFlow.value = false
+				proxyTestSummaryFlow.value = null
+			}
+		}
+	}
+
+	private fun showProxyTestResult(error: Throwable?) {
+		MaterialAlertDialogBuilder(this)
+			.setTitle(R.string.proxy)
+			.setMessage(error?.getDisplayMessage(resources) ?: getString(R.string.connection_ok))
+			.setPositiveButton(android.R.string.ok, null)
+			.setCancelable(true)
+			.show()
+	}
+
+	private fun onAboutUpdateAvailable(version: AppVersion?) {
+		if (version == null) {
+			Toast.makeText(this, R.string.no_update_available, Toast.LENGTH_SHORT).show()
+		} else {
+			startActivity(Intent(this, AppUpdateActivity::class.java))
+		}
+	}
+
+	private fun openAboutLink(key: String): Boolean {
+		val urlRes = when (key) {
+			org.skepsun.kototoro.core.prefs.AppSettings.KEY_LINK_WEBLATE -> R.string.url_weblate
+			org.skepsun.kototoro.core.prefs.AppSettings.KEY_LINK_GITHUB -> R.string.url_github
+			org.skepsun.kototoro.core.prefs.AppSettings.KEY_LINK_DONATE -> R.string.url_donate
+			org.skepsun.kototoro.core.prefs.AppSettings.KEY_LINK_MANUAL -> R.string.url_user_manual
+			org.skepsun.kototoro.core.prefs.AppSettings.KEY_LINK_DISCORD -> R.string.url_discord
+			else -> return false
+		}
+		val title = when (key) {
+			org.skepsun.kototoro.core.prefs.AppSettings.KEY_LINK_WEBLATE -> getString(R.string.about_app_translation_summary)
+			org.skepsun.kototoro.core.prefs.AppSettings.KEY_LINK_GITHUB -> getString(R.string.source_code)
+			org.skepsun.kototoro.core.prefs.AppSettings.KEY_LINK_DONATE -> getString(R.string.about_donate)
+			org.skepsun.kototoro.core.prefs.AppSettings.KEY_LINK_MANUAL -> getString(R.string.user_manual)
+			org.skepsun.kototoro.core.prefs.AppSettings.KEY_LINK_DISCORD -> getString(R.string.about_discord)
+			else -> null
+		}
+		return if (router.openExternalBrowser(getString(urlRes), title)) {
+			true
+		} else {
+			Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_SHORT).show()
+			false
+		}
+	}
+
+	private fun startSettingsActivitySafe(intent: Intent): Boolean {
+		return runCatching {
+			startActivity(intent)
+		}.isSuccess
 	}
 
 	companion object {
 
 		private const val HOST_ABOUT = "about"
 		private const val HOST_SYNC_SETTINGS = "sync-settings"
+		private const val DISCORD_ORIGIN = "https://discord.com"
+		private const val DISCORD_WWW_ORIGIN = "https://www.discord.com"
 		const val ARG_PREF_KEY = "pref_key"
+		private const val COMPOSE_HIDE_BACKSTACK_NAME = "settings_compose_hide"
+		private const val STATE_COMPOSE_DESTINATION = "compose_destination"
+		private const val STATE_COMPOSE_RESTORE_FRAGMENT = "compose_restore_fragment"
+		private const val STATE_PENDING_RESTORE_ROOT = "pending_restore_root"
+		private const val COMPOSE_DESTINATION_ROOT = "root"
+		private const val COMPOSE_DESTINATION_APPEARANCE_SETTINGS = "appearance_settings"
+		private const val COMPOSE_DESTINATION_USERS_SETTINGS = "users_settings"
+		private const val COMPOSE_DESTINATION_AI_SETTINGS = "ai_settings"
+		private const val COMPOSE_DESTINATION_OCR_MODELS_SETTINGS = "ocr_models_settings"
+		private const val COMPOSE_DESTINATION_AI_IMAGE_ENHANCEMENT_SETTINGS = "ai_image_enhancement_settings"
+		private const val COMPOSE_DESTINATION_AI_VIDEO_ENHANCEMENT_SETTINGS = "ai_video_enhancement_settings"
+		private const val COMPOSE_DESTINATION_TTS_SETTINGS = "tts_settings"
+		private const val COMPOSE_DESTINATION_PLAYBACK_SETTINGS = "playback_settings"
+		private const val COMPOSE_DESTINATION_READER_SETTINGS = "reader_settings"
+		private const val COMPOSE_DESTINATION_SOURCES_SETTINGS = "sources_settings"
+		private const val COMPOSE_DESTINATION_SUGGESTIONS_SETTINGS = "suggestions_settings"
+		private const val COMPOSE_DESTINATION_BACKUPS_SETTINGS = "backups_settings"
+		private const val COMPOSE_DESTINATION_SYNC_SETTINGS = "sync_settings"
+		private const val COMPOSE_DESTINATION_TRANSLATION_SETTINGS = "translation_settings"
+		private const val COMPOSE_DESTINATION_TRANSLATION_API_SETTINGS = "translation_api_settings"
+		private const val COMPOSE_DESTINATION_TRANSLATION_E2E_API_SETTINGS = "translation_e2e_api_settings"
+		private const val COMPOSE_DESTINATION_STORAGE_AND_NETWORK_SETTINGS = "storage_and_network_settings"
+		private const val COMPOSE_DESTINATION_DATA_CLEANUP_SETTINGS = "data_cleanup_settings"
+		private const val COMPOSE_DESTINATION_DOWNLOADS_SETTINGS = "downloads_settings"
+		private const val COMPOSE_DESTINATION_TRACKER_SETTINGS = "tracker_settings"
+		private const val COMPOSE_DESTINATION_NOTIFICATION_SETTINGS = "notification_settings"
+		private const val COMPOSE_DESTINATION_SERVICES_SETTINGS = "services_settings"
+		private const val COMPOSE_DESTINATION_DISCORD_SETTINGS = "discord_settings"
+		private const val COMPOSE_DESTINATION_PROXY_SETTINGS = "proxy_settings"
+		private const val COMPOSE_DESTINATION_NAV_CONFIG_SETTINGS = "nav_config_settings"
+		private const val COMPOSE_DESTINATION_CHANGELOG_SETTINGS = "changelog_settings"
+		private const val COMPOSE_DESTINATION_ABOUT_SETTINGS = "about_settings"
+	}
+
+	private fun Bundle.toComposeDestination(): SettingsDestination? {
+		return when (getString(STATE_COMPOSE_DESTINATION)) {
+			COMPOSE_DESTINATION_ROOT -> SettingsDestination.Root
+			COMPOSE_DESTINATION_APPEARANCE_SETTINGS -> SettingsDestination.AppearanceSettings
+			COMPOSE_DESTINATION_USERS_SETTINGS -> SettingsDestination.UsersSettings
+			COMPOSE_DESTINATION_AI_SETTINGS -> SettingsDestination.AISettings
+			COMPOSE_DESTINATION_OCR_MODELS_SETTINGS -> SettingsDestination.OcrModelsSettings
+			COMPOSE_DESTINATION_AI_IMAGE_ENHANCEMENT_SETTINGS -> SettingsDestination.AiImageEnhancementSettings
+			COMPOSE_DESTINATION_AI_VIDEO_ENHANCEMENT_SETTINGS -> SettingsDestination.AiVideoEnhancementSettings
+			COMPOSE_DESTINATION_TTS_SETTINGS -> SettingsDestination.TtsSettings
+			COMPOSE_DESTINATION_PLAYBACK_SETTINGS -> SettingsDestination.PlaybackSettings
+			COMPOSE_DESTINATION_READER_SETTINGS -> SettingsDestination.ReaderSettings
+			COMPOSE_DESTINATION_SOURCES_SETTINGS -> SettingsDestination.SourcesSettings
+			COMPOSE_DESTINATION_SUGGESTIONS_SETTINGS -> SettingsDestination.SuggestionsSettings
+			COMPOSE_DESTINATION_BACKUPS_SETTINGS -> SettingsDestination.BackupsSettings
+			COMPOSE_DESTINATION_SYNC_SETTINGS -> SettingsDestination.SyncSettings
+			COMPOSE_DESTINATION_TRANSLATION_SETTINGS -> SettingsDestination.TranslationSettings
+			COMPOSE_DESTINATION_TRANSLATION_API_SETTINGS -> SettingsDestination.TranslationApiSettings
+			COMPOSE_DESTINATION_TRANSLATION_E2E_API_SETTINGS -> SettingsDestination.TranslationE2EApiSettings
+			COMPOSE_DESTINATION_STORAGE_AND_NETWORK_SETTINGS -> SettingsDestination.StorageAndNetworkSettings
+			COMPOSE_DESTINATION_DATA_CLEANUP_SETTINGS -> SettingsDestination.DataCleanupSettings
+			COMPOSE_DESTINATION_DOWNLOADS_SETTINGS -> SettingsDestination.DownloadsSettings
+			COMPOSE_DESTINATION_TRACKER_SETTINGS -> SettingsDestination.TrackerSettings
+			COMPOSE_DESTINATION_NOTIFICATION_SETTINGS -> SettingsDestination.NotificationSettings
+			COMPOSE_DESTINATION_SERVICES_SETTINGS -> SettingsDestination.ServicesSettings
+			COMPOSE_DESTINATION_DISCORD_SETTINGS -> SettingsDestination.DiscordSettings
+			COMPOSE_DESTINATION_PROXY_SETTINGS -> SettingsDestination.ProxySettings
+			COMPOSE_DESTINATION_NAV_CONFIG_SETTINGS -> SettingsDestination.NavConfigSettings
+			COMPOSE_DESTINATION_CHANGELOG_SETTINGS -> SettingsDestination.ChangelogSettings
+			COMPOSE_DESTINATION_ABOUT_SETTINGS -> SettingsDestination.AboutSettings
+			else -> null
+		}
 	}
 
 	private fun observeFoldableState() {
