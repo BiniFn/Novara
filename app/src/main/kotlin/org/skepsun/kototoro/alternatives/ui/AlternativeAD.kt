@@ -44,7 +44,7 @@ fun alternativeAD(
 	val colorRed = ContextCompat.getColor(context, R.color.common_red)
 	val clickListener = AdapterDelegateClickListenerAdapter(this, listener)
 	itemView.setOnClickListener(clickListener)
-	binding.buttonMigrate.setOnClickListener(clickListener)
+	binding.buttonMigrate.setOnLongClickListener(clickListener)
 	binding.chipSource.setOnClickListener(clickListener)
 
 	bind { payloads ->

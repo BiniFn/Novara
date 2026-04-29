@@ -31,6 +31,7 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
+import org.skepsun.kototoro.core.ui.compose.verticalScrollbar
 import org.skepsun.kototoro.details.ui.compose.state.DetailsPaneState
 import org.skepsun.kototoro.details.ui.compose.state.rememberDetailsPaneNestedScrollConnection
 import org.skepsun.kototoro.details.ui.pager.pages.PageThumbnail
@@ -248,6 +249,7 @@ fun PagesScreen(
 				verticalArrangement = Arrangement.spacedBy(8.dp),
 				modifier = Modifier
                     .fillMaxSize()
+                    .verticalScrollbar(listState)
                     .then(paneNestedScrollModifier),
 			) {
                 items(

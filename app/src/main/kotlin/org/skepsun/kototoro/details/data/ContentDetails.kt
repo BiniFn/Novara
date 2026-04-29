@@ -121,8 +121,11 @@ data class ContentDetails(
                     localMap?.remove(match.id)
                 }
             }
-            // Use the local chapter to ensure download properties (URL, file+zip) are retained
-            result += local ?: chapter
+            result += if (local != null) {
+                local.copy(branch = chapter.branch)
+            } else {
+                chapter
+            }
         }
         
         if (remainingLocalChapters.isNotEmpty()) {

@@ -29,13 +29,18 @@ fun ChapterListCard(
 	modifier: Modifier = Modifier
 ) {
 	val context = LocalContext.current
-	val titleColor = if (item.isUnread) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-	val alphaFactor = if (item.isUnread) 1.0f else 0.6f
+	val titleColor = when {
+		item.isCurrent -> MaterialTheme.colorScheme.primary
+		item.isUnread -> MaterialTheme.colorScheme.onSurface
+		else -> MaterialTheme.colorScheme.onSurfaceVariant
+	}
+	val alphaFactor = if (item.isUnread || item.isCurrent) 1.0f else 0.6f
+	val titleWeight = if (item.isCurrent) androidx.compose.ui.text.font.FontWeight.Bold else null
 
 	Row(
 		modifier = modifier
 			.fillMaxWidth()
-			.heightIn(min = 64.dp) // minHeight equivalent to @dimen/chapter_list_item_height
+			.heightIn(min = 64.dp)
 			.background(if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else Color.Transparent)
 			.combinedClickable(
 				onClick = onClick,
@@ -44,6 +49,14 @@ fun ChapterListCard(
 			.padding(horizontal = 16.dp, vertical = 8.dp),
 		verticalAlignment = Alignment.CenterVertically
 	) {
+		if (item.isCurrent) {
+			Icon(
+				painter = painterResource(id = R.drawable.ic_current_chapter),
+				contentDescription = null,
+				tint = MaterialTheme.colorScheme.primary,
+				modifier = Modifier.padding(end = 8.dp).size(16.dp)
+			)
+		}
 		Column(
 			modifier = Modifier
 				.weight(1f)
@@ -52,6 +65,7 @@ fun ChapterListCard(
 			Text(
 				text = item.getTitle(context.resources),
 				style = MaterialTheme.typography.bodyLarge,
+				fontWeight = titleWeight,
 				color = titleColor,
 				maxLines = 1,
 				overflow = TextOverflow.Ellipsis

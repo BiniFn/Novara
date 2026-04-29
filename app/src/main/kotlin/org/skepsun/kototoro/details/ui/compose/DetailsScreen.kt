@@ -835,7 +835,11 @@ fun DetailsScreen(
                             .fillMaxSize(),
                     ) {
                         DetailsScrollableContent(
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    alpha = (1f - compactSheetExpansionProgress).coerceIn(0f, 1f)
+                                },
                             scrollState = scrollState,
                             contentPadding = paddingValues,
                             headerTopSpacing = detailsHeaderTopSpacing,
@@ -2240,6 +2244,14 @@ private fun ChapterSelectionTopBar(
                     Icon(
                         painter = rememberSafePainter(R.drawable.ic_delete),
                         contentDescription = stringResource(R.string.delete),
+                    )
+                }
+            }
+            if (state.canBookmark) {
+                IconButton(onClick = state.onBookmark) {
+                    Icon(
+                        painter = rememberSafePainter(R.drawable.ic_bookmark),
+                        contentDescription = stringResource(R.string.bookmarks),
                     )
                 }
             }

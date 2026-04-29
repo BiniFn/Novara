@@ -257,6 +257,26 @@ abstract class ChaptersPagesViewModel(
 		download(setOf(chapterId), isMeteredNetworkAllowed, preferredQuality)
 	}
 
+	fun addBookmarksForChapters(chapterIds: Set<Long>) {
+		launchJob(Dispatchers.Default) {
+			val manga = mangaDetails.value?.toContent() ?: return@launchJob
+			val chapterItems = chapters.value.filter { it.chapter.id in chapterIds }
+			for (item in chapterItems) {
+				val bookmark = org.skepsun.kototoro.bookmarks.domain.Bookmark(
+					manga = manga,
+					pageId = item.chapter.id,
+					chapterId = item.chapter.id,
+					page = 0,
+					scroll = 0,
+					imageUrl = manga.coverUrl.orEmpty(),
+					createdAt = java.time.Instant.now(),
+					percent = 0f,
+				)
+				bookmarksRepository.addBookmark(bookmark)
+			}
+		}
+	}
+
 	fun probeAndDownload(snapshot: Set<Long>) {
 		launchLoadingJob(Dispatchers.Default) {
 			val manga = mangaDetails.value?.toContent() ?: return@launchLoadingJob

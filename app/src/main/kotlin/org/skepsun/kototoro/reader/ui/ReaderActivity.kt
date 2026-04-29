@@ -574,6 +574,10 @@ class ReaderActivity :
         viewModel.toggleBookmark()
     }
 
+    override fun onDownloadClick() {
+        viewModel.downloadCurrentChapter()
+    }
+
     override fun onSavePageClick() {
         viewModel.saveCurrentPage(pageSaveHelper)
     }

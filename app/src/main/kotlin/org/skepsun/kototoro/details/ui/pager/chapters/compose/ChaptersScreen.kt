@@ -34,6 +34,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import org.skepsun.kototoro.core.ui.compose.verticalScrollbar
 import org.skepsun.kototoro.details.ui.compose.state.DetailsPaneState
 import org.skepsun.kototoro.details.ui.compose.state.rememberDetailsPaneNestedScrollConnection
 import org.skepsun.kototoro.core.ui.widgets.ChipsView.ChipModel
@@ -129,6 +130,7 @@ fun ChaptersScreen(
                         userScrollEnabled = isScrollEnabled,
                         modifier = Modifier
                             .fillMaxSize()
+                            .verticalScrollbar(gridState)
                             .then(paneNestedScrollModifier),
                     ) {
                         items(
@@ -171,6 +173,7 @@ fun ChaptersScreen(
                         userScrollEnabled = isScrollEnabled,
                         modifier = Modifier
                             .fillMaxSize()
+                            .verticalScrollbar(listState)
                             .then(paneNestedScrollModifier),
                     ) {
                         items(

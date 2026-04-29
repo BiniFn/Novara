@@ -145,6 +145,10 @@ fun ChaptersScreenRoot(
                         }
                     }
 
+                    R.id.action_bookmark -> {
+                        viewModel.addBookmarksForChapters(selectedIds)
+                    }
+
                     R.id.action_delete -> {
                         val manga = viewModel.getContentOrNull()
                         when {
@@ -184,6 +188,7 @@ fun ChaptersScreenRoot(
                 canDownload = selectedItems.isNotEmpty() && selectedItems.all { !it.isDownloaded && !it.chapter.source.isLocal },
                 canDelete = selectedItems.isNotEmpty() && selectedItems.all { it.isDownloaded || it.chapter.source.isLocal },
                 canMarkCurrent = selectedItems.size == 1 && !selectedItems.first().isCurrent,
+                canBookmark = selectedItems.isNotEmpty(),
                 onClearSelection = { selectedItemIds.clear() },
                 onSelectAll = {
                     selectedItemIds.clear()
@@ -192,6 +197,7 @@ fun ChaptersScreenRoot(
                 onDownload = { handleSelectionAction(R.id.action_save) },
                 onDelete = { handleSelectionAction(R.id.action_delete) },
                 onMarkCurrent = { handleSelectionAction(R.id.action_mark_current) },
+                onBookmark = { handleSelectionAction(R.id.action_bookmark) },
             )
         }
     }

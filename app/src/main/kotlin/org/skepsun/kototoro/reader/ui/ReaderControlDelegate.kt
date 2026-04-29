@@ -152,6 +152,8 @@ class ReaderControlDelegate(
 
 		fun onTranslateLongClick(): Boolean = false
 
+		fun onDownloadClick() = Unit
+
 		fun isReaderResumed(): Boolean
 	}
 }

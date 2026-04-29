@@ -15,8 +15,8 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -38,6 +39,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.bookmarks.domain.Bookmark
 import org.skepsun.kototoro.details.ui.compose.state.DetailsPaneState
 import org.skepsun.kototoro.details.ui.compose.state.rememberDetailsPaneNestedScrollConnection
+import org.skepsun.kototoro.list.ui.model.ListHeader
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -78,6 +80,21 @@ fun BookmarkCard(
 						.size(24.dp),
 					color = MaterialTheme.colorScheme.primary,
 					trackColor = Color.Black.copy(alpha = 0.5f),
+				)
+			}
+
+			Surface(
+				modifier = Modifier
+					.align(Alignment.BottomStart)
+					.padding(4.dp),
+				shape = RoundedCornerShape(4.dp),
+				color = Color.Black.copy(alpha = 0.6f),
+			) {
+				Text(
+					text = "P.${bookmark.page + 1}",
+					style = MaterialTheme.typography.labelSmall,
+					color = Color.White,
+					modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
 				)
 			}
 
@@ -142,13 +159,34 @@ fun BookmarksScreen(
                     .fillMaxSize()
                     .then(paneNestedScrollModifier),
 			) {
-				items(items.filterIsInstance<Bookmark>(), key = { it.pageId }) { bookmark ->
-					BookmarkCard(
-						bookmark = bookmark,
-						isSelected = selectedItemIds.contains(bookmark.pageId),
-						onClick = { onItemClick(bookmark) },
-						onLongClick = { onItemLongClick(bookmark) },
-					)
+				items.forEach { item ->
+					when (item) {
+						is ListHeader -> {
+							item(
+								key = "header_${item.hashCode()}",
+								span = { GridItemSpan(maxLineSpan) },
+							) {
+								val context = LocalContext.current
+								Text(
+									text = item.getText(context) ?: "",
+									style = MaterialTheme.typography.titleSmall,
+									color = MaterialTheme.colorScheme.primary,
+									modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+								)
+							}
+						}
+						is Bookmark -> {
+							item(key = item.pageId) {
+								BookmarkCard(
+									bookmark = item,
+									isSelected = selectedItemIds.contains(item.pageId),
+									onClick = { onItemClick(item) },
+									onLongClick = { onItemLongClick(item) },
+								)
+							}
+						}
+						else -> {}
+					}
 				}
 			}
 		}

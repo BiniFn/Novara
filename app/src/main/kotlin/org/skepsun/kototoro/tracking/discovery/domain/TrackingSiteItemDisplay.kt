@@ -3,8 +3,9 @@ package org.skepsun.kototoro.tracking.discovery.domain
 import java.util.Locale
 
 fun TrackingSiteItem.displayTitle(): String {
-    return primaryTitle?.takeIf { it.isNotBlank() }
-        ?: title
+    return title.takeIf { it.isNotBlank() }
+        ?: primaryTitle?.takeIf { it.isNotBlank() }
+        ?: ""
 }
 
 fun TrackingSiteItem.displaySecondaryTitle(): String? {
