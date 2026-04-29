@@ -4,9 +4,12 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentResultListener
 import dagger.hilt.android.AndroidEntryPoint
@@ -33,15 +36,13 @@ class SyncSettingsFragment : Fragment(), FragmentResultListener {
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         syncUrlFlow.value = syncSettings.syncUrl ?: ""
         return ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
-                val syncUrl by syncUrlFlow.collectAsState()
                 KototoroTheme {
-                    SyncSettingsScreen(
+                    SyncSettingsRoute(
                         settings = appSettings,
-                        syncUrl = syncUrl,
-                        onSyncUrlClick = {
-                            SyncHostDialogFragment.show(childFragmentManager, null)
-                        },
+                        syncUrlFlow = syncUrlFlow,
+                        onSyncUrlClick = { SyncHostDialogFragment.show(childFragmentManager, null) },
                     )
                 }
             }
@@ -57,4 +58,20 @@ class SyncSettingsFragment : Fragment(), FragmentResultListener {
     override fun onFragmentResult(requestKey: String, result: Bundle) {
         syncUrlFlow.value = syncSettings.syncUrl ?: ""
     }
+}
+
+@Composable
+fun SyncSettingsRoute(
+    settings: AppSettings,
+    syncUrlFlow: MutableStateFlow<String>,
+    onSyncUrlClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val syncUrl by syncUrlFlow.collectAsState()
+    SyncSettingsScreen(
+        settings = settings,
+        syncUrl = syncUrl,
+        onSyncUrlClick = onSyncUrlClick,
+        modifier = modifier,
+    )
 }

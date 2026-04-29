@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
@@ -35,14 +36,12 @@ class PlaybackSettingsFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         (view as ComposeView).setContent {
             KototoroTheme {
-                PlaybackSettingsScreen(
+                PlaybackSettingsRoute(
                     settings = settings,
-                    onMpvConfClick = {
-                        org.skepsun.kototoro.video.player.MpvConfigManager.showMpvConfigDialog(requireContext(), view)
-                    },
+                    onMpvConfClick = { org.skepsun.kototoro.video.player.MpvConfigManager.showMpvConfigDialog(requireContext(), view) },
                     onAiSettingsClick = {
-                        (activity as? SettingsActivity)?.openFragment(AISettingsFragment::class.java, null, false)
-                    }
+                        (activity as? SettingsActivity)?.openDestination(SettingsDestination.AISettings, null, false)
+                    },
                 )
             }
         }
@@ -54,3 +53,15 @@ class PlaybackSettingsFragment : Fragment() {
     }
 }
 
+@Composable
+fun PlaybackSettingsRoute(
+    settings: AppSettings,
+    onMpvConfClick: () -> Unit,
+    onAiSettingsClick: () -> Unit,
+) {
+    PlaybackSettingsScreen(
+        settings = settings,
+        onMpvConfClick = onMpvConfClick,
+        onAiSettingsClick = onAiSettingsClick,
+    )
+}

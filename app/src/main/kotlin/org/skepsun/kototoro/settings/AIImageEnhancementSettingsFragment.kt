@@ -6,6 +6,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
@@ -44,20 +47,12 @@ class AIImageEnhancementSettingsFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
-        val ncnnModels = buildList {
-            addAll(OnnxOfficialModelCatalog.models.filter { it.category == OnnxModelCategory.IMAGE_SUPER_RESOLUTION }.map {
-                val suffix = if (onnxModelManager.isModelDownloaded(it.id)) "" else getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
-                SettingsChoiceOption(it.id, it.title + suffix)
-            })
-        }
-
         (view as ComposeView).setContent {
             KototoroTheme {
-                AIImageEnhancementSettingsScreen(
+                AIImageEnhancementSettingsRoute(
                     settings = settings,
-                    ncnnModels = ncnnModels,
-                    onClearCacheClick = { clearSrCache() }
+                    onnxModelManager = onnxModelManager,
+                    onClearCacheClick = ::clearSrCache,
                 )
             }
         }
@@ -86,4 +81,35 @@ class AIImageEnhancementSettingsFragment : Fragment() {
             }
         }
     }
+}
+
+@Composable
+fun AIImageEnhancementSettingsRoute(
+    settings: AppSettings,
+    onnxModelManager: OnnxModelManager,
+    onClearCacheClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val ncnnModels = buildList {
+        addAll(
+            OnnxOfficialModelCatalog.models
+                .filter { it.category == OnnxModelCategory.IMAGE_SUPER_RESOLUTION }
+                .map {
+                    val suffix = if (onnxModelManager.isModelDownloaded(it.id)) {
+                        ""
+                    } else {
+                        context.getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
+                    }
+                    SettingsChoiceOption(it.id, it.title + suffix)
+                },
+        )
+    }
+
+    AIImageEnhancementSettingsScreen(
+        settings = settings,
+        ncnnModels = ncnnModels,
+        onClearCacheClick = onClearCacheClick,
+        modifier = modifier,
+    )
 }

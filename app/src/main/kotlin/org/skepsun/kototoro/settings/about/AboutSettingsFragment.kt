@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.annotation.StringRes
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.ComposeView
@@ -20,8 +21,8 @@ import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.theme.KototoroTheme
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.settings.SettingsActivity
+import org.skepsun.kototoro.settings.SettingsDestination
 import org.skepsun.kototoro.settings.compose.AboutSettingsScreen
-import org.skepsun.kototoro.settings.about.changelog.ChangelogFragment
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -35,19 +36,12 @@ class AboutSettingsFragment : Fragment() {
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         return ComposeView(requireContext()).apply {
             setContent {
-                val isUpdateSupported by viewModel.isUpdateSupported.collectAsState(initial = false)
-                val isLoading by viewModel.isLoading.collectAsState(initial = false)
-
                 KototoroTheme {
-                    AboutSettingsScreen(
+                    AboutSettingsRoute(
                         settings = appSettings,
-                        isUpdateSupported = isUpdateSupported,
-                        isLoading = isLoading,
-                        onCheckUpdate = {
-                            viewModel.checkForUpdates()
-                        },
+                        viewModel = viewModel,
                         onChangelogClick = {
-                            (activity as? SettingsActivity)?.openFragment(ChangelogFragment::class.java, null, false)
+                            (activity as? SettingsActivity)?.openDestination(SettingsDestination.ChangelogSettings, null, false)
                         },
                         onLinkClick = { key ->
                             when (key) {
@@ -56,6 +50,7 @@ class AboutSettingsFragment : Fragment() {
                                 AppSettings.KEY_LINK_DONATE -> openLink(R.string.url_donate, getString(R.string.about_donate))
                                 AppSettings.KEY_LINK_MANUAL -> openLink(R.string.url_user_manual, getString(R.string.user_manual))
                                 AppSettings.KEY_LINK_DISCORD -> openLink(R.string.url_discord, getString(R.string.about_discord))
+                                else -> false
                             }
                         },
                         onCrashLogsClick = {
@@ -90,4 +85,26 @@ class AboutSettingsFragment : Fragment() {
         view?.let { Snackbar.make(it, R.string.operation_not_supported, Snackbar.LENGTH_SHORT).show() }
         false
     }
+}
+
+@Composable
+fun AboutSettingsRoute(
+    settings: AppSettings,
+    viewModel: AboutSettingsViewModel,
+    onChangelogClick: () -> Unit,
+    onLinkClick: (String) -> Unit,
+    onCrashLogsClick: () -> Unit,
+) {
+    val isUpdateSupported by viewModel.isUpdateSupported.collectAsState(initial = false)
+    val isLoading by viewModel.isLoading.collectAsState(initial = false)
+
+    AboutSettingsScreen(
+        settings = settings,
+        isUpdateSupported = isUpdateSupported,
+        isLoading = isLoading,
+        onCheckUpdate = { viewModel.checkForUpdates() },
+        onChangelogClick = onChangelogClick,
+        onLinkClick = { key -> onLinkClick(key) },
+        onCrashLogsClick = onCrashLogsClick,
+    )
 }

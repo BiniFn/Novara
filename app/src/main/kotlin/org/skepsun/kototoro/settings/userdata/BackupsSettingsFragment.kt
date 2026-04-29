@@ -8,7 +8,10 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
@@ -20,13 +23,12 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.backups.domain.BackupUtils
 import org.skepsun.kototoro.backups.ui.backup.BackupService
 import org.skepsun.kototoro.backups.ui.periodical.PeriodicalBackupSettingsViewModel
-import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.os.OpenDocumentTreeHelper
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.theme.KototoroTheme
-import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 import org.skepsun.kototoro.core.util.ext.tryLaunch
 import org.skepsun.kototoro.settings.SettingsActivity
 import org.skepsun.kototoro.settings.compose.BackupsSettingsScreen
@@ -79,107 +81,17 @@ class BackupsSettingsFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        viewModel.onError.observeEvent(viewLifecycleOwner, SnackbarErrorObserver(view, this))
-        viewModel.onActionDone.observeEvent(
-            viewLifecycleOwner,
-            org.skepsun.kototoro.core.ui.util.ReversibleActionObserver(view),
-        )
 
         (view as ComposeView).setContent {
-            val lastBackupDate = viewModel.lastBackupDate.collectAsStateWithLifecycle().value
-            val backupDirectory = viewModel.backupsDirectory.collectAsStateWithLifecycle().value
-            val webDavLastAction = viewModel.webDavLastAction.collectAsStateWithLifecycle().value
-            val isWebDavCheckLoading = viewModel.isWebDavCheckLoading.collectAsStateWithLifecycle().value
-            val isWebDavEnabled =
-                settings.observeAsState(AppSettings.KEY_BACKUP_WEBDAV_ENABLED) { isBackupWebDavUploadEnabled }.value
-            val backupFrequency =
-                settings.observeAsState(AppSettings.KEY_BACKUP_PERIODICAL_FREQUENCY) { periodicalBackupFrequency }.value
-            val isPeriodicalTrimEnabled =
-                settings.observeAsState(AppSettings.KEY_BACKUP_PERIODICAL_TRIM) { isPeriodicalBackupTrimEnabled }.value
-            val periodicalBackupCount =
-                settings.observeAsState(AppSettings.KEY_BACKUP_PERIODICAL_COUNT) { periodicalBackupCount }.value
-            val webDavServerUrl =
-                settings.observeAsState(AppSettings.KEY_BACKUP_WEBDAV_URL) { backupWebDavServerUrl.orEmpty() }.value
-            val webDavUsername =
-                settings.observeAsState(AppSettings.KEY_BACKUP_WEBDAV_USERNAME) { backupWebDavUsername.orEmpty() }.value
-            val webDavPassword =
-                settings.observeAsState(AppSettings.KEY_BACKUP_WEBDAV_PASSWORD) { backupWebDavPassword.orEmpty() }.value
-            val webDavRemotePath =
-                settings.observeAsState(AppSettings.KEY_BACKUP_WEBDAV_PATH) { backupWebDavRemotePath.orEmpty() }.value
-            val isWebDavAutoSyncEnabled =
-                settings.observeAsState(AppSettings.KEY_BACKUP_WEBDAV_AUTO_SYNC) { isBackupWebDavAutoSyncEnabled }.value
-            val isWebDavAutoRestoreEnabled =
-                settings.observeAsState(AppSettings.KEY_BACKUP_WEBDAV_AUTO_RESTORE) { isBackupWebDavAutoRestoreEnabled }.value
-            val isWebDavKeepLocalCopyEnabled =
-                settings.observeAsState(AppSettings.KEY_BACKUP_WEBDAV_KEEP_LOCAL_COPY) { isBackupWebDavKeepLocalCopyEnabled }.value
-            val snackbarHostState = remember { SnackbarHostState() }
-            val backupFrequencyLabels = resources.getStringArray(R.array.backup_frequency)
-            val backupFrequencyValues = resources.getStringArray(R.array.values_backup_frequency)
-            val backupFrequencyOptions = backupFrequencyLabels.zip(backupFrequencyValues).mapNotNull { (label, value) ->
-                value.toFloatOrNull()?.let { SettingsChoiceOption(it, label) }
-            }
-
-            val lastBackupSummary = when {
-                lastBackupDate != null -> getString(
-                    R.string.last_successful_backup,
-                    DateUtils.getRelativeTimeSpanString(lastBackupDate.time),
-                )
-                !isWebDavKeepLocalCopyEnabled -> getString(R.string.backup_periodic_last_local_empty)
-                else -> null
-            }
-            val webDavLastActionSummary = webDavLastAction?.let {
-                getString(it.first) + " - " + DateUtils.getRelativeTimeSpanString(it.second)
-            }
-            val state = BackupsSettingsUiState(
-                isWebDavEnabled = isWebDavEnabled,
-                backupOutputSummary = when (backupDirectory) {
-                    null -> getString(R.string.invalid_value_message)
-                    "" -> ""
-                    else -> backupDirectory
-                },
-                isBackupOutputInvalid = backupDirectory == null,
-                backupFrequency = backupFrequency,
-                isPeriodicalTrimEnabled = isPeriodicalTrimEnabled,
-                periodicalBackupCount = periodicalBackupCount,
-                lastBackupSummary = lastBackupSummary,
-                webDavServerUrl = webDavServerUrl,
-                webDavUsername = webDavUsername,
-                webDavPassword = webDavPassword,
-                webDavRemotePath = webDavRemotePath,
-                isWebDavCheckLoading = isWebDavCheckLoading,
-                isWebDavAutoSyncEnabled = isWebDavAutoSyncEnabled,
-                isWebDavAutoRestoreEnabled = isWebDavAutoRestoreEnabled,
-                isWebDavKeepLocalCopyEnabled = isWebDavKeepLocalCopyEnabled,
-                webDavLastActionSummary = webDavLastActionSummary,
-                isPolicyNoteVisible = !isWebDavKeepLocalCopyEnabled && isWebDavEnabled,
-            )
-
             KototoroTheme {
-                BackupsSettingsScreen(
-                    webDavTitle = getString(R.string.webdav_integration),
-                    backupRestoreTitle = getString(R.string.backup_restore),
-                    state = state,
-                    snackbarHostState = snackbarHostState,
-                    backupFrequencyOptions = backupFrequencyOptions,
-                    onWebDavEnabledChange = { settings.isBackupWebDavUploadEnabled = it },
+                BackupsSettingsRoute(
+                    settings = settings,
+                    viewModel = viewModel,
                     onBackupOutputClick = {
                         if (!outputSelectCall.tryLaunch(null)) {
                             showOperationNotSupported()
                         }
                     },
-                    onBackupFrequencyChange = { settings.periodicalBackupFrequency = it },
-                    onPeriodicalTrimChange = { settings.isPeriodicalBackupTrimEnabled = it },
-                    onPeriodicalBackupCountChange = { settings.periodicalBackupCount = it },
-                    onWebDavServerUrlChange = { settings.backupWebDavServerUrl = it },
-                    onWebDavUsernameChange = { settings.backupWebDavUsername = it },
-                    onWebDavPasswordChange = { settings.backupWebDavPassword = it },
-                    onWebDavRemotePathChange = { settings.backupWebDavRemotePath = it },
-                    onWebDavTestClick = { viewModel.checkWebDav() },
-                    onWebDavUploadNowClick = { viewModel.uploadWebDavNow() },
-                    onWebDavRestoreNowClick = { viewModel.restoreWebDavNow() },
-                    onWebDavAutoSyncChange = { settings.isBackupWebDavAutoSyncEnabled = it },
-                    onWebDavAutoRestoreChange = { settings.isBackupWebDavAutoRestoreEnabled = it },
-                    onWebDavKeepLocalCopyChange = { settings.isBackupWebDavKeepLocalCopyEnabled = it },
                     onCreateBackupClick = {
                         if (!backupCreateCall.tryLaunch(BackupUtils.generateFileName(requireContext()))) {
                             showOperationNotSupported()
@@ -204,4 +116,122 @@ class BackupsSettingsFragment : Fragment() {
         val hostView = view ?: return
         Snackbar.make(hostView, R.string.operation_not_supported, Snackbar.LENGTH_SHORT).show()
     }
+}
+
+@Composable
+fun BackupsSettingsRoute(
+    settings: AppSettings,
+    viewModel: PeriodicalBackupSettingsViewModel,
+    onBackupOutputClick: () -> Unit,
+    onCreateBackupClick: () -> Unit,
+    onRestoreBackupClick: () -> Unit,
+) {
+    val context = LocalContext.current
+    val lastBackupDate = viewModel.lastBackupDate.collectAsStateWithLifecycle().value
+    val backupDirectory = viewModel.backupsDirectory.collectAsStateWithLifecycle().value
+    val webDavLastAction = viewModel.webDavLastAction.collectAsStateWithLifecycle().value
+    val isWebDavCheckLoading = viewModel.isWebDavCheckLoading.collectAsStateWithLifecycle().value
+    val isWebDavEnabled =
+        settings.observeAsState(AppSettings.KEY_BACKUP_WEBDAV_ENABLED) { isBackupWebDavUploadEnabled }.value
+    val backupFrequency =
+        settings.observeAsState(AppSettings.KEY_BACKUP_PERIODICAL_FREQUENCY) { periodicalBackupFrequency }.value
+    val isPeriodicalTrimEnabled =
+        settings.observeAsState(AppSettings.KEY_BACKUP_PERIODICAL_TRIM) { isPeriodicalBackupTrimEnabled }.value
+    val periodicalBackupCount =
+        settings.observeAsState(AppSettings.KEY_BACKUP_PERIODICAL_COUNT) { periodicalBackupCount }.value
+    val webDavServerUrl =
+        settings.observeAsState(AppSettings.KEY_BACKUP_WEBDAV_URL) { backupWebDavServerUrl.orEmpty() }.value
+    val webDavUsername =
+        settings.observeAsState(AppSettings.KEY_BACKUP_WEBDAV_USERNAME) { backupWebDavUsername.orEmpty() }.value
+    val webDavPassword =
+        settings.observeAsState(AppSettings.KEY_BACKUP_WEBDAV_PASSWORD) { backupWebDavPassword.orEmpty() }.value
+    val webDavRemotePath =
+        settings.observeAsState(AppSettings.KEY_BACKUP_WEBDAV_PATH) { backupWebDavRemotePath.orEmpty() }.value
+    val isWebDavAutoSyncEnabled =
+        settings.observeAsState(AppSettings.KEY_BACKUP_WEBDAV_AUTO_SYNC) { isBackupWebDavAutoSyncEnabled }.value
+    val isWebDavAutoRestoreEnabled =
+        settings.observeAsState(AppSettings.KEY_BACKUP_WEBDAV_AUTO_RESTORE) { isBackupWebDavAutoRestoreEnabled }.value
+    val isWebDavKeepLocalCopyEnabled =
+        settings.observeAsState(AppSettings.KEY_BACKUP_WEBDAV_KEEP_LOCAL_COPY) { isBackupWebDavKeepLocalCopyEnabled }.value
+    val snackbarHostState = remember { SnackbarHostState() }
+    val backupFrequencyLabels = context.resources.getStringArray(R.array.backup_frequency)
+    val backupFrequencyValues = context.resources.getStringArray(R.array.values_backup_frequency)
+    val backupFrequencyOptions = backupFrequencyLabels.zip(backupFrequencyValues).mapNotNull { (label, value) ->
+        value.toFloatOrNull()?.let { SettingsChoiceOption(it, label) }
+    }
+
+    LaunchedEffect(viewModel.onError, context, snackbarHostState) {
+        viewModel.onError.collect { event ->
+            event?.consume { error ->
+                snackbarHostState.showSnackbar(error.getDisplayMessage(context.resources))
+            }
+        }
+    }
+    LaunchedEffect(viewModel.onActionDone, context, snackbarHostState) {
+        viewModel.onActionDone.collect { event ->
+            event?.consume { action ->
+                snackbarHostState.showSnackbar(context.getString(action.stringResId))
+            }
+        }
+    }
+
+    val lastBackupSummary = when {
+        lastBackupDate != null -> context.getString(
+            R.string.last_successful_backup,
+            DateUtils.getRelativeTimeSpanString(lastBackupDate.time),
+        )
+        !isWebDavKeepLocalCopyEnabled -> context.getString(R.string.backup_periodic_last_local_empty)
+        else -> null
+    }
+    val webDavLastActionSummary = webDavLastAction?.let {
+        context.getString(it.first) + " - " + DateUtils.getRelativeTimeSpanString(it.second)
+    }
+    val state = BackupsSettingsUiState(
+        isWebDavEnabled = isWebDavEnabled,
+        backupOutputSummary = when (backupDirectory) {
+            null -> context.getString(R.string.invalid_value_message)
+            "" -> ""
+            else -> backupDirectory
+        },
+        isBackupOutputInvalid = backupDirectory == null,
+        backupFrequency = backupFrequency,
+        isPeriodicalTrimEnabled = isPeriodicalTrimEnabled,
+        periodicalBackupCount = periodicalBackupCount,
+        lastBackupSummary = lastBackupSummary,
+        webDavServerUrl = webDavServerUrl,
+        webDavUsername = webDavUsername,
+        webDavPassword = webDavPassword,
+        webDavRemotePath = webDavRemotePath,
+        isWebDavCheckLoading = isWebDavCheckLoading,
+        isWebDavAutoSyncEnabled = isWebDavAutoSyncEnabled,
+        isWebDavAutoRestoreEnabled = isWebDavAutoRestoreEnabled,
+        isWebDavKeepLocalCopyEnabled = isWebDavKeepLocalCopyEnabled,
+        webDavLastActionSummary = webDavLastActionSummary,
+        isPolicyNoteVisible = !isWebDavKeepLocalCopyEnabled && isWebDavEnabled,
+    )
+
+    BackupsSettingsScreen(
+        webDavTitle = context.getString(R.string.webdav_integration),
+        backupRestoreTitle = context.getString(R.string.backup_restore),
+        state = state,
+        snackbarHostState = snackbarHostState,
+        backupFrequencyOptions = backupFrequencyOptions,
+        onWebDavEnabledChange = { settings.isBackupWebDavUploadEnabled = it },
+        onBackupOutputClick = onBackupOutputClick,
+        onBackupFrequencyChange = { settings.periodicalBackupFrequency = it },
+        onPeriodicalTrimChange = { settings.isPeriodicalBackupTrimEnabled = it },
+        onPeriodicalBackupCountChange = { settings.periodicalBackupCount = it },
+        onWebDavServerUrlChange = { settings.backupWebDavServerUrl = it },
+        onWebDavUsernameChange = { settings.backupWebDavUsername = it },
+        onWebDavPasswordChange = { settings.backupWebDavPassword = it },
+        onWebDavRemotePathChange = { settings.backupWebDavRemotePath = it },
+        onWebDavTestClick = { viewModel.checkWebDav() },
+        onWebDavUploadNowClick = { viewModel.uploadWebDavNow() },
+        onWebDavRestoreNowClick = { viewModel.restoreWebDavNow() },
+        onWebDavAutoSyncChange = { settings.isBackupWebDavAutoSyncEnabled = it },
+        onWebDavAutoRestoreChange = { settings.isBackupWebDavAutoRestoreEnabled = it },
+        onWebDavKeepLocalCopyChange = { settings.isBackupWebDavKeepLocalCopyEnabled = it },
+        onCreateBackupClick = onCreateBackupClick,
+        onRestoreBackupClick = onRestoreBackupClick,
+    )
 }

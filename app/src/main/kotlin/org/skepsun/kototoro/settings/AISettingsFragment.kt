@@ -3,6 +3,7 @@ package org.skepsun.kototoro.settings
 
 import android.os.Bundle
 import android.view.View
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.ComposeView
 import androidx.fragment.app.Fragment
@@ -29,14 +30,56 @@ class AISettingsFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         (view as ComposeView).setContent {
             KototoroTheme {
-                AISettingsScreen(
-                    onOpenOcrModels = { (activity as? SettingsActivity)?.openFragment(org.skepsun.kototoro.settings.OcrModelsFragment::class.java, null, false) },
-                    onOpenApiSettings = { (activity as? SettingsActivity)?.openFragment(org.skepsun.kototoro.settings.TranslationApiSettingsFragment::class.java, null, false) },
-                    onOpenE2eApiSettings = { (activity as? SettingsActivity)?.openFragment(org.skepsun.kototoro.settings.TranslationEndToEndApiSettingsFragment::class.java, null, false) },
-                    onOpenTranslationSettings = { (activity as? SettingsActivity)?.openFragment(org.skepsun.kototoro.settings.TranslationSettingsFragment::class.java, null, false) },
-                    onOpenImageEnhancementSettings = { (activity as? SettingsActivity)?.openFragment(org.skepsun.kototoro.settings.AIImageEnhancementSettingsFragment::class.java, null, false) },
-                    onOpenTtsSettings = { (activity as? SettingsActivity)?.openFragment(org.skepsun.kototoro.settings.TtsSettingsFragment::class.java, null, false) },
-                    onOpenVideoEnhancementSettings = { (activity as? SettingsActivity)?.openFragment(org.skepsun.kototoro.settings.AIVideoEnhancementSettingsFragment::class.java, null, false) },
+                AISettingsRoute(
+                    onOpenOcrModels = {
+                        (activity as? SettingsActivity)?.openDestination(
+                            SettingsDestination.OcrModelsSettings,
+                            null,
+                            false,
+                        )
+                    },
+                    onOpenApiSettings = {
+                        (activity as? SettingsActivity)?.openDestination(
+                            SettingsDestination.TranslationApiSettings,
+                            null,
+                            false,
+                        )
+                    },
+                    onOpenE2eApiSettings = {
+                        (activity as? SettingsActivity)?.openDestination(
+                            SettingsDestination.TranslationE2EApiSettings,
+                            null,
+                            false,
+                        )
+                    },
+                    onOpenTranslationSettings = {
+                        (activity as? SettingsActivity)?.openDestination(
+                            SettingsDestination.TranslationSettings,
+                            null,
+                            false,
+                        )
+                    },
+                    onOpenImageEnhancementSettings = {
+                        (activity as? SettingsActivity)?.openDestination(
+                            SettingsDestination.AiImageEnhancementSettings,
+                            null,
+                            false,
+                        )
+                    },
+                    onOpenTtsSettings = {
+                        (activity as? SettingsActivity)?.openDestination(
+                            SettingsDestination.TtsSettings,
+                            null,
+                            false,
+                        )
+                    },
+                    onOpenVideoEnhancementSettings = {
+                        (activity as? SettingsActivity)?.openDestination(
+                            SettingsDestination.AiVideoEnhancementSettings,
+                            null,
+                            false,
+                        )
+                    },
                 )
             }
         }
@@ -46,4 +89,25 @@ class AISettingsFragment : Fragment() {
         super.onResume()
         (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.ai_settings))
     }
+}
+
+@Composable
+fun AISettingsRoute(
+    onOpenOcrModels: () -> Unit,
+    onOpenApiSettings: () -> Unit,
+    onOpenE2eApiSettings: () -> Unit,
+    onOpenTranslationSettings: () -> Unit,
+    onOpenImageEnhancementSettings: () -> Unit,
+    onOpenTtsSettings: () -> Unit,
+    onOpenVideoEnhancementSettings: () -> Unit,
+) {
+    AISettingsScreen(
+        onOpenOcrModels = onOpenOcrModels,
+        onOpenApiSettings = onOpenApiSettings,
+        onOpenE2eApiSettings = onOpenE2eApiSettings,
+        onOpenTranslationSettings = onOpenTranslationSettings,
+        onOpenImageEnhancementSettings = onOpenImageEnhancementSettings,
+        onOpenTtsSettings = onOpenTtsSettings,
+        onOpenVideoEnhancementSettings = onOpenVideoEnhancementSettings,
+    )
 }

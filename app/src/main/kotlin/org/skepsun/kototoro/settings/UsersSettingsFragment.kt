@@ -5,6 +5,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -12,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -38,7 +40,6 @@ import org.skepsun.kototoro.settings.compose.UserTrackingAccountItem
 import org.skepsun.kototoro.settings.compose.UsersSettingsScreen
 import org.skepsun.kototoro.settings.compose.UsersSettingsUiState
 import org.skepsun.kototoro.settings.users.TrackingUserAccountSummaryProvider
-import org.skepsun.kototoro.settings.userdata.BackupsSettingsFragment
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteDiscoveryService
 
 @AndroidEntryPoint
@@ -71,54 +72,18 @@ class UsersSettingsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         (view as ComposeView).setContent {
-            val refreshKey = resumeTick.collectAsStateWithLifecycle().value
-            val preferredTrackingSite = settings.observeAsState(AppSettings.KEY_PREFERRED_TRACKING_SITE) {
-                preferredTrackingSite
-            }.value
-            val snackbarHostState = remember { SnackbarHostState() }
-            val coroutineScope = rememberCoroutineScope()
-            var pendingAuthService by remember { mutableStateOf<ScrobblerService?>(null) }
-            val preferredTrackingSiteOptions = remember {
-                buildPreferredTrackingSiteOptions()
-            }
-            val accounts = produceState(
-                initialValue = buildPlaceholderItems(),
-                key1 = refreshKey,
-            ) {
-                value = loadAccountItems()
-            }.value
-
             KototoroTheme {
-                UsersSettingsScreen(
-                    trackingAccountsTitle = getString(R.string.tracking_accounts),
-                    state = UsersSettingsUiState(
-                        accounts = accounts,
-                        preferredTrackingSite = preferredTrackingSite,
-                        preferredTrackingSiteOptions = preferredTrackingSiteOptions,
-                    ),
-                    snackbarHostState = snackbarHostState,
-                    pendingAuthService = pendingAuthService,
-                    onDismissAuthPrompt = { pendingAuthService = null },
-                    onConfirmAuthPrompt = { service ->
-                        pendingAuthService = null
-                        scrobblerAuthHelper.startAuth(requireContext(), service).onFailure {
-                            coroutineScope.launch {
-                                snackbarHostState.showSnackbar(it.getDisplayMessage(resources))
-                            }
-                        }
-                    },
-                    onPreferredTrackingSiteChange = { service ->
-                        settings.preferredTrackingSite = service
-                    },
+                UsersSettingsRoute(
+                    settings = settings,
+                    scrobblerAuthHelper = scrobblerAuthHelper,
+                    trackingUserAccountSummaryProvider = trackingUserAccountSummaryProvider,
+                    trackingDiscoveryService = trackingDiscoveryService,
+                    refreshKey = resumeTick.collectAsStateWithLifecycle().value,
                     onSyncSettingsClick = {
-                        (activity as? SettingsActivity)?.openFragment(BackupsSettingsFragment::class.java, null, false)
+                        (activity as? SettingsActivity)?.openDestination(SettingsDestination.BackupsSettings, null, false)
                     },
-                    onTrackingServiceClick = { service ->
-                        if (scrobblerAuthHelper.isAuthorized(service)) {
-                            requireActivity().router.openScrobblerSettings(service)
-                        } else {
-                            pendingAuthService = service
-                        }
+                    onOpenScrobblerSettings = { service ->
+                        requireActivity().router.openScrobblerSettings(service)
                     },
                 )
             }
@@ -130,136 +95,210 @@ class UsersSettingsFragment : Fragment() {
         (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.users))
         resumeTick.update { it + 1 }
     }
+}
 
-    private fun buildPlaceholderItems(): List<UserTrackingAccountItem> {
-        return TRACKING_SERVICES.map { service ->
+@Composable
+fun UsersSettingsRoute(
+    settings: AppSettings,
+    scrobblerAuthHelper: ScrobblerAuthHelper,
+    trackingUserAccountSummaryProvider: TrackingUserAccountSummaryProvider,
+    trackingDiscoveryService: TrackingSiteDiscoveryService,
+    refreshKey: Int,
+    onSyncSettingsClick: () -> Unit,
+    onOpenScrobblerSettings: (ScrobblerService) -> Unit,
+) {
+    val context = LocalContext.current
+    val preferredTrackingSite = settings.observeAsState(AppSettings.KEY_PREFERRED_TRACKING_SITE) {
+        preferredTrackingSite
+    }.value
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    var pendingAuthService by remember { mutableStateOf<ScrobblerService?>(null) }
+    val preferredTrackingSiteOptions = remember(trackingDiscoveryService) {
+        buildPreferredTrackingSiteOptions(context, trackingDiscoveryService)
+    }
+    val accounts = produceState(
+        initialValue = buildPlaceholderItems(context, scrobblerAuthHelper),
+        key1 = refreshKey,
+        key2 = context,
+    ) {
+        value = loadAccountItems(
+            context = context,
+            scrobblerAuthHelper = scrobblerAuthHelper,
+            trackingUserAccountSummaryProvider = trackingUserAccountSummaryProvider,
+        )
+    }.value
+
+    UsersSettingsScreen(
+        trackingAccountsTitle = context.getString(R.string.tracking_accounts),
+        state = UsersSettingsUiState(
+            accounts = accounts,
+            preferredTrackingSite = preferredTrackingSite,
+            preferredTrackingSiteOptions = preferredTrackingSiteOptions,
+        ),
+        snackbarHostState = snackbarHostState,
+        pendingAuthService = pendingAuthService,
+        onDismissAuthPrompt = { pendingAuthService = null },
+        onConfirmAuthPrompt = { service ->
+            pendingAuthService = null
+            scrobblerAuthHelper.startAuth(context, service).onFailure {
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar(it.getDisplayMessage(context.resources))
+                }
+            }
+        },
+        onPreferredTrackingSiteChange = { service ->
+            settings.preferredTrackingSite = service
+        },
+        onSyncSettingsClick = onSyncSettingsClick,
+        onTrackingServiceClick = { service ->
+            if (scrobblerAuthHelper.isAuthorized(service)) {
+                onOpenScrobblerSettings(service)
+            } else {
+                pendingAuthService = service
+            }
+        },
+    )
+}
+
+private fun buildPlaceholderItems(
+    context: android.content.Context,
+    scrobblerAuthHelper: ScrobblerAuthHelper,
+): List<UserTrackingAccountItem> {
+    return TRACKING_SERVICES.map { service ->
+        val cachedUser = scrobblerAuthHelper.getCachedUser(service)
+        UserTrackingAccountItem(
+            service = service,
+            title = context.getString(service.titleResId),
+            summary = when {
+                !scrobblerAuthHelper.isAuthorized(service) -> context.getString(R.string.not_signed_in)
+                cachedUser?.nickname.isNullOrBlank() -> context.getString(R.string.loading_)
+                else -> cachedUser?.nickname.orEmpty()
+            },
+            statsSummary = if (scrobblerAuthHelper.isAuthorized(service)) {
+                context.getString(R.string.statistics_pending_short)
+            } else {
+                null
+            },
+            avatarUrl = cachedUser?.avatar,
+            iconRes = service.iconResId,
+        )
+    }
+}
+
+private suspend fun loadAccountItems(
+    context: android.content.Context,
+    scrobblerAuthHelper: ScrobblerAuthHelper,
+    trackingUserAccountSummaryProvider: TrackingUserAccountSummaryProvider,
+): List<UserTrackingAccountItem> = withContext(Dispatchers.IO) {
+    TRACKING_SERVICES.map { service ->
+        if (!scrobblerAuthHelper.isAuthorized(service)) {
+            return@map UserTrackingAccountItem(
+                service = service,
+                title = context.getString(service.titleResId),
+                summary = context.getString(R.string.not_signed_in),
+                statsSummary = null,
+                avatarUrl = null,
+                iconRes = service.iconResId,
+            )
+        }
+        runCatching {
+            val profile = trackingUserAccountSummaryProvider.load(service)
+            buildAccountItem(context, service, profile)
+        }.getOrElse {
+            it.printStackTraceDebug()
             val cachedUser = scrobblerAuthHelper.getCachedUser(service)
             UserTrackingAccountItem(
                 service = service,
-                title = getString(service.titleResId),
-                summary = when {
-                    !scrobblerAuthHelper.isAuthorized(service) -> getString(R.string.not_signed_in)
-                    cachedUser?.nickname.isNullOrBlank() -> getString(R.string.loading_)
-                    else -> cachedUser?.nickname.orEmpty()
-                },
-                statsSummary = if (scrobblerAuthHelper.isAuthorized(service)) {
-                    getString(R.string.statistics_pending_short)
-                } else {
-                    null
-                },
+                title = context.getString(service.titleResId),
+                summary = cachedUser?.nickname ?: it.getDisplayMessage(context.resources),
+                statsSummary = context.getString(R.string.statistics_pending_short),
                 avatarUrl = cachedUser?.avatar,
                 iconRes = service.iconResId,
             )
         }
     }
+}
 
-    private suspend fun loadAccountItems(): List<UserTrackingAccountItem> = withContext(Dispatchers.IO) {
-        TRACKING_SERVICES.map { service ->
-            if (!scrobblerAuthHelper.isAuthorized(service)) {
-                return@map UserTrackingAccountItem(
-                    service = service,
-                    title = getString(service.titleResId),
-                    summary = getString(R.string.not_signed_in),
-                    statsSummary = null,
-                    avatarUrl = null,
-                    iconRes = service.iconResId,
-                )
-            }
-            runCatching {
-                val profile = trackingUserAccountSummaryProvider.load(service)
-                buildAccountItem(service, profile)
-            }.getOrElse {
-                it.printStackTraceDebug()
-                val cachedUser = scrobblerAuthHelper.getCachedUser(service)
-                UserTrackingAccountItem(
-                    service = service,
-                    title = getString(service.titleResId),
-                    summary = cachedUser?.nickname ?: it.getDisplayMessage(resources),
-                    statsSummary = getString(R.string.statistics_pending_short),
-                    avatarUrl = cachedUser?.avatar,
-                    iconRes = service.iconResId,
-                )
-            }
-        }
+private fun buildAccountItem(
+    context: android.content.Context,
+    service: ScrobblerService,
+    profile: ScrobblerUserProfile,
+): UserTrackingAccountItem {
+    return UserTrackingAccountItem(
+        service = service,
+        title = context.getString(service.titleResId),
+        summary = profile.user.nickname,
+        statsSummary = formatStatsSummary(context, service, profile.stats),
+        avatarUrl = profile.user.avatar,
+        iconRes = service.iconResId,
+    )
+}
+
+private fun formatStatsSummary(
+    context: android.content.Context,
+    service: ScrobblerService,
+    stats: ScrobblerUserStats?,
+): String {
+    if (stats == null) {
+        return context.getString(R.string.statistics_pending_short)
     }
-
-    private fun buildAccountItem(
-        service: ScrobblerService,
-        profile: ScrobblerUserProfile,
-    ): UserTrackingAccountItem {
-        return UserTrackingAccountItem(
-            service = service,
-            title = getString(service.titleResId),
-            summary = profile.user.nickname,
-            statsSummary = formatStatsSummary(service, profile.stats),
-            avatarUrl = profile.user.avatar,
-            iconRes = service.iconResId,
+    val parts = when (service) {
+        ScrobblerService.ANILIST,
+        ScrobblerService.MAL,
+        ScrobblerService.KITSU,
+        ScrobblerService.BANGUMI,
+        ScrobblerService.MANGAUPDATES,
+        ScrobblerService.SHIKIMORI,
+        -> listOfNotNull(
+            stats.animeCount?.let { context.getString(R.string.anime_count_short, it) },
+            stats.mangaCount?.let { context.getString(R.string.manga_count_short, it) },
+            stats.episodesWatched?.let { context.getString(R.string.episodes_watched_short, it) },
+            stats.chaptersRead?.let { context.getString(R.string.chapters_read_short, it) },
+            stats.animeMeanScore?.let { context.getString(R.string.mean_score_short, formatScore(it)) },
+            stats.mangaMeanScore?.let { context.getString(R.string.mean_score_short, formatScore(it)) },
+        )
+        ScrobblerService.SIMKL -> listOfNotNull(
+            stats.animeCount?.let { context.getString(R.string.anime_count_short, it) },
+            stats.tvCount?.let { context.getString(R.string.tv_count_short, it) },
+            stats.movieCount?.let { context.getString(R.string.movie_count_short, it) },
+            stats.episodesWatched?.let { context.getString(R.string.episodes_watched_short, it) },
+            stats.tvEpisodesWatched?.let { context.getString(R.string.tv_episodes_watched_short, it) },
         )
     }
-
-    private fun formatStatsSummary(
-        service: ScrobblerService,
-        stats: ScrobblerUserStats?,
-    ): String {
-        if (stats == null) {
-            return getString(R.string.statistics_pending_short)
-        }
-        val parts = when (service) {
-            ScrobblerService.ANILIST,
-            ScrobblerService.MAL,
-            ScrobblerService.KITSU,
-            ScrobblerService.BANGUMI,
-            ScrobblerService.MANGAUPDATES,
-            ScrobblerService.SHIKIMORI,
-            -> listOfNotNull(
-                stats.animeCount?.let { getString(R.string.anime_count_short, it) },
-                stats.mangaCount?.let { getString(R.string.manga_count_short, it) },
-                stats.episodesWatched?.let { getString(R.string.episodes_watched_short, it) },
-                stats.chaptersRead?.let { getString(R.string.chapters_read_short, it) },
-                stats.animeMeanScore?.let { getString(R.string.mean_score_short, formatScore(it)) },
-                stats.mangaMeanScore?.let { getString(R.string.mean_score_short, formatScore(it)) },
-            )
-            ScrobblerService.SIMKL -> listOfNotNull(
-                stats.animeCount?.let { getString(R.string.anime_count_short, it) },
-                stats.tvCount?.let { getString(R.string.tv_count_short, it) },
-                stats.movieCount?.let { getString(R.string.movie_count_short, it) },
-                stats.episodesWatched?.let { getString(R.string.episodes_watched_short, it) },
-                stats.tvEpisodesWatched?.let { getString(R.string.tv_episodes_watched_short, it) },
-            )
-        }
-        return parts.joinToString(separator = " · ").ifBlank {
-            getString(R.string.statistics_pending_short)
-        }
-    }
-
-    private fun formatScore(score: Double): String {
-        return if (score % 1.0 == 0.0) {
-            score.toInt().toString()
-        } else {
-            String.format("%.1f", score)
-        }
-    }
-
-    private fun buildPreferredTrackingSiteOptions(): List<SettingsChoiceOption<ScrobblerService>> {
-        return TRACKING_SERVICES
-            .filter { service -> trackingDiscoveryService.getCapabilities(service).supportsTrending }
-            .map { service ->
-                SettingsChoiceOption(
-                    value = service,
-                    label = getString(service.titleResId),
-                )
-            }
-    }
-
-    private companion object {
-        val TRACKING_SERVICES = listOf(
-            ScrobblerService.ANILIST,
-            ScrobblerService.KITSU,
-            ScrobblerService.MAL,
-            ScrobblerService.SHIKIMORI,
-            ScrobblerService.BANGUMI,
-            ScrobblerService.MANGAUPDATES,
-            ScrobblerService.SIMKL,
-        )
+    return parts.joinToString(separator = " · ").ifBlank {
+        context.getString(R.string.statistics_pending_short)
     }
 }
+
+private fun formatScore(score: Double): String {
+    return if (score % 1.0 == 0.0) {
+        score.toInt().toString()
+    } else {
+        String.format("%.1f", score)
+    }
+}
+
+private fun buildPreferredTrackingSiteOptions(
+    context: android.content.Context,
+    trackingDiscoveryService: TrackingSiteDiscoveryService,
+): List<SettingsChoiceOption<ScrobblerService>> {
+    return TRACKING_SERVICES
+        .filter { service -> trackingDiscoveryService.getCapabilities(service).supportsTrending }
+        .map { service ->
+            SettingsChoiceOption(
+                value = service,
+                label = context.getString(service.titleResId),
+            )
+        }
+}
+
+private val TRACKING_SERVICES = listOf(
+    ScrobblerService.ANILIST,
+    ScrobblerService.KITSU,
+    ScrobblerService.MAL,
+    ScrobblerService.SHIKIMORI,
+    ScrobblerService.BANGUMI,
+    ScrobblerService.MANGAUPDATES,
+    ScrobblerService.SIMKL,
+)

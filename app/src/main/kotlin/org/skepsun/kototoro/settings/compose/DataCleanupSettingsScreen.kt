@@ -42,9 +42,10 @@ fun DataCleanupSettingsScreen(
     onClearCookies: () -> Unit,
     onClearBrowserData: () -> Unit,
     onDeleteReadChapters: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 8.dp),

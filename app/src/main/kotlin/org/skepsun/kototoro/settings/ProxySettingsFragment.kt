@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.ComposeView
@@ -47,16 +48,12 @@ class ProxySettingsFragment : Fragment() {
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         return ComposeView(requireContext()).apply {
             setContent {
-                val testSummary by testSummaryFlow.collectAsState()
-                val isTestRunning by isTestRunningFlow.collectAsState()
                 KototoroTheme {
-                    ProxySettingsScreen(
+                    ProxySettingsRoute(
                         settings = appSettings,
-                        testSummary = testSummary,
-                        isTestRunning = isTestRunning,
-                        onTestConnection = {
-                            testConnection()
-                        },
+                        testSummaryFlow = testSummaryFlow,
+                        isTestRunningFlow = isTestRunningFlow,
+                        onTestConnection = ::testConnection,
                     )
                 }
             }
@@ -104,4 +101,21 @@ class ProxySettingsFragment : Fragment() {
             .setCancelable(true)
             .show()
     }
+}
+
+@Composable
+fun ProxySettingsRoute(
+    settings: AppSettings,
+    testSummaryFlow: MutableStateFlow<String?>,
+    isTestRunningFlow: MutableStateFlow<Boolean>,
+    onTestConnection: () -> Unit,
+) {
+    val testSummary by testSummaryFlow.collectAsState()
+    val isTestRunning by isTestRunningFlow.collectAsState()
+    ProxySettingsScreen(
+        settings = settings,
+        testSummary = testSummary,
+        isTestRunning = isTestRunning,
+        onTestConnection = onTestConnection,
+    )
 }

@@ -2,6 +2,7 @@ package org.skepsun.kototoro.settings
 
 import android.os.Bundle
 import android.view.View
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.ComposeView
 import androidx.fragment.app.Fragment
@@ -30,10 +31,23 @@ class ReaderSettingsFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         (view as ComposeView).setContent {
             KototoroTheme {
-                ReaderSettingsScreen(
+                ReaderSettingsRoute(
                     settings = settings,
-                    onReaderTapActionsClick = { startActivity(android.content.Intent(requireContext(), org.skepsun.kototoro.settings.reader.ReaderTapGridConfigActivity::class.java)) },
-                    onReaderAiSettingsEntryClick = { (activity as? SettingsActivity)?.openFragment(org.skepsun.kototoro.settings.AISettingsFragment::class.java, null, false) },
+                    onReaderTapActionsClick = {
+                        startActivity(
+                            android.content.Intent(
+                                requireContext(),
+                                org.skepsun.kototoro.settings.reader.ReaderTapGridConfigActivity::class.java,
+                            ),
+                        )
+                    },
+                    onReaderAiSettingsEntryClick = {
+                        (activity as? SettingsActivity)?.openDestination(
+                            SettingsDestination.AISettings,
+                            null,
+                            false,
+                        )
+                    },
                 )
             }
         }
@@ -43,4 +57,17 @@ class ReaderSettingsFragment : Fragment() {
         super.onResume()
         (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.reader_settings))
     }
+}
+
+@Composable
+fun ReaderSettingsRoute(
+    settings: AppSettings,
+    onReaderTapActionsClick: () -> Unit,
+    onReaderAiSettingsEntryClick: () -> Unit,
+) {
+    ReaderSettingsScreen(
+        settings = settings,
+        onReaderTapActionsClick = onReaderTapActionsClick,
+        onReaderAiSettingsEntryClick = onReaderAiSettingsEntryClick,
+    )
 }

@@ -1,75 +1,119 @@
 package org.skepsun.kototoro.settings.about.changelog
-import org.skepsun.kototoro.core.util.ext.setSupportTitle
 
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.core.view.WindowInsetsCompat
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.unit.dp
+import androidx.core.widget.TextViewCompat
+import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import io.noties.markwon.Markwon
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.exceptions.resolve.DialogErrorObserver
-import org.skepsun.kototoro.core.ui.BaseFragment
-import org.skepsun.kototoro.core.util.ext.consumeAll
-import org.skepsun.kototoro.core.util.ext.container
-import org.skepsun.kototoro.core.util.ext.end
-import org.skepsun.kototoro.core.util.ext.observe
-import org.skepsun.kototoro.core.util.ext.observeEvent
-import org.skepsun.kototoro.core.util.ext.showOrHide
-import org.skepsun.kototoro.core.util.ext.start
-import org.skepsun.kototoro.databinding.FragmentChangelogBinding
+import org.skepsun.kototoro.core.ui.theme.KototoroTheme
+import org.skepsun.kototoro.core.ui.widgets.SelectableTextView
+import org.skepsun.kototoro.settings.SettingsActivity
 
 @AndroidEntryPoint
-class ChangelogFragment : BaseFragment<FragmentChangelogBinding>() {
+class ChangelogFragment : Fragment() {
 
-	private val viewModel: ChangelogViewModel by viewModels()
+	private val viewModel by viewModels<ChangelogViewModel>()
 
-	override fun onCreateViewBinding(
+	override fun onCreateView(
 		inflater: LayoutInflater,
-		container: ViewGroup?
-	) = FragmentChangelogBinding.inflate(inflater, container, false)
-
-	override fun onViewBindingCreated(binding: FragmentChangelogBinding, savedInstanceState: Bundle?) {
-		super.onViewBindingCreated(binding, savedInstanceState)
-		val markwon = Markwon.create(binding.root.context)
-		viewModel.isLoading.observe(viewLifecycleOwner) {
-			binding.progressBar.showOrHide(it)
-		}
-		viewModel.onError.observeEvent(viewLifecycleOwner, DialogErrorObserver(binding.root, this))
-		viewModel.changelog.filterNotNull()
-			.map { markwon.toMarkdown(it) }
-			.flowOn(Dispatchers.Default)
-			.observe(viewLifecycleOwner) {
-				markwon.setParsedMarkdown(binding.textViewContent, it)
+		container: ViewGroup?,
+		savedInstanceState: Bundle?,
+	): View {
+		return ComposeView(requireContext()).apply {
+			setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+			setContent {
+				KototoroTheme {
+					ChangelogRoute(
+						viewModel = viewModel,
+						modifier = Modifier.fillMaxSize(),
+					)
+				}
 			}
+		}
 	}
 
 	override fun onResume() {
 		super.onResume()
-		setSupportTitle(R.string.changelog)
+		(activity as? SettingsActivity)?.setSectionTitle(getString(R.string.changelog))
 	}
+}
 
-	override fun onApplyWindowInsets(
-		v: View,
-		insets: WindowInsetsCompat
-	): WindowInsetsCompat {
-		val typeMask = WindowInsetsCompat.Type.systemBars()
-		val barsInsets = insets.getInsets(typeMask)
-		val isTablet = !resources.getBoolean(R.bool.is_tablet)
-		val isMaster = container?.id == R.id.container_master
-		val basePadding = resources.getDimensionPixelOffset(R.dimen.screen_padding)
-		requireViewBinding().textViewContent.setPaddingRelative(
-			basePadding + if (isTablet && !isMaster) 0 else barsInsets.start(v),
-			basePadding,
-			basePadding + if (isTablet && isMaster) 0 else barsInsets.end(v),
-			basePadding + barsInsets.bottom,
-		)
-		return insets.consumeAll(typeMask)
+@Composable
+fun ChangelogRoute(
+	viewModel: ChangelogViewModel,
+	modifier: Modifier = Modifier,
+) {
+	val context = LocalContext.current
+	val markwon = remember(context) { Markwon.create(context) }
+	val changelog by viewModel.changelog.collectAsStateWithLifecycle()
+	val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+
+	Surface(
+		modifier = modifier,
+		color = MaterialTheme.colorScheme.background,
+	) {
+		Box(modifier = Modifier.fillMaxSize()) {
+			AndroidView(
+				factory = { viewContext ->
+					SelectableTextView(viewContext).apply {
+						TextViewCompat.setTextAppearance(
+							this,
+							com.google.android.material.R.style.TextAppearance_Material3_BodyMedium,
+						)
+						setTextIsSelectable(true)
+					}
+				},
+				modifier = Modifier
+					.fillMaxWidth()
+					.verticalScroll(rememberScrollState())
+					.padding(
+						PaddingValues(
+							start = 20.dp,
+							top = 20.dp,
+							end = 20.dp,
+							bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp,
+						),
+					),
+				update = { textView ->
+					markwon.setMarkdown(textView, changelog.orEmpty())
+				},
+			)
+			if (isLoading) {
+				LinearProgressIndicator(
+					modifier = Modifier
+						.fillMaxWidth()
+						.align(Alignment.TopCenter),
+				)
+			}
+		}
 	}
 }

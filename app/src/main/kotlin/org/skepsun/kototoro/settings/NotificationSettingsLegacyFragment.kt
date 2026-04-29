@@ -6,7 +6,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
@@ -45,42 +47,12 @@ class NotificationSettingsLegacyFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         (view as ComposeView).setContent {
-            val isTrackerNotificationsEnabled = settings.observeAsState(
-                AppSettings.KEY_TRACKER_NOTIFICATIONS,
-            ) { isTrackerNotificationsEnabled }.value
-            val notificationSound = settings.observeAsState(
-                AppSettings.KEY_NOTIFICATIONS_SOUND,
-            ) { notificationSound }.value
-            val notificationVibrate = settings.observeAsState(
-                AppSettings.KEY_NOTIFICATIONS_VIBRATE,
-            ) { notificationVibrate }.value
-            val notificationLight = settings.observeAsState(
-                AppSettings.KEY_NOTIFICATIONS_LIGHT,
-            ) { notificationLight }.value
-            val snackbarHostState = remember { SnackbarHostState() }
-            val ringtoneSummary = RingtoneManager.getRingtone(requireContext(), notificationSound)
-                ?.getTitle(requireContext())
-                ?: getString(R.string.silent)
-
-            val state = NotificationSettingsUiState(
-                isTrackerNotificationsEnabled = isTrackerNotificationsEnabled,
-                ringtoneSummary = ringtoneSummary,
-                isNotificationVibrateEnabled = notificationVibrate,
-                isNotificationLightEnabled = notificationLight,
-                isNotificationsInfoVisible = !isTrackerNotificationsEnabled,
-            )
-
             KototoroTheme {
-                NotificationSettingsScreen(
-                    notificationsTitle = getString(R.string.notifications),
-                    state = state,
-                    snackbarHostState = snackbarHostState,
-                    onTrackerNotificationsEnabledChange = { settings.isTrackerNotificationsEnabled = it },
+                NotificationSettingsRoute(
+                    settings = settings,
                     onNotificationSoundClick = {
                         ringtonePickContract.launch(settings.notificationSound)
                     },
-                    onNotificationVibrateChange = { settings.notificationVibrate = it },
-                    onNotificationLightChange = { settings.notificationLight = it },
                 )
             }
         }
@@ -90,4 +62,46 @@ class NotificationSettingsLegacyFragment : Fragment() {
         super.onResume()
         (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.notifications))
     }
+}
+
+@Composable
+fun NotificationSettingsRoute(
+    settings: AppSettings,
+    onNotificationSoundClick: () -> Unit,
+) {
+    val context = LocalContext.current
+    val isTrackerNotificationsEnabled = settings.observeAsState(
+        AppSettings.KEY_TRACKER_NOTIFICATIONS,
+    ) { isTrackerNotificationsEnabled }.value
+    val notificationSound = settings.observeAsState(
+        AppSettings.KEY_NOTIFICATIONS_SOUND,
+    ) { notificationSound }.value
+    val notificationVibrate = settings.observeAsState(
+        AppSettings.KEY_NOTIFICATIONS_VIBRATE,
+    ) { notificationVibrate }.value
+    val notificationLight = settings.observeAsState(
+        AppSettings.KEY_NOTIFICATIONS_LIGHT,
+    ) { notificationLight }.value
+    val snackbarHostState = remember { SnackbarHostState() }
+    val ringtoneSummary = RingtoneManager.getRingtone(context, notificationSound)
+        ?.getTitle(context)
+        ?: context.getString(R.string.silent)
+
+    val state = NotificationSettingsUiState(
+        isTrackerNotificationsEnabled = isTrackerNotificationsEnabled,
+        ringtoneSummary = ringtoneSummary,
+        isNotificationVibrateEnabled = notificationVibrate,
+        isNotificationLightEnabled = notificationLight,
+        isNotificationsInfoVisible = !isTrackerNotificationsEnabled,
+    )
+
+    NotificationSettingsScreen(
+        notificationsTitle = context.getString(R.string.notifications),
+        state = state,
+        snackbarHostState = snackbarHostState,
+        onTrackerNotificationsEnabledChange = { settings.isTrackerNotificationsEnabled = it },
+        onNotificationSoundClick = onNotificationSoundClick,
+        onNotificationVibrateChange = { settings.notificationVibrate = it },
+        onNotificationLightChange = { settings.notificationLight = it },
+    )
 }

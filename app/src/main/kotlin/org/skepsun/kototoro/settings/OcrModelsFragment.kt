@@ -6,16 +6,21 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.annotation.Keep
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.lifecycleScope
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.theme.KototoroTheme
 import org.skepsun.kototoro.reader.translate.data.OnnxModelCategory
@@ -34,9 +39,6 @@ class OcrModelsFragment : Fragment() {
     @Inject
     lateinit var onnxModelManager: OnnxModelManager
 
-    private val sectionsFlow = MutableStateFlow<List<OcrModelSectionUiState>>(emptyList())
-    private val transientStateByModelId = mutableMapOf<String, ModelTransientState>()
-
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -49,13 +51,10 @@ class OcrModelsFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        rebuildSections()
         (view as ComposeView).setContent {
-            val sections by sectionsFlow.collectAsState()
             KototoroTheme {
-                OcrModelsSettingsScreen(
-                    sections = sections,
-                    onModelClick = ::handleModelClick,
+                OcrModelsRoute(
+                    onnxModelManager = onnxModelManager,
                 )
             }
         }
@@ -65,75 +64,94 @@ class OcrModelsFragment : Fragment() {
         super.onResume()
         (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.reader_translation_ocr_models_title))
     }
+}
 
-    private fun rebuildSections() {
-        sectionsFlow.value = listOf(
+@Composable
+fun OcrModelsRoute(
+    onnxModelManager: OnnxModelManager,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val transientStateByModelId = remember { mutableStateMapOf<String, ModelTransientState>() }
+    var refreshKey by remember { mutableStateOf(0) }
+
+    fun updateTransientState(modelId: String, state: ModelTransientState?) {
+        if (state == null) {
+            transientStateByModelId.remove(modelId)
+        } else {
+            transientStateByModelId[modelId] = state
+        }
+        refreshKey += 1
+    }
+
+    val sections = remember(refreshKey, context, onnxModelManager) {
+        fun buildItemState(model: OnnxOfficialModel): OcrModelItemUiState {
+            val transient = transientStateByModelId[model.id]
+            val downloaded = onnxModelManager.isModelDownloaded(model.id)
+            val statusText = transient?.progressText
+                ?: transient?.errorText
+                ?: context.getString(
+                    if (downloaded) R.string.reader_translation_ocr_model_status_downloaded
+                    else R.string.reader_translation_ocr_model_status_not_downloaded,
+                ) + " (${model.version})"
+
+            return OcrModelItemUiState(
+                id = model.id,
+                title = model.title,
+                summary = "${model.description}\n$statusText",
+                enabled = transient?.isBusy != true,
+            )
+        }
+
+        fun buildSection(
+            title: String,
+            category: OnnxModelCategory,
+        ): OcrModelSectionUiState {
+            return OcrModelSectionUiState(
+                title = title,
+                items = OnnxOfficialModelCatalog.models
+                    .filter { it.category == category }
+                    .map(::buildItemState),
+            )
+        }
+
+        listOf(
             buildSection(
-                title = getString(R.string.reader_translation_onnx_models_title),
+                title = context.getString(R.string.reader_translation_onnx_models_title),
                 category = OnnxModelCategory.CLASSIC_TRANSLATION,
             ),
             buildSection(
-                title = getString(R.string.reader_translation_ocr_detector_models_title),
+                title = context.getString(R.string.reader_translation_ocr_detector_models_title),
                 category = OnnxModelCategory.OCR_DETECTOR,
             ),
             buildSection(
-                title = getString(R.string.reader_translation_ocr_recognizer_models_title),
+                title = context.getString(R.string.reader_translation_ocr_recognizer_models_title),
                 category = OnnxModelCategory.OCR_RECOGNIZER,
             ),
             buildSection(
-                title = getString(R.string.reader_translation_onnx_bubble_detector_models_title),
+                title = context.getString(R.string.reader_translation_onnx_bubble_detector_models_title),
                 category = OnnxModelCategory.BUBBLE_DETECTION,
             ),
             buildSection(
-                title = getString(R.string.reader_translation_onnx_super_resolution_models_title),
+                title = context.getString(R.string.reader_translation_onnx_super_resolution_models_title),
                 category = OnnxModelCategory.IMAGE_SUPER_RESOLUTION,
             ),
         )
     }
 
-    private fun buildSection(
-        title: String,
-        category: OnnxModelCategory,
-    ): OcrModelSectionUiState {
-        return OcrModelSectionUiState(
-            title = title,
-            items = OnnxOfficialModelCatalog.models
-                .filter { it.category == category }
-                .map(::buildItemState),
-        )
-    }
-
-    private fun buildItemState(model: OnnxOfficialModel): OcrModelItemUiState {
-        val transient = transientStateByModelId[model.id]
-        val downloaded = onnxModelManager.isModelDownloaded(model.id)
-        val statusText = transient?.progressText
-            ?: transient?.errorText
-            ?: getString(
-                if (downloaded) R.string.reader_translation_ocr_model_status_downloaded
-                else R.string.reader_translation_ocr_model_status_not_downloaded,
-            ) + " (${model.version})"
-
-        return OcrModelItemUiState(
-            id = model.id,
-            title = model.title,
-            summary = "${model.description}\n$statusText",
-            enabled = transient?.isBusy != true,
-        )
-    }
-
-    private fun handleModelClick(modelId: String) {
+    fun handleModelClick(modelId: String) {
         val model = OnnxOfficialModelCatalog.findById(modelId) ?: return
         if (onnxModelManager.isModelDownloaded(model.id)) {
-            MaterialAlertDialogBuilder(requireContext())
+            MaterialAlertDialogBuilder(context)
                 .setTitle(R.string.delete)
-                .setMessage(getString(R.string.reader_translation_model_delete_confirm, model.title))
+                .setMessage(context.getString(R.string.reader_translation_model_delete_confirm, model.title))
                 .setPositiveButton(android.R.string.ok) { _, _ ->
                     if (onnxModelManager.deleteModel(model.id)) {
-                        transientStateByModelId.remove(model.id)
-                        rebuildSections()
+                        updateTransientState(model.id, null)
                         Toast.makeText(
-                            requireContext(),
-                            getString(R.string.reader_translation_model_deleted, model.title),
+                            context,
+                            context.getString(R.string.reader_translation_model_deleted, model.title),
                             Toast.LENGTH_SHORT,
                         ).show()
                     }
@@ -141,24 +159,18 @@ class OcrModelsFragment : Fragment() {
                 .setNegativeButton(android.R.string.cancel, null)
                 .show()
         } else {
-            downloadOnnxModel(model)
-        }
-    }
-
-    private fun downloadOnnxModel(model: OnnxOfficialModel) {
-        viewLifecycleOwner.lifecycleScope.launch {
-            try {
-                updateTransientState(
-                    model.id,
-                    ModelTransientState(
-                        isBusy = true,
-                        progressText = getString(R.string.loading_),
-                    ),
-                )
-                onnxModelManager.ensureModelReady(
-                    model = model,
-                    onProgress = { progress ->
-                        viewLifecycleOwner.lifecycleScope.launch {
+            coroutineScope.launch {
+                try {
+                    updateTransientState(
+                        model.id,
+                        ModelTransientState(
+                            isBusy = true,
+                            progressText = context.getString(R.string.loading_),
+                        ),
+                    )
+                    onnxModelManager.ensureModelReady(
+                        model = model,
+                        onProgress = { progress ->
                             val percent = if (progress.totalBytes > 0) {
                                 (progress.downloadedBytes * 100 / progress.totalBytes).toInt()
                             } else {
@@ -169,49 +181,43 @@ class OcrModelsFragment : Fragment() {
                                 ModelTransientState(
                                     isBusy = true,
                                     progressText = if (percent >= 0) {
-                                        getString(R.string.reader_translation_model_downloading_percent, percent)
+                                        context.getString(R.string.reader_translation_model_downloading_percent, percent)
                                     } else {
-                                        getString(
+                                        context.getString(
                                             R.string.reader_translation_model_downloading_kb,
                                             progress.downloadedBytes / 1024,
                                         )
                                     },
                                 ),
                             )
-                        }
-                    },
-                )
-                updateTransientState(model.id, null)
-                Toast.makeText(requireContext(), R.string.reader_translation_onnx_download_success, Toast.LENGTH_SHORT).show()
-            } catch (e: Exception) {
-                updateTransientState(
-                    model.id,
-                    ModelTransientState(
-                        errorText = getString(
-                            R.string.reader_translation_paddle_download_failed,
-                            e.message ?: "",
+                        },
+                    )
+                    updateTransientState(model.id, null)
+                    Toast.makeText(context, R.string.reader_translation_onnx_download_success, Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    updateTransientState(
+                        model.id,
+                        ModelTransientState(
+                            errorText = context.getString(
+                                R.string.reader_translation_paddle_download_failed,
+                                e.message ?: "",
+                            ),
                         ),
-                    ),
-                )
+                    )
+                }
             }
         }
     }
 
-    private fun updateTransientState(
-        modelId: String,
-        state: ModelTransientState?,
-    ) {
-        if (state == null) {
-            transientStateByModelId.remove(modelId)
-        } else {
-            transientStateByModelId[modelId] = state
-        }
-        rebuildSections()
-    }
-
-    private data class ModelTransientState(
-        val isBusy: Boolean = false,
-        val progressText: String? = null,
-        val errorText: String? = null,
+    OcrModelsSettingsScreen(
+        sections = sections,
+        onModelClick = ::handleModelClick,
+        modifier = modifier,
     )
 }
+
+private data class ModelTransientState(
+    val isBusy: Boolean = false,
+    val progressText: String? = null,
+    val errorText: String? = null,
+)

@@ -1,11 +1,12 @@
 package org.skepsun.kototoro.settings
 
-
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.content.edit
@@ -23,9 +24,9 @@ import okhttp3.Request
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.ui.theme.KototoroTheme
 import org.skepsun.kototoro.settings.compose.TranslationApiSettingsScreen
 import org.skepsun.kototoro.settings.support.TranslationApiSettingsSupport
-import org.skepsun.kototoro.core.ui.theme.KototoroTheme
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -52,9 +53,9 @@ class TranslationApiSettingsFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         (view as ComposeView).setContent {
             KototoroTheme {
-                TranslationApiSettingsScreen(
+                TranslationApiSettingsRoute(
                     settings = settings,
-                    onFetchModelsClick = { fetchAndPickApiModel() }
+                    onFetchModelsClick = ::fetchAndPickApiModel,
                 )
             }
         }
@@ -79,7 +80,7 @@ class TranslationApiSettingsFragment : Fragment() {
                 val models = withContext(Dispatchers.IO) {
                     val requestBuilder = Request.Builder().get().url(modelsUrl)
                     if (key.isNotBlank()) {
-                        requestBuilder.header("Authorization", "Bearer ")
+                        requestBuilder.header("Authorization", "Bearer $key")
                         requestBuilder.header("X-API-Key", key)
                     }
                     okHttpClient.newCall(requestBuilder.build()).execute().use { response ->
@@ -117,4 +118,17 @@ class TranslationApiSettingsFragment : Fragment() {
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
+}
+
+@Composable
+fun TranslationApiSettingsRoute(
+    settings: AppSettings,
+    onFetchModelsClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    TranslationApiSettingsScreen(
+        settings = settings,
+        onFetchModelsClick = onFetchModelsClick,
+        modifier = modifier,
+    )
 }

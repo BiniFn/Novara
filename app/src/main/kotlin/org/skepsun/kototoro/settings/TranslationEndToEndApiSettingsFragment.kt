@@ -6,7 +6,10 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
@@ -18,6 +21,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
+import org.json.JSONObject
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -25,11 +30,9 @@ import org.skepsun.kototoro.core.ui.theme.KototoroTheme
 import org.skepsun.kototoro.settings.compose.TranslationE2ESettingsScreen
 import org.skepsun.kototoro.settings.support.TranslationApiSettingsSupport
 import javax.inject.Inject
-import org.json.JSONObject
-import org.json.JSONArray
 
 @AndroidEntryPoint
-class TranslationEndToEndApiSettingsFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeListener {
+class TranslationEndToEndApiSettingsFragment : Fragment() {
 
     @Inject
     @ContentHttpClient
@@ -42,41 +45,25 @@ class TranslationEndToEndApiSettingsFragment : Fragment(), SharedPreferences.OnS
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         return ComposeView(requireContext()).apply {
-            setContent {
-                KototoroTheme {
-                    TranslationE2ESettingsScreen(
-                        settings = appSettings,
-                        onFetchModels = { fetchAndPickApiModel() }
-                    )
-                }
-            }
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
         }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.reader_translation_e2e_api_settings_title))
-        appSettings.subscribe(this)
-    }
-
-    override fun onDestroyView() {
-        appSettings.unsubscribe(this)
-        super.onDestroyView()
-    }
-
-    override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
-        when (key) {
-            AppSettings.KEY_READER_E2E_API_PROVIDER_PRESET -> {
-                val preferences = PreferenceManager.getDefaultSharedPreferences(requireContext())
-                TranslationApiSettingsSupport.applyApiProviderPreset(
-                    sharedPreferences = preferences,
-                    presetInput = appSettings.readerE2eApiProviderPreset,
-                    forceOverride = true,
-                    endpointKey = AppSettings.KEY_READER_E2E_API_ENDPOINT,
-                    modelKey = AppSettings.KEY_READER_E2E_API_MODEL,
+        (view as ComposeView).setContent {
+            KototoroTheme {
+                TranslationE2EApiSettingsRoute(
+                    settings = appSettings,
+                    onFetchModelsClick = ::fetchAndPickApiModel,
                 )
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.reader_translation_e2e_api_settings_title))
     }
 
     private fun fetchAndPickApiModel() {
@@ -90,7 +77,6 @@ class TranslationEndToEndApiSettingsFragment : Fragment(), SharedPreferences.OnS
         }
 
         val url = endpoint.removeSuffix("/chat/completions").removeSuffix("/") + "/models"
-
         val request = Request.Builder()
             .url(url)
             .get()
@@ -136,12 +122,41 @@ class TranslationEndToEndApiSettingsFragment : Fragment(), SharedPreferences.OnS
                         .setNegativeButton(android.R.string.cancel, null)
                         .show()
                 }
-
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(requireContext(), R.string.reader_translation_api_models_fetch_failed, Toast.LENGTH_SHORT).show()
                 }
             }
         }
     }
+}
+
+@Composable
+fun TranslationE2EApiSettingsRoute(
+    settings: AppSettings,
+    onFetchModelsClick: () -> Unit,
+) {
+    DisposableEffect(settings) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
+            if (key == AppSettings.KEY_READER_E2E_API_PROVIDER_PRESET) {
+                TranslationApiSettingsSupport.applyApiProviderPreset(
+                    sharedPreferences = sharedPreferences
+                        ?: settings.prefs,
+                    presetInput = settings.readerE2eApiProviderPreset,
+                    forceOverride = true,
+                    endpointKey = AppSettings.KEY_READER_E2E_API_ENDPOINT,
+                    modelKey = AppSettings.KEY_READER_E2E_API_MODEL,
+                )
+            }
+        }
+        settings.prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose {
+            settings.prefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
+
+    TranslationE2ESettingsScreen(
+        settings = settings,
+        onFetchModels = onFetchModelsClick,
+    )
 }

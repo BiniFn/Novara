@@ -34,6 +34,40 @@ class NavConfigViewModel @Inject constructor(
 
 	private val items = MutableStateFlow(settings.mainNavItems)
 
+	val configuredItems: StateFlow<List<NavItemConfigModel>> = items.map { snapshot ->
+		snapshot.map {
+			NavItemConfigModel(it, getUnavailabilityHint(it))
+		}
+	}.stateIn(
+		viewModelScope + Dispatchers.Default,
+		SharingStarted.WhileSubscribed(5000),
+		emptyList(),
+	)
+
+	val availableItems: StateFlow<List<NavItem>> = items.map { snapshot ->
+		NavItem.entries.filterNot { item -> item in snapshot || item == NavItem.DISCOVER }
+	}.stateIn(
+		viewModelScope + Dispatchers.Default,
+		SharingStarted.WhileSubscribed(5000),
+		emptyList(),
+	)
+
+	val canShowAddAction: StateFlow<Boolean> = items.map { snapshot ->
+		snapshot.size < NavItem.entries.size
+	}.stateIn(
+		viewModelScope + Dispatchers.Default,
+		SharingStarted.WhileSubscribed(5000),
+		false,
+	)
+
+	val canAddAction: StateFlow<Boolean> = items.map { snapshot ->
+		snapshot.size < MAX_ITEM_COUNT
+	}.stateIn(
+		viewModelScope + Dispatchers.Default,
+		SharingStarted.WhileSubscribed(5000),
+		false,
+	)
+
 	val content: StateFlow<List<ListModel>> = items.map { snapshot ->
 		buildList(snapshot.size + 1) {
 			snapshot.mapTo(this) {
@@ -51,16 +85,21 @@ class NavConfigViewModel @Inject constructor(
 
 	private var commitJob: Job? = null
 
-	val availableItems
-		get() = items.value.let { snapshot ->
-			NavItem.entries.filterNot { x -> x in snapshot || x == NavItem.DISCOVER }
-		}
-
 	fun reorder(fromPos: Int, toPos: Int) {
 		items.value = items.value.toMutableList().apply {
 			move(fromPos, toPos)
 			commit(this)
 		}
+	}
+
+	fun moveUp(index: Int) {
+		if (index <= 0) return
+		reorder(index, index - 1)
+	}
+
+	fun moveDown(index: Int) {
+		if (index >= items.value.lastIndex) return
+		reorder(index, index + 1)
 	}
 
 	fun addItem(item: NavItem) {

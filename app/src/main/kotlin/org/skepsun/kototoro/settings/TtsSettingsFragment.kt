@@ -12,19 +12,23 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.Toast
+import androidx.annotation.StringRes
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.content.edit
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -43,6 +47,7 @@ import org.skepsun.kototoro.reader.novel.tts.model.TtsHttpConfig
 import org.skepsun.kototoro.settings.compose.SettingsChoiceOption
 import org.skepsun.kototoro.settings.compose.TtsSettingsScreen
 import org.skepsun.kototoro.settings.compose.TtsSettingsUiState
+import kotlinx.coroutines.SupervisorJob
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
@@ -52,21 +57,7 @@ class TtsSettingsFragment : Fragment() {
     @Inject
     lateinit var appSettings: AppSettings
 
-    private var localTts: TextToSpeech? = null
-    private var testMediaPlayer: MediaPlayer? = null
-
-    private val systemVoiceOptionsFlow = MutableStateFlow<List<SettingsChoiceOption<String>>>(emptyList())
-    private val systemVoiceSummaryFlow = MutableStateFlow<String?>(null)
-    private val legadoVoiceOptionsFlow = MutableStateFlow<List<SettingsChoiceOption<String>>>(emptyList())
-    private val legadoVoiceSummaryFlow = MutableStateFlow<String?>(null)
-    private val legadoConfigCountFlow = MutableStateFlow(0)
-    private val isTestRunningFlow = MutableStateFlow(false)
-
-    private val preferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == KEY_LEGADO_TTS_CONFIGS) {
-            updateLegadoVoiceOptions()
-        }
-    }
+    private var coordinator: TtsSettingsCoordinator? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -80,60 +71,15 @@ class TtsSettingsFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        appSettings.prefs.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
-        updateLegadoVoiceOptions()
-        initializeSystemVoices()
+        val coordinator = TtsSettingsCoordinator(requireActivity(), appSettings)
+        this.coordinator = coordinator
+        coordinator.start()
 
         (view as ComposeView).setContent {
-            val enabled = appSettings.observeAsState(KEY_TTS_ENABLED) {
-                prefs.getBoolean(KEY_TTS_ENABLED, true)
-            }.value
-            val engineType = appSettings.observeAsState(KEY_TTS_ENGINE_TYPE) {
-                prefs.getString(KEY_TTS_ENGINE_TYPE, ENGINE_SYSTEM) ?: ENGINE_SYSTEM
-            }.value
-            val systemVoice = appSettings.observeAsState(KEY_TTS_SYSTEM_VOICE) {
-                prefs.getString(KEY_TTS_SYSTEM_VOICE, DEFAULT_VOICE_VALUE) ?: DEFAULT_VOICE_VALUE
-            }.value
-            val legadoVoice = appSettings.observeAsState(KEY_TTS_LEGADO_VOICE) {
-                prefs.getString(KEY_TTS_LEGADO_VOICE, "") ?: ""
-            }.value
-            val systemVoiceOptions by systemVoiceOptionsFlow.collectAsState()
-            val systemVoiceSummary by systemVoiceSummaryFlow.collectAsState()
-            val legadoVoiceOptions by legadoVoiceOptionsFlow.collectAsState()
-            val legadoVoiceSummary by legadoVoiceSummaryFlow.collectAsState()
-            val legadoConfigCount by legadoConfigCountFlow.collectAsState()
-            val isTestRunning by isTestRunningFlow.collectAsState()
-
             KototoroTheme {
-                TtsSettingsScreen(
-                    state = TtsSettingsUiState(
-                        enabled = enabled,
-                        engineType = engineType,
-                        systemVoice = systemVoice,
-                        systemVoiceOptions = systemVoiceOptions,
-                        systemVoiceSummary = systemVoiceSummary,
-                        legadoVoice = legadoVoice,
-                        legadoVoiceOptions = legadoVoiceOptions,
-                        legadoVoiceSummary = legadoVoiceSummary,
-                        legadoConfigCount = legadoConfigCount,
-                        isTestRunning = isTestRunning,
-                    ),
-                    onEnabledChange = { checked ->
-                        appSettings.prefs.edit { putBoolean(KEY_TTS_ENABLED, checked) }
-                    },
-                    onEngineTypeChange = { value ->
-                        appSettings.prefs.edit { putString(KEY_TTS_ENGINE_TYPE, value) }
-                    },
-                    onSystemVoiceChange = { value ->
-                        appSettings.prefs.edit { putString(KEY_TTS_SYSTEM_VOICE, value) }
-                    },
-                    onLegadoVoiceChange = { value ->
-                        appSettings.prefs.edit { putString(KEY_TTS_LEGADO_VOICE, value) }
-                    },
-                    onTestClick = ::testTtsVoice,
-                    onImportClipboardClick = ::importFromClipboard,
-                    onImportUrlClick = ::importFromUrl,
-                    onManageSourcesClick = ::manageLegadoSources,
+                TtsSettingsRoute(
+                    settings = appSettings,
+                    coordinator = coordinator,
                 )
             }
         }
@@ -145,22 +91,298 @@ class TtsSettingsFragment : Fragment() {
     }
 
     override fun onDestroyView() {
-        appSettings.prefs.unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
+        coordinator?.stop()
+        coordinator = null
+        super.onDestroyView()
+    }
+}
+
+@Composable
+fun TtsSettingsRoute(
+    settings: AppSettings,
+    coordinator: TtsSettingsCoordinator,
+    modifier: Modifier = Modifier,
+) {
+    val enabled = settings.observeAsState(TtsSettingsCoordinator.KEY_TTS_ENABLED) {
+        prefs.getBoolean(TtsSettingsCoordinator.KEY_TTS_ENABLED, true)
+    }.value
+    val engineType = settings.observeAsState(TtsSettingsCoordinator.KEY_TTS_ENGINE_TYPE) {
+        prefs.getString(TtsSettingsCoordinator.KEY_TTS_ENGINE_TYPE, TtsSettingsCoordinator.ENGINE_SYSTEM)
+            ?: TtsSettingsCoordinator.ENGINE_SYSTEM
+    }.value
+    val systemVoice = settings.observeAsState(TtsSettingsCoordinator.KEY_TTS_SYSTEM_VOICE) {
+        prefs.getString(
+            TtsSettingsCoordinator.KEY_TTS_SYSTEM_VOICE,
+            TtsSettingsCoordinator.DEFAULT_VOICE_VALUE,
+        ) ?: TtsSettingsCoordinator.DEFAULT_VOICE_VALUE
+    }.value
+    val legadoVoice = settings.observeAsState(TtsSettingsCoordinator.KEY_TTS_LEGADO_VOICE) {
+        prefs.getString(TtsSettingsCoordinator.KEY_TTS_LEGADO_VOICE, "") ?: ""
+    }.value
+    val systemVoiceOptions by coordinator.systemVoiceOptionsFlow.collectAsState()
+    val systemVoiceSummary by coordinator.systemVoiceSummaryFlow.collectAsState()
+    val legadoVoiceOptions by coordinator.legadoVoiceOptionsFlow.collectAsState()
+    val legadoVoiceSummary by coordinator.legadoVoiceSummaryFlow.collectAsState()
+    val legadoConfigCount by coordinator.legadoConfigCountFlow.collectAsState()
+    val isTestRunning by coordinator.isTestRunningFlow.collectAsState()
+
+    TtsSettingsScreen(
+        state = TtsSettingsUiState(
+            enabled = enabled,
+            engineType = engineType,
+            systemVoice = systemVoice,
+            systemVoiceOptions = systemVoiceOptions,
+            systemVoiceSummary = systemVoiceSummary,
+            legadoVoice = legadoVoice,
+            legadoVoiceOptions = legadoVoiceOptions,
+            legadoVoiceSummary = legadoVoiceSummary,
+            legadoConfigCount = legadoConfigCount,
+            isTestRunning = isTestRunning,
+        ),
+        onEnabledChange = { checked ->
+            settings.prefs.edit { putBoolean(TtsSettingsCoordinator.KEY_TTS_ENABLED, checked) }
+        },
+        onEngineTypeChange = { value ->
+            settings.prefs.edit { putString(TtsSettingsCoordinator.KEY_TTS_ENGINE_TYPE, value) }
+        },
+        onSystemVoiceChange = { value ->
+            settings.prefs.edit { putString(TtsSettingsCoordinator.KEY_TTS_SYSTEM_VOICE, value) }
+        },
+        onLegadoVoiceChange = { value ->
+            settings.prefs.edit { putString(TtsSettingsCoordinator.KEY_TTS_LEGADO_VOICE, value) }
+        },
+        onTestClick = coordinator::testTtsVoice,
+        onImportClipboardClick = coordinator::importFromClipboard,
+        onImportUrlClick = coordinator::importFromUrl,
+        onManageSourcesClick = coordinator::manageLegadoSources,
+        modifier = modifier,
+    )
+}
+
+class TtsSettingsCoordinator(
+    private val context: Context,
+    private val appSettings: AppSettings,
+) {
+
+    val systemVoiceOptionsFlow = MutableStateFlow<List<SettingsChoiceOption<String>>>(emptyList())
+    val systemVoiceSummaryFlow = MutableStateFlow<String?>(null)
+    val legadoVoiceOptionsFlow = MutableStateFlow<List<SettingsChoiceOption<String>>>(emptyList())
+    val legadoVoiceSummaryFlow = MutableStateFlow<String?>(null)
+    val legadoConfigCountFlow = MutableStateFlow(0)
+    val isTestRunningFlow = MutableStateFlow(false)
+
+    private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var localTts: TextToSpeech? = null
+    private var testMediaPlayer: MediaPlayer? = null
+    private var isStarted = false
+
+    private val preferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == KEY_LEGADO_TTS_CONFIGS) {
+            updateLegadoVoiceOptions()
+        }
+    }
+
+    fun start() {
+        if (isStarted) return
+        isStarted = true
+        appSettings.prefs.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
+        updateLegadoVoiceOptions()
+        initializeSystemVoices()
+    }
+
+    fun stop() {
+        if (!isStarted) return
+        isStarted = false
+        runCatching {
+            appSettings.prefs.unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
+        }
         localTts?.shutdown()
         localTts = null
         testMediaPlayer?.release()
         testMediaPlayer = null
-        super.onDestroyView()
+        coroutineScope.cancel()
+    }
+
+    fun testTtsVoice() {
+        Toast.makeText(context, R.string.tts_test_generating, Toast.LENGTH_SHORT).show()
+        isTestRunningFlow.value = true
+
+        coroutineScope.launch(Dispatchers.IO) {
+            var engine: TTSEngine? = null
+            var shouldResetState = true
+            try {
+                val prefs = appSettings.prefs
+                val engineId = prefs.getString(KEY_TTS_ENGINE_TYPE, ENGINE_SYSTEM) ?: ENGINE_SYSTEM
+                engine = if (engineId == ENGINE_LEGADO) {
+                    val url = prefs.getString(KEY_TTS_LEGADO_VOICE, "") ?: ""
+                    val config = parseLegadoConfigs().find { it.url == url }
+                        ?: error(string(R.string.tts_legado_voice_unavailable))
+                    HttpTTSEngine(
+                        client = OkHttpClient.Builder()
+                            .connectTimeout(15, TimeUnit.SECONDS)
+                            .readTimeout(15, TimeUnit.SECONDS)
+                            .build(),
+                        config = config,
+                        context = context,
+                    )
+                } else {
+                    SystemTTSEngine(context)
+                }
+
+                val testText = string(R.string.tts_test_phrase)
+                val testToken = Token(
+                    id = System.currentTimeMillis(),
+                    text = testText,
+                    type = TokenType.NARRATION,
+                    range = testText.indices,
+                )
+                val result = engine.synthesize(testToken)
+
+                withContext(Dispatchers.Main) {
+                    val audioData = result.getOrNull()
+                        ?: error(result.exceptionOrNull()?.message ?: string(R.string.reader_translation_task_state_failed))
+                    testMediaPlayer?.release()
+                    val player = MediaPlayer.create(context, audioData.uri)
+                        ?: error(string(R.string.reader_translation_task_state_failed))
+                    testMediaPlayer = player
+                    player.setOnCompletionListener {
+                        it.release()
+                        testMediaPlayer = null
+                        isTestRunningFlow.value = false
+                    }
+                    player.setOnErrorListener { mediaPlayer, _, _ ->
+                        mediaPlayer.release()
+                        testMediaPlayer = null
+                        isTestRunningFlow.value = false
+                        true
+                    }
+                    player.start()
+                    shouldResetState = false
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        context,
+                        string(R.string.tts_test_failed, e.message ?: ""),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            } finally {
+                engine?.release()
+                if (shouldResetState) {
+                    withContext(Dispatchers.Main) {
+                        isTestRunningFlow.value = false
+                    }
+                }
+            }
+        }
+    }
+
+    fun manageLegadoSources() {
+        val configs = parseLegadoConfigs().toMutableList()
+        if (configs.isEmpty()) {
+            Toast.makeText(context, R.string.tts_legado_sources_empty, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val names = configs.map { it.name }.toTypedArray()
+        val checkedItems = BooleanArray(configs.size)
+
+        MaterialAlertDialogBuilder(context)
+            .setTitle(R.string.tts_legado_manage_delete_title)
+            .setMultiChoiceItems(names, checkedItems) { _, which, isChecked ->
+                checkedItems[which] = isChecked
+            }
+            .setPositiveButton(R.string.tts_legado_manage_delete_action) { _, _ ->
+                val remaining = configs.filterIndexed { index, _ -> !checkedItems[index] }
+                if (remaining.size == configs.size) return@setPositiveButton
+
+                appSettings.prefs.edit {
+                    putString(KEY_LEGADO_TTS_CONFIGS, Gson().toJson(remaining))
+                    val currentVoice = appSettings.prefs.getString(KEY_TTS_LEGADO_VOICE, "")
+                    if (currentVoice != null && remaining.none { it.url == currentVoice }) {
+                        putString(KEY_TTS_LEGADO_VOICE, "")
+                    }
+                }
+                Toast.makeText(
+                    context,
+                    string(R.string.tts_legado_sources_deleted, configs.size - remaining.size),
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    fun importFromUrl() {
+        val input = EditText(context).apply {
+            hint = URL_HINT
+            isSingleLine = true
+        }
+
+        val container = FrameLayout(context)
+        val params = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+        )
+        val margin = (24 * context.resources.displayMetrics.density).toInt()
+        params.setMargins(margin, 0, margin, 0)
+        input.layoutParams = params
+        container.addView(input)
+
+        MaterialAlertDialogBuilder(context)
+            .setTitle(R.string.tts_legado_import_dialog_title)
+            .setMessage(R.string.tts_legado_import_dialog_message)
+            .setView(container)
+            .setPositiveButton(R.string.tts_legado_import_url) { _, _ ->
+                val url = input.text.toString().trim()
+                if (url.isNotEmpty()) {
+                    downloadAndImportUrl(url)
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    fun importFromClipboard() {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val text = clipboard.primaryClip?.getItemAt(0)?.text?.toString()
+        if (text.isNullOrBlank()) {
+            Toast.makeText(context, R.string.tts_clipboard_empty, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        coroutineScope.launch(Dispatchers.IO) {
+            try {
+                val configs = LegadoTtsParser.parseList(text)
+                withContext(Dispatchers.Main) {
+                    if (configs.isNotEmpty()) {
+                        saveLegadoConfigs(configs)
+                        Toast.makeText(
+                            context,
+                            string(R.string.tts_legado_import_success, configs.size),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    } else {
+                        Toast.makeText(context, R.string.tts_legado_import_parse_failed, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, R.string.tts_legado_import_parse_failed, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 
     private fun initializeSystemVoices() {
         systemVoiceOptionsFlow.value = defaultSystemVoiceOptions()
-        systemVoiceSummaryFlow.value = getString(R.string.loading_)
+        systemVoiceSummaryFlow.value = string(R.string.loading_)
 
         localTts?.shutdown()
-        localTts = TextToSpeech(requireContext()) { status ->
+        localTts = TextToSpeech(context) { status ->
             if (status != TextToSpeech.SUCCESS) {
-                systemVoiceSummaryFlow.value = getString(R.string.tts_system_voice_unavailable)
+                systemVoiceSummaryFlow.value = string(R.string.tts_system_voice_unavailable)
                 return@TextToSpeech
             }
 
@@ -184,7 +406,7 @@ class TtsSettingsFragment : Fragment() {
                     options = options,
                     defaultOption = SettingsChoiceOption(
                         value = DEFAULT_VOICE_VALUE,
-                        label = getString(R.string.tts_system_voice_default),
+                        label = string(R.string.tts_system_voice_default),
                     ),
                 )
                 systemVoiceSummaryFlow.value = null
@@ -209,13 +431,13 @@ class TtsSettingsFragment : Fragment() {
                     options = options,
                     defaultOption = SettingsChoiceOption(
                         value = DEFAULT_VOICE_VALUE,
-                        label = getString(R.string.tts_system_voice_default),
+                        label = string(R.string.tts_system_voice_default),
                     ),
                 )
-                systemVoiceSummaryFlow.value = getString(R.string.tts_system_voice_fallback)
+                systemVoiceSummaryFlow.value = string(R.string.tts_system_voice_fallback)
             } else {
                 systemVoiceOptionsFlow.value = defaultSystemVoiceOptions()
-                systemVoiceSummaryFlow.value = getString(R.string.tts_system_voice_unavailable)
+                systemVoiceSummaryFlow.value = string(R.string.tts_system_voice_unavailable)
             }
         }
     }
@@ -226,7 +448,7 @@ class TtsSettingsFragment : Fragment() {
 
         if (configs.isEmpty()) {
             legadoVoiceOptionsFlow.value = emptyList()
-            legadoVoiceSummaryFlow.value = getString(R.string.tts_legado_voice_unavailable)
+            legadoVoiceSummaryFlow.value = string(R.string.tts_legado_voice_unavailable)
             if (!appSettings.prefs.getString(KEY_TTS_LEGADO_VOICE, "").isNullOrEmpty()) {
                 appSettings.prefs.edit { putString(KEY_TTS_LEGADO_VOICE, "") }
             }
@@ -245,81 +467,6 @@ class TtsSettingsFragment : Fragment() {
         legadoVoiceSummaryFlow.value = null
     }
 
-    private fun testTtsVoice() {
-        Toast.makeText(requireContext(), R.string.tts_test_generating, Toast.LENGTH_SHORT).show()
-        isTestRunningFlow.value = true
-
-        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
-            var engine: TTSEngine? = null
-            var shouldResetState = true
-            try {
-                val prefs = appSettings.prefs
-                val engineId = prefs.getString(KEY_TTS_ENGINE_TYPE, ENGINE_SYSTEM) ?: ENGINE_SYSTEM
-                engine = if (engineId == ENGINE_LEGADO) {
-                    val url = prefs.getString(KEY_TTS_LEGADO_VOICE, "") ?: ""
-                    val config = parseLegadoConfigs().find { it.url == url }
-                        ?: error(getString(R.string.tts_legado_voice_unavailable))
-                    HttpTTSEngine(
-                        client = OkHttpClient.Builder()
-                            .connectTimeout(15, TimeUnit.SECONDS)
-                            .readTimeout(15, TimeUnit.SECONDS)
-                            .build(),
-                        config = config,
-                        context = requireContext(),
-                    )
-                } else {
-                    SystemTTSEngine(requireContext())
-                }
-
-                val testText = getString(R.string.tts_test_phrase)
-                val testToken = Token(
-                    id = System.currentTimeMillis(),
-                    text = testText,
-                    type = TokenType.NARRATION,
-                    range = testText.indices,
-                )
-                val result = engine.synthesize(testToken)
-
-                withContext(Dispatchers.Main) {
-                    val audioData = result.getOrNull()
-                        ?: error(result.exceptionOrNull()?.message ?: getString(R.string.reader_translation_task_state_failed))
-                    testMediaPlayer?.release()
-                    val player = MediaPlayer.create(requireContext(), audioData.uri)
-                        ?: error(getString(R.string.reader_translation_task_state_failed))
-                    testMediaPlayer = player
-                    player.setOnCompletionListener {
-                        it.release()
-                        testMediaPlayer = null
-                        isTestRunningFlow.value = false
-                    }
-                    player.setOnErrorListener { mediaPlayer, _, _ ->
-                        mediaPlayer.release()
-                        testMediaPlayer = null
-                        isTestRunningFlow.value = false
-                        true
-                    }
-                    player.start()
-                    shouldResetState = false
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(
-                        requireContext(),
-                        getString(R.string.tts_test_failed, e.message ?: ""),
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                }
-            } finally {
-                engine?.release()
-                if (shouldResetState) {
-                    withContext(Dispatchers.Main) {
-                        isTestRunningFlow.value = false
-                    }
-                }
-            }
-        }
-    }
-
     private fun saveLegadoConfigs(newConfigs: List<TtsHttpConfig>) {
         val existingConfigs = parseLegadoConfigs().toMutableList()
         val urls = existingConfigs.map { it.url }.toSet()
@@ -329,75 +476,8 @@ class TtsSettingsFragment : Fragment() {
         }
     }
 
-    private fun manageLegadoSources() {
-        val configs = parseLegadoConfigs().toMutableList()
-        if (configs.isEmpty()) {
-            Toast.makeText(requireContext(), R.string.tts_legado_sources_empty, Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val names = configs.map { it.name }.toTypedArray()
-        val checkedItems = BooleanArray(configs.size)
-
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle(R.string.tts_legado_manage_delete_title)
-            .setMultiChoiceItems(names, checkedItems) { _, which, isChecked ->
-                checkedItems[which] = isChecked
-            }
-            .setPositiveButton(R.string.tts_legado_manage_delete_action) { _, _ ->
-                val remaining = configs.filterIndexed { index, _ -> !checkedItems[index] }
-                if (remaining.size == configs.size) return@setPositiveButton
-
-                appSettings.prefs.edit {
-                    putString(KEY_LEGADO_TTS_CONFIGS, Gson().toJson(remaining))
-                    val currentVoice = appSettings.prefs.getString(KEY_TTS_LEGADO_VOICE, "")
-                    if (currentVoice != null && remaining.none { it.url == currentVoice }) {
-                        putString(KEY_TTS_LEGADO_VOICE, "")
-                    }
-                }
-                Toast.makeText(
-                    requireContext(),
-                    getString(R.string.tts_legado_sources_deleted, configs.size - remaining.size),
-                    Toast.LENGTH_SHORT,
-                ).show()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
-
-    private fun importFromUrl() {
-        val context = requireActivity()
-        val input = EditText(context).apply {
-            hint = URL_HINT
-            isSingleLine = true
-        }
-
-        val container = FrameLayout(context)
-        val params = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-        )
-        val margin = (24 * resources.displayMetrics.density).toInt()
-        params.setMargins(margin, 0, margin, 0)
-        input.layoutParams = params
-        container.addView(input)
-
-        MaterialAlertDialogBuilder(context)
-            .setTitle(R.string.tts_legado_import_dialog_title)
-            .setMessage(R.string.tts_legado_import_dialog_message)
-            .setView(container)
-            .setPositiveButton(R.string.tts_legado_import_url) { _, _ ->
-                val url = input.text.toString().trim()
-                if (url.isNotEmpty()) {
-                    downloadAndImportUrl(url)
-                }
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
-
     private fun downloadAndImportUrl(url: String) {
-        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+        coroutineScope.launch(Dispatchers.IO) {
             try {
                 val client = OkHttpClient()
                 val request = Request.Builder().url(url).build()
@@ -411,53 +491,22 @@ class TtsSettingsFragment : Fragment() {
                         if (configs.isNotEmpty()) {
                             saveLegadoConfigs(configs)
                             Toast.makeText(
-                                requireContext(),
-                                getString(R.string.tts_legado_import_success, configs.size),
+                                context,
+                                string(R.string.tts_legado_import_success, configs.size),
                                 Toast.LENGTH_SHORT,
                             ).show()
                         } else {
-                            Toast.makeText(requireContext(), R.string.tts_legado_import_empty, Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, R.string.tts_legado_import_empty, Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(
-                        requireContext(),
-                        getString(R.string.tts_legado_import_download_failed, e.message ?: ""),
+                        context,
+                        string(R.string.tts_legado_import_download_failed, e.message ?: ""),
                         Toast.LENGTH_SHORT,
                     ).show()
-                }
-            }
-        }
-    }
-
-    private fun importFromClipboard() {
-        val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val text = clipboard.primaryClip?.getItemAt(0)?.text?.toString()
-        if (text.isNullOrBlank()) {
-            Toast.makeText(requireContext(), R.string.tts_clipboard_empty, Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val configs = LegadoTtsParser.parseList(text)
-                withContext(Dispatchers.Main) {
-                    if (configs.isNotEmpty()) {
-                        saveLegadoConfigs(configs)
-                        Toast.makeText(
-                            requireContext(),
-                            getString(R.string.tts_legado_import_success, configs.size),
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    } else {
-                        Toast.makeText(requireContext(), R.string.tts_legado_import_parse_failed, Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(requireContext(), R.string.tts_legado_import_parse_failed, Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -477,7 +526,7 @@ class TtsSettingsFragment : Fragment() {
         return listOf(
             SettingsChoiceOption(
                 value = DEFAULT_VOICE_VALUE,
-                label = getString(R.string.tts_system_voice_default),
+                label = string(R.string.tts_system_voice_default),
             ),
         )
     }
@@ -496,7 +545,11 @@ class TtsSettingsFragment : Fragment() {
         }.distinctBy { it.value }
     }
 
-    private companion object {
+    private fun string(@StringRes resId: Int, vararg args: Any): String {
+        return context.getString(resId, *args)
+    }
+
+    companion object {
         const val KEY_TTS_ENABLED = "tts_enabled"
         const val KEY_TTS_ENGINE_TYPE = "tts_engine_type"
         const val KEY_TTS_SYSTEM_VOICE = "tts_system_voice"

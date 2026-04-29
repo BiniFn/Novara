@@ -1,19 +1,24 @@
 package org.skepsun.kototoro.settings
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.os.LocaleListCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -43,7 +48,6 @@ import org.skepsun.kototoro.settings.compose.AppearanceSettingsOptions
 import org.skepsun.kototoro.settings.compose.AppearanceSettingsScreen
 import org.skepsun.kototoro.settings.compose.AppearanceSettingsUiState
 import org.skepsun.kototoro.settings.compose.SettingsChoiceOption
-import org.skepsun.kototoro.settings.nav.NavConfigFragment
 import org.skepsun.kototoro.settings.protect.ProtectSetupActivity
 
 @AndroidEntryPoint
@@ -73,228 +77,19 @@ class AppearanceSettingsFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
         (view as ComposeView).setContent {
-            val colorScheme = settings.observeAsState(AppSettings.KEY_COLOR_THEME) { colorScheme }.value
-            val theme = settings.observeAsState(AppSettings.KEY_THEME) { theme }.value
-            val isAmoledTheme = settings.observeAsState(AppSettings.KEY_THEME_AMOLED) { isAmoledTheme }.value
-            val blurMode = settings.observeAsState(AppSettings.KEY_BLUR_MODE) { blurMode }.value
-            val hazeOpacityPercent = settings.observeAsState(AppSettings.KEY_HAZE_OPACITY) { hazeOpacityPercent }.value
-            val tabletUiMode = settings.observeAsState(AppSettings.KEY_TABLET_UI_MODE) { tabletUiMode }.value
-            val appLocale = settings.observeAsState(AppSettings.KEY_APP_LOCALE) { appLocales.toLanguageTags() }.value
-            val loadingCircleStyle = settings.observeAsState(AppSettings.KEY_LOADING_CIRCLE_STYLE) { loadingCircleStyle }.value
-            val popupRadius = settings.observeAsState(AppSettings.KEY_POPUP_RADIUS) { popupRadius }.value
-            val listMode = settings.observeAsState(AppSettings.KEY_LIST_MODE) { listMode }.value
-            val gridSize = settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize }.value
-            val railAnimationIntensityPercent =
-                settings.observeAsState(AppSettings.KEY_RAIL_ANIMATION_INTENSITY) { railAnimationIntensityPercent }.value
-            val isVerticalListRailAnimationEnabled =
-                settings.observeAsState(AppSettings.KEY_VERTICAL_LIST_RAIL_ANIMATION) { isVerticalListRailAnimationEnabled }.value
-            val isQuickFilterEnabled = settings.observeAsState(AppSettings.KEY_QUICK_FILTER) { isQuickFilterEnabled }.value
-            val progressIndicatorMode = settings.observeAsState(AppSettings.KEY_PROGRESS_INDICATORS) { progressIndicatorMode }.value
-            val mangaListBadges = settings.observeAsState(AppSettings.KEY_MANGA_LIST_BADGES) { mangaListBadges }.value
-            val isDescriptionExpanded = settings.observeAsState(AppSettings.KEY_COLLAPSE_DESCRIPTION) { isDescriptionExpanded }.value
-            val isPanoramaCoverEnabled = settings.observeAsState(AppSettings.KEY_PANORAMA_ENABLED) { isPanoramaCoverEnabled }.value
-            val panoramaCoverBlur = settings.observeAsState(AppSettings.KEY_PANORAMA_BLUR) { panoramaCoverBlur }.value
-            val isPanoramaCoverAnimationEnabled =
-                settings.observeAsState(AppSettings.KEY_PANORAMA_ANIMATION_ENABLED) { isPanoramaCoverAnimationEnabled }.value
-            val panoramaAnimationSpeed =
-                settings.observeAsState(AppSettings.KEY_PANORAMA_ANIMATION_SPEED) { panoramaAnimationSpeed }.value
-            val panoramaCoverExtraHeight =
-                settings.observeAsState(AppSettings.KEY_PANORAMA_EXTRA_HEIGHT) { panoramaCoverExtraHeight }.value
-            val panoramaBottomGradientAlpha =
-                settings.observeAsState(AppSettings.KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA) { panoramaBottomGradientAlpha }.value
-            val browsePanoramaBlendHeight =
-                settings.observeAsState(AppSettings.KEY_BROWSE_PANORAMA_BLEND_HEIGHT) { browsePanoramaBlendHeight }.value
-            val browsePanoramaBottomGradientAlpha =
-                settings.observeAsState(AppSettings.KEY_BROWSE_PANORAMA_BOTTOM_GRADIENT_ALPHA) {
-                    browsePanoramaBottomGradientAlpha
-                }.value
-            val isPagesTabEnabled = settings.observeAsState(AppSettings.KEY_PAGES_TAB) { isPagesTabEnabled }.value
-            val isDetailsTranslateButtonVisible =
-                settings.observeAsState(AppSettings.KEY_DETAILS_TRANSLATE_BUTTON) { isDetailsTranslateButtonVisible }.value
-            val defaultDetailsTab =
-                settings.observeAsState(AppSettings.KEY_PAGES_TAB, AppSettings.KEY_DETAILS_TAB) { defaultDetailsTab }.value
-            val searchSuggestionTypes =
-                settings.observeAsState(AppSettings.KEY_SEARCH_SUGGESTION_TYPES) { searchSuggestionTypes }.value
-            val mainNavItems = settings.observeAsState(AppSettings.KEY_NAV_MAIN) { mainNavItems }.value
-            val isSharedElementTransitionsEnabled =
-                settings.observeAsState(AppSettings.KEY_SHARED_ELEMENT_TRANSITIONS) { isSharedElementTransitionsEnabled }.value
-            val isShowLanguagePresetFilter =
-                settings.observeAsState(AppSettings.KEY_SHOW_LANGUAGE_PRESET_FILTER) { isShowLanguagePresetFilter }.value
-            val hiddenLanguagePreset =
-                settings.observeAsState(AppSettings.KEY_HIDDEN_LANGUAGE_PRESET) { hiddenLanguagePreset ?: "all" }.value
-            val isShowContentTypeFilter =
-                settings.observeAsState(AppSettings.KEY_SHOW_CONTENT_TYPE_FILTER) { isShowContentTypeFilter }.value
-            val hiddenContentType =
-                settings.observeAsState(AppSettings.KEY_HIDDEN_CONTENT_TYPE) { hiddenContentType ?: "all" }.value
-            val isShowSourceTagFilter =
-                settings.observeAsState(AppSettings.KEY_SHOW_SOURCE_TAG_FILTER) { isShowSourceTagFilter }.value
-            val hiddenSourceTag =
-                settings.observeAsState(AppSettings.KEY_HIDDEN_SOURCE_TAG) { hiddenSourceTag }
-                    .value
-                    .let(::parseHiddenSourceTagSelection)
-            val isMainFabEnabled = settings.observeAsState(AppSettings.KEY_MAIN_FAB) { isMainFabEnabled }.value
-            val isNavLabelsVisible = settings.observeAsState(AppSettings.KEY_NAV_LABELS) { isNavLabelsVisible }.value
-            val isNavBarPinned = settings.observeAsState(AppSettings.KEY_NAV_PINNED) { isNavBarPinned }.value
-            val isNavFloating = settings.observeAsState(AppSettings.KEY_NAV_FLOATING) { isNavFloating }.value
-            val navHeight = settings.observeAsState(AppSettings.KEY_NAV_HEIGHT) { navHeight }.value
-            val navFloatingHeight = settings.observeAsState(AppSettings.KEY_NAV_FLOATING_HEIGHT) { navFloatingHeight }.value
-            val isReaderToolbarFloating =
-                settings.observeAsState(AppSettings.KEY_READER_TOOLBAR_FLOATING) { isReaderToolbarFloating }.value
-            val isExitConfirmationEnabled =
-                settings.observeAsState(AppSettings.KEY_EXIT_CONFIRM) { isExitConfirmationEnabled }.value
-            val isDynamicShortcutsEnabled =
-                settings.observeAsState(AppSettings.KEY_SHORTCUTS) { isDynamicShortcutsEnabled }.value
-            val isAppProtected =
-                settings.observeAsState(AppSettings.KEY_APP_PASSWORD) { !appPassword.isNullOrEmpty() }.value
-            val screenshotsPolicy =
-                settings.observeAsState(AppSettings.KEY_SCREENSHOTS_POLICY) { screenshotsPolicy }.value
-            val languagePresetOptions = sourcePresetsRepository.observeAll()
-                .map(::buildLanguagePresetOptions)
-                .collectAsStateWithLifecycle(initialValue = buildLanguagePresetOptions(emptyList()))
-                .value
-
-            val options = AppearanceSettingsOptions(
-                colorSchemes = buildColorSchemeOptions(),
-                themes = buildThemeOptions(),
-                blurModes = buildBlurModeOptions(),
-                tabletUiModes = buildTabletUiModeOptions(),
-                appLocales = buildLocaleOptions(),
-                loadingCircleStyles = buildLoadingCircleStyleOptions(),
-                popupRadii = buildPopupRadiusOptions(),
-                listModes = buildListModeOptions(),
-                progressIndicatorModes = buildProgressIndicatorModeOptions(),
-                badgeOptions = buildBadgeOptions(),
-                bottomRightBadgeOptions = buildBottomRightBadgeOptions(),
-                mangaListBadges = buildMangaListBadgeOptions(),
-                detailsTabs = buildDetailsTabOptions(),
-                searchSuggestionTypes = buildSearchSuggestionTypeOptions(),
-                languagePresets = languagePresetOptions,
-                contentTypes = buildContentTypeOptions(),
-                sourceTags = buildSourceTagOptions(),
-                screenshotsPolicies = buildScreenshotsPolicyOptions(),
-            )
-
-            val uiState = AppearanceSettingsUiState(
-                navSummary = buildNavSummary(mainNavItems),
-                colorScheme = colorScheme,
-                theme = theme,
-                isAmoledTheme = isAmoledTheme,
-                blurMode = blurMode,
-                hazeOpacityPercent = hazeOpacityPercent,
-                tabletUiMode = tabletUiMode,
-                appLocale = appLocale,
-                loadingCircleStyle = loadingCircleStyle,
-                popupRadius = popupRadius,
-                listMode = listMode,
-                gridSize = gridSize,
-                railAnimationIntensityPercent = railAnimationIntensityPercent,
-                isVerticalListRailAnimationEnabled = isVerticalListRailAnimationEnabled,
-                isQuickFilterEnabled = isQuickFilterEnabled,
-                progressIndicatorMode = progressIndicatorMode,
-                badgesTopLeft = settings.observeAsState(AppSettings.KEY_BADGES_TOP_LEFT) { badgesTopLeft }.value,
-                badgesTopRight = settings.observeAsState(AppSettings.KEY_BADGES_TOP_RIGHT) { badgesTopRight }.value,
-                badgesBottomLeft = settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_LEFT) { badgesBottomLeft }.value,
-                badgesBottomRight = settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_RIGHT) { badgesBottomRight }.value,
-                mangaListBadges = mangaListBadges,
-                isDescriptionExpanded = isDescriptionExpanded,
-                isPanoramaCoverEnabled = isPanoramaCoverEnabled,
-                panoramaCoverBlur = panoramaCoverBlur,
-                isPanoramaCoverAnimationEnabled = isPanoramaCoverAnimationEnabled,
-                panoramaAnimationSpeed = panoramaAnimationSpeed,
-                panoramaCoverExtraHeight = panoramaCoverExtraHeight,
-                panoramaBottomGradientAlpha = panoramaBottomGradientAlpha,
-                browsePanoramaBlendHeight = browsePanoramaBlendHeight,
-                browsePanoramaBottomGradientAlpha = browsePanoramaBottomGradientAlpha,
-                isPagesTabEnabled = isPagesTabEnabled,
-                isDetailsTranslateButtonVisible = isDetailsTranslateButtonVisible,
-                defaultDetailsTab = defaultDetailsTab,
-                searchSuggestionTypes = searchSuggestionTypes,
-                isSharedElementTransitionsEnabled = isSharedElementTransitionsEnabled,
-                isShowLanguagePresetFilter = isShowLanguagePresetFilter,
-                hiddenLanguagePreset = hiddenLanguagePreset,
-                isShowContentTypeFilter = isShowContentTypeFilter,
-                hiddenContentType = hiddenContentType,
-                isShowSourceTagFilter = isShowSourceTagFilter,
-                hiddenSourceTag = hiddenSourceTag,
-                isMainFabEnabled = isMainFabEnabled,
-                isNavLabelsVisible = isNavLabelsVisible,
-                isNavBarPinned = isNavBarPinned,
-                isNavFloating = isNavFloating,
-                navHeight = navHeight,
-                navFloatingHeight = navFloatingHeight,
-                isReaderToolbarFloating = isReaderToolbarFloating,
-                isExitConfirmationEnabled = isExitConfirmationEnabled,
-                isDynamicShortcutsVisible = appShortcutManager.isDynamicShortcutsAvailable(),
-                isDynamicShortcutsEnabled = isDynamicShortcutsEnabled,
-                isAppProtected = isAppProtected,
-                screenshotsPolicy = screenshotsPolicy,
-            )
-
             KototoroTheme {
-                AppearanceSettingsScreen(
-                    state = uiState,
-                    options = options,
-                    emptySelectionText = getString(R.string.none),
-                    onColorSchemeChange = { updateAndRestart { settings.colorScheme = it } },
-                    onThemeChange = ::updateTheme,
-                    onAmoledThemeChange = { updateAndRestart { settings.isAmoledTheme = it } },
-                    onBlurModeChange = { settings.blurMode = it },
-                    onHazeOpacityChange = { settings.hazeOpacityPercent = it },
-                    onTabletUiModeChange = { settings.tabletUiMode = it },
-                    onAppLocaleChange = ::updateAppLocale,
-                    onLoadingCircleStyleChange = { updateAndRestart { settings.loadingCircleStyle = it } },
-                    onPopupRadiusChange = { updateAndRestart { settings.popupRadius = it } },
-                    onListModeChange = { settings.listMode = it },
-                    onGridSizeChange = { settings.gridSize = it },
-                    onRailAnimationIntensityChange = { settings.railAnimationIntensityPercent = it },
-                    onVerticalListRailAnimationChange = { settings.isVerticalListRailAnimationEnabled = it },
-                    onQuickFilterChange = { settings.isQuickFilterEnabled = it },
-                    onProgressIndicatorModeChange = { settings.progressIndicatorMode = it },
-                    onBadgesTopLeftChange = { settings.badgesTopLeft = it },
-                    onBadgesTopRightChange = { settings.badgesTopRight = it },
-                    onBadgesBottomLeftChange = { settings.badgesBottomLeft = it },
-                    onBadgesBottomRightChange = { settings.badgesBottomRight = it },
-                    onMangaListBadgesChange = { settings.mangaListBadges = it },
-                    onDescriptionExpandedChange = { settings.isDescriptionExpanded = it },
-                    onPanoramaCoverEnabledChange = { settings.isPanoramaCoverEnabled = it },
-                    onPanoramaBlurChange = { settings.panoramaCoverBlur = it },
-                    onPanoramaAnimationEnabledChange = { settings.isPanoramaCoverAnimationEnabled = it },
-                    onPanoramaAnimationSpeedChange = { settings.panoramaAnimationSpeed = it },
-                    onPanoramaExtraHeightChange = { settings.panoramaCoverExtraHeight = it },
-                    onPanoramaGradientAlphaChange = { settings.panoramaBottomGradientAlpha = it },
-                    onBrowsePanoramaBlendHeightChange = { settings.browsePanoramaBlendHeight = it },
-                    onBrowsePanoramaGradientAlphaChange = { settings.browsePanoramaBottomGradientAlpha = it },
-                    onPagesTabEnabledChange = { settings.isPagesTabEnabled = it },
-                    onDetailsTranslateButtonVisibleChange = { settings.isDetailsTranslateButtonVisible = it },
-                    onDefaultDetailsTabChange = { settings.defaultDetailsTab = it },
-                    onSearchSuggestionTypesChange = { settings.searchSuggestionTypes = it },
-                    onNavConfigClick = {
-                        (activity as? SettingsActivity)?.openFragment(NavConfigFragment::class.java, null, false)
+                AppearanceSettingsRoute(
+                    settings = settings,
+                    activityRecreationHandle = activityRecreationHandle,
+                    appShortcutManager = appShortcutManager,
+                    sourcePresetsRepository = sourcePresetsRepository,
+                    onOpenNavConfig = {
+                        (activity as? SettingsActivity)?.openDestination(SettingsDestination.NavConfigSettings, null, false)
                     },
-                    onSharedElementTransitionsChange = { settings.isSharedElementTransitionsEnabled = it },
-                    onShowLanguagePresetFilterChange = { settings.isShowLanguagePresetFilter = it },
-                    onHiddenLanguagePresetChange = { settings.hiddenLanguagePreset = it },
-                    onShowContentTypeFilterChange = { settings.isShowContentTypeFilter = it },
-                    onHiddenContentTypeChange = { settings.hiddenContentType = it },
-                    onShowSourceTagFilterChange = { settings.isShowSourceTagFilter = it },
-                    onHiddenSourceTagChange = { selection ->
-                        settings.hiddenSourceTag = selection
-                            .takeIf { it.isNotEmpty() }
-                            ?.joinToString(",")
+                    onOpenProtectSetup = {
+                        startActivity(Intent(requireContext(), ProtectSetupActivity::class.java))
                     },
-                    onMainFabChange = { settings.isMainFabEnabled = it },
-                    onNavLabelsVisibleChange = { settings.isNavLabelsVisible = it },
-                    onNavBarPinnedChange = { settings.isNavBarPinned = it },
-                    onNavFloatingChange = { settings.isNavFloating = it },
-                    onNavHeightChange = { settings.navHeight = it },
-                    onNavFloatingHeightChange = { settings.navFloatingHeight = it },
-                    onReaderToolbarFloatingChange = { settings.isReaderToolbarFloating = it },
-                    onExitConfirmationChange = { settings.isExitConfirmationEnabled = it },
-                    onDynamicShortcutsChange = { settings.isDynamicShortcutsEnabled = it },
-                    onAppProtectionChange = ::updateAppProtection,
-                    onScreenshotsPolicyChange = { settings.screenshotsPolicy = it },
                 )
             }
         }
@@ -303,6 +98,272 @@ class AppearanceSettingsFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.appearance))
+    }
+}
+
+@Composable
+fun AppearanceSettingsRoute(
+    settings: AppSettings,
+    activityRecreationHandle: ActivityRecreationHandle,
+    appShortcutManager: AppShortcutManager,
+    sourcePresetsRepository: SourcePresetsRepository,
+    onOpenNavConfig: () -> Unit,
+    onOpenProtectSetup: () -> Unit,
+) {
+    val context = LocalContext.current
+    val coordinator = remember(
+        context,
+        settings,
+        activityRecreationHandle,
+        appShortcutManager,
+        sourcePresetsRepository,
+        onOpenNavConfig,
+        onOpenProtectSetup,
+    ) {
+        AppearanceSettingsCoordinator(
+            context = context,
+            settings = settings,
+            activityRecreationHandle = activityRecreationHandle,
+            appShortcutManager = appShortcutManager,
+            sourcePresetsRepository = sourcePresetsRepository,
+            onOpenNavConfig = onOpenNavConfig,
+            onOpenProtectSetup = onOpenProtectSetup,
+        )
+    }
+    coordinator.Render()
+}
+
+private class AppearanceSettingsCoordinator(
+    private val context: Context,
+    private val settings: AppSettings,
+    private val activityRecreationHandle: ActivityRecreationHandle,
+    private val appShortcutManager: AppShortcutManager,
+    private val sourcePresetsRepository: SourcePresetsRepository,
+    private val onOpenNavConfig: () -> Unit,
+    private val onOpenProtectSetup: () -> Unit,
+) {
+
+    @Composable
+    fun Render() {
+        val coroutineScope = rememberCoroutineScope()
+        val colorScheme = settings.observeAsState(AppSettings.KEY_COLOR_THEME) { colorScheme }.value
+        val theme = settings.observeAsState(AppSettings.KEY_THEME) { theme }.value
+        val isAmoledTheme = settings.observeAsState(AppSettings.KEY_THEME_AMOLED) { isAmoledTheme }.value
+        val blurMode = settings.observeAsState(AppSettings.KEY_BLUR_MODE) { blurMode }.value
+        val hazeOpacityPercent = settings.observeAsState(AppSettings.KEY_HAZE_OPACITY) { hazeOpacityPercent }.value
+        val tabletUiMode = settings.observeAsState(AppSettings.KEY_TABLET_UI_MODE) { tabletUiMode }.value
+        val appLocale = settings.observeAsState(AppSettings.KEY_APP_LOCALE) { appLocales.toLanguageTags() }.value
+        val loadingCircleStyle = settings.observeAsState(AppSettings.KEY_LOADING_CIRCLE_STYLE) { loadingCircleStyle }.value
+        val popupRadius = settings.observeAsState(AppSettings.KEY_POPUP_RADIUS) { popupRadius }.value
+        val listMode = settings.observeAsState(AppSettings.KEY_LIST_MODE) { listMode }.value
+        val gridSize = settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize }.value
+        val railAnimationIntensityPercent =
+            settings.observeAsState(AppSettings.KEY_RAIL_ANIMATION_INTENSITY) { railAnimationIntensityPercent }.value
+        val isVerticalListRailAnimationEnabled =
+            settings.observeAsState(AppSettings.KEY_VERTICAL_LIST_RAIL_ANIMATION) { isVerticalListRailAnimationEnabled }.value
+        val isQuickFilterEnabled = settings.observeAsState(AppSettings.KEY_QUICK_FILTER) { isQuickFilterEnabled }.value
+        val progressIndicatorMode = settings.observeAsState(AppSettings.KEY_PROGRESS_INDICATORS) { progressIndicatorMode }.value
+        val mangaListBadges = settings.observeAsState(AppSettings.KEY_MANGA_LIST_BADGES) { mangaListBadges }.value
+        val isDescriptionExpanded = settings.observeAsState(AppSettings.KEY_COLLAPSE_DESCRIPTION) { isDescriptionExpanded }.value
+        val isPanoramaCoverEnabled = settings.observeAsState(AppSettings.KEY_PANORAMA_ENABLED) { isPanoramaCoverEnabled }.value
+        val panoramaCoverBlur = settings.observeAsState(AppSettings.KEY_PANORAMA_BLUR) { panoramaCoverBlur }.value
+        val isPanoramaCoverAnimationEnabled =
+            settings.observeAsState(AppSettings.KEY_PANORAMA_ANIMATION_ENABLED) { isPanoramaCoverAnimationEnabled }.value
+        val panoramaAnimationSpeed =
+            settings.observeAsState(AppSettings.KEY_PANORAMA_ANIMATION_SPEED) { panoramaAnimationSpeed }.value
+        val panoramaCoverExtraHeight =
+            settings.observeAsState(AppSettings.KEY_PANORAMA_EXTRA_HEIGHT) { panoramaCoverExtraHeight }.value
+        val panoramaBottomGradientAlpha =
+            settings.observeAsState(AppSettings.KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA) { panoramaBottomGradientAlpha }.value
+        val browsePanoramaBlendHeight =
+            settings.observeAsState(AppSettings.KEY_BROWSE_PANORAMA_BLEND_HEIGHT) { browsePanoramaBlendHeight }.value
+        val browsePanoramaBottomGradientAlpha =
+            settings.observeAsState(AppSettings.KEY_BROWSE_PANORAMA_BOTTOM_GRADIENT_ALPHA) {
+                browsePanoramaBottomGradientAlpha
+            }.value
+        val isPagesTabEnabled = settings.observeAsState(AppSettings.KEY_PAGES_TAB) { isPagesTabEnabled }.value
+        val isDetailsTranslateButtonVisible =
+            settings.observeAsState(AppSettings.KEY_DETAILS_TRANSLATE_BUTTON) { isDetailsTranslateButtonVisible }.value
+        val defaultDetailsTab =
+            settings.observeAsState(AppSettings.KEY_PAGES_TAB, AppSettings.KEY_DETAILS_TAB) { defaultDetailsTab }.value
+        val searchSuggestionTypes =
+            settings.observeAsState(AppSettings.KEY_SEARCH_SUGGESTION_TYPES) { searchSuggestionTypes }.value
+        val mainNavItems = settings.observeAsState(AppSettings.KEY_NAV_MAIN) { mainNavItems }.value
+        val isSharedElementTransitionsEnabled =
+            settings.observeAsState(AppSettings.KEY_SHARED_ELEMENT_TRANSITIONS) { isSharedElementTransitionsEnabled }.value
+        val isShowLanguagePresetFilter =
+            settings.observeAsState(AppSettings.KEY_SHOW_LANGUAGE_PRESET_FILTER) { isShowLanguagePresetFilter }.value
+        val hiddenLanguagePreset =
+            settings.observeAsState(AppSettings.KEY_HIDDEN_LANGUAGE_PRESET) { hiddenLanguagePreset ?: "all" }.value
+        val isShowContentTypeFilter =
+            settings.observeAsState(AppSettings.KEY_SHOW_CONTENT_TYPE_FILTER) { isShowContentTypeFilter }.value
+        val hiddenContentType =
+            settings.observeAsState(AppSettings.KEY_HIDDEN_CONTENT_TYPE) { hiddenContentType ?: "all" }.value
+        val isShowSourceTagFilter =
+            settings.observeAsState(AppSettings.KEY_SHOW_SOURCE_TAG_FILTER) { isShowSourceTagFilter }.value
+        val hiddenSourceTag =
+            settings.observeAsState(AppSettings.KEY_HIDDEN_SOURCE_TAG) { hiddenSourceTag }
+                .value
+                .let(::parseHiddenSourceTagSelection)
+        val isMainFabEnabled = settings.observeAsState(AppSettings.KEY_MAIN_FAB) { isMainFabEnabled }.value
+        val isNavLabelsVisible = settings.observeAsState(AppSettings.KEY_NAV_LABELS) { isNavLabelsVisible }.value
+        val isNavBarPinned = settings.observeAsState(AppSettings.KEY_NAV_PINNED) { isNavBarPinned }.value
+        val isNavFloating = settings.observeAsState(AppSettings.KEY_NAV_FLOATING) { isNavFloating }.value
+        val navHeight = settings.observeAsState(AppSettings.KEY_NAV_HEIGHT) { navHeight }.value
+        val navFloatingHeight = settings.observeAsState(AppSettings.KEY_NAV_FLOATING_HEIGHT) { navFloatingHeight }.value
+        val isReaderToolbarFloating =
+            settings.observeAsState(AppSettings.KEY_READER_TOOLBAR_FLOATING) { isReaderToolbarFloating }.value
+        val isExitConfirmationEnabled =
+            settings.observeAsState(AppSettings.KEY_EXIT_CONFIRM) { isExitConfirmationEnabled }.value
+        val isDynamicShortcutsEnabled =
+            settings.observeAsState(AppSettings.KEY_SHORTCUTS) { isDynamicShortcutsEnabled }.value
+        val isAppProtected =
+            settings.observeAsState(AppSettings.KEY_APP_PASSWORD) { !appPassword.isNullOrEmpty() }.value
+        val screenshotsPolicy =
+            settings.observeAsState(AppSettings.KEY_SCREENSHOTS_POLICY) { screenshotsPolicy }.value
+        val languagePresetOptions = sourcePresetsRepository.observeAll()
+            .map(::buildLanguagePresetOptions)
+            .collectAsStateWithLifecycle(initialValue = buildLanguagePresetOptions(emptyList()))
+            .value
+
+        val options = AppearanceSettingsOptions(
+            colorSchemes = buildColorSchemeOptions(),
+            themes = buildThemeOptions(),
+            blurModes = buildBlurModeOptions(),
+            tabletUiModes = buildTabletUiModeOptions(),
+            appLocales = buildLocaleOptions(),
+            loadingCircleStyles = buildLoadingCircleStyleOptions(),
+            popupRadii = buildPopupRadiusOptions(),
+            listModes = buildListModeOptions(),
+            progressIndicatorModes = buildProgressIndicatorModeOptions(),
+            badgeOptions = buildBadgeOptions(),
+            bottomRightBadgeOptions = buildBottomRightBadgeOptions(),
+            mangaListBadges = buildMangaListBadgeOptions(),
+            detailsTabs = buildDetailsTabOptions(),
+            searchSuggestionTypes = buildSearchSuggestionTypeOptions(),
+            languagePresets = languagePresetOptions,
+            contentTypes = buildContentTypeOptions(),
+            sourceTags = buildSourceTagOptions(),
+            screenshotsPolicies = buildScreenshotsPolicyOptions(),
+        )
+
+        val uiState = AppearanceSettingsUiState(
+            navSummary = buildNavSummary(mainNavItems),
+            colorScheme = colorScheme,
+            theme = theme,
+            isAmoledTheme = isAmoledTheme,
+            blurMode = blurMode,
+            hazeOpacityPercent = hazeOpacityPercent,
+            tabletUiMode = tabletUiMode,
+            appLocale = appLocale,
+            loadingCircleStyle = loadingCircleStyle,
+            popupRadius = popupRadius,
+            listMode = listMode,
+            gridSize = gridSize,
+            railAnimationIntensityPercent = railAnimationIntensityPercent,
+            isVerticalListRailAnimationEnabled = isVerticalListRailAnimationEnabled,
+            isQuickFilterEnabled = isQuickFilterEnabled,
+            progressIndicatorMode = progressIndicatorMode,
+            badgesTopLeft = settings.observeAsState(AppSettings.KEY_BADGES_TOP_LEFT) { badgesTopLeft }.value,
+            badgesTopRight = settings.observeAsState(AppSettings.KEY_BADGES_TOP_RIGHT) { badgesTopRight }.value,
+            badgesBottomLeft = settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_LEFT) { badgesBottomLeft }.value,
+            badgesBottomRight = settings.observeAsState(AppSettings.KEY_BADGES_BOTTOM_RIGHT) { badgesBottomRight }.value,
+            mangaListBadges = mangaListBadges,
+            isDescriptionExpanded = isDescriptionExpanded,
+            isPanoramaCoverEnabled = isPanoramaCoverEnabled,
+            panoramaCoverBlur = panoramaCoverBlur,
+            isPanoramaCoverAnimationEnabled = isPanoramaCoverAnimationEnabled,
+            panoramaAnimationSpeed = panoramaAnimationSpeed,
+            panoramaCoverExtraHeight = panoramaCoverExtraHeight,
+            panoramaBottomGradientAlpha = panoramaBottomGradientAlpha,
+            browsePanoramaBlendHeight = browsePanoramaBlendHeight,
+            browsePanoramaBottomGradientAlpha = browsePanoramaBottomGradientAlpha,
+            isPagesTabEnabled = isPagesTabEnabled,
+            isDetailsTranslateButtonVisible = isDetailsTranslateButtonVisible,
+            defaultDetailsTab = defaultDetailsTab,
+            searchSuggestionTypes = searchSuggestionTypes,
+            isSharedElementTransitionsEnabled = isSharedElementTransitionsEnabled,
+            isShowLanguagePresetFilter = isShowLanguagePresetFilter,
+            hiddenLanguagePreset = hiddenLanguagePreset,
+            isShowContentTypeFilter = isShowContentTypeFilter,
+            hiddenContentType = hiddenContentType,
+            isShowSourceTagFilter = isShowSourceTagFilter,
+            hiddenSourceTag = hiddenSourceTag,
+            isMainFabEnabled = isMainFabEnabled,
+            isNavLabelsVisible = isNavLabelsVisible,
+            isNavBarPinned = isNavBarPinned,
+            isNavFloating = isNavFloating,
+            navHeight = navHeight,
+            navFloatingHeight = navFloatingHeight,
+            isReaderToolbarFloating = isReaderToolbarFloating,
+            isExitConfirmationEnabled = isExitConfirmationEnabled,
+            isDynamicShortcutsVisible = appShortcutManager.isDynamicShortcutsAvailable(),
+            isDynamicShortcutsEnabled = isDynamicShortcutsEnabled,
+            isAppProtected = isAppProtected,
+            screenshotsPolicy = screenshotsPolicy,
+        )
+
+        AppearanceSettingsScreen(
+            state = uiState,
+            options = options,
+            emptySelectionText = context.getString(R.string.none),
+            onColorSchemeChange = { updateAndRestart(coroutineScope) { settings.colorScheme = it } },
+            onThemeChange = ::updateTheme,
+            onAmoledThemeChange = { updateAndRestart(coroutineScope) { settings.isAmoledTheme = it } },
+            onBlurModeChange = { settings.blurMode = it },
+            onHazeOpacityChange = { settings.hazeOpacityPercent = it },
+            onTabletUiModeChange = { settings.tabletUiMode = it },
+            onAppLocaleChange = ::updateAppLocale,
+            onLoadingCircleStyleChange = { updateAndRestart(coroutineScope) { settings.loadingCircleStyle = it } },
+            onPopupRadiusChange = { updateAndRestart(coroutineScope) { settings.popupRadius = it } },
+            onListModeChange = { settings.listMode = it },
+            onGridSizeChange = { settings.gridSize = it },
+            onRailAnimationIntensityChange = { settings.railAnimationIntensityPercent = it },
+            onVerticalListRailAnimationChange = { settings.isVerticalListRailAnimationEnabled = it },
+            onQuickFilterChange = { settings.isQuickFilterEnabled = it },
+            onProgressIndicatorModeChange = { settings.progressIndicatorMode = it },
+            onBadgesTopLeftChange = { settings.badgesTopLeft = it },
+            onBadgesTopRightChange = { settings.badgesTopRight = it },
+            onBadgesBottomLeftChange = { settings.badgesBottomLeft = it },
+            onBadgesBottomRightChange = { settings.badgesBottomRight = it },
+            onMangaListBadgesChange = { settings.mangaListBadges = it },
+            onDescriptionExpandedChange = { settings.isDescriptionExpanded = it },
+            onPanoramaCoverEnabledChange = { settings.isPanoramaCoverEnabled = it },
+            onPanoramaBlurChange = { settings.panoramaCoverBlur = it },
+            onPanoramaAnimationEnabledChange = { settings.isPanoramaCoverAnimationEnabled = it },
+            onPanoramaAnimationSpeedChange = { settings.panoramaAnimationSpeed = it },
+            onPanoramaExtraHeightChange = { settings.panoramaCoverExtraHeight = it },
+            onPanoramaGradientAlphaChange = { settings.panoramaBottomGradientAlpha = it },
+            onBrowsePanoramaBlendHeightChange = { settings.browsePanoramaBlendHeight = it },
+            onBrowsePanoramaGradientAlphaChange = { settings.browsePanoramaBottomGradientAlpha = it },
+            onPagesTabEnabledChange = { settings.isPagesTabEnabled = it },
+            onDetailsTranslateButtonVisibleChange = { settings.isDetailsTranslateButtonVisible = it },
+            onDefaultDetailsTabChange = { settings.defaultDetailsTab = it },
+            onSearchSuggestionTypesChange = { settings.searchSuggestionTypes = it },
+            onNavConfigClick = onOpenNavConfig,
+            onSharedElementTransitionsChange = { settings.isSharedElementTransitionsEnabled = it },
+            onShowLanguagePresetFilterChange = { settings.isShowLanguagePresetFilter = it },
+            onHiddenLanguagePresetChange = { settings.hiddenLanguagePreset = it },
+            onShowContentTypeFilterChange = { settings.isShowContentTypeFilter = it },
+            onHiddenContentTypeChange = { settings.hiddenContentType = it },
+            onShowSourceTagFilterChange = { settings.isShowSourceTagFilter = it },
+            onHiddenSourceTagChange = { selection ->
+                settings.hiddenSourceTag = selection
+                    .takeIf { it.isNotEmpty() }
+                    ?.joinToString(",")
+            },
+            onMainFabChange = { settings.isMainFabEnabled = it },
+            onNavLabelsVisibleChange = { settings.isNavLabelsVisible = it },
+            onNavBarPinnedChange = { settings.isNavBarPinned = it },
+            onNavFloatingChange = { settings.isNavFloating = it },
+            onNavHeightChange = { settings.navHeight = it },
+            onNavFloatingHeightChange = { settings.navFloatingHeight = it },
+            onReaderToolbarFloatingChange = { settings.isReaderToolbarFloating = it },
+            onExitConfirmationChange = { settings.isExitConfirmationEnabled = it },
+            onDynamicShortcutsChange = { settings.isDynamicShortcutsEnabled = it },
+            onAppProtectionChange = { updateAppProtection(it) },
+            onScreenshotsPolicyChange = { settings.screenshotsPolicy = it },
+        )
     }
 
     private fun updateTheme(value: Int) {
@@ -318,115 +379,111 @@ class AppearanceSettingsFragment : Fragment() {
 
     private fun updateAppProtection(isEnabled: Boolean) {
         if (isEnabled) {
-            startActivity(Intent(requireContext(), ProtectSetupActivity::class.java))
+            onOpenProtectSetup()
         } else {
             settings.appPassword = null
         }
     }
 
-    private fun updateAndRestart(block: () -> Unit) {
+    private fun updateAndRestart(scope: CoroutineScope, block: () -> Unit) {
         block()
-        postRestart()
-    }
-
-    private fun postRestart() {
-        viewLifecycleOwner.lifecycleScope.launch {
+        scope.launch {
             delay(400)
             activityRecreationHandle.recreateAll()
         }
     }
 
     private fun buildNavSummary(items: List<NavItem>): String {
-        return items.joinToString { getString(it.title) }
+        return items.joinToString { context.getString(it.title) }
     }
 
     private fun buildColorSchemeOptions(): List<SettingsChoiceOption<ColorScheme>> {
         return ColorScheme.getAvailableList().map {
             SettingsChoiceOption(
                 value = it,
-                label = getString(it.titleResId),
+                label = context.getString(it.titleResId),
             )
         }
     }
 
     private fun buildThemeOptions(): List<SettingsChoiceOption<Int>> {
-        val labels = resources.getStringArray(R.array.themes)
-        val values = resources.getStringArray(R.array.values_theme).map { it.toInt() }
+        val labels = context.resources.getStringArray(R.array.themes)
+        val values = context.resources.getStringArray(R.array.values_theme).map { it.toInt() }
         return labels.zip(values).map { (label, value) -> SettingsChoiceOption(value, label) }
     }
 
     private fun buildTabletUiModeOptions(): List<SettingsChoiceOption<TabletUiMode>> {
         return listOf(
-            SettingsChoiceOption(TabletUiMode.RELAXED, getString(R.string.tablet_ui_mode_relaxed)),
-            SettingsChoiceOption(TabletUiMode.STRICT, getString(R.string.tablet_ui_mode_strict)),
+            SettingsChoiceOption(TabletUiMode.RELAXED, context.getString(R.string.tablet_ui_mode_relaxed)),
+            SettingsChoiceOption(TabletUiMode.STRICT, context.getString(R.string.tablet_ui_mode_strict)),
         )
     }
 
     private fun buildLocaleOptions(): List<SettingsChoiceOption<String>> {
-        val locales = requireContext().getLocalesConfig()
+        val locales = context.getLocalesConfig()
             .toList()
             .sortedWithSafe(LocaleComparator())
         return buildList {
-            add(SettingsChoiceOption("", getString(R.string.follow_system)))
+            add(SettingsChoiceOption("", context.getString(R.string.follow_system)))
             locales.forEach { locale ->
                 add(
                     SettingsChoiceOption(
                         value = locale.toLanguageTag(),
                         label = locale.getDisplayName(locale).toTitleCase(locale),
-                    )
+                    ),
                 )
             }
         }
     }
 
     private fun buildLoadingCircleStyleOptions(): List<SettingsChoiceOption<AppSettings.LoadingCircleStyle>> {
-        val labels = resources.getStringArray(R.array.loading_circle_styles)
+        val labels = context.resources.getStringArray(R.array.loading_circle_styles)
         return AppSettings.LoadingCircleStyle.entries.mapIndexed { index, value ->
             SettingsChoiceOption(value = value, label = labels[index])
         }
     }
 
     private fun buildPopupRadiusOptions(): List<SettingsChoiceOption<Int>> {
-        val labels = resources.getStringArray(R.array.popup_radius)
-        val values = resources.getStringArray(R.array.values_popup_radius).map { it.toInt() }
+        val labels = context.resources.getStringArray(R.array.popup_radius)
+        val values = context.resources.getStringArray(R.array.values_popup_radius).map { it.toInt() }
         return labels.zip(values).map { (label, value) -> SettingsChoiceOption(value, label) }
     }
 
     private fun buildListModeOptions(): List<SettingsChoiceOption<ListMode>> {
-        val labels = resources.getStringArray(R.array.list_modes)
+        val labels = context.resources.getStringArray(R.array.list_modes)
         return ListMode.entries.mapIndexed { index, value ->
             SettingsChoiceOption(value = value, label = labels[index])
         }
     }
 
     private fun buildProgressIndicatorModeOptions(): List<SettingsChoiceOption<ProgressIndicatorMode>> {
-        val labels = resources.getStringArray(R.array.progress_indicators)
+        val labels = context.resources.getStringArray(R.array.progress_indicators)
         return ProgressIndicatorMode.entries.mapIndexed { index, value ->
             SettingsChoiceOption(value = value, label = labels[index])
         }
     }
 
     private fun buildBadgeOptions(): List<SettingsChoiceOption<String>> {
-        val labels = resources.getStringArray(R.array.badge_options)
-        val values = resources.getStringArray(R.array.values_badge_options)
+        val labels = context.resources.getStringArray(R.array.badge_options)
+        val values = context.resources.getStringArray(R.array.values_badge_options)
         return labels.zip(values).map { (label, value) -> SettingsChoiceOption(value, label) }
     }
 
     private fun buildBottomRightBadgeOptions(): List<SettingsChoiceOption<String>> {
-        val labels = resources.getStringArray(R.array.bottom_right_badge_options)
-        val values = resources.getStringArray(R.array.values_bottom_right_badge_options)
+        val labels = context.resources.getStringArray(R.array.bottom_right_badge_options)
+        val values = context.resources.getStringArray(R.array.values_bottom_right_badge_options)
         return labels.zip(values).map { (label, value) -> SettingsChoiceOption(value, label) }
     }
 
     private fun buildMangaListBadgeOptions(): List<SettingsChoiceOption<String>> {
-        val labels = resources.getStringArray(R.array.list_badges)
-        val values = resources.getStringArray(R.array.values_list_badges)
+        val labels = context.resources.getStringArray(R.array.list_badges)
+        val values = context.resources.getStringArray(R.array.values_list_badges)
         return labels.zip(values).map { (label, value) -> SettingsChoiceOption(value, label) }
     }
 
     private fun buildDetailsTabOptions(): List<SettingsChoiceOption<Int>> {
-        val labels = resources.getStringArray(R.array.details_tabs)
-        val values = resources.getStringArray(R.array.details_tabs_values).map { it.toInt() }
+        val labels = context.resources.getStringArray(R.array.details_tabs)
+        val values = context.resources.getStringArray(R.array.details_tabs_values).map { it.toInt() }
         return labels.zip(values).map { (label, value) -> SettingsChoiceOption(value, label) }
     }
 
@@ -434,14 +491,14 @@ class AppearanceSettingsFragment : Fragment() {
         return SearchSuggestionType.entries.map {
             SettingsChoiceOption(
                 value = it,
-                label = getString(it.titleResId),
+                label = context.getString(it.titleResId),
             )
         }
     }
 
     private fun buildLanguagePresetOptions(presets: List<SourcePreset>): List<SettingsChoiceOption<String>> {
         return buildList {
-            add(SettingsChoiceOption("all", getString(R.string.all)))
+            add(SettingsChoiceOption("all", context.getString(R.string.all)))
             presets.forEach { preset ->
                 add(SettingsChoiceOption(preset.id.toString(), preset.title))
             }
@@ -452,7 +509,7 @@ class AppearanceSettingsFragment : Fragment() {
         return BrowseGroupTab.getAllTabs().map {
             SettingsChoiceOption(
                 value = it.id,
-                label = getString(it.titleRes),
+                label = context.getString(it.titleRes),
             )
         }
     }
@@ -463,8 +520,8 @@ class AppearanceSettingsFragment : Fragment() {
                 add(
                     SettingsChoiceOption(
                         value = tag.name,
-                        label = getString(tag.titleRes),
-                    )
+                        label = context.getString(tag.titleRes),
+                    ),
                 )
             }
         }
@@ -477,8 +534,8 @@ class AppearanceSettingsFragment : Fragment() {
         return SourceTag
             .sanitizeQuickFilterSelection(
                 raw.split(',')
-                    .mapNotNull { raw ->
-                        val trimmed = raw.trim()
+                    .mapNotNull { item ->
+                        val trimmed = item.trim()
                         when {
                             trimmed.isEmpty() || trimmed == "all" -> null
                             else -> SourceTag.entries.firstOrNull { it.name == trimmed || it.id == trimmed }
@@ -490,14 +547,14 @@ class AppearanceSettingsFragment : Fragment() {
     }
 
     private fun buildBlurModeOptions(): List<SettingsChoiceOption<AppSettings.BlurMode>> {
-        val labels = resources.getStringArray(R.array.blur_modes)
+        val labels = context.resources.getStringArray(R.array.blur_modes)
         return AppSettings.BlurMode.entries.mapIndexed { index, value ->
             SettingsChoiceOption(value = value, label = labels[index])
         }
     }
 
     private fun buildScreenshotsPolicyOptions(): List<SettingsChoiceOption<ScreenshotsPolicy>> {
-        val labels = resources.getStringArray(R.array.screenshots_policy)
+        val labels = context.resources.getStringArray(R.array.screenshots_policy)
         return ScreenshotsPolicy.entries.mapIndexed { index, value ->
             SettingsChoiceOption(value = value, label = labels[index])
         }

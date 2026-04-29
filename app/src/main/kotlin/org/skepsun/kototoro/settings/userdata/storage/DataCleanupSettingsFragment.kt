@@ -4,8 +4,12 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ComposeView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
@@ -35,80 +39,15 @@ class DataCleanupSettingsFragment : Fragment() {
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         return ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
-                val searchHistoryCount by viewModel.searchHistoryCount.collectAsState(initial = -1)
-                val searchHistorySummary = if (searchHistoryCount < 0) {
-                    getString(R.string.loading_)
-                } else {
-                    resources.getQuantityStringSafe(R.plurals.items, searchHistoryCount, searchHistoryCount)
-                }
-
-                val feedItemsCount by viewModel.feedItemsCount.collectAsState(initial = -1)
-                val updatesFeedSummary = if (feedItemsCount < 0) {
-                    getString(R.string.loading_)
-                } else {
-                    resources.getQuantityStringSafe(R.plurals.items, feedItemsCount, feedItemsCount)
-                }
-
-                val thumbsCacheSize by viewModel.cacheSizes[CacheDir.THUMBS]!!.collectAsState(initial = -1L)
-                val thumbsCacheSummary = if (thumbsCacheSize < 0) {
-                    getString(R.string.computing_)
-                } else {
-                    FileSize.BYTES.format(requireContext(), thumbsCacheSize)
-                }
-
-                val pagesCacheSize by viewModel.cacheSizes[CacheDir.PAGES]!!.collectAsState(initial = -1L)
-                val pagesCacheSummary = if (pagesCacheSize < 0) {
-                    getString(R.string.computing_)
-                } else {
-                    FileSize.BYTES.format(requireContext(), pagesCacheSize)
-                }
-
-                val videoCacheSize by viewModel.cacheSizes[CacheDir.VIDEO]!!.collectAsState(initial = -1L)
-                val videoCacheSummary = if (videoCacheSize < 0) {
-                    getString(R.string.computing_)
-                } else {
-                    FileSize.BYTES.format(requireContext(), videoCacheSize)
-                }
-
-                val httpCacheSize by viewModel.httpCacheSize.collectAsState(initial = -1L)
-                val networkCacheSummary = if (httpCacheSize < 0) {
-                    getString(R.string.computing_)
-                } else {
-                    FileSize.BYTES.format(requireContext(), httpCacheSize)
-                }
-
-                val loadingKeys by viewModel.loadingKeys.collectAsState(initial = emptySet())
-
                 KototoroTheme {
-                    DataCleanupSettingsScreen(
+                    DataCleanupSettingsRoute(
                         settings = appSettings,
-                        searchHistorySummary = searchHistorySummary,
-                        updatesFeedSummary = updatesFeedSummary,
-                        thumbsCacheSummary = thumbsCacheSummary,
-                        pagesCacheSummary = pagesCacheSummary,
-                        videoCacheSummary = videoCacheSummary,
-                        networkCacheSummary = networkCacheSummary,
-                        isBrowserVisible = viewModel.isBrowserDataCleanupEnabled,
-                        isSearchHistoryEnabled = AppSettings.KEY_SEARCH_HISTORY_CLEAR !in loadingKeys,
-                        isUpdatesFeedEnabled = AppSettings.KEY_UPDATES_FEED_CLEAR !in loadingKeys,
-                        isThumbsCacheEnabled = AppSettings.KEY_THUMBS_CACHE_CLEAR !in loadingKeys,
-                        isPagesCacheEnabled = AppSettings.KEY_PAGES_CACHE_CLEAR !in loadingKeys,
-                        isVideoCacheEnabled = AppSettings.KEY_VIDEO_CACHE_CLEAR !in loadingKeys,
-                        isNetworkCacheEnabled = AppSettings.KEY_HTTP_CACHE_CLEAR !in loadingKeys,
-                        isChaptersClearEnabled = AppSettings.KEY_CHAPTERS_CLEAR !in loadingKeys,
-                        isWebviewClearEnabled = AppSettings.KEY_WEBVIEW_CLEAR !in loadingKeys,
-                        isMangaDataEnabled = AppSettings.KEY_CLEAR_MANGA_DATA !in loadingKeys,
-                        onClearSearchHistory = { clearSearchHistory() },
-                        onClearUpdatesFeed = { viewModel.clearUpdatesFeed() },
-                        onClearThumbsCache = { viewModel.clearCache(AppSettings.KEY_THUMBS_CACHE_CLEAR, CacheDir.THUMBS, CacheDir.FAVICONS) },
-                        onClearPagesCache = { viewModel.clearCache(AppSettings.KEY_PAGES_CACHE_CLEAR, CacheDir.PAGES) },
-                        onClearVideoCache = { viewModel.clearCache(AppSettings.KEY_VIDEO_CACHE_CLEAR, CacheDir.VIDEO) },
-                        onClearNetworkCache = { viewModel.clearHttpCache() },
-                        onClearDatabase = { viewModel.clearContentData() },
-                        onClearCookies = { clearCookies() },
-                        onClearBrowserData = { viewModel.clearBrowserData() },
-                        onDeleteReadChapters = { cleanupChapters() },
+                        viewModel = viewModel,
+                        onClearSearchHistory = ::clearSearchHistory,
+                        onClearCookies = ::clearCookies,
+                        onDeleteReadChapters = ::cleanupChapters,
                     )
                 }
             }
@@ -170,4 +109,102 @@ class DataCleanupSettingsFragment : Fragment() {
             }
         }.show()
     }
+}
+
+@Composable
+fun DataCleanupSettingsRoute(
+    settings: AppSettings,
+    viewModel: DataCleanupSettingsViewModel,
+    onClearSearchHistory: () -> Unit,
+    onClearCookies: () -> Unit,
+    onDeleteReadChapters: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val resources = context.resources
+
+    val searchHistoryCount by viewModel.searchHistoryCount.collectAsState(initial = -1)
+    val searchHistorySummary = if (searchHistoryCount < 0) {
+        context.getString(R.string.loading_)
+    } else {
+        resources.getQuantityStringSafe(R.plurals.items, searchHistoryCount, searchHistoryCount)
+    }
+
+    val feedItemsCount by viewModel.feedItemsCount.collectAsState(initial = -1)
+    val updatesFeedSummary = if (feedItemsCount < 0) {
+        context.getString(R.string.loading_)
+    } else {
+        resources.getQuantityStringSafe(R.plurals.items, feedItemsCount, feedItemsCount)
+    }
+
+    val thumbsCacheSize by viewModel.cacheSizes[CacheDir.THUMBS]!!.collectAsState(initial = -1L)
+    val thumbsCacheSummary = if (thumbsCacheSize < 0) {
+        context.getString(R.string.computing_)
+    } else {
+        FileSize.BYTES.format(context, thumbsCacheSize)
+    }
+
+    val pagesCacheSize by viewModel.cacheSizes[CacheDir.PAGES]!!.collectAsState(initial = -1L)
+    val pagesCacheSummary = if (pagesCacheSize < 0) {
+        context.getString(R.string.computing_)
+    } else {
+        FileSize.BYTES.format(context, pagesCacheSize)
+    }
+
+    val videoCacheSize by viewModel.cacheSizes[CacheDir.VIDEO]!!.collectAsState(initial = -1L)
+    val videoCacheSummary = if (videoCacheSize < 0) {
+        context.getString(R.string.computing_)
+    } else {
+        FileSize.BYTES.format(context, videoCacheSize)
+    }
+
+    val httpCacheSize by viewModel.httpCacheSize.collectAsState(initial = -1L)
+    val networkCacheSummary = if (httpCacheSize < 0) {
+        context.getString(R.string.computing_)
+    } else {
+        FileSize.BYTES.format(context, httpCacheSize)
+    }
+
+    val loadingKeys by viewModel.loadingKeys.collectAsState(initial = emptySet())
+
+    DataCleanupSettingsScreen(
+        settings = settings,
+        searchHistorySummary = searchHistorySummary,
+        updatesFeedSummary = updatesFeedSummary,
+        thumbsCacheSummary = thumbsCacheSummary,
+        pagesCacheSummary = pagesCacheSummary,
+        videoCacheSummary = videoCacheSummary,
+        networkCacheSummary = networkCacheSummary,
+        isBrowserVisible = viewModel.isBrowserDataCleanupEnabled,
+        isSearchHistoryEnabled = AppSettings.KEY_SEARCH_HISTORY_CLEAR !in loadingKeys,
+        isUpdatesFeedEnabled = AppSettings.KEY_UPDATES_FEED_CLEAR !in loadingKeys,
+        isThumbsCacheEnabled = AppSettings.KEY_THUMBS_CACHE_CLEAR !in loadingKeys,
+        isPagesCacheEnabled = AppSettings.KEY_PAGES_CACHE_CLEAR !in loadingKeys,
+        isVideoCacheEnabled = AppSettings.KEY_VIDEO_CACHE_CLEAR !in loadingKeys,
+        isNetworkCacheEnabled = AppSettings.KEY_HTTP_CACHE_CLEAR !in loadingKeys,
+        isChaptersClearEnabled = AppSettings.KEY_CHAPTERS_CLEAR !in loadingKeys,
+        isWebviewClearEnabled = AppSettings.KEY_WEBVIEW_CLEAR !in loadingKeys,
+        isMangaDataEnabled = AppSettings.KEY_CLEAR_MANGA_DATA !in loadingKeys,
+        onClearSearchHistory = onClearSearchHistory,
+        onClearUpdatesFeed = viewModel::clearUpdatesFeed,
+        onClearThumbsCache = {
+            viewModel.clearCache(
+                AppSettings.KEY_THUMBS_CACHE_CLEAR,
+                CacheDir.THUMBS,
+                CacheDir.FAVICONS,
+            )
+        },
+        onClearPagesCache = {
+            viewModel.clearCache(AppSettings.KEY_PAGES_CACHE_CLEAR, CacheDir.PAGES)
+        },
+        onClearVideoCache = {
+            viewModel.clearCache(AppSettings.KEY_VIDEO_CACHE_CLEAR, CacheDir.VIDEO)
+        },
+        onClearNetworkCache = viewModel::clearHttpCache,
+        onClearDatabase = viewModel::clearContentData,
+        onClearCookies = onClearCookies,
+        onClearBrowserData = viewModel::clearBrowserData,
+        onDeleteReadChapters = onDeleteReadChapters,
+        modifier = modifier,
+    )
 }

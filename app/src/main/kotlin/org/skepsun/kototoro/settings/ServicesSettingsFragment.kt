@@ -11,6 +11,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
 import dagger.hilt.android.AndroidEntryPoint
@@ -27,7 +28,6 @@ import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.settings.compose.ServicesSettingsScreen
 import org.skepsun.kototoro.settings.compose.ServicesSettingsUiState
-import org.skepsun.kototoro.settings.discord.DiscordSettingsFragment
 import org.skepsun.kototoro.tracking.animeoffline.data.AnimeOfflineRepository
 import org.skepsun.kototoro.tracking.animeoffline.work.AnimeOfflineUpdateWorker
 
@@ -53,51 +53,27 @@ class ServicesSettingsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         (view as ComposeView).setContent {
-            val suggestionsEnabled = settings.observeAsState(AppSettings.KEY_SUGGESTIONS) { isSuggestionsEnabled }.value
-            val isRelatedContentEnabled =
-                settings.observeAsState(AppSettings.KEY_RELATED_MANGA) { isRelatedContentEnabled }.value
-            val isStatsEnabled = settings.observeAsState(AppSettings.KEY_STATS_ENABLED) { isStatsEnabled }.value
-            val isReadingTimeEstimationEnabled =
-                settings.observeAsState(AppSettings.KEY_READING_TIME) { isReadingTimeEstimationEnabled }.value
-            val snackbarHostState = remember { SnackbarHostState() }
-            val coroutineScope = rememberCoroutineScope()
-            val animeOfflineSummary = rememberAnimeOfflineSummary()
-
-            val state = ServicesSettingsUiState(
-                suggestionsSummary = if (suggestionsEnabled) {
-                    getString(R.string.enabled)
-                } else {
-                    getString(R.string.disabled)
-                },
-                animeOfflineSummary = animeOfflineSummary,
-                isRelatedContentEnabled = isRelatedContentEnabled,
-                isStatsEnabled = isStatsEnabled,
-                isReadingTimeEstimationEnabled = isReadingTimeEstimationEnabled,
-            )
-
             KototoroTheme {
-                ServicesSettingsScreen(
-                    servicesTitle = getString(R.string.services),
-                    state = state,
-                    snackbarHostState = snackbarHostState,
-                    onAnimeOfflineClick = {
-                        val appContext = requireContext().applicationContext
-                        coroutineScope.launch {
-                            withContext(Dispatchers.IO) {
-                                AnimeOfflineUpdateWorker.enqueue(appContext, force = true)
-                            }
-                            snackbarHostState.showSnackbar(getString(R.string.anime_offline_database_update_started))
-                        }
+                ServicesSettingsRoute(
+                    settings = settings,
+                    animeOfflineRepository = animeOfflineRepository,
+                    onAnimeOfflineUpdate = {
+                        AnimeOfflineUpdateWorker.enqueue(requireContext().applicationContext, force = true)
                     },
                     onSuggestionsClick = {
-                        (activity as? SettingsActivity)?.openFragment(SuggestionsSettingsFragment::class.java, null, false)
+                        (activity as? SettingsActivity)?.openDestination(
+                            SettingsDestination.SuggestionsSettings,
+                            null,
+                            false,
+                        )
                     },
-                    onRelatedContentChange = { settings.isRelatedContentEnabled = it },
                     onStatsClick = { router.openStatistic() },
-                    onStatsEnabledChange = { settings.isStatsEnabled = it },
-                    onReadingTimeChange = { settings.isReadingTimeEstimationEnabled = it },
                     onDiscordSettingsClick = {
-                        (activity as? SettingsActivity)?.openFragment(DiscordSettingsFragment::class.java, null, false)
+                        (activity as? SettingsActivity)?.openDestination(
+                            SettingsDestination.DiscordSettings,
+                            null,
+                            false,
+                        )
                     },
                 )
             }
@@ -108,43 +84,106 @@ class ServicesSettingsFragment : Fragment() {
         super.onResume()
         (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.services))
     }
+}
 
-    @Composable
-    private fun rememberAnimeOfflineSummary(): String {
-        return produceState(
-            initialValue = getString(R.string.loading_),
-        ) {
-            value = loadAnimeOfflineSummary()
-        }.value
-    }
+@Composable
+fun ServicesSettingsRoute(
+    settings: AppSettings,
+    animeOfflineRepository: AnimeOfflineRepository,
+    onAnimeOfflineUpdate: () -> Unit,
+    onSuggestionsClick: () -> Unit,
+    onStatsClick: () -> Unit,
+    onDiscordSettingsClick: () -> Unit,
+) {
+    val context = LocalContext.current
+    val suggestionsEnabled = settings.observeAsState(AppSettings.KEY_SUGGESTIONS) { isSuggestionsEnabled }.value
+    val isRelatedContentEnabled =
+        settings.observeAsState(AppSettings.KEY_RELATED_MANGA) { isRelatedContentEnabled }.value
+    val isStatsEnabled = settings.observeAsState(AppSettings.KEY_STATS_ENABLED) { isStatsEnabled }.value
+    val isReadingTimeEstimationEnabled =
+        settings.observeAsState(AppSettings.KEY_READING_TIME) { isReadingTimeEstimationEnabled }.value
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    val animeOfflineSummary = rememberAnimeOfflineSummary(animeOfflineRepository)
 
-    private suspend fun loadAnimeOfflineSummary(): String = withContext(Dispatchers.IO) {
-        runCatching {
-            val status = animeOfflineRepository.readStatus()
-            when {
-                status.isInstalled && !status.releaseTag.isNullOrBlank() && status.downloadedAt > 0L -> {
-                    getString(
-                        R.string.anime_offline_database_summary_installed,
-                        status.releaseTag,
-                        DateUtils.getRelativeTimeSpanString(status.downloadedAt),
-                    )
+    val state = ServicesSettingsUiState(
+        suggestionsSummary = if (suggestionsEnabled) {
+            context.getString(R.string.enabled)
+        } else {
+            context.getString(R.string.disabled)
+        },
+        animeOfflineSummary = animeOfflineSummary,
+        isRelatedContentEnabled = isRelatedContentEnabled,
+        isStatsEnabled = isStatsEnabled,
+        isReadingTimeEstimationEnabled = isReadingTimeEstimationEnabled,
+    )
+
+    ServicesSettingsScreen(
+        servicesTitle = context.getString(R.string.services),
+        state = state,
+        snackbarHostState = snackbarHostState,
+        onAnimeOfflineClick = {
+            coroutineScope.launch {
+                withContext(Dispatchers.IO) {
+                    onAnimeOfflineUpdate()
                 }
-                status.isInstalled -> {
-                    getString(R.string.anime_offline_database_summary_installed_unknown)
-                }
-                status.lastCheckedAt > 0L -> {
-                    getString(
-                        R.string.anime_offline_database_summary_not_installed_checked,
-                        DateUtils.getRelativeTimeSpanString(status.lastCheckedAt),
-                    )
-                }
-                else -> {
-                    getString(R.string.anime_offline_database_summary_not_installed)
-                }
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.anime_offline_database_update_started),
+                )
             }
-        }.getOrElse {
-            it.printStackTraceDebug()
-            it.getDisplayMessage(resources)
+        },
+        onSuggestionsClick = onSuggestionsClick,
+        onRelatedContentChange = { settings.isRelatedContentEnabled = it },
+        onStatsClick = onStatsClick,
+        onStatsEnabledChange = { settings.isStatsEnabled = it },
+        onReadingTimeChange = { settings.isReadingTimeEstimationEnabled = it },
+        onDiscordSettingsClick = onDiscordSettingsClick,
+    )
+}
+
+@Composable
+private fun rememberAnimeOfflineSummary(
+    animeOfflineRepository: AnimeOfflineRepository,
+): String {
+    val context = LocalContext.current
+    return produceState(
+        initialValue = context.getString(R.string.loading_),
+        key1 = animeOfflineRepository,
+        key2 = context,
+    ) {
+        value = loadAnimeOfflineSummary(context, animeOfflineRepository)
+    }.value
+}
+
+private suspend fun loadAnimeOfflineSummary(
+    context: android.content.Context,
+    animeOfflineRepository: AnimeOfflineRepository,
+): String = withContext(Dispatchers.IO) {
+    runCatching {
+        val status = animeOfflineRepository.readStatus()
+        when {
+            status.isInstalled && !status.releaseTag.isNullOrBlank() && status.downloadedAt > 0L -> {
+                context.getString(
+                    R.string.anime_offline_database_summary_installed,
+                    status.releaseTag,
+                    DateUtils.getRelativeTimeSpanString(status.downloadedAt),
+                )
+            }
+            status.isInstalled -> {
+                context.getString(R.string.anime_offline_database_summary_installed_unknown)
+            }
+            status.lastCheckedAt > 0L -> {
+                context.getString(
+                    R.string.anime_offline_database_summary_not_installed_checked,
+                    DateUtils.getRelativeTimeSpanString(status.lastCheckedAt),
+                )
+            }
+            else -> {
+                context.getString(R.string.anime_offline_database_summary_not_installed)
+            }
         }
+    }.getOrElse {
+        it.printStackTraceDebug()
+        it.getDisplayMessage(context.resources)
     }
 }
