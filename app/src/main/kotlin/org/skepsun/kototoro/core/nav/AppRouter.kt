@@ -29,7 +29,7 @@ import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.EntryPointAccessors
 import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.alternatives.ui.AlternativesActivity
+import org.skepsun.kototoro.alternatives.ui.AlternativesSheet
 import org.skepsun.kototoro.backups.ui.backup.BackupDialogFragment
 import org.skepsun.kototoro.backups.ui.restore.RestoreDialogFragment
 import org.skepsun.kototoro.browser.BrowserActivity
@@ -422,10 +422,9 @@ class AppRouter private constructor(
     }
 
     fun openAlternatives(manga: Content) {
-        startActivity(
-            Intent(contextOrNull() ?: return, AlternativesActivity::class.java)
-                .putExtra(KEY_MANGA, ParcelableContent(manga)),
-        )
+        AlternativesSheet().withArgs(1) {
+            putParcelable(KEY_MANGA, ParcelableContent(manga))
+        }.showDistinct()
     }
 
     fun openRelated(manga: Content) {
