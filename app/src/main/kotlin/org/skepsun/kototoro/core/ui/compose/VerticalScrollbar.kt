@@ -36,8 +36,8 @@ fun Modifier.verticalScrollbar(
     val visibleItems = state.layoutInfo.visibleItemsInfo.size
     val showScrollbar = totalItems > visibleItems
 
-    var isDragging by remember { mutableStateOf(false) }
-    var dragLabelIndex by remember { mutableIntStateOf(0) }
+    var isDragging by remember(state) { mutableStateOf(false) }
+    var dragLabelIndex by remember(state) { mutableIntStateOf(0) }
 
     val alpha by animateFloatAsState(
         targetValue = if ((isScrollInProgress || isDragging) && showScrollbar) 1f else 0f,
@@ -47,13 +47,17 @@ fun Modifier.verticalScrollbar(
 
     val thumbWidthPx = with(LocalDensity.current) { width.toPx() }
     val touchWidthPx = with(LocalDensity.current) { 24.dp.toPx() }
+    val minThumbHeightPx = with(LocalDensity.current) { 48.dp.toPx() }
 
     this
         .then(
             if (draggable) {
-                Modifier.pointerInput(totalItems, visibleItems) {
+                Modifier.pointerInput(state) {
                     detectDragGestures(
                         onDragStart = { offset ->
+                            val layoutInfo = state.layoutInfo
+                            val totalItems = layoutInfo.totalItemsCount
+                            val visibleItems = layoutInfo.visibleItemsInfo.size
                             val barHeightFraction = (visibleItems.toFloat() / totalItems).coerceIn(0.05f, 1f)
                             val barHeight = size.height * barHeightFraction
                             val firstVisible = state.firstVisibleItemIndex
@@ -70,9 +74,11 @@ fun Modifier.verticalScrollbar(
                         onDrag = { change, _ ->
                             if (isDragging) {
                                 change.consume()
+                                val currentTotal = state.layoutInfo.totalItemsCount
+                                if (currentTotal <= 0) return@onDrag
                                 val newY = change.position.y.coerceIn(0f, size.height.toFloat())
                                 val fraction = newY / size.height
-                                val targetIndex = (fraction * totalItems).toInt().coerceIn(0, totalItems - 1)
+                                val targetIndex = (fraction * currentTotal).toInt().coerceIn(0, currentTotal - 1)
                                 dragLabelIndex = targetIndex
                                 coroutineScope.launch {
                                     state.scrollToItem(targetIndex)
@@ -103,7 +109,7 @@ fun Modifier.verticalScrollbar(
                 drawRoundRect(
                     color = color.copy(alpha = color.alpha * alpha),
                     topLeft = Offset(size.width - thumbWidthPx, barTop),
-                    size = Size(thumbWidthPx, barHeight.coerceAtLeast(48.dp.toPx())),
+                    size = Size(thumbWidthPx, barHeight.coerceAtLeast(minThumbHeightPx)),
                     cornerRadius = CornerRadius(thumbWidthPx / 2f),
                 )
             }
@@ -128,6 +134,8 @@ fun Modifier.verticalScrollbar(
         label = "scrollbar_alpha",
     )
 
+    val minThumbHeightPx = with(LocalDensity.current) { 48.dp.toPx() }
+
     drawWithContent {
         drawContent()
         if (alpha > 0f && totalItems > 0 && visibleItems > 0) {
@@ -147,7 +155,7 @@ fun Modifier.verticalScrollbar(
             drawRoundRect(
                 color = color.copy(alpha = color.alpha * alpha),
                 topLeft = Offset(size.width - widthPx, barTop),
-                size = Size(widthPx, barHeight.coerceAtLeast(48.dp.toPx())),
+                size = Size(widthPx, barHeight.coerceAtLeast(minThumbHeightPx)),
                 cornerRadius = CornerRadius(widthPx / 2f),
             )
         }
