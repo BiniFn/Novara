@@ -247,6 +247,16 @@ fun SearchResultsRoute(
                     onAdvancedAuthorChange = { advancedAuthor = it },
                     shouldShowTvBoxLabel = shouldShowTvBoxLabel,
                     activeTvBoxRepositoryTitle = activeTvBoxRepositoryTitle,
+                    onSearchKindCycle = {
+                        val kinds = SearchKind.entries
+                        val currentIndex = kinds.indexOf(searchKind)
+                        searchKind = kinds[(currentIndex + 1) % kinds.size]
+                        if (searchKind == SearchKind.ADVANCED) {
+                            isAdvancedExpanded = true
+                        }
+                    },
+                    onSourceTypesClick = { showOptionsSheet = true },
+                    onContentKindsClick = { showOptionsSheet = true },
                 )
             } else {
                 KototoroSelectionTopBar(
@@ -396,6 +406,9 @@ private fun SearchResultsTopBar(
     onAdvancedAuthorChange: (String) -> Unit,
     shouldShowTvBoxLabel: Boolean,
     activeTvBoxRepositoryTitle: String?,
+    onSearchKindCycle: () -> Unit,
+    onSourceTypesClick: () -> Unit,
+    onContentKindsClick: () -> Unit,
 ) {
     Surface(shadowElevation = 4.dp) {
         Column(
@@ -470,6 +483,9 @@ private fun SearchResultsTopBar(
                 hideEmpty = hideEmpty,
                 isAdvancedExpanded = isAdvancedExpanded,
                 onAdvancedExpandedChange = onAdvancedExpandedChange,
+                onSearchKindCycle = onSearchKindCycle,
+                onSourceTypesClick = onSourceTypesClick,
+                onContentKindsClick = onContentKindsClick,
             )
 
             if (shouldShowTvBoxLabel) {
@@ -528,25 +544,31 @@ private fun SearchSummaryRow(
     hideEmpty: Boolean,
     isAdvancedExpanded: Boolean,
     onAdvancedExpandedChange: (Boolean) -> Unit,
+    onSearchKindCycle: () -> Unit = {},
+    onSourceTypesClick: () -> Unit = {},
+    onContentKindsClick: () -> Unit = {},
 ) {
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        AssistChip(
-            onClick = {},
+        FilterChip(
+            selected = searchKind != SearchKind.SIMPLE,
+            onClick = onSearchKindCycle,
             label = { Text(stringResource(searchKind.titleResId)) },
         )
-        AssistChip(
-            onClick = {},
+        FilterChip(
+            selected = selectedSourceTypes.size < ALL_SOURCE_TYPES.size,
+            onClick = onSourceTypesClick,
             label = {
                 Text(
                     text = stringResource(R.string.source_type) + " ${selectedSourceTypes.size}",
                 )
             },
         )
-        AssistChip(
-            onClick = {},
+        FilterChip(
+            selected = selectedContentKinds.size < ALL_SEARCH_CONTENT_KINDS.size,
+            onClick = onContentKindsClick,
             label = {
                 Text(
                     text = stringResource(R.string.type) + " ${selectedContentKinds.size}",
