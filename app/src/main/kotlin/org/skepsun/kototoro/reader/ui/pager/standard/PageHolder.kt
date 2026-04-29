@@ -57,6 +57,7 @@ open class PageHolder(
 ), ZoomControl.ZoomControlListener, OnApplyWindowInsetsListener {
 
 	override val ssiv = binding.ssiv
+	override val animatedView = binding.imageViewAnimated
 	private val holderScope: CoroutineScope = owner.lifecycleScope
 	private val ssivOriginal = binding.ssivOriginal
 	private var dualLayerLoadJob: Job? = null
@@ -122,10 +123,8 @@ open class PageHolder(
 	override fun onStateChanged(state: org.skepsun.kototoro.reader.ui.pager.vm.PageState) {
 		super.onStateChanged(state)
 		when (state) {
-			is org.skepsun.kototoro.reader.ui.pager.vm.PageState.Loaded,
-			is org.skepsun.kototoro.reader.ui.pager.vm.PageState.Shown,
-			-> refreshDualLayers()
-
+			is org.skepsun.kototoro.reader.ui.pager.vm.PageState.Loaded -> refreshDualLayers()
+			is org.skepsun.kototoro.reader.ui.pager.vm.PageState.Shown -> if (!state.isAnimated) refreshDualLayers()
 			else -> Unit
 		}
 	}

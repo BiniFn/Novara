@@ -26,6 +26,7 @@ sealed class PageState {
 	data class Shown(
 		val source: ImageSource,
 		val isConverted: Boolean,
+		val isAnimated: Boolean = false,
 	) : PageState()
 
 	data class Error(

@@ -72,6 +72,64 @@ object BitmapDecoderCompat {
 	}
 
 	@Blocking
+	fun isAnimated(file: File): Boolean {
+		if (!file.exists()) return false
+		return try {
+			file.inputStream().use { stream ->
+				val header = ByteArray(1024)
+				val n = stream.read(header)
+				if (n < 6) return false
+				isAnimatedHeader(header, n)
+			}
+		} catch (_: Exception) {
+			false
+		}
+	}
+
+	private fun isAnimatedHeader(h: ByteArray, n: Int): Boolean {
+		// GIF87a / GIF89a
+		if (h[0] == 'G'.code.toByte() && h[1] == 'I'.code.toByte() && h[2] == 'F'.code.toByte()) {
+			return true
+		}
+		// Animated WebP: RIFF....WEBPVP8X with animation flag bit
+		if (n >= 21 &&
+			h[0] == 'R'.code.toByte() && h[1] == 'I'.code.toByte() &&
+			h[2] == 'F'.code.toByte() && h[3] == 'F'.code.toByte() &&
+			h[8] == 'W'.code.toByte() && h[9] == 'E'.code.toByte() &&
+			h[10] == 'B'.code.toByte() && h[11] == 'P'.code.toByte() &&
+			h[12] == 'V'.code.toByte() && h[13] == 'P'.code.toByte() &&
+			h[14] == '8'.code.toByte() && h[15] == 'X'.code.toByte() &&
+			(h[20].toInt() and 0x02) != 0
+		) return true
+		// Animated AVIF: ftyp box with major brand "avis" or compatible brand "avis"
+		if (n >= 12 &&
+			h[4] == 'f'.code.toByte() && h[5] == 't'.code.toByte() &&
+			h[6] == 'y'.code.toByte() && h[7] == 'p'.code.toByte()
+		) {
+			if (n >= 12 && String(h, 8, 4) == "avis") return true
+			val numCompatible = (n - 16) / 4
+			for (i in 0 until numCompatible) {
+				val off = 16 + i * 4
+				if (off + 4 <= n && String(h, off, 4) == "avis") return true
+			}
+		}
+		// APNG: PNG magic bytes + acTL chunk somewhere in first 1024 bytes
+		if (n >= 8 &&
+			h[0] == 0x89.toByte() && h[1] == 0x50.toByte() &&
+			h[2] == 0x4E.toByte() && h[3] == 0x47.toByte() &&
+			h[4] == 0x0D.toByte() && h[5] == 0x0A.toByte() &&
+			h[6] == 0x1A.toByte() && h[7] == 0x0A.toByte()
+		) {
+			for (i in 8 until n - 4) {
+				if (h[i] == 'a'.code.toByte() && h[i + 1] == 'c'.code.toByte() &&
+					h[i + 2] == 'T'.code.toByte() && h[i + 3] == 'L'.code.toByte()
+				) return true
+			}
+		}
+		return false
+	}
+
+	@Blocking
 	fun probeMimeType(file: File): MimeType? {
 		return MimeTypes.probeMimeType(file) ?: detectBitmapType(file)
 	}
