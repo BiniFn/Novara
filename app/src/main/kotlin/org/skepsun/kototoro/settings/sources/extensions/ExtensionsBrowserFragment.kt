@@ -37,9 +37,10 @@ import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.toLocaleOrNull
 import org.skepsun.kototoro.databinding.FragmentInstalledExtensionsBinding
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
-import org.skepsun.kototoro.settings.SettingsActivity
 import java.util.Locale
 import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.settings.sources.unified.redirectToUnifiedSources
+import org.skepsun.kototoro.settings.sources.unified.toUnifiedSourceKind
 
 @AndroidEntryPoint
 class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBinding>() {
@@ -50,6 +51,7 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 	private val viewModel by viewModels<ExtensionsBrowserViewModel>()
 	private var adapter: ExtensionsBrowserAdapter? = null
 	private var isSearchExpanded = false
+	private var redirected = false
 	private val installLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
 		viewModel.onInstallActivityResult()
 	}
@@ -110,6 +112,14 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 	}
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat = insets
+
+	override fun onResume() {
+		super.onResume()
+		if (!redirected) {
+			redirected = true
+			redirectToUnifiedSources(viewModel.type.toUnifiedSourceKind())
+		}
+	}
 
 	override fun onDestroyView() {
 		adapter = null
@@ -219,11 +229,7 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 	}
 
 	private fun openRepositories() {
-		(activity as? SettingsActivity)?.openFragment(
-			fragmentClass = ExtensionRepositoriesFragment::class.java,
-			args = Bundle(1).apply { putString(ARG_EXTENSION_TYPE, viewModel.type.name) },
-			isFromRoot = false,
-		)
+		redirectToUnifiedSources(viewModel.type.toUnifiedSourceKind())
 	}
 
 	private fun onExtensionClick(item: ExtensionsBrowserListItem.Entry) {

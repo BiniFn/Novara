@@ -29,12 +29,15 @@ import org.skepsun.kototoro.databinding.FragmentInstalledExtensionsBinding
 import org.skepsun.kototoro.databinding.ViewDialogAutocompleteBinding
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepo
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
+import org.skepsun.kototoro.settings.sources.unified.redirectToUnifiedSources
+import org.skepsun.kototoro.settings.sources.unified.toUnifiedSourceKind
 
 @AndroidEntryPoint
 class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBinding>() {
 
 	private val viewModel by viewModels<ExtensionRepositoriesViewModel>()
 	private var adapter: ExtensionRepositoriesAdapter? = null
+	private var redirected = false
 
 	override fun onCreateViewBinding(
 		inflater: LayoutInflater,
@@ -70,6 +73,11 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 
 	override fun onResume() {
 		super.onResume()
+		if (!redirected) {
+			redirected = true
+			redirectToUnifiedSources(viewModel.type.toUnifiedSourceKind())
+			return
+		}
 		setSupportTitle(
 			when (viewModel.type) {
 				ExternalExtensionType.MIHON -> R.string.mihon_extension_repositories

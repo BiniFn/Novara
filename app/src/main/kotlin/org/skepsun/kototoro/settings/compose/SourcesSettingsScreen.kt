@@ -23,10 +23,6 @@ data class SourcesSettingsUiState(
     val sourcesSortOrder: SourcesSortOrder,
     val isSourcesGridMode: Boolean,
     val isSourcesGroupedByLanguage: Boolean,
-    val remoteSourcesSummary: String,
-    val builtInSourcesSummary: String,
-    val jsonSourcesSummary: String,
-    val extensionsSummary: String,
     val jarPriorityOrder: String,
     val isAllSourcesEnabled: Boolean,
     val isShowBrokenSources: Boolean,
@@ -55,10 +51,6 @@ fun SourcesSettingsScreen(
     onSourcesGridModeChange: (Boolean) -> Unit,
     onSourcesGroupedByLanguageChange: (Boolean) -> Unit,
     onSetupWizardClick: () -> Unit,
-    onManageSourcesClick: () -> Unit,
-    onBuiltInSourcesClick: () -> Unit,
-    onJsonSourcesClick: () -> Unit,
-    onExtensionsClick: () -> Unit,
     onJarPriorityOrderChange: (String) -> Unit,
     onAllSourcesEnabledChange: (Boolean) -> Unit,
     onShowBrokenSourcesChange: (Boolean) -> Unit,
@@ -120,30 +112,6 @@ fun SourcesSettingsScreen(
             }
             item(key = "remote_sources") {
                 SettingsPreferenceSection(title = remoteSourcesTitle) {
-                    SettingsActionPreference(
-                        title = stringResource(R.string.manage_sources),
-                        summary = state.remoteSourcesSummary,
-                        onClick = onManageSourcesClick,
-                    )
-                    SettingsSectionDivider()
-                    SettingsActionPreference(
-                        title = stringResource(R.string.built_in_sources_directory),
-                        summary = state.builtInSourcesSummary,
-                        onClick = onBuiltInSourcesClick,
-                    )
-                    SettingsSectionDivider()
-                    SettingsActionPreference(
-                        title = stringResource(R.string.json_sources_directory),
-                        summary = state.jsonSourcesSummary,
-                        onClick = onJsonSourcesClick,
-                    )
-                    SettingsSectionDivider()
-                    SettingsActionPreference(
-                        title = stringResource(R.string.extensions),
-                        summary = state.extensionsSummary,
-                        onClick = onExtensionsClick,
-                    )
-                    SettingsSectionDivider()
                     SettingsTextInputPreference(
                         title = stringResource(R.string.jar_priority_order_title),
                         value = state.jarPriorityOrder,

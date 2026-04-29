@@ -118,6 +118,7 @@ import org.skepsun.kototoro.settings.override.OverrideConfigActivity
 import org.skepsun.kototoro.settings.reader.ReaderTapGridConfigActivity
 import org.skepsun.kototoro.settings.sources.auth.SourceAuthActivity
 import org.skepsun.kototoro.settings.sources.catalog.SourcesCatalogActivity
+import org.skepsun.kototoro.settings.sources.unified.UnifiedSourcesActivity
 import org.skepsun.kototoro.settings.storage.ContentDirectorySelectDialog
 import org.skepsun.kototoro.settings.storage.directories.ContentDirectoriesActivity
 import org.skepsun.kototoro.settings.tracker.categories.TrackerCategoriesConfigSheet
@@ -1114,8 +1115,7 @@ class AppRouter private constructor(
                 .setAction(ACTION_SOURCES)
 
         fun manageSourcesIntent(context: Context) =
-            Intent(context, SettingsActivity::class.java)
-                .setAction(ACTION_MANAGE_SOURCES)
+            UnifiedSourcesActivity.newIntent(context)
 
         fun downloadsSettingsIntent(context: Context) =
             Intent(context, SettingsActivity::class.java)

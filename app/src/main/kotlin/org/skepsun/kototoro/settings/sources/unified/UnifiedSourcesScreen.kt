@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -30,6 +31,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -52,6 +54,8 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -77,6 +81,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getSummary
 import org.skepsun.kototoro.core.model.titleResId
 import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
+import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.core.util.ext.getDisplayName
 import org.skepsun.kototoro.core.util.ext.toLocaleOrNull
@@ -135,13 +140,15 @@ private sealed interface UnifiedThirdPartyAction {
 
 @Composable
 fun UnifiedSourcesRoute(
-	onBack: () -> Unit,
+	onNavigateUp: () -> Unit,
 	onBrowseSource: (UnifiedSourceItem) -> Unit,
 	onOpenSourceSettings: (UnifiedSourceItem) -> Unit,
 	onOpenRepositoryFile: (UnifiedSourceKind) -> Unit,
 	onOpenLocalJarPicker: () -> Unit,
 	onStartInstall: (Intent) -> Unit,
 	onStartUninstall: (Intent) -> Unit,
+	initialAddRepositoryKind: UnifiedSourceKind? = null,
+	initialAddRepositoryUrl: String? = null,
 	modifier: Modifier = Modifier,
 	viewModel: UnifiedSourcesViewModel = hiltViewModel(),
 ) {
@@ -151,6 +158,8 @@ fun UnifiedSourcesRoute(
 	val updateAllInProgress by viewModel.updateAllInProgress.collectAsStateWithLifecycle()
 	var activeDialog by remember { mutableStateOf<UnifiedSourcesDialogState?>(null) }
 	var searchActive by rememberSaveable { mutableStateOf(false) }
+	var initialRepositoryHandled by rememberSaveable { mutableStateOf(false) }
+	var activePanel by rememberSaveable { mutableStateOf<UnifiedToolbarFilterPanel?>(null) }
 
 	fun proceedThirdPartyAction(action: UnifiedThirdPartyAction) {
 		when (action) {
@@ -187,11 +196,22 @@ fun UnifiedSourcesRoute(
 		}
 	}
 
+	LaunchedEffect(initialAddRepositoryKind, initialAddRepositoryUrl, initialRepositoryHandled) {
+		if (initialRepositoryHandled || initialAddRepositoryKind == null) {
+			return@LaunchedEffect
+		}
+		activeDialog = UnifiedSourcesDialogState.UrlInput(
+			kind = initialAddRepositoryKind,
+			prefillUrl = initialAddRepositoryUrl,
+		)
+		initialRepositoryHandled = true
+	}
+
 	UnifiedSourcesScreen(
+		onNavigateUp = onNavigateUp,
 		state = state,
 		isLoading = isLoading,
 		updateAllInProgress = updateAllInProgress,
-		onBack = onBack,
 		searchActive = searchActive,
 		onSearchClick = { searchActive = true },
 		onSearchClose = {
@@ -199,14 +219,10 @@ fun UnifiedSourcesRoute(
 			viewModel.setSearchQuery("")
 		},
 		onSearchQueryChange = viewModel::setSearchQuery,
-		onApplyPreferredLanguages = viewModel::applyPreferredLanguages,
-		onClearLanguages = viewModel::clearLanguages,
 		onKindClick = viewModel::setKindFilter,
 		onContentTypeClick = viewModel::setContentTypeFilter,
-		onLocationTypeClick = viewModel::toggleLocationType,
-		onLanguageClick = viewModel::toggleLanguage,
-		onEnabledFilterClick = viewModel::setEnabledFilter,
-		onClearFilters = viewModel::clearFilters,
+		onLanguageFilterClick = { activePanel = UnifiedToolbarFilterPanel.LANGUAGE },
+		onMoreFiltersClick = { activePanel = UnifiedToolbarFilterPanel.MORE },
 		onSourceEnabledChange = viewModel::setSourceEnabled,
 		onSourcePinnedChange = viewModel::setSourcePinned,
 		onBrowseSource = onBrowseSource,
@@ -232,8 +248,50 @@ fun UnifiedSourcesRoute(
 		onImportLocalJar = {
 			activeDialog = UnifiedSourcesDialogState.ThirdPartyDisclaimer(UnifiedThirdPartyAction.OpenLocalJar)
 		},
+		onPullRefresh = { viewModel.refreshPackages() },
 		modifier = modifier,
 	)
+
+	val readyState = state as? UnifiedSourcesUiState.Ready
+	when (activePanel) {
+		UnifiedToolbarFilterPanel.LANGUAGE -> if (readyState != null) {
+			UnifiedLanguageFilterDialog(
+				languages = readyState.availableLanguages,
+				selectedLanguages = readyState.filters.languages,
+				onDismiss = { activePanel = null },
+				onLanguageClick = viewModel::toggleLanguage,
+				onApplyPreferredLanguages = viewModel::applyPreferredLanguages,
+				onClear = viewModel::clearLanguages,
+			)
+		}
+		UnifiedToolbarFilterPanel.MORE -> if (readyState != null) {
+			UnifiedFilterGroupDialog(
+				title = stringResource(R.string.more_filters),
+				onDismiss = { activePanel = null },
+				onClear = viewModel::clearFilters,
+			) {
+				FilterSection(title = stringResource(R.string.status)) {
+					items(UnifiedEnabledFilter.entries) { filter ->
+						CompactFilterChip(
+							selected = readyState.filters.enabledFilter == filter,
+							onClick = { viewModel.setEnabledFilter(filter) },
+							text = filter.displayLabel(),
+						)
+					}
+				}
+				FilterSection(title = stringResource(R.string.repository_source)) {
+					items(readyState.availableLocationTypes) { type ->
+						CompactFilterChip(
+							selected = type in readyState.filters.locationTypes,
+							onClick = { viewModel.toggleLocationType(type) },
+							text = type.displayLabel(),
+						)
+					}
+				}
+			}
+		}
+		null -> Unit
+	}
 
 	when (val dialog = activeDialog) {
 			UnifiedSourcesDialogState.AddRepositoryKind -> UnifiedSelectionDialog(
@@ -591,110 +649,6 @@ private fun UnifiedPackageStateDetailsDialog(
 }
 
 @Composable
-fun UnifiedSourcesToolbarControls(
-	state: UnifiedSourcesUiState,
-	searchActive: Boolean,
-	onSearchClick: () -> Unit,
-	onSearchClose: () -> Unit,
-	onSearchQueryChange: (String) -> Unit,
-	onLanguageClick: (String) -> Unit,
-	onApplyPreferredLanguages: () -> Unit,
-	onClearLanguages: () -> Unit,
-	onEnabledFilterClick: (UnifiedEnabledFilter) -> Unit,
-	onLocationTypeClick: (UnifiedRepositoryLocationType) -> Unit,
-	onClearFilters: () -> Unit,
-	modifier: Modifier = Modifier,
-) {
-	if (state !is UnifiedSourcesUiState.Ready) {
-		return
-	}
-	var activePanel by rememberSaveable { mutableStateOf<UnifiedToolbarFilterPanel?>(null) }
-
-	Row(
-		modifier = modifier
-			.fillMaxWidth()
-			.height(48.dp),
-		verticalAlignment = Alignment.CenterVertically,
-		horizontalArrangement = Arrangement.spacedBy(4.dp),
-	) {
-		if (searchActive) {
-			ToolbarSearchField(
-				query = state.filters.query,
-				onQueryChange = onSearchQueryChange,
-				autofocus = true,
-				modifier = Modifier
-					.weight(1f)
-					.widthIn(min = 96.dp),
-			)
-			IconButton(
-				onClick = onSearchClose,
-				modifier = Modifier.size(40.dp),
-			) {
-				Icon(
-					Icons.Filled.Close,
-					contentDescription = stringResource(android.R.string.cancel),
-					modifier = Modifier.size(20.dp),
-				)
-			}
-		} else {
-			Spacer(modifier = Modifier.weight(1f))
-			ToolbarSearchIconButton(
-				active = state.filters.query.isNotBlank(),
-				onClick = onSearchClick,
-			)
-		}
-		ToolbarFilterIconButton(
-			iconRes = R.drawable.ic_language,
-			activeCount = state.filters.languages.size,
-			contentDescription = stringResource(R.string.filter_extensions_by_language),
-			onClick = { activePanel = UnifiedToolbarFilterPanel.LANGUAGE },
-		)
-		ToolbarFilterIconButton(
-			iconRes = R.drawable.ic_filter_menu,
-			activeCount = state.filters.otherFilterCount(),
-			contentDescription = stringResource(R.string.more_filters),
-			onClick = { activePanel = UnifiedToolbarFilterPanel.MORE },
-		)
-	}
-
-	when (activePanel) {
-		UnifiedToolbarFilterPanel.LANGUAGE -> UnifiedLanguageFilterDialog(
-			languages = state.availableLanguages,
-			selectedLanguages = state.filters.languages,
-			onDismiss = { activePanel = null },
-			onLanguageClick = onLanguageClick,
-			onApplyPreferredLanguages = onApplyPreferredLanguages,
-			onClear = onClearLanguages,
-		)
-		UnifiedToolbarFilterPanel.MORE -> UnifiedFilterGroupDialog(
-			title = stringResource(R.string.more_filters),
-			onDismiss = { activePanel = null },
-			onClear = onClearFilters,
-		) {
-			FilterSection(title = stringResource(R.string.status)) {
-				items(UnifiedEnabledFilter.entries) { filter ->
-					CompactFilterChip(
-						selected = state.filters.enabledFilter == filter,
-						onClick = { onEnabledFilterClick(filter) },
-						text = filter.displayLabel(),
-					)
-				}
-			}
-			FilterSection(title = stringResource(R.string.repository_source)) {
-				items(state.availableLocationTypes) { type ->
-					CompactFilterChip(
-						selected = type in state.filters.locationTypes,
-						onClick = { onLocationTypeClick(type) },
-						text = type.displayLabel(),
-					)
-				}
-			}
-		}
-		null -> Unit
-	}
-}
-
-@Composable
 private fun UnifiedLanguageFilterDialog(
 	languages: List<String>,
 	selectedLanguages: Set<String>,
@@ -897,24 +851,21 @@ private fun UnifiedFilterGroupDialog(
 	)
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UnifiedSourcesScreen(
+	onNavigateUp: () -> Unit,
 	state: UnifiedSourcesUiState,
 	isLoading: Boolean,
 	updateAllInProgress: Boolean,
-	onBack: () -> Unit,
 	searchActive: Boolean,
+	onLanguageFilterClick: () -> Unit,
+	onMoreFiltersClick: () -> Unit,
 	onSearchClick: () -> Unit,
 	onSearchClose: () -> Unit,
 	onSearchQueryChange: (String) -> Unit,
-	onApplyPreferredLanguages: () -> Unit,
-	onClearLanguages: () -> Unit,
 	onKindClick: (UnifiedSourceKind?) -> Unit,
 	onContentTypeClick: (ContentType?) -> Unit,
-	onLocationTypeClick: (UnifiedRepositoryLocationType) -> Unit,
-	onLanguageClick: (String) -> Unit,
-	onEnabledFilterClick: (UnifiedEnabledFilter) -> Unit,
-	onClearFilters: () -> Unit,
 	onSourceEnabledChange: (String, Boolean) -> Unit,
 	onSourcePinnedChange: (String, Boolean) -> Unit,
 	onBrowseSource: (UnifiedSourceItem) -> Unit,
@@ -928,22 +879,91 @@ fun UnifiedSourcesScreen(
 	onPackageUninstall: (String) -> Unit,
 	onPackageCancelInstall: (String) -> Unit,
 	onImportLocalJar: () -> Unit,
+	onPullRefresh: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
+	val readyState = state as? UnifiedSourcesUiState.Ready
 	var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 	Scaffold(
 		modifier = modifier,
-		contentWindowInsets = WindowInsets(0, 0, 0, 0),
+		contentWindowInsets = WindowInsets.navigationBars,
+		topBar = {
+			Column {
+				TopAppBar(
+					title = {
+						if (readyState != null && searchActive) {
+							ToolbarSearchField(
+								query = readyState.filters.query,
+								onQueryChange = onSearchQueryChange,
+								modifier = Modifier.fillMaxWidth(),
+								autofocus = true,
+							)
+						} else {
+							Text(
+								text = stringResource(R.string.extension_management),
+								maxLines = 1,
+								overflow = TextOverflow.Ellipsis,
+							)
+						}
+					},
+					navigationIcon = {
+						IconButton(onClick = onNavigateUp) {
+							Icon(
+								imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+								contentDescription = null,
+							)
+						}
+					},
+					actions = {
+						if (readyState != null) {
+							if (searchActive) {
+								IconButton(onClick = onSearchClose) {
+									Icon(
+										imageVector = Icons.Filled.Close,
+										contentDescription = stringResource(android.R.string.cancel),
+									)
+								}
+							} else {
+								ToolbarSearchIconButton(
+									active = readyState.filters.query.isNotBlank(),
+									onClick = onSearchClick,
+								)
+								ToolbarFilterIconButton(
+									iconRes = R.drawable.ic_language,
+									activeCount = readyState.filters.languages.size,
+									contentDescription = stringResource(R.string.filter_extensions_by_language),
+									onClick = onLanguageFilterClick,
+								)
+								ToolbarFilterIconButton(
+									iconRes = R.drawable.ic_filter_menu,
+									activeCount = readyState.filters.otherFilterCount(),
+									contentDescription = stringResource(R.string.more_filters),
+									onClick = onMoreFiltersClick,
+								)
+							}
+						}
+					},
+				)
+				if (isLoading || state == UnifiedSourcesUiState.Loading) {
+					LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+				}
+				if (readyState != null) {
+					UnifiedSourcesFilterTabs(
+						state = readyState,
+						onContentTypeClick = onContentTypeClick,
+						onKindClick = onKindClick,
+					)
+				}
+			}
+		},
 	) { innerPadding ->
 		when (state) {
 			UnifiedSourcesUiState.Loading -> {
-				Column(
+				Box(
 					modifier = Modifier
 						.fillMaxSize()
 						.padding(innerPadding),
-				) {
-					LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-				}
+				)
 			}
 			is UnifiedSourcesUiState.Ready -> {
 				Column(
@@ -951,69 +971,58 @@ fun UnifiedSourcesScreen(
 						.fillMaxSize()
 						.padding(innerPadding),
 				) {
-					if (isLoading) {
-						LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-					}
-					UnifiedSourcesToolbarControls(
-						state = state,
-						searchActive = searchActive,
-						onSearchClick = onSearchClick,
-						onSearchClose = onSearchClose,
-						onSearchQueryChange = onSearchQueryChange,
-						onLanguageClick = onLanguageClick,
-						onApplyPreferredLanguages = onApplyPreferredLanguages,
-						onClearLanguages = onClearLanguages,
-						onEnabledFilterClick = onEnabledFilterClick,
-						onLocationTypeClick = onLocationTypeClick,
-						onClearFilters = onClearFilters,
-						modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-					)
-					UnifiedSourcesFilterTabs(
-						state = state,
-						onContentTypeClick = onContentTypeClick,
-						onKindClick = onKindClick,
-					)
 					TabRow(selectedTabIndex = selectedTab) {
 						Tab(
-								selected = selectedTab == 0,
-								onClick = { selectedTab = 0 },
-								text = { Text(stringResource(R.string.sources_tab_title, state.sources.size)) },
-							)
+							selected = selectedTab == 0,
+							onClick = { selectedTab = 0 },
+							text = { Text(stringResource(R.string.sources_tab_title, state.sources.size)) },
+						)
 						Tab(
-								selected = selectedTab == 1,
-								onClick = { selectedTab = 1 },
-								text = { Text(stringResource(R.string.repositories_tab_title, state.repositories.size)) },
-							)
+							selected = selectedTab == 1,
+							onClick = { selectedTab = 1 },
+							text = { Text(stringResource(R.string.repositories_tab_title, state.repositories.size)) },
+						)
 						Tab(
-								selected = selectedTab == 2,
-								onClick = { selectedTab = 2 },
-								text = { Text(stringResource(R.string.packages_tab_title, state.packages.size)) },
-							)
+							selected = selectedTab == 2,
+							onClick = { selectedTab = 2 },
+							text = { Text(stringResource(R.string.packages_tab_title, state.packages.size)) },
+						)
 					}
-					when (selectedTab) {
-						0 -> UnifiedSourceList(
-							sources = state.sources,
-							onBrowseSource = onBrowseSource,
-							onOpenSourceSettings = onOpenSourceSettings,
-							onSourceEnabledChange = onSourceEnabledChange,
-							onSourcePinnedChange = onSourcePinnedChange,
-						)
-						1 -> UnifiedRepositoryList(
-							repositories = state.repositories,
-							onAddRepository = onAddRepository,
-							onRefreshRepository = onRefreshRepository,
-							onDeleteRepository = onDeleteRepository,
-						)
-						else -> UnifiedPackageList(
-							packages = state.packages,
-							updateAllInProgress = updateAllInProgress,
-							onRefreshPackages = onRefreshPackages,
-							onUpdateAllPackages = onUpdateAllPackages,
-							onPackagePrimaryAction = onPackagePrimaryAction,
-							onPackageUninstall = onPackageUninstall,
-							onPackageCancelInstall = onPackageCancelInstall,
-							onImportLocalJar = onImportLocalJar,
-						)
+					KototoroPullToRefreshBox(
+						isRefreshing = isLoading,
+						onRefresh = onPullRefresh,
+						modifier = Modifier
+							.fillMaxWidth()
+							.weight(1f),
+					) {
+						when (selectedTab) {
+							0 -> UnifiedSourceList(
+								modifier = Modifier.fillMaxSize(),
+								sources = state.sources,
+								onBrowseSource = onBrowseSource,
+								onOpenSourceSettings = onOpenSourceSettings,
+								onSourceEnabledChange = onSourceEnabledChange,
+								onSourcePinnedChange = onSourcePinnedChange,
+							)
+							1 -> UnifiedRepositoryList(
+								modifier = Modifier.fillMaxSize(),
+								repositories = state.repositories,
+								onAddRepository = onAddRepository,
+								onRefreshRepository = onRefreshRepository,
+								onDeleteRepository = onDeleteRepository,
+							)
+							else -> UnifiedPackageList(
+								modifier = Modifier.fillMaxSize(),
+								packages = state.packages,
+								updateAllInProgress = updateAllInProgress,
+								onRefreshPackages = onRefreshPackages,
+								onUpdateAllPackages = onUpdateAllPackages,
+								onPackagePrimaryAction = onPackagePrimaryAction,
+								onPackageUninstall = onPackageUninstall,
+								onPackageCancelInstall = onPackageCancelInstall,
+								onImportLocalJar = onImportLocalJar,
+							)
+						}
 					}
 				}
 			}
@@ -1028,8 +1037,8 @@ private fun UnifiedSourcesFilterTabs(
 	onKindClick: (UnifiedSourceKind?) -> Unit,
 ) {
 	Column(
-		modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-		verticalArrangement = Arrangement.spacedBy(4.dp),
+		modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 0.dp, bottom = 4.dp),
+		verticalArrangement = Arrangement.spacedBy(2.dp),
 	) {
 		LazyRow(
 			horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1115,6 +1124,7 @@ private fun CompactFilterChip(
 
 @Composable
 private fun UnifiedSourceList(
+	modifier: Modifier = Modifier,
 	sources: List<UnifiedSourceItem>,
 	onBrowseSource: (UnifiedSourceItem) -> Unit,
 	onOpenSourceSettings: (UnifiedSourceItem) -> Unit,
@@ -1122,6 +1132,7 @@ private fun UnifiedSourceList(
 	onSourcePinnedChange: (String, Boolean) -> Unit,
 ) {
 	LazyColumn(
+		modifier = modifier,
 		contentPadding = PaddingValues(vertical = 4.dp),
 	) {
 		items(sources, key = { it.id }) { item ->
@@ -1252,12 +1263,14 @@ private fun UnifiedSourceRow(
 
 @Composable
 private fun UnifiedRepositoryList(
+	modifier: Modifier = Modifier,
 	repositories: List<UnifiedSourceRepositoryItem>,
 	onAddRepository: (UnifiedSourceRepositoryItem?) -> Unit,
 	onRefreshRepository: (UnifiedSourceRepositoryItem) -> Unit,
 	onDeleteRepository: (UnifiedSourceRepositoryItem) -> Unit,
 ) {
 	LazyColumn(
+		modifier = modifier,
 		contentPadding = PaddingValues(vertical = 4.dp),
 	) {
 		item(key = "add_repository") {
@@ -1324,6 +1337,7 @@ private fun UnifiedRepositoryList(
 
 @Composable
 private fun UnifiedPackageList(
+	modifier: Modifier = Modifier,
 	packages: List<UnifiedSourcePackageItem>,
 	updateAllInProgress: Boolean,
 	onRefreshPackages: () -> Unit,
@@ -1334,6 +1348,7 @@ private fun UnifiedPackageList(
 	onImportLocalJar: () -> Unit,
 ) {
 	LazyColumn(
+		modifier = modifier,
 		contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
 		verticalArrangement = Arrangement.spacedBy(4.dp),
 	) {
@@ -1674,6 +1689,16 @@ private fun UnifiedSourceKind.dialogLabelResId(): Int {
 		UnifiedSourceKind.TVBOX -> R.string.source_type_tvbox_json
 		UnifiedSourceKind.JS -> R.string.source_type_js_source
 		UnifiedSourceKind.LNREADER -> R.string.source_type_lnreader
+	}
+}
+
+private fun UnifiedSourceKind.supportsJsonImport(): Boolean {
+	return when (this) {
+		UnifiedSourceKind.LEGADO,
+		UnifiedSourceKind.TVBOX,
+		UnifiedSourceKind.JS,
+		UnifiedSourceKind.LNREADER -> true
+		else -> false
 	}
 }
 

@@ -37,7 +37,8 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import androidx.core.view.MenuProvider
 import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
-import org.skepsun.kototoro.settings.SettingsActivity
+import org.skepsun.kototoro.settings.sources.unified.UnifiedSourceKind
+import org.skepsun.kototoro.settings.sources.unified.redirectToUnifiedSources
 
 @AndroidEntryPoint
 class LNReaderRepoFragment : BaseFragment<FragmentLnreaderRepoBinding>() {
@@ -49,6 +50,7 @@ class LNReaderRepoFragment : BaseFragment<FragmentLnreaderRepoBinding>() {
 	lateinit var appSettings: AppSettings
 
 	private val viewModel: LNReaderRepoViewModel by viewModels()
+	private var redirected = false
 
 	override fun onCreateViewBinding(
 		inflater: LayoutInflater,
@@ -116,6 +118,11 @@ class LNReaderRepoFragment : BaseFragment<FragmentLnreaderRepoBinding>() {
 
 	override fun onResume() {
 		super.onResume()
+		if (!redirected) {
+			redirected = true
+			redirectToUnifiedSources(UnifiedSourceKind.LNREADER)
+			return
+		}
 		if (parentFragment == null) {
 			setSupportTitle(R.string.lnreader_plugins)
 		}
@@ -175,11 +182,7 @@ class LNReaderRepoFragment : BaseFragment<FragmentLnreaderRepoBinding>() {
 				true
 			}
 			R.id.action_manage_repositories -> {
-				(activity as? SettingsActivity)?.openFragment(
-					fragmentClass = LNReaderRepositoriesFragment::class.java,
-					args = null,
-					isFromRoot = false,
-				)
+				redirectToUnifiedSources(UnifiedSourceKind.LNREADER)
 				true
 			}
 			else -> false
