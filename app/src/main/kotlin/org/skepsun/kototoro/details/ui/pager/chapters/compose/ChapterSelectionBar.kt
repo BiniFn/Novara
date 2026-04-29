@@ -4,12 +4,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -17,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
@@ -46,7 +44,7 @@ fun ChapterSelectionBar(
         if (state.canSelectAll) {
             IconButton(onClick = state.onSelectAll) {
                 Icon(
-                    imageVector = Icons.Filled.SelectAll,
+                    painter = painterResource(R.drawable.ic_select_all),
                     contentDescription = stringResource(R.string.select_all),
                 )
             }
@@ -54,7 +52,7 @@ fun ChapterSelectionBar(
         if (state.canDownload) {
             IconButton(onClick = state.onDownload) {
                 Icon(
-                    imageVector = Icons.Filled.Download,
+                    painter = painterResource(R.drawable.ic_download),
                     contentDescription = stringResource(R.string.download),
                 )
             }
@@ -70,7 +68,7 @@ fun ChapterSelectionBar(
         if (state.canBookmark) {
             IconButton(onClick = state.onBookmark) {
                 Icon(
-                    imageVector = Icons.Filled.Bookmark,
+                    painter = painterResource(R.drawable.ic_bookmark),
                     contentDescription = stringResource(R.string.bookmark_add),
                 )
             }

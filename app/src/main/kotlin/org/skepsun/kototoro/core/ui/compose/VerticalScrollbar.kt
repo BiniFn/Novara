@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawWithContent
@@ -75,13 +76,14 @@ fun Modifier.verticalScrollbar(
                             if (isDragging) {
                                 change.consume()
                                 val currentTotal = state.layoutInfo.totalItemsCount
-                                if (currentTotal <= 0) return@onDrag
-                                val newY = change.position.y.coerceIn(0f, size.height.toFloat())
-                                val fraction = newY / size.height
-                                val targetIndex = (fraction * currentTotal).toInt().coerceIn(0, currentTotal - 1)
-                                dragLabelIndex = targetIndex
-                                coroutineScope.launch {
-                                    state.scrollToItem(targetIndex)
+                                if (currentTotal > 0) {
+                                    val newY = change.position.y.coerceIn(0f, size.height.toFloat())
+                                    val fraction = newY / size.height
+                                    val targetIndex = (fraction * currentTotal).toInt().coerceIn(0, currentTotal - 1)
+                                    dragLabelIndex = targetIndex
+                                    coroutineScope.launch {
+                                        state.scrollToItem(targetIndex)
+                                    }
                                 }
                             }
                         },

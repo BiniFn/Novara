@@ -248,9 +248,7 @@ fun SearchResultsRoute(
                     shouldShowTvBoxLabel = shouldShowTvBoxLabel,
                     activeTvBoxRepositoryTitle = activeTvBoxRepositoryTitle,
                     onSearchKindCycle = {
-                        val kinds = SearchKind.entries
-                        val currentIndex = kinds.indexOf(searchKind)
-                        searchKind = kinds[(currentIndex + 1) % kinds.size]
+                        searchKind = SearchKind.entries[(searchKind.ordinal + 1) % SearchKind.entries.size]
                         if (searchKind == SearchKind.ADVANCED) {
                             isAdvancedExpanded = true
                         }
