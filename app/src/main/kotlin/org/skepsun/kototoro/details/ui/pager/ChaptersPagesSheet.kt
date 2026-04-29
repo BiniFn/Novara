@@ -4,10 +4,17 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.viewModels
@@ -39,6 +46,8 @@ import org.skepsun.kototoro.details.ui.ReadButtonDelegate
 import org.skepsun.kototoro.details.ui.pager.bookmarks.BookmarksViewModel
 import org.skepsun.kototoro.details.ui.pager.bookmarks.compose.BookmarksScreenRoot
 import org.skepsun.kototoro.details.ui.pager.chapters.compose.ChaptersScreenRoot
+import org.skepsun.kototoro.details.ui.pager.chapters.compose.ChapterSelectionBar
+import org.skepsun.kototoro.details.ui.pager.chapters.compose.ChapterSelectionUiState
 import org.skepsun.kototoro.details.ui.pager.pages.PagesViewModel
 import org.skepsun.kototoro.details.ui.pager.pages.compose.PagesScreenRoot
 import org.skepsun.kototoro.download.ui.worker.DownloadStartedObserver
@@ -100,6 +109,7 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
             )
             setContent {
                 val composeScope = rememberCoroutineScope()
+                var chapterSelectionState by remember { mutableStateOf<ChapterSelectionUiState?>(null) }
                 val pagerState = androidx.compose.foundation.pager.rememberPagerState(
                     initialPage = tabsList.indexOf(selectedTabId).coerceAtLeast(0),
                     pageCount = { tabsList.size },
@@ -134,35 +144,48 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
                 }
 
                 org.skepsun.kototoro.core.ui.theme.KototoroTheme {
-                    androidx.compose.foundation.pager.HorizontalPager(
-                        state = pagerState,
-                        modifier = androidx.compose.ui.Modifier.fillMaxSize(),
-                    ) { page ->
-                        when (tabsList[page]) {
-                            TAB_CHAPTERS -> ChaptersScreenRoot(
-                                viewModel = viewModel,
-                                router = router,
-                                context = context,
-                                viewForSnackbar = viewForSnackbar,
-                                lifecycleOwner = viewLifecycleOwner,
+                    Column {
+                        chapterSelectionState?.let { selState ->
+                            ChapterSelectionBar(
+                                state = selState,
+                                modifier = Modifier.fillMaxWidth(),
                             )
+                        }
+                        androidx.compose.foundation.pager.HorizontalPager(
+                            state = pagerState,
+                            modifier = Modifier.fillMaxSize(),
+                        ) { page ->
+                            when (tabsList[page]) {
+                                TAB_CHAPTERS -> ChaptersScreenRoot(
+                                    viewModel = viewModel,
+                                    router = router,
+                                    context = context,
+                                    viewForSnackbar = viewForSnackbar,
+                                    lifecycleOwner = viewLifecycleOwner,
+                                    handleSelectionBackPressInternally = true,
+                                    onSelectionStateChange = { state ->
+                                        chapterSelectionState = state
+                                        viewBinding?.toolbar?.isVisible = state == null
+                                    },
+                                )
 
-                            TAB_PAGES -> PagesScreenRoot(
-                                activityViewModel = viewModel,
-                                router = router,
-                                context = context,
-                                pageSaveHelper = pageSaveHelper,
-                                viewForSnackbar = viewForSnackbar,
-                                lifecycleOwner = viewLifecycleOwner,
-                                viewModel = pagesViewModel,
-                            )
+                                TAB_PAGES -> PagesScreenRoot(
+                                    activityViewModel = viewModel,
+                                    router = router,
+                                    context = context,
+                                    pageSaveHelper = pageSaveHelper,
+                                    viewForSnackbar = viewForSnackbar,
+                                    lifecycleOwner = viewLifecycleOwner,
+                                    viewModel = pagesViewModel,
+                                )
 
-                            TAB_BOOKMARKS -> BookmarksScreenRoot(
-                                activityViewModel = viewModel,
-                                router = router,
-                                context = context,
-                                viewModel = bookmarksViewModel,
-                            )
+                                TAB_BOOKMARKS -> BookmarksScreenRoot(
+                                    activityViewModel = viewModel,
+                                    router = router,
+                                    context = context,
+                                    viewModel = bookmarksViewModel,
+                                )
+                            }
                         }
                     }
                 }
