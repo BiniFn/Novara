@@ -168,7 +168,7 @@ fun BookmarksScreen(
 							) {
 								val context = LocalContext.current
 								Text(
-									text = item.getText(context) ?: "",
+									text = item.getText(context)?.toString().orEmpty(),
 									style = MaterialTheme.typography.titleSmall,
 									color = MaterialTheme.colorScheme.primary,
 									modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),

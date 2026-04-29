@@ -14,14 +14,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
-import androidx.compose.ui.platform.LocalContext
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.image.rememberPanoramaRequestSize
@@ -124,11 +127,13 @@ fun AnimatedPanoramaBackdrop(
     }
 
     val context = LocalContext.current
+    val useRealtimeBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && prefs.blurPercent > 0
+    val realtimeBlurRadius = ((prefs.blurPercent.coerceIn(0, 100) / 100f) * 18f).dp
     val panoramaRequestSize = rememberPanoramaRequestSize(
-        minWidthPx = 960,
-        minHeightPx = 960,
-        maxWidthPx = 1920,
-        maxHeightPx = 1600,
+        minWidthPx = 1280,
+        minHeightPx = 1280,
+        maxWidthPx = 2560,
+        maxHeightPx = 2200,
         widthOverscan = 1.42f,
         heightOverscan = 1.0f,
     )
@@ -143,13 +148,21 @@ fun AnimatedPanoramaBackdrop(
             is ImageRequest -> model.newBuilder()
                 .size(panoramaRequestSize)
                 .crossfade(crossfadeEnabled)
-                .panoramaBlur(prefs.blurPercent)
+                .apply {
+                    if (!useRealtimeBlur) {
+                        panoramaBlur(prefs.blurPercent)
+                    }
+                }
                 .build()
             else -> ImageRequest.Builder(context)
                 .data(model)
                 .size(panoramaRequestSize)
                 .crossfade(crossfadeEnabled)
-                .panoramaBlur(prefs.blurPercent)
+                .apply {
+                    if (!useRealtimeBlur) {
+                        panoramaBlur(prefs.blurPercent)
+                    }
+                }
                 .build()
         }
     }
@@ -160,6 +173,16 @@ fun AnimatedPanoramaBackdrop(
         contentScale = ContentScale.Crop,
         modifier = modifier
             .fillMaxSize()
+            .then(
+                if (useRealtimeBlur) {
+                    Modifier.blur(
+                        radius = realtimeBlurRadius,
+                        edgeTreatment = BlurredEdgeTreatment.Unbounded,
+                    )
+                } else {
+                    Modifier
+                },
+            )
             .graphicsLayer {
                 val backgroundScale = backgroundScaleState?.value ?: 1f
                 scaleX = backgroundScale

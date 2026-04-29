@@ -88,7 +88,7 @@ object UnifiedRecommendedRepositories {
 		UnifiedRecommendedRepository(
 			kind = UnifiedSourceKind.LEGADO,
 			name = "XIU2 Yuedu",
-			url = "https://github.com/XIU2/Yuedu",
+			url = "https://cdn.jsdmirror.com/gh/XIU2/Yuedu/shuyuan",
 			locationType = UnifiedRepositoryLocationType.REMOTE_URL,
 			capabilities = jsonRepoCapabilities,
 			note = "Legado sources usually cannot expose reliable per-source versions",

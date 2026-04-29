@@ -2,6 +2,8 @@ package org.skepsun.kototoro.core.ui.image
 
 import android.graphics.Bitmap
 import coil3.request.ImageRequest
+import coil3.request.allowRgb565
+import coil3.request.bitmapConfig
 import coil3.request.transformations
 import coil3.size.Size
 import coil3.transform.Transformation
@@ -9,7 +11,9 @@ import kotlin.math.roundToInt
 
 fun ImageRequest.Builder.panoramaBlur(blurPercent: Int): ImageRequest.Builder {
     return if (blurPercent > 0) {
-        transformations(PanoramaBlurTransformation(blurPercent))
+        allowRgb565(false)
+            .bitmapConfig(Bitmap.Config.ARGB_8888)
+            .transformations(PanoramaBlurTransformation(blurPercent))
     } else {
         this
     }

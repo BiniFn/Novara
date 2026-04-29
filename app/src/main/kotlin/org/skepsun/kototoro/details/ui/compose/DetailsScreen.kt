@@ -560,7 +560,9 @@ fun DetailsScreen(
                         .background(MaterialTheme.colorScheme.surface),
                 )
                 if (panoramaPrefs.isEnabled) {
-                    val panoramaCoverUrl = content?.coverUrl?.takeIf { it.isNotBlank() }
+                    val panoramaCoverUrl = mangaDetails?.coverUrl?.takeIf { it.isNotBlank() }
+                        ?: content?.largeCoverUrl?.takeIf { it.isNotBlank() }
+                        ?: content?.coverUrl?.takeIf { it.isNotBlank() }
                     val request = remember(content?.source?.name, content?.url, panoramaCoverUrl) {
                         ImageRequest.Builder(context)
                             .data(panoramaCoverUrl)

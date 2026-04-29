@@ -83,7 +83,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 	)
 
 	init {
-		refreshPackages(refreshRepositories = false)
+		refreshPackages(refreshRepositories = false, showLoading = false)
 	}
 
 	fun setSearchQuery(query: String) {
@@ -127,9 +127,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 	fun toggleLanguage(language: String) {
 		val normalized = language.normalizeLanguageCode()
 		filterState.update { state ->
-			val updated = state.languages.toggle(normalized)
-			settings.extensionLanguages = updated
-			state.copy(languages = updated)
+			state.copy(languages = state.languages.toggle(normalized))
 		}
 	}
 
@@ -137,17 +135,39 @@ class UnifiedSourcesViewModel @Inject constructor(
 		filterState.update { it.copy(enabledFilter = filter) }
 	}
 
+	fun clearLanguages() {
+		filterState.update { it.copy(languages = emptySet()) }
+	}
+
+	fun applyPreferredLanguages() {
+		filterState.update {
+			it.copy(
+				languages = settings.extensionLanguages.mapTo(LinkedHashSet()) { code ->
+					code.normalizeLanguageCode()
+				},
+			)
+		}
+	}
+
 	fun clearFilters() {
 		filterState.value = UnifiedSourcesFilterState()
 	}
 
-	fun refreshPackages(refreshRepositories: Boolean = true) {
-		launchLoadingJob(Dispatchers.IO) {
+	fun refreshPackages(
+		refreshRepositories: Boolean = true,
+		showLoading: Boolean = true,
+	) {
+		val refreshBlock: suspend kotlinx.coroutines.CoroutineScope.() -> Unit = {
 			val types = externalExtensionTypes()
 			if (refreshRepositories) {
 				types.forEach { type -> extensionRepoRepository.refresh(type) }
 			}
 			refreshAvailableExternalPackages(types)
+		}
+		if (showLoading) {
+			launchLoadingJob(Dispatchers.IO, block = refreshBlock)
+		} else {
+			launchJob(Dispatchers.IO, block = refreshBlock)
 		}
 	}
 
@@ -244,9 +264,9 @@ class UnifiedSourcesViewModel @Inject constructor(
 				destinationFile.outputStream().use { output ->
 					input.copyTo(output)
 				}
-			} ?: throw IllegalArgumentException("Cannot open selected JAR")
+			} ?: throw IllegalArgumentException(appContext.getString(R.string.unified_sources_cannot_open_selected_jar))
 			GlobalExtensionManager.initialize(appContext)
-			emitMessage("Imported plugin: $fileName")
+			emitMessage(appContext.getString(R.string.unified_sources_imported_plugin, fileName))
 		}
 	}
 
@@ -268,7 +288,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 				UnifiedSourceKind.ANIYOMI,
 				UnifiedSourceKind.IREADER,
 				UnifiedSourceKind.JAR -> prepareExternalRepository(kind, cleanUrl)
-				UnifiedSourceKind.NATIVE -> emitMessage("Native sources do not use repositories")
+				UnifiedSourceKind.NATIVE -> emitMessage(appContext.getString(R.string.unified_sources_native_no_repository))
 			}
 		}
 	}
@@ -279,7 +299,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 			val content = appContext.contentResolver.openInputStream(uri)
 				?.bufferedReader()
 				?.use { it.readText() }
-				?: throw IllegalArgumentException("Cannot open selected file")
+				?: throw IllegalArgumentException(appContext.getString(R.string.unified_sources_cannot_open_selected_file))
 			importJsonRepository(
 				kind = kind,
 				content = content,
@@ -319,7 +339,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 					if (repository.locationType == UnifiedRepositoryLocationType.INLINE_IMPORT ||
 						repository.locationType == UnifiedRepositoryLocationType.PRESET_ONLY
 					) {
-						emitMessage("This repository cannot be refreshed automatically")
+						emitMessage(appContext.getString(R.string.unified_sources_repository_manual_refresh_only))
 						return@launchLoadingJob
 					}
 					importJsonRepository(
@@ -329,12 +349,12 @@ class UnifiedSourcesViewModel @Inject constructor(
 						sourceTitle = repository.name,
 					)
 				}
-				UnifiedSourceKind.LNREADER -> emitMessage("LNReader repositories are used by the plugin browser")
+				UnifiedSourceKind.LNREADER -> emitMessage(appContext.getString(R.string.unified_sources_lnreader_repo_browser_managed))
 				UnifiedSourceKind.MIHON,
 				UnifiedSourceKind.ANIYOMI,
 				UnifiedSourceKind.IREADER,
 				UnifiedSourceKind.JAR -> refreshExternalRepository(repository)
-				UnifiedSourceKind.NATIVE -> emitMessage("Native sources do not use repositories")
+				UnifiedSourceKind.NATIVE -> emitMessage(appContext.getString(R.string.unified_sources_native_no_repository))
 			}
 		}
 	}
@@ -353,17 +373,17 @@ class UnifiedSourcesViewModel @Inject constructor(
 					if (ids.isNotEmpty()) {
 						jsonSourceManager.deleteSourcesBatch(ids)
 					}
-					emitMessage("Repository sources deleted")
+					emitMessage(appContext.getString(R.string.unified_sources_repository_sources_deleted))
 				}
 				UnifiedSourceKind.LNREADER -> {
 					settings.lnReaderRepoUrls = settings.lnReaderRepoUrls - repository.url
-					emitMessage("Repository deleted")
+					emitMessage(appContext.getString(R.string.unified_sources_repository_deleted))
 				}
 				UnifiedSourceKind.MIHON,
 				UnifiedSourceKind.ANIYOMI,
 				UnifiedSourceKind.IREADER,
 				UnifiedSourceKind.JAR -> deleteExternalRepository(repository)
-				UnifiedSourceKind.NATIVE -> emitMessage("Native sources do not use repositories")
+				UnifiedSourceKind.NATIVE -> emitMessage(appContext.getString(R.string.unified_sources_native_no_repository))
 			}
 		}
 	}
@@ -440,7 +460,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 				if (intent != null) {
 					_events.emit(UnifiedSourcesEvent.StartInstall(intent))
 				} else {
-					emitMessage("Package installed")
+					emitMessage(appContext.getString(R.string.unified_sources_package_installed))
 					if (fromBatch) {
 						handleBatchNextAction(batchUpdateState.onInstallActivityResult())
 					}
@@ -504,7 +524,9 @@ class UnifiedSourcesViewModel @Inject constructor(
 
 	private suspend fun prepareExternalRepository(kind: UnifiedSourceKind, url: String) {
 		val type = kind.toExternalExtensionType()
-			?: throw IllegalArgumentException("Unsupported extension repository kind: $kind")
+			?: throw IllegalArgumentException(
+				appContext.getString(R.string.unified_sources_unsupported_repository_kind, kind.name),
+			)
 		when (val result = extensionRepoRepository.prepareAddRepo(type, url)) {
 			is ExternalExtensionRepoRepository.PrepareAddRepoResult.Ready -> {
 				_events.emit(UnifiedSourcesEvent.TrustExternalRepository(result.repo))
@@ -530,41 +552,45 @@ class UnifiedSourcesViewModel @Inject constructor(
 	private suspend fun addLnReaderRepository(url: String) {
 		val current = settings.lnReaderRepoUrls
 		if (url in current) {
-			emitMessage("Repository already exists")
+			emitMessage(appContext.getString(R.string.unified_sources_repository_already_exists))
 			return
 		}
 		settings.lnReaderRepoUrls = current + url
-		emitMessage("Repository added")
+		emitMessage(appContext.getString(R.string.unified_sources_repository_added))
 	}
 
 	private suspend fun refreshExternalRepository(repository: UnifiedSourceRepositoryItem) {
 		val type = repository.kind.toExternalExtensionType()
-			?: throw IllegalArgumentException("Unsupported extension repository kind: ${repository.kind}")
+			?: throw IllegalArgumentException(
+				appContext.getString(R.string.unified_sources_unsupported_repository_kind, repository.kind.name),
+			)
 		val baseUrl = normalizeRepositoryUrlForAction(repository.url)
 		val repo = extensionRepoRepository.getByType(type)
 			.firstOrNull { normalizeRepositoryUrlForAction(it.baseUrl) == baseUrl }
 		if (repo == null) {
-			emitMessage("Repository is not configured")
+			emitMessage(appContext.getString(R.string.unified_sources_repository_not_configured))
 			return
 		}
 		extensionRepoRepository.refresh(repo)
 		refreshAvailableExternalPackages(listOf(type))
-		emitMessage("Repository refreshed")
+		emitMessage(appContext.getString(R.string.unified_sources_repository_refreshed))
 	}
 
 	private suspend fun deleteExternalRepository(repository: UnifiedSourceRepositoryItem) {
 		val type = repository.kind.toExternalExtensionType()
-			?: throw IllegalArgumentException("Unsupported extension repository kind: ${repository.kind}")
+			?: throw IllegalArgumentException(
+				appContext.getString(R.string.unified_sources_unsupported_repository_kind, repository.kind.name),
+			)
 		val baseUrl = normalizeRepositoryUrlForAction(repository.url)
 		val repo = extensionRepoRepository.getByType(type)
 			.firstOrNull { normalizeRepositoryUrlForAction(it.baseUrl) == baseUrl }
 		if (repo == null) {
-			emitMessage("Repository is not configured")
+			emitMessage(appContext.getString(R.string.unified_sources_repository_not_configured))
 			return
 		}
 		extensionRepoRepository.delete(repo)
 		refreshAvailableExternalPackages()
-		emitMessage("Repository deleted")
+		emitMessage(appContext.getString(R.string.unified_sources_repository_deleted))
 	}
 
 	private suspend fun importJsonRepository(
@@ -586,7 +612,14 @@ class UnifiedSourcesViewModel @Inject constructor(
 			)
 			UnifiedSourceKind.JS -> jsonSourceManager.importJsSource(content)
 			UnifiedSourceKind.LNREADER -> jsonSourceManager.importLNReaderPlugin(content)
-			else -> Result.failure(IllegalArgumentException("${kind.displayNameForMessage()} cannot import JSON content"))
+			else -> Result.failure(
+				IllegalArgumentException(
+					appContext.getString(
+						R.string.unified_sources_cannot_import_json,
+						kind.displayNameForMessage(appContext),
+					),
+				),
+			)
 		}
 		result
 			.onSuccess { count ->
@@ -596,7 +629,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 				) {
 					settings.lnReaderRepoUrls = settings.lnReaderRepoUrls + sourceLocator
 				}
-				emitMessage("Imported $count source(s)")
+				emitMessage(appContext.getString(R.string.unified_sources_imported_sources, count))
 			}
 			.onFailure { error -> emitMessage(error.getDisplayMessage(appContext.resources)) }
 	}
@@ -608,10 +641,12 @@ class UnifiedSourcesViewModel @Inject constructor(
 				appContext.contentResolver.openInputStream(Uri.parse(locator))
 					?.bufferedReader()
 					?.use { it.readText() }
-					?: throw IllegalArgumentException("Cannot open repository file")
+					?: throw IllegalArgumentException(appContext.getString(R.string.unified_sources_cannot_open_repository_file))
 			}
 			UnifiedRepositoryLocationType.INLINE_IMPORT,
-			UnifiedRepositoryLocationType.PRESET_ONLY -> throw IllegalArgumentException("Repository cannot be refreshed")
+			UnifiedRepositoryLocationType.PRESET_ONLY -> throw IllegalArgumentException(
+				appContext.getString(R.string.unified_sources_repository_cannot_refresh),
+			)
 		}
 	}
 
@@ -619,10 +654,10 @@ class UnifiedSourcesViewModel @Inject constructor(
 		val response = legadoHttpClient.get(url)
 		return try {
 			if (!response.isSuccessful) {
-				throw IllegalArgumentException("HTTP ${response.code}")
+				throw IllegalArgumentException(appContext.getString(R.string.unified_sources_http_error, response.code))
 			}
 			response.body?.string()?.takeIf { it.isNotBlank() }
-				?: throw IllegalArgumentException("Empty response body")
+				?: throw IllegalArgumentException(appContext.getString(R.string.unified_sources_empty_response_body))
 		} finally {
 			response.close()
 		}
@@ -946,17 +981,17 @@ private fun packageIdForAction(kind: UnifiedSourceKind, value: String): String {
 	return "package:${kind.name}:${value.trim()}"
 }
 
-private fun UnifiedSourceKind.displayNameForMessage(): String {
+private fun UnifiedSourceKind.displayNameForMessage(context: Context): String {
 	return when (this) {
-		UnifiedSourceKind.NATIVE -> "Native"
-		UnifiedSourceKind.JAR -> "JAR"
-		UnifiedSourceKind.MIHON -> "Mihon"
-		UnifiedSourceKind.ANIYOMI -> "Aniyomi"
-		UnifiedSourceKind.IREADER -> "IReader"
-		UnifiedSourceKind.LEGADO -> "Legado"
-		UnifiedSourceKind.TVBOX -> "TVBox"
-		UnifiedSourceKind.JS -> "JS"
-		UnifiedSourceKind.LNREADER -> "LNReader"
+		UnifiedSourceKind.NATIVE -> context.getString(R.string.source_type_native)
+		UnifiedSourceKind.JAR -> context.getString(R.string.source_type_jar)
+		UnifiedSourceKind.MIHON -> context.getString(R.string.source_type_mihon)
+		UnifiedSourceKind.ANIYOMI -> context.getString(R.string.source_type_aniyomi)
+		UnifiedSourceKind.IREADER -> context.getString(R.string.source_type_ireader)
+		UnifiedSourceKind.LEGADO -> context.getString(R.string.source_type_legado)
+		UnifiedSourceKind.TVBOX -> context.getString(R.string.source_type_tvbox)
+		UnifiedSourceKind.JS -> context.getString(R.string.source_type_js)
+		UnifiedSourceKind.LNREADER -> context.getString(R.string.source_type_lnreader)
 	}
 }
 

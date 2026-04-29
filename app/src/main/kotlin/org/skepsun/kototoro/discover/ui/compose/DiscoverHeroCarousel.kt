@@ -47,6 +47,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
@@ -155,11 +157,13 @@ fun DiscoverHeroCarousel(
     val context = LocalContext.current
     val resolvedSettings = settings ?: remember(context.applicationContext) { AppSettings(context.applicationContext) }
     val panoramaPrefs = rememberDiscoverHeroPanoramaPrefs(resolvedSettings)
+    val useRealtimeBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && panoramaPrefs.blurPercent > 0
+    val realtimeBlurRadius = ((panoramaPrefs.blurPercent.coerceIn(0, 100) / 100f) * 18f).dp
     val panoramaRequestSize = rememberPanoramaRequestSize(
-        minWidthPx = 960,
-        minHeightPx = 720,
-        maxWidthPx = 1600,
-        maxHeightPx = 1280,
+        minWidthPx = 1280,
+        minHeightPx = 960,
+        maxWidthPx = 2200,
+        maxHeightPx = 1600,
         widthOverscan = 1.34f,
         heightOverscan = 0.64f,
     )
@@ -271,7 +275,11 @@ fun DiscoverHeroCarousel(
                     ImageRequest.Builder(context)
                         .data(backgroundItem.coverUrl)
                         .size(panoramaRequestSize)
-                        .panoramaBlur(panoramaPrefs.blurPercent)
+                        .apply {
+                            if (!useRealtimeBlur) {
+                                panoramaBlur(panoramaPrefs.blurPercent)
+                            }
+                        }
                         .build()
                 }
                 AsyncImage(
@@ -280,6 +288,16 @@ fun DiscoverHeroCarousel(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxSize()
+                        .then(
+                            if (useRealtimeBlur) {
+                                Modifier.blur(
+                                    radius = realtimeBlurRadius,
+                                    edgeTreatment = BlurredEdgeTreatment.Unbounded,
+                                )
+                            } else {
+                                Modifier
+                            }
+                        )
                         .graphicsLayer {
                             val backgroundScale = backgroundScaleState?.value ?: 1f
                             scaleX = backgroundScale
