@@ -563,39 +563,65 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		if (query.isEmpty()) {
 			return getTrending(catalog)
 		}
+
+		// Determine whether to search anime, manga, or both based on contentType.
+		// VIDEO → anime only; manga-family & novel → manga only; null → both (legacy behavior).
+		val searchAnime = catalog.contentType == null || catalog.contentType == org.skepsun.kototoro.parsers.model.ContentType.VIDEO
+		val searchManga = catalog.contentType == null || catalog.contentType != org.skepsun.kototoro.parsers.model.ContentType.VIDEO
+
 		if (catalog.service == ScrobblerService.KITSU) {
-			// Search both anime and manga, merge results
 			val offset = catalog.page * 20
-			val anime = runCatching { kitsuRepository.findAnime(query, offset) }.getOrElse { emptyList() }
-			val manga = runCatching { kitsuRepository.findContent(query, offset) }.getOrElse { emptyList() }
+			val anime = if (searchAnime) runCatching { kitsuRepository.findAnime(query, offset) }.getOrElse { emptyList() } else emptyList()
+			val manga = if (searchManga) runCatching { kitsuRepository.findContent(query, offset) }.getOrElse { emptyList() } else emptyList()
 			return (anime + manga)
 				.distinctBy { it.id }
 				.map { it.toTrackingListItem(ScrobblerService.KITSU) }
 		}
 		if (catalog.service == ScrobblerService.MAL) {
 			val offset = catalog.page * 20
-			val anime = runCatching { malRepository.searchAnime(query, offset) }.getOrElse { emptyList() }
-			val manga = runCatching { malRepository.findContent(query, offset) }.getOrElse { emptyList() }
+			val anime = if (searchAnime) runCatching { malRepository.searchAnime(query, offset) }.getOrElse { emptyList() } else emptyList()
+			val manga = if (searchManga) runCatching { malRepository.findContent(query, offset) }.getOrElse { emptyList() } else emptyList()
 			return (anime + manga)
 				.distinctBy { it.id }
 				.map { it.toTrackingListItem(ScrobblerService.MAL) }
 		}
 		if (catalog.service == ScrobblerService.MANGAUPDATES) {
+			// MangaUpdates only supports manga-type content; skip entirely for VIDEO
+			if (!searchManga) return emptyList()
 			val offset = catalog.page * 25
 			return mangaUpdatesRepository.findContent(query, offset)
 				.map { it.toTrackingListItem(ScrobblerService.MANGAUPDATES) }
 		}
 		if (catalog.service == ScrobblerService.SHIKIMORI) {
 			val offset = catalog.page * 10
-			val anime = runCatching { shikimoriRepository.findAnime(query, offset) }.getOrElse { emptyList() }
-			val manga = runCatching { shikimoriRepository.findContent(query, offset) }.getOrElse { emptyList() }
+			val anime = if (searchAnime) runCatching { shikimoriRepository.findAnime(query, offset) }.getOrElse { emptyList() } else emptyList()
+			val manga = if (searchManga) runCatching { shikimoriRepository.findContent(query, offset) }.getOrElse { emptyList() } else emptyList()
 			return (anime + manga)
 				.distinctBy { it.id }
 				.map { it.toTrackingListItem(ScrobblerService.SHIKIMORI) }
 		}
-		return repositoryMap[catalog.service]
-			.findContent(query, catalog.page * 10)
-			.map { item -> item.toTrackingListItem(catalog.service) }
+		// AniList and Bangumi: findContent() accepts isAnime to filter by media type.
+		// When contentType is null, search both and merge; otherwise search only the matching type.
+		val repo = repositoryMap[catalog.service]
+		val offset = catalog.page * 10
+		return when {
+			catalog.contentType == null -> {
+				// No filter: search both anime and manga, merge results
+				val anime = runCatching { repo.findContent(query, offset, isAnime = true) }.getOrElse { emptyList() }
+				val manga = runCatching { repo.findContent(query, offset, isAnime = false) }.getOrElse { emptyList() }
+				(anime + manga)
+					.distinctBy { it.id }
+					.map { item -> item.toTrackingListItem(catalog.service) }
+			}
+			searchAnime -> {
+				repo.findContent(query, offset, isAnime = true)
+					.map { item -> item.toTrackingListItem(catalog.service) }
+			}
+			else -> {
+				repo.findContent(query, offset, isAnime = false)
+					.map { item -> item.toTrackingListItem(catalog.service) }
+			}
+		}
 	}
 
 	// ── Kitsu helpers ─────────────────────────
