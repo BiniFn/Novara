@@ -610,9 +610,9 @@ fun AppNavGraph(
                     appRouter = appRouter,
                     onTopBarOverrideChanged = onExploreSourceSelectionTopBarChanged,
                     showRemoveOption = true,
-                    isContentTypeFilterVisible = false,
+                    isContentTypeFilterVisible = true,
                     onNavigateToDetails = navigateToDetailsWithContent,
-                    isSourceTagFilterVisible = true,
+                    isSourceTagFilterVisible = false,
                     onRemoveSelection = { ids ->
                         if (activity != null) {
                             com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)

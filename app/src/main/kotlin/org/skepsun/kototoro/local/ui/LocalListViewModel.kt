@@ -33,8 +33,11 @@ import org.skepsun.kototoro.local.data.LocalStorageManager
 import org.skepsun.kototoro.local.domain.DeleteLocalContentUseCase
 import org.skepsun.kototoro.local.domain.model.LocalContent
 import org.skepsun.kototoro.core.model.LocalMangaSource
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.remotelist.ui.RemoteListViewModel
 import javax.inject.Inject
 
@@ -120,6 +123,33 @@ class LocalListViewModel @Inject constructor(
 	}
 
 	override fun clearFilter() = filterCoordinator.reset()
+
+	/**
+	 * 将 BrowseGroupTab（内容类型胶囊）映射到 filterCoordinator 的 ContentType 过滤。
+	 * 本地内容支持漫画/小说/视频三种类型，通过 LocalMangaRepository.getList() 的 filter.types 过滤。
+	 */
+	override fun setSelectedGroupTab(tab: BrowseGroupTab) {
+		super.setSelectedGroupTab(tab)
+		val types = when (tab) {
+			BrowseGroupTab.Content -> setOf(ContentType.MANGA, ContentType.HENTAI_MANGA)
+			BrowseGroupTab.Novel -> setOf(ContentType.NOVEL, ContentType.HENTAI_NOVEL)
+			BrowseGroupTab.Video -> setOf(ContentType.VIDEO, ContentType.HENTAI_VIDEO)
+			BrowseGroupTab.All -> emptySet()
+		}
+		// 清除旧的内容类型过滤，再设置新的
+		val currentFilter = filterCoordinator.snapshot().listFilter
+		val nonTypeFilter = currentFilter.copy(types = emptySet())
+		filterCoordinator.set(nonTypeFilter)
+		types.forEach { type -> filterCoordinator.toggleContentType(type, isSelected = true) }
+	}
+
+	/**
+	 * 本地内容全部来自 BUILTIN 来源，来源标签过滤对本地页无实际意义，忽略即可。
+	 */
+	override fun setSelectedSourceTags(tags: Set<SourceTag>) {
+		super.setSelectedSourceTags(tags)
+		// 本地内容不按来源标签过滤，不需要桥接到 filterCoordinator
+	}
 
 	override fun onCleared() {
 		settings.unsubscribe(this)
