@@ -96,6 +96,7 @@ import eu.kanade.tachiyomi.animesource.model.Video
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.Job
 import kotlin.math.roundToInt
+import androidx.activity.viewModels
 
 @AndroidEntryPoint
 class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>(), ReaderNavigationCallback {
@@ -104,6 +105,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         private const val ENABLE_M3U8_PROXY_CACHE = true
     }
 
+    private val chaptersViewModel: VideoChaptersViewModel by viewModels()
 
     @Inject
     lateinit var appSettings: AppSettings
@@ -3113,8 +3115,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val prev = ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_prev_chapter)
         val next = ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_next_chapter)
 
-        val manga = intent.getParcelableExtraCompat<ParcelableContent>(AppRouter.KEY_MANGA)?.manga
-        val chapters = manga?.chapters.orEmpty()
+        // 从 ViewModel 读取实时章节列表，而不是 intent 启动时的快照
+        val chapters = chaptersViewModel.chapters.value.map { it.chapter }
         if (chapters.isEmpty()) {
             prev?.isEnabled = false
             prev?.alpha = 0.4f
