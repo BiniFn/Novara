@@ -129,6 +129,7 @@
     <string name="novel_save_location">Novel downloads folder</string>
     <string name="video_save_location">Video downloads folder</string>
     <string name="not_available">Not available</string>
+    <string name="not_set">Not set</string>
     <string name="cannot_find_available_storage">No available storage</string>
     <string name="other_storage">Other storage</string>
     <string name="done">Done</string>
