@@ -770,9 +770,9 @@ fun DetailsScreen(
                     modifier = Modifier
                         .fillMaxHeight()
                         .widthIn(min = 360.dp, max = 440.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                    color = Color.Transparent,
                     shape = RoundedCornerShape(28.dp),
-                    tonalElevation = 4.dp,
+                    tonalElevation = 0.dp,
                 ) {
                     DetailsPaneContent(
                         detailsPaneState = detailsPaneState,
