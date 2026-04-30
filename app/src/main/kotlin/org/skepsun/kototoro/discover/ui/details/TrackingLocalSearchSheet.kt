@@ -1,7 +1,8 @@
 package org.skepsun.kototoro.discover.ui.details
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,8 +20,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -45,6 +48,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -53,6 +59,7 @@ import coil3.compose.AsyncImage
 import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.ContentSourceInfo
+import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.parsers.model.Content
 
@@ -63,14 +70,17 @@ fun TrackingLocalSearchSheet(
     selectedSourceName: String?,
     results: Map<String, LocalSearchState>,
     initialQuery: String,
+    currentContent: Content,
     onSourceSelected: (String) -> Unit,
     onSearch: (String) -> Unit,
     onCandidateClick: (Content) -> Unit,
+    onMigrateClick: (Content) -> Unit,
     onDismissRequest: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val coroutineScope = rememberCoroutineScope()
     var currentQuery by remember(initialQuery) { mutableStateOf(initialQuery) }
+    var pendingMigrationTarget by remember { mutableStateOf<Content?>(null) }
 
     val closeSheet = {
         coroutineScope.launch {
@@ -208,6 +218,7 @@ fun TrackingLocalSearchSheet(
                                             onCandidateClick(c)
                                             closeSheet()
                                         },
+                                        onMigrateClick = { pendingMigrationTarget = c },
                                     )
                                 }
                             }
@@ -232,18 +243,61 @@ fun TrackingLocalSearchSheet(
             }
         }
     }
+
+    pendingMigrationTarget?.let { target ->
+        val context = LocalContext.current
+        AlertDialog(
+            onDismissRequest = { pendingMigrationTarget = null },
+            icon = {
+                Icon(
+                    painter = painterResource(R.drawable.ic_replace),
+                    contentDescription = null,
+                )
+            },
+            title = { Text(stringResource(R.string.manga_migration)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.migrate_confirmation,
+                        currentContent.title,
+                        currentContent.source.getTitle(context),
+                        target.title,
+                        target.source.getTitle(context),
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onMigrateClick(target)
+                    pendingMigrationTarget = null
+                }) {
+                    Text(stringResource(R.string.migrate))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingMigrationTarget = null }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            },
+        )
+    }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TrackingCandidateCard(
     content: Content,
     onClick: () -> Unit,
+    onMigrateClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier
             .width(108.dp)
-            .clickable(onClick = onClick),
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onMigrateClick,
+            ),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         AsyncImage(
@@ -264,5 +318,30 @@ private fun TrackingCandidateCard(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 2.dp),
         )
+        val chaptersCount = content.chapters?.size ?: 0
+        if (chaptersCount > 0) {
+            Text(
+                text = pluralStringResource(R.plurals.chapters, chaptersCount, chaptersCount),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 2.dp),
+            )
+        }
+        FilledTonalButton(
+            onClick = onMigrateClick,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_replace),
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = stringResource(R.string.migrate),
+                style = MaterialTheme.typography.labelSmall,
+            )
+        }
     }
 }
