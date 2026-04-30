@@ -1135,8 +1135,8 @@ class AppRouter private constructor(
 
         private fun inferUnifiedSourceKind(packageName: String): UnifiedSourceKind? {
             return when {
+                packageName.startsWith("eu.kanade.tachiyomi.animeextension") -> UnifiedSourceKind.ANIYOMI
                 packageName.startsWith("eu.kanade.tachiyomi") -> UnifiedSourceKind.MIHON
-                packageName.startsWith("eu.kanade.aniyomi") -> UnifiedSourceKind.ANIYOMI
                 packageName.startsWith("ireader") -> UnifiedSourceKind.IREADER
                 else -> null
             }
