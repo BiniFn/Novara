@@ -118,6 +118,7 @@ import org.skepsun.kototoro.settings.override.OverrideConfigActivity
 import org.skepsun.kototoro.settings.reader.ReaderTapGridConfigActivity
 import org.skepsun.kototoro.settings.sources.auth.SourceAuthActivity
 import org.skepsun.kototoro.settings.sources.catalog.SourcesCatalogActivity
+import org.skepsun.kototoro.settings.sources.unified.UnifiedSourceKind
 import org.skepsun.kototoro.settings.sources.unified.UnifiedSourcesActivity
 import org.skepsun.kototoro.settings.storage.ContentDirectorySelectDialog
 import org.skepsun.kototoro.settings.storage.directories.ContentDirectoriesActivity
@@ -1122,12 +1123,23 @@ class AppRouter private constructor(
 
         fun sourceSettingsIntent(context: Context, source: ContentSource): Intent = when (source) {
             is ContentSourceInfo -> sourceSettingsIntent(context, source.mangaSource)
-            is ExternalContentSource -> Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                .setData(Uri.fromParts("package", source.packageName, null))
+            is ExternalContentSource -> {
+                val kind = inferUnifiedSourceKind(source.packageName)
+                UnifiedSourcesActivity.newIntent(context, initialRepositoryKind = kind)
+            }
 
             else -> Intent(context, SettingsActivity::class.java)
                 .setAction(ACTION_SOURCE)
                 .putExtra(KEY_SOURCE, source.name)
+        }
+
+        private fun inferUnifiedSourceKind(packageName: String): UnifiedSourceKind? {
+            return when {
+                packageName.startsWith("eu.kanade.tachiyomi") -> UnifiedSourceKind.MIHON
+                packageName.startsWith("eu.kanade.aniyomi") -> UnifiedSourceKind.ANIYOMI
+                packageName.startsWith("ireader") -> UnifiedSourceKind.IREADER
+                else -> null
+            }
         }
 
         fun sourceAuthIntent(context: Context, source: ContentSource): Intent {
