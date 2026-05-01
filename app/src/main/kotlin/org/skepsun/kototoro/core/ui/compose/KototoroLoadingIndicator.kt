@@ -9,9 +9,12 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -21,9 +24,11 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.google.android.material.progressindicator.CircularProgressIndicator
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import kotlin.math.roundToInt
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.prefs.observeAsState
 
 private const val IndicatorProgressMax = 10_000
 
@@ -125,8 +130,27 @@ private fun rememberLoadingIndicatorStyle(style: AppSettings.LoadingCircleStyle?
         return style
     }
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
-    val resolvedStyle by settings.observeAsState(AppSettings.KEY_LOADING_CIRCLE_STYLE) { loadingCircleStyle }
+    var resolvedStyle by remember(settings) { mutableStateOf(settings.loadingCircleStyle) }
+    DisposableEffect(settings, lifecycleOwner) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
+            if (changedKey == AppSettings.KEY_LOADING_CIRCLE_STYLE) {
+                resolvedStyle = settings.loadingCircleStyle
+            }
+        }
+        val lifecycleObserver = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                resolvedStyle = settings.loadingCircleStyle
+            }
+        }
+        settings.subscribe(listener)
+        lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
+        onDispose {
+            settings.unsubscribe(listener)
+            lifecycleOwner.lifecycle.removeObserver(lifecycleObserver)
+        }
+    }
     return resolvedStyle
 }
 

@@ -92,7 +92,6 @@ import org.skepsun.kototoro.core.model.containsAdultTagKeyword
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.titleResId
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.model.FavouriteCategory
@@ -226,7 +225,6 @@ fun DetailsHeader(
     val readingSourceOption = readingSourceOptions.firstOrNull { it.isSelected } ?: readingSourceOptions.firstOrNull()
     val commentsLabel = stringResource(R.string.details_comments)
     val reviewsLabel = stringResource(R.string.details_reviews)
-    val loadingCircleStyle by settings.observeAsState(AppSettings.KEY_LOADING_CIRCLE_STYLE) { loadingCircleStyle }
     val visibleTrackingSuggestion = trackingSuggestion?.takeUnless { suggestion ->
         linkedTrackingItems.any { linked ->
             linked.service == suggestion.service && linked.remoteId == suggestion.remoteId
@@ -530,7 +528,6 @@ fun DetailsHeader(
                         ) {
                             KototoroLinearProgressIndicator(
                                 progress = { historyInfo.percent.coerceIn(0f, 1f) },
-                                style = loadingCircleStyle,
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(8.dp)
