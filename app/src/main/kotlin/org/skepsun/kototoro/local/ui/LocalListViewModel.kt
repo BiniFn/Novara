@@ -2,9 +2,15 @@ package org.skepsun.kototoro.local.ui
 
 import android.content.SharedPreferences
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.toChipModel
 import org.skepsun.kototoro.core.nav.AppRouter
@@ -37,6 +43,7 @@ import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.remotelist.ui.RemoteListViewModel
 import javax.inject.Inject
@@ -69,6 +76,14 @@ class LocalListViewModel @Inject constructor(
 	val onContentRemoved = MutableEventFlow<Unit>()
 	private val showInlineFilter: Boolean = savedStateHandle[AppRouter.KEY_IS_BOTTOMTAB] ?: false
 
+	/** 当前可用的内容标签（来自本地目录索引） */
+	private val _filterAvailableTags = MutableStateFlow<Set<ContentTag>>(emptySet())
+	val filterAvailableTags: StateFlow<Set<ContentTag>> get() = _filterAvailableTags
+
+	/** 当前已选中的标签 key */
+	private val _filterSelectedTagKeys = MutableStateFlow<Set<String>>(emptySet())
+	val filterSelectedTagKeys: StateFlow<Set<String>> get() = _filterSelectedTagKeys
+
 	init {
 		launchJob(Dispatchers.Default) {
 			localStorageChanges
@@ -76,6 +91,13 @@ class LocalListViewModel @Inject constructor(
 					loadList(filterCoordinator.snapshot(), append = false).join()
 				}
 		}
+		launchJob(Dispatchers.Default) {
+			_filterAvailableTags.value = repository.getFilterOptions().availableTags
+		}
+		filterCoordinator.observe()
+			.map { it.listFilter.tags.mapTo(HashSet()) { tag -> tag.key } }
+			.onEach { _filterSelectedTagKeys.value = it }
+			.launchIn(viewModelScope)
 		settings.subscribe(this)
 	}
 
@@ -120,6 +142,11 @@ class LocalListViewModel @Inject constructor(
 			val isSelected = tag in filterCoordinator.snapshot().listFilter.tags
 			filterCoordinator.toggleTag(option.tag, !isSelected)
 		}
+	}
+
+	fun toggleFilterTag(tag: ContentTag) {
+		val isSelected = tag.key in _filterSelectedTagKeys.value
+		filterCoordinator.toggleTag(tag, !isSelected)
 	}
 
 	override fun clearFilter() = filterCoordinator.reset()
