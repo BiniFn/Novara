@@ -775,7 +775,8 @@ fun DetailsScreen(
                 Surface(
                     modifier = Modifier
                         .fillMaxHeight()
-                        .widthIn(min = 360.dp, max = 440.dp),
+                        .widthIn(min = 360.dp, max = 440.dp)
+                        .padding(top = statusBarTopPadding),
                     color = Color.Transparent,
                     shape = RoundedCornerShape(28.dp),
                     tonalElevation = 0.dp,
@@ -1889,7 +1890,7 @@ private fun DetailsPaneContent(
     val isDarkTheme = colorScheme.background.luminance() < 0.5f
     val useCompactPaneSurfaceTint = showCollapsedHandle
     val useFlatFullPane = showCollapsedHandle && isSheetFullyExpanded
-    val paneShadowElevation = if (useCompactPaneSurfaceTint) 0.dp else 2.dp
+    val paneShadowElevation = if (useCompactPaneSurfaceTint || !showCollapsedHandle) 0.dp else 2.dp
     val paneBorderColor = colorScheme.outlineVariant.copy(
         alpha = if (useCompactPaneSurfaceTint) {
             if (isDarkTheme) 0.10f else 0.08f
@@ -1910,7 +1911,7 @@ private fun DetailsPaneContent(
         colorScheme.surfaceContainerLow
     }
     val paneTopAlpha = when {
-        !showCollapsedHandle -> if (isDarkTheme) 0.76f else 0.16f
+        !showCollapsedHandle -> if (isDarkTheme) 0.76f else 0f
         useCompactPaneSurfaceTint && isCollapsedPane -> if (isDarkTheme) 0.92f else 0.90f
         useCompactPaneSurfaceTint && isSheetFullyExpanded -> if (isDarkTheme) 0.88f else 0.84f
         useCompactPaneSurfaceTint -> if (isDarkTheme) 0.84f else 0.80f
@@ -1972,14 +1973,20 @@ private fun DetailsPaneContent(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                paneTopGradientColor,
-                                paneMiddleGradientColor,
-                                paneBottomGradientColor,
-                            ),
-                        ),
+                    .then(
+                        if (showCollapsedHandle) {
+                            Modifier.background(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        paneTopGradientColor,
+                                        paneMiddleGradientColor,
+                                        paneBottomGradientColor,
+                                    ),
+                                ),
+                            )
+                        } else {
+                            Modifier
+                        }
                     ),
             ) {
                 Column(
