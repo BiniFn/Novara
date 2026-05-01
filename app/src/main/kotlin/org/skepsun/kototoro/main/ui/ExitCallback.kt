@@ -3,7 +3,6 @@ package org.skepsun.kototoro.main.ui
 import android.view.View
 import androidx.activity.OnBackPressedCallback
 import androidx.lifecycle.lifecycleScope
-import com.google.android.material.search.SearchView
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -16,25 +15,22 @@ import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsFlow
-import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
 
 class ExitCallback(
 	private val activity: MainActivity,
 	private val snackbarHost: View,
-) : OnBackPressedCallback(false), SearchView.TransitionListener {
+) : OnBackPressedCallback(false) {
 
 	private var job: Job? = null
-	private val isSearchOpen = MutableStateFlow(activity.viewBinding.searchView.isShowing)
 	private val isDisabledByTimeout = MutableStateFlow(false)
 
 	init {
 		activity.lifecycleScope.launch {
 			combine(
 				observeSettings(),
-				isSearchOpen,
 				isDisabledByTimeout,
-			) { enabledInSettings, searchOpen, disabledTemporary ->
-				enabledInSettings && !searchOpen && !disabledTemporary
+			) { enabledInSettings, disabledTemporary ->
+				enabledInSettings && !disabledTemporary
 			}.collect {
 				isEnabled = it
 			}
@@ -48,18 +44,9 @@ class ExitCallback(
 		}
 	}
 
-	override fun onStateChanged(
-		searchView: SearchView,
-		previousState: SearchView.TransitionState,
-		newState: SearchView.TransitionState
-	) {
-		isSearchOpen.value = newState >= SearchView.TransitionState.SHOWING
-	}
-
 	private suspend fun resetExitConfirmation() {
 		isDisabledByTimeout.value = true
 		val snackbar = Snackbar.make(snackbarHost, R.string.confirm_exit, Snackbar.LENGTH_INDEFINITE)
-		snackbar.anchorView = (activity as? BottomNavOwner)?.bottomNav
 		snackbar.show()
 		delay(2000)
 		snackbar.dismiss()

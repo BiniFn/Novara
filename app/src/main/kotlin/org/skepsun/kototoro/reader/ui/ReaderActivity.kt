@@ -147,14 +147,6 @@ class ReaderActivity :
         viewBinding.actionsView.listener = this
         viewBinding.actionsView.setTranslateButtonVisible(viewModel.shouldShowTranslationToggle())
         viewBinding.buttonTimer?.setOnClickListener(this)
-        addMenuProvider(
-            ReaderMenuProvider(
-                viewModel = viewModel,
-                isTranslationAvailable = viewModel::shouldShowTranslationToggle,
-                isTranslationSessionEnabled = { settings.isReaderTranslationEnabled },
-                onOpenTranslationLog = { TranslationTaskPanelSheet.show(supportFragmentManager) },
-            ),
-        )
         idlingDetector.bindToLifecycle(this)
         screenOrientationHelper.applySettings()
         viewModel.isBookmarkAdded.observe(this) { viewBinding.actionsView.isBookmarkAdded = it }
@@ -580,6 +572,10 @@ class ReaderActivity :
 
     override fun onBookmarkClick() {
         viewModel.toggleBookmark()
+    }
+
+    override fun onDownloadClick() {
+        viewModel.downloadCurrentChapter()
     }
 
     override fun onSavePageClick() {

@@ -10,7 +10,7 @@ import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.require
 import org.skepsun.kototoro.core.util.ext.sortedByOrdinal
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
-import org.skepsun.kototoro.favourites.ui.list.FavouritesListFragment.Companion.NO_ID
+import org.skepsun.kototoro.core.model.FavouriteCategory.Companion.NO_ID
 import org.skepsun.kototoro.list.domain.ListSortOrder
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import javax.inject.Inject
@@ -25,21 +25,9 @@ class ListConfigViewModel @Inject constructor(
 	val section = savedStateHandle.require<ListConfigSection>(AppRouter.KEY_LIST_SECTION)
 
 	var listMode: ListMode
-		get() = when (section) {
-			is ListConfigSection.Favorites -> settings.favoritesListMode
-			ListConfigSection.History -> settings.historyListMode
-			ListConfigSection.Suggestions -> settings.suggestionsListMode
-			ListConfigSection.General,
-			ListConfigSection.Updated -> settings.listMode
-		}
+		get() = settings.listMode
 		set(value) {
-			when (section) {
-				is ListConfigSection.Favorites -> settings.favoritesListMode = value
-				ListConfigSection.History -> settings.historyListMode = value
-				ListConfigSection.Suggestions -> settings.suggestionsListMode = value
-				ListConfigSection.Updated,
-				ListConfigSection.General -> settings.listMode = value
-			}
+			settings.listMode = value
 		}
 
 	var gridSize: Int

@@ -31,6 +31,9 @@ class SettingsSearchViewModel @Inject constructor(
 		}
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Lazily, emptyList())
 
+	val queryText = query.map { it.orEmpty() }
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Lazily, query.value.orEmpty())
+
 	val isSearchActive = query.map {
 		it != null
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Lazily, query.value != null)
@@ -43,6 +46,10 @@ class SettingsSearchViewModel @Inject constructor(
 		if (query.value != null) {
 			query.value = value
 		}
+	}
+
+	fun setSearchQuery(value: String) {
+		query.value = value.trim().takeIf { it.isNotEmpty() }
 	}
 
 	fun discardSearch() {

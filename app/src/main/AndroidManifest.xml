@@ -202,7 +202,7 @@
 			android:name="org.skepsun.kototoro.details.ui.related.RelatedContentActivity"
 			android:label="@string/related_manga" />
 		<activity
-			android:name="org.skepsun.kototoro.discover.ui.details.TrackingSiteDetailsActivity"
+			android:name="org.skepsun.kototoro.discover.ui.TrackingDiscoverActivity"
 			android:label="@string/discover" />
 		<activity
 			android:name="org.skepsun.kototoro.discover.ui.category.DiscoverCategoryActivity"
@@ -218,11 +218,24 @@
 				<category android:name="android.intent.category.BROWSABLE" />
 
 				<data android:scheme="kototoro" />
+				<data android:host="about" />
+				<data android:host="sync-settings" />
+			</intent-filter>
+		</activity>
+		<activity
+			android:name="org.skepsun.kototoro.settings.sources.unified.UnifiedSourcesActivity"
+			android:exported="true"
+			android:label="@string/extension_management">
+			<intent-filter>
+				<action android:name="android.intent.action.VIEW" />
+
+				<category android:name="android.intent.category.DEFAULT" />
+				<category android:name="android.intent.category.BROWSABLE" />
+
+				<data android:scheme="kototoro" />
 				<data android:scheme="tachiyomi" />
 				<data android:scheme="aniyomi" />
 				<data android:scheme="anikku" />
-				<data android:host="about" />
-				<data android:host="sync-settings" />
 				<data android:host="add-repo" />
 			</intent-filter>
 		</activity>
@@ -316,6 +329,7 @@
 				<data android:host="kitsu-auth" />
 				<data android:host="bangumi-auth" />
 				<data android:host="mangaupdates-auth" />
+				<data android:host="simkl-auth" />
 			</intent-filter>
 
 		</activity>

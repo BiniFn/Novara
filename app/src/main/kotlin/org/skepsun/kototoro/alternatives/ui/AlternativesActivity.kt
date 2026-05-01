@@ -93,8 +93,17 @@ class AlternativesActivity : BaseActivity<ActivityAlternativesBinding>(),
 	override fun onItemClick(item: ContentAlternativeModel, view: View) {
 		when (view.id) {
 			R.id.chip_source -> router.openSearch(item.manga.source, viewModel.manga.title)
-			R.id.button_migrate -> confirmMigration(item.manga)
 			else -> router.openDetails(item.manga)
+		}
+	}
+
+	override fun onItemLongClick(item: ContentAlternativeModel, view: View): Boolean {
+		when (view.id) {
+			R.id.button_migrate -> {
+				confirmMigration(item.manga)
+				return true
+			}
+			else -> return false
 		}
 	}
 

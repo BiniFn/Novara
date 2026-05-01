@@ -22,13 +22,13 @@ import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
-import org.skepsun.kototoro.core.util.ext.require
 import org.skepsun.kototoro.core.util.ext.requireValue
 import org.skepsun.kototoro.history.data.HistoryRepository
 import org.skepsun.kototoro.list.domain.ReadingProgress
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingFooter
 import org.skepsun.kototoro.list.ui.model.LoadingState
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.util.ifZero
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
@@ -48,7 +48,14 @@ class ScrobblingSelectorViewModel @Inject constructor(
 	@dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context,
 ) : BaseViewModel() {
 
-	val manga = savedStateHandle.require<ParcelableContent>(AppRouter.KEY_MANGA).manga
+	private val initialManga = savedStateHandle.get<ParcelableContent>(AppRouter.KEY_MANGA)?.manga
+	private var mangaState: Content? = initialManga
+	private var initializedMangaId: Long? = null
+
+	val manga: Content
+		get() = checkNotNull(mangaState) {
+			"ScrobblingSelectorViewModel is not initialized with a manga"
+		}
 
 	val availableScrobblers = scrobblers.sortedBy { it.scrobblerService.id }
 
@@ -88,12 +95,26 @@ class ScrobblingSelectorViewModel @Inject constructor(
 
 	val selectedItemId = MutableStateFlow(NO_ID)
 	val onClose = MutableEventFlow<Unit>()
-	private val searchQuery = MutableStateFlow(manga.title)
+	private val searchQuery = MutableStateFlow(initialManga?.title.orEmpty())
 
 	val isEmpty: Boolean
 		get() = scrobblerContentList.value.isEmpty()
 
 	init {
+		initialManga?.let(::initialize)
+	}
+
+	fun initialize(manga: Content) {
+		val isSameManga = initializedMangaId == manga.id
+		mangaState = manga
+		if (searchQuery.value.isBlank() || !isSameManga) {
+			searchQuery.value = manga.title
+		}
+		if (isSameManga) {
+			return
+		}
+		initializedMangaId = manga.id
+		selectedItemId.value = NO_ID
 		initialize()
 	}
 

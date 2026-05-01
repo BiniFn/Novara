@@ -5,14 +5,15 @@ import androidx.collection.emptyIntList
 import androidx.lifecycle.SavedStateHandle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.ui.model.DateTimeAgo
 import org.skepsun.kototoro.core.util.ext.calculateTimeAgo
-import org.skepsun.kototoro.core.util.ext.require
 import org.skepsun.kototoro.stats.data.StatsRepository
+import org.skepsun.kototoro.parsers.model.Content
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -23,14 +24,36 @@ class ContentStatsViewModel @Inject constructor(
 	private val repository: StatsRepository,
 ) : BaseViewModel() {
 
-	val manga = savedStateHandle.require<ParcelableContent>(AppRouter.KEY_MANGA).manga
+	private val initialManga = savedStateHandle.get<ParcelableContent>(AppRouter.KEY_MANGA)?.manga
+	private val mangaState = MutableStateFlow<Content?>(initialManga)
+	private var loadJob: Job? = null
+	private var initializedMangaId: Long? = null
+
+	val manga: Content
+		get() = checkNotNull(mangaState.value) {
+			"ContentStatsViewModel is not initialized with a manga"
+		}
 
 	val stats = MutableStateFlow(emptyIntList())
 	val startDate = MutableStateFlow<DateTimeAgo?>(null)
 	val totalPagesRead = MutableStateFlow(0)
 
 	init {
-		launchLoadingJob(Dispatchers.Default) {
+		initialManga?.let(::initialize)
+	}
+
+	fun initialize(manga: Content) {
+		if (initializedMangaId == manga.id) {
+			mangaState.value = manga
+			return
+		}
+		initializedMangaId = manga.id
+		mangaState.value = manga
+		loadJob?.cancel()
+		stats.value = emptyIntList()
+		startDate.value = null
+		totalPagesRead.value = 0
+		loadJob = launchLoadingJob(Dispatchers.Default) {
 			val timeline = repository.getContentTimeline(manga.id)
 			if (timeline.isEmpty()) {
 				startDate.value = null
@@ -47,8 +70,6 @@ class ContentStatsViewModel @Inject constructor(
 				stats.value = res
 				startDate.value = calculateTimeAgo(Instant.ofEpochMilli(timeline.firstKey()))
 			}
-		}
-		launchLoadingJob(Dispatchers.Default) {
 			totalPagesRead.value = repository.getTotalPagesRead(manga.id)
 		}
 	}

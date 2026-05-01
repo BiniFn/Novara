@@ -1,68 +1,107 @@
 package org.skepsun.kototoro.settings
 
-import android.content.SharedPreferences
 import android.media.RingtoneManager
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
-import androidx.preference.Preference
+import android.view.ViewGroup
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.fragment.app.Fragment
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.ui.BasePreferenceFragment
+import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.theme.KototoroTheme
+import org.skepsun.kototoro.settings.compose.NotificationSettingsScreen
+import org.skepsun.kototoro.settings.compose.NotificationSettingsUiState
 import org.skepsun.kototoro.settings.utils.RingtonePickContract
+import javax.inject.Inject
+import dagger.hilt.android.AndroidEntryPoint
 
-class NotificationSettingsLegacyFragment :
-	BasePreferenceFragment(R.string.notifications),
-	SharedPreferences.OnSharedPreferenceChangeListener {
+@AndroidEntryPoint
+class NotificationSettingsLegacyFragment : Fragment() {
 
-	private val ringtonePickContract = registerForActivityResult(
-		RingtonePickContract(R.string.notification_sound),
-	) { uri ->
-		settings.notificationSound = uri ?: return@registerForActivityResult
-		findPreference<Preference>(AppSettings.KEY_NOTIFICATIONS_SOUND)?.run {
-			summary = RingtoneManager.getRingtone(context, uri)?.getTitle(context)
-				?: getString(R.string.silent)
-		}
-	}
+    @Inject
+    lateinit var settings: AppSettings
 
-	override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-		addPreferencesFromResource(R.xml.pref_notifications)
-		findPreference<Preference>(AppSettings.KEY_NOTIFICATIONS_SOUND)?.run {
-			val uri = settings.notificationSound
-			summary = RingtoneManager.getRingtone(context, uri)?.getTitle(context)
-				?: getString(R.string.silent)
-		}
-		updateInfo()
-	}
+    private val ringtonePickContract = registerForActivityResult(
+        RingtonePickContract(R.string.notification_sound),
+    ) { uri ->
+        settings.notificationSound = uri ?: return@registerForActivityResult
+    }
 
-	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-		super.onViewCreated(view, savedInstanceState)
-		settings.subscribe(this)
-	}
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?,
+    ): View {
+        return ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+        }
+    }
 
-	override fun onDestroyView() {
-		settings.unsubscribe(this)
-		super.onDestroyView()
-	}
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        (view as ComposeView).setContent {
+            KototoroTheme {
+                NotificationSettingsRoute(
+                    settings = settings,
+                    onNotificationSoundClick = {
+                        ringtonePickContract.launch(settings.notificationSound)
+                    },
+                )
+            }
+        }
+    }
 
-	override fun onSharedPreferenceChanged(prefs: SharedPreferences?, key: String?) {
-		when (key) {
-			AppSettings.KEY_TRACKER_NOTIFICATIONS -> updateInfo()
-		}
-	}
+    override fun onResume() {
+        super.onResume()
+        (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.notifications))
+    }
+}
 
-	override fun onPreferenceTreeClick(preference: Preference): Boolean {
-		return when (preference.key) {
-			AppSettings.KEY_NOTIFICATIONS_SOUND -> {
-				ringtonePickContract.launch(settings.notificationSound)
-				true
-			}
+@Composable
+fun NotificationSettingsRoute(
+    settings: AppSettings,
+    onNotificationSoundClick: () -> Unit,
+) {
+    val context = LocalContext.current
+    val isTrackerNotificationsEnabled = settings.observeAsState(
+        AppSettings.KEY_TRACKER_NOTIFICATIONS,
+    ) { isTrackerNotificationsEnabled }.value
+    val notificationSound = settings.observeAsState(
+        AppSettings.KEY_NOTIFICATIONS_SOUND,
+    ) { notificationSound }.value
+    val notificationVibrate = settings.observeAsState(
+        AppSettings.KEY_NOTIFICATIONS_VIBRATE,
+    ) { notificationVibrate }.value
+    val notificationLight = settings.observeAsState(
+        AppSettings.KEY_NOTIFICATIONS_LIGHT,
+    ) { notificationLight }.value
+    val snackbarHostState = remember { SnackbarHostState() }
+    val ringtoneSummary = RingtoneManager.getRingtone(context, notificationSound)
+        ?.getTitle(context)
+        ?: context.getString(R.string.silent)
 
-			else -> super.onPreferenceTreeClick(preference)
-		}
-	}
+    val state = NotificationSettingsUiState(
+        isTrackerNotificationsEnabled = isTrackerNotificationsEnabled,
+        ringtoneSummary = ringtoneSummary,
+        isNotificationVibrateEnabled = notificationVibrate,
+        isNotificationLightEnabled = notificationLight,
+        isNotificationsInfoVisible = !isTrackerNotificationsEnabled,
+    )
 
-	private fun updateInfo() {
-		findPreference<Preference>(AppSettings.KEY_NOTIFICATIONS_INFO)
-			?.isVisible = !settings.isTrackerNotificationsEnabled
-	}
+    NotificationSettingsScreen(
+        notificationsTitle = context.getString(R.string.notifications),
+        state = state,
+        snackbarHostState = snackbarHostState,
+        onTrackerNotificationsEnabledChange = { settings.isTrackerNotificationsEnabled = it },
+        onNotificationSoundClick = onNotificationSoundClick,
+        onNotificationVibrateChange = { settings.notificationVibrate = it },
+        onNotificationLightChange = { settings.notificationLight = it },
+    )
 }

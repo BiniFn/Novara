@@ -328,14 +328,19 @@ class MihonMangaRepository(
 
     override fun createCoverRequest(imageUrl: String): okhttp3.Request {
         val httpSource = mihonSource as? HttpSource ?: return super.createCoverRequest(imageUrl)
-        return try {
-            // Some sources might have specific Referer logic in imageRequest
+        val request = try {
             val sPage = eu.kanade.tachiyomi.source.model.Page(0, imageUrl = imageUrl)
             httpSource.imageRequest(sPage)
         } catch (e: Throwable) {
             // Fallback for sources that assume Page is always a chapter page (e.g. DM5 crashes on missing 'cid')
-            super.createCoverRequest(imageUrl)
+            return super.createCoverRequest(imageUrl)
         }
+        if (request.header("Referer") == null &&
+            (imageUrl.contains("hitomi.la") || imageUrl.contains("gold-usergeneratedcontent.net"))
+        ) {
+            return request.newBuilder().header("Referer", "https://hitomi.la/").build()
+        }
+        return request
     }
 
     private fun ContentPage.toMihonPage(imageUrl: String): eu.kanade.tachiyomi.source.model.Page {

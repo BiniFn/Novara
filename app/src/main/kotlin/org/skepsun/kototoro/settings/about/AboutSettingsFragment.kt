@@ -2,111 +2,109 @@ package org.skepsun.kototoro.settings.about
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import androidx.annotation.StringRes
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
-import androidx.preference.Preference
-import androidx.preference.SwitchPreferenceCompat
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.combine
-import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.github.AppVersion
-import org.skepsun.kototoro.core.github.VersionId
-import org.skepsun.kototoro.core.github.isStable
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.ui.BasePreferenceFragment
-import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.ui.theme.KototoroTheme
 import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.settings.SettingsActivity
+import org.skepsun.kototoro.settings.SettingsDestination
+import org.skepsun.kototoro.settings.compose.AboutSettingsScreen
+import javax.inject.Inject
 
 @AndroidEntryPoint
-class AboutSettingsFragment : BasePreferenceFragment(R.string.about) {
+class AboutSettingsFragment : Fragment() {
 
-	private val viewModel by viewModels<AboutSettingsViewModel>()
+    private val viewModel by viewModels<AboutSettingsViewModel>()
 
-	override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-		addPreferencesFromResource(R.xml.pref_about)
-		findPreference<Preference>(AppSettings.KEY_APP_VERSION)?.run {
-			title = getString(R.string.app_version, BuildConfig.VERSION_NAME)
-		}
-		findPreference<SwitchPreferenceCompat>(AppSettings.KEY_UPDATES_UNSTABLE)?.run {
-			isEnabled = VersionId(BuildConfig.VERSION_NAME).isStable
-			if (!isEnabled) isChecked = true
-		}
-		
-		// 隐藏未实现的选项
-		findPreference<Preference>(AppSettings.KEY_LINK_WEBLATE)?.isVisible = false
-	}
+    @Inject
+    lateinit var appSettings: AppSettings
 
-	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-		super.onViewCreated(view, savedInstanceState)
-		combine(viewModel.isUpdateSupported, viewModel.isLoading, ::Pair)
-			.observe(viewLifecycleOwner) { (isUpdateSupported, isLoading) ->
-				findPreference<Preference>(AppSettings.KEY_UPDATES_UNSTABLE)?.isVisible = isUpdateSupported
-				findPreference<Preference>(AppSettings.KEY_APP_VERSION)?.isEnabled = isUpdateSupported && !isLoading
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+        return ComposeView(requireContext()).apply {
+            setContent {
+                KototoroTheme {
+                    AboutSettingsRoute(
+                        settings = appSettings,
+                        viewModel = viewModel,
+                        onChangelogClick = {
+                            (activity as? SettingsActivity)?.openDestination(SettingsDestination.ChangelogSettings, null, false)
+                        },
+                        onLinkClick = { key ->
+                            when (key) {
+                                AppSettings.KEY_LINK_WEBLATE -> openLink(R.string.url_weblate, getString(R.string.about_app_translation_summary))
+                                AppSettings.KEY_LINK_GITHUB -> openLink(R.string.url_github, getString(R.string.source_code))
+                                AppSettings.KEY_LINK_DONATE -> openLink(R.string.url_donate, getString(R.string.about_donate))
+                                AppSettings.KEY_LINK_MANUAL -> openLink(R.string.url_user_manual, getString(R.string.user_manual))
+                                AppSettings.KEY_LINK_DISCORD -> openLink(R.string.url_discord, getString(R.string.about_discord))
+                                else -> false
+                            }
+                        },
+                        onCrashLogsClick = {
+                            startActivity(org.skepsun.kototoro.settings.about.crashlog.CrashLogActivity.newIntent(requireContext()))
+                        },
+                    )
+                }
+            }
+        }
+    }
 
-			}
-		viewModel.onUpdateAvailable.observeEvent(viewLifecycleOwner, ::onUpdateAvailable)
-	}
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.about))
+        viewModel.onUpdateAvailable.observeEvent(viewLifecycleOwner, ::onUpdateAvailable)
+    }
 
-	override fun onPreferenceTreeClick(preference: Preference): Boolean {
-		return when (preference.key) {
-			AppSettings.KEY_APP_VERSION -> {
-				viewModel.checkForUpdates()
-				true
-			}
+    private fun onUpdateAvailable(version: AppVersion?) {
+        if (version == null) {
+            view?.let { Snackbar.make(it, R.string.no_update_available, Snackbar.LENGTH_SHORT).show() }
+        } else {
+            startActivity(Intent(requireContext(), AppUpdateActivity::class.java))
+        }
+    }
 
-			AppSettings.KEY_LINK_WEBLATE -> {
-				openLink(R.string.url_weblate, preference.title)
-				true
-			}
+    private fun openLink(
+        @StringRes url: Int,
+        title: CharSequence?
+    ): Boolean = if (router.openExternalBrowser(getString(url), title)) {
+        true
+    } else {
+        view?.let { Snackbar.make(it, R.string.operation_not_supported, Snackbar.LENGTH_SHORT).show() }
+        false
+    }
+}
 
-			AppSettings.KEY_LINK_GITHUB -> {
-				openLink(R.string.url_github, preference.title)
-				true
-			}
+@Composable
+fun AboutSettingsRoute(
+    settings: AppSettings,
+    viewModel: AboutSettingsViewModel,
+    onChangelogClick: () -> Unit,
+    onLinkClick: (String) -> Unit,
+    onCrashLogsClick: () -> Unit,
+) {
+    val isUpdateSupported by viewModel.isUpdateSupported.collectAsState(initial = false)
+    val isLoading by viewModel.isLoading.collectAsState(initial = false)
 
-			AppSettings.KEY_LINK_DONATE -> {
-				openLink(R.string.url_donate, preference.title)
-				true
-			}
-
-			AppSettings.KEY_LINK_MANUAL -> {
-				openLink(R.string.url_user_manual, preference.title)
-				true
-			}
-
-			AppSettings.KEY_LINK_DISCORD -> {
-				openLink(R.string.url_discord, preference.title)
-				true
-			}
-
-			"crash_logs" -> {
-				startActivity(org.skepsun.kototoro.settings.about.crashlog.CrashLogActivity.newIntent(requireContext()))
-				true
-			}
-
-			else -> super.onPreferenceTreeClick(preference)
-		}
-	}
-
-	private fun onUpdateAvailable(version: AppVersion?) {
-		if (version == null) {
-			Snackbar.make(listView, R.string.no_update_available, Snackbar.LENGTH_SHORT).show()
-		} else {
-			startActivity(Intent(requireContext(), AppUpdateActivity::class.java))
-		}
-	}
-
-	private fun openLink(
-		@StringRes url: Int,
-		title: CharSequence?
-	): Boolean = if (router.openExternalBrowser(getString(url), title)) {
-		true
-	} else {
-		Snackbar.make(listView, R.string.operation_not_supported, Snackbar.LENGTH_SHORT).show()
-		false
-	}
+    AboutSettingsScreen(
+        settings = settings,
+        isUpdateSupported = isUpdateSupported,
+        isLoading = isLoading,
+        onCheckUpdate = { viewModel.checkForUpdates() },
+        onChangelogClick = onChangelogClick,
+        onLinkClick = { key -> onLinkClick(key) },
+        onCrashLogsClick = onCrashLogsClick,
+    )
 }

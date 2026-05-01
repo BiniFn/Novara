@@ -21,7 +21,7 @@ import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
-import org.skepsun.kototoro.favourites.ui.list.FavouritesListFragment.Companion.NO_ID
+import org.skepsun.kototoro.core.model.FavouriteCategory.Companion.NO_ID
 import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.parser.ParserContentRepository
 import org.skepsun.kototoro.core.parser.ContentDataRepository
@@ -52,12 +52,12 @@ class FavouritesContainerViewModel @Inject constructor(
 	private val mangaRepositoryFactory: ContentRepository.Factory,
 	mangaDataRepository: ContentDataRepository,
 	networkState: NetworkState,
-	private val globalFavoritesState: GlobalFavoritesState,
+	internal val globalFavoritesState: GlobalFavoritesState,
 	private val sourceGroupManager: SourceGroupManager,
 ) : BaseViewModel() {
 
-	val listMode = settings.observeAsFlow(AppSettings.KEY_LIST_MODE_FAVORITES) { favoritesListMode }
-		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, settings.favoritesListMode)
+	val listMode = settings.observeAsFlow(AppSettings.KEY_LIST_MODE) { this.listMode }
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, settings.listMode)
 
 	val currentGroupTab = globalFavoritesState.selectedGroupTab
 	val selectedSourceTags = globalFavoritesState.selectedSourceTags
@@ -93,10 +93,10 @@ class FavouritesContainerViewModel @Inject constructor(
 	)
 
 	val onActionDone = MutableEventFlow<ReversibleAction>()
-val importMessages = MutableEventFlow<String>()
+	val importMessages = MutableEventFlow<String>()
 	val syncMessages = MutableEventFlow<String>()
-	private fun logImport(msg: String) = runCatching { println("[FavouritesImport] $msg") }
-	private fun logSync(msg: String) = runCatching { println("[FavouritesSync] $msg") }
+	private fun logImport(msg: String) = Unit
+	private fun logSync(msg: String) = Unit
 
 	private val categoriesStateFlow = favouritesRepository.observeCategoriesForLibrary()
 		.withErrorHandling()
@@ -343,7 +343,7 @@ val importMessages = MutableEventFlow<String>()
 					.getOrDefault(emptyList())
 				val localKeys = local.associateBy { it.url }
 				val remoteKeys = remote.associateBy { it.url }
-				// 先把远程新增的（本地没有的）合并进本地分组
+				// 先把远程新增的（本地没有的）合并进本地分�?
 				val remoteExtras = remoteKeys.keys.minus(localKeys.keys).mapNotNull { remoteKeys[it] }
 				if (remoteExtras.isNotEmpty()) {
 					logSync("sync merge remote extras source=${item.source.name} extras=${remoteExtras.size}")

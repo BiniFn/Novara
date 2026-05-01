@@ -49,6 +49,9 @@ abstract class BaseActivity<B : ViewBinding> :
 
 	private lateinit var entryPoint: BaseActivityEntryPoint
 
+	val kototoroAppSettings: org.skepsun.kototoro.core.prefs.AppSettings
+		get() = entryPoint.settings
+
 	override fun attachBaseContext(newBase: Context) {
 		entryPoint = EntryPointAccessors.fromApplication<BaseActivityEntryPoint>(newBase.applicationContext)
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
@@ -101,7 +104,9 @@ abstract class BaseActivity<B : ViewBinding> :
 	protected fun setContentView(binding: B) {
 		this.viewBinding = binding
 		super.setContentView(binding.root)
-		ViewCompat.setOnApplyWindowInsetsListener(binding.root, this)
+		if (this !is org.skepsun.kototoro.main.ui.MainActivity) {
+			ViewCompat.setOnApplyWindowInsetsListener(binding.root, this)
+		}
 		val toolbar = (binding.root.findViewById<View>(R.id.toolbar) as? Toolbar)
 		toolbar?.let(this::setSupportActionBar)
 	}

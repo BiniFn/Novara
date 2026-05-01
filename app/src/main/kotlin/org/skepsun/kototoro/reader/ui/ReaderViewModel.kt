@@ -647,6 +647,11 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
+    fun downloadCurrentChapter() {
+        val chapterId = readingState.value?.chapterId ?: return
+        download(chapterId, isMeteredNetworkAllowed = true)
+    }
+
     fun setTargetPageBySide(rawX: Float, width: Int, isDoublePage: Boolean) {
         val mode = readerMode.value ?: return
         if (isDoublePage && width > 0) {

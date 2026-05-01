@@ -9,6 +9,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okio.IOException
+import org.jsoup.Jsoup
 import org.json.JSONObject
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.MangaDatabase
@@ -23,21 +24,28 @@ import org.skepsun.kototoro.parsers.util.parseJson
 import org.skepsun.kototoro.parsers.util.urlEncoded
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerRepository
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerStorage
+import org.skepsun.kototoro.scrobbling.common.data.ScrobblerUserProfileRepository
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblingEntity
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUserProfile
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUserStats
 import org.skepsun.kototoro.scrobbling.kitsu.data.KitsuInterceptor.Companion.VND_JSON
+import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.ZoneId
 
 private const val BASE_WEB_URL = "https://kitsu.app"
+private const val DISCOVERY_PAGE_LIMIT = 20
 
 class KitsuRepository(
 	@ApplicationContext context: Context,
 	private val okHttp: OkHttpClient,
 	private val storage: ScrobblerStorage,
 	private val db: MangaDatabase,
-) : ScrobblerRepository {
+) : ScrobblerRepository, ScrobblerUserProfileRepository {
 
 	// not in use yet
 	private val clientId = context.getString(R.string.kitsu_clientId)
@@ -72,18 +80,30 @@ class KitsuRepository(
 	}
 
 	override suspend fun loadUser(): ScrobblerUser {
+		return loadUserProfile().user
+	}
+
+	override suspend fun loadUserProfile(): ScrobblerUserProfile {
 		val request = Request.Builder()
 			.get()
 			.url("$BASE_WEB_URL/api/edge/users?filter[self]=true")
-		val response = okHttp.newCall(request.build()).await().parseJson()
+		val response = okHttp.newCall(request.build()).await().parseJson().ensureSuccess()
 			.getJSONArray("data")
 			.getJSONObject(0)
-		return ScrobblerUser(
+		val attrs = response.getJSONObject("attributes")
+		val user = ScrobblerUser(
 			id = response.getAsLong("id"),
-			nickname = response.getJSONObject("attributes").getString("name"),
-			avatar = response.getJSONObject("attributes").optJSONObject("avatar")?.getStringOrNull("small"),
+			nickname = attrs.getString("name"),
+			avatar = attrs.optJSONObject("avatar")?.getStringOrNull("small"),
 			service = ScrobblerService.KITSU,
 		).also { storage.user = it }
+		val stats = runCatching {
+			loadStats(user.id)
+		}.getOrNull()
+		return ScrobblerUserProfile(
+			user = user,
+			stats = stats,
+		)
 	}
 
 	override fun logout() {
@@ -102,17 +122,11 @@ class KitsuRepository(
 		val response = okHttp.newCall(request.build()).await().parseJson().ensureSuccess()
 		return response.getJSONArray("data").mapJSON { jo ->
 			val attrs = jo.getJSONObject("attributes")
-			val titles = attrs.getJSONObject("titles").valuesToStringList()
-			ScrobblerContent(
-				id = jo.getAsLong("id"),
-				name = titles.first(),
-				altName = titles.drop(1).joinToString(),
-				cover = attrs.getJSONObject("posterImage").getStringOrNull("small").orEmpty(),
-				url = "$BASE_WEB_URL/$type/${attrs.getString("slug")}",
-				mediaType = attrs.optString("subtype").takeIf { it.isNotBlank() }?.replaceFirstChar { it.uppercase() },
-				isBestMatch = titles.any {
-					it.equals(query, ignoreCase = true)
-				}
+			val content = createDiscoveryContent(jo, attrs, type)
+			content.copy(
+				isBestMatch = sequenceOf(content.name, content.primaryTitle, content.secondaryTitle, content.altName)
+					.filterNotNull()
+					.any { it.equals(query, ignoreCase = true) },
 			)
 		}
 	}
@@ -136,10 +150,15 @@ class KitsuRepository(
 	 * @param categorySlug e.g. "action", "romance", "ecchi", or null for all
 	 * @param page 1-based page number
 	 */
-	suspend fun getRankings(mediaType: String, categorySlug: String?, page: Int): List<ScrobblerContent> {
-		val limit = 20
+	suspend fun getRankings(
+		mediaType: String,
+		categorySlug: String?,
+		page: Int,
+		sort: String = "-userCount",
+	): List<ScrobblerContent> {
+		val limit = DISCOVERY_PAGE_LIMIT
 		val offset = (page - 1) * limit
-		val urlBuilder = StringBuilder("$BASE_WEB_URL/api/edge/$mediaType?page[limit]=$limit&page[offset]=$offset&sort=-userCount")
+		val urlBuilder = StringBuilder("$BASE_WEB_URL/api/edge/$mediaType?page[limit]=$limit&page[offset]=$offset&sort=${sort.urlEncoded()}")
 		if (!categorySlug.isNullOrBlank()) {
 			urlBuilder.append("&filter[categories]=${categorySlug.urlEncoded()}")
 		}
@@ -147,6 +166,46 @@ class KitsuRepository(
 			.get()
 			.url(urlBuilder.toString())
 		return parseMediaList(okHttp.newCall(request.build()).await().parseJson().ensureSuccess(), mediaType)
+	}
+
+	/**
+	 * Kitsu does not expose a calendar filter. Build the daily schedule from current anime:
+	 * prefer nextRelease weekday and fall back to startDate weekday when nextRelease is absent.
+	 */
+	suspend fun getDailySchedule(date: LocalDate, page: Int): List<ScrobblerContent> {
+		val targetDay = date.dayOfWeek
+		val requiredCount = (page + 1) * DISCOVERY_PAGE_LIMIT
+		val matches = ArrayList<ScrobblerContent>(requiredCount)
+		var offset = 0
+		var total = Int.MAX_VALUE
+
+		while (matches.size < requiredCount && offset < total) {
+			val request = Request.Builder()
+				.get()
+				.url(
+					"$BASE_WEB_URL/api/edge/anime?page[limit]=$DISCOVERY_PAGE_LIMIT" +
+						"&page[offset]=$offset&filter[status]=current&sort=-userCount"
+				)
+			val json = okHttp.newCall(request.build()).await().parseJson().ensureSuccess()
+			total = json.optJSONObject("meta")?.optInt("count", total) ?: total
+			val data = json.optJSONArray("data") ?: break
+			if (data.length() == 0) break
+
+			data.mapJSON { entry ->
+				val attrs = entry.getJSONObject("attributes")
+				val releaseDate = attrs.getStringOrNull("nextRelease")?.toKitsuReleaseDate()
+				val startDate = attrs.getStringOrNull("startDate")?.toKitsuStartDate()
+				val scheduleDay = releaseDate?.dayOfWeek ?: startDate?.dayOfWeek
+				if (scheduleDay == targetDay) {
+					matches += createDiscoveryContent(entry, attrs, "anime")
+				}
+			}
+			offset += DISCOVERY_PAGE_LIMIT
+		}
+
+		return matches
+			.drop(page * DISCOVERY_PAGE_LIMIT)
+			.take(DISCOVERY_PAGE_LIMIT)
 	}
 
 	/**
@@ -162,18 +221,62 @@ class KitsuRepository(
 	private fun parseMediaList(json: JSONObject, mediaType: String): List<ScrobblerContent> {
 		return json.getJSONArray("data").mapJSON { jo ->
 			val attrs = jo.getJSONObject("attributes")
-			val titles = attrs.optJSONObject("titles")?.valuesToStringList() ?: listOf(attrs.optString("canonicalTitle", ""))
-			val slug = attrs.optString("slug", "")
-			val posterImage = attrs.optJSONObject("posterImage")
-			ScrobblerContent(
-				id = jo.getAsLong("id"),
-				name = attrs.optString("canonicalTitle", titles.firstOrNull() ?: ""),
-				altName = titles.drop(1).joinToString(),
-				cover = posterImage?.getStringOrNull("small") ?: posterImage?.getStringOrNull("medium").orEmpty(),
-				url = "$BASE_WEB_URL/$mediaType/$slug",
-				mediaType = attrs.optString("subtype").takeIf { it.isNotBlank() }?.replaceFirstChar { it.uppercase() },
-			)
+			createDiscoveryContent(jo, attrs, mediaType)
 		}
+	}
+
+	private fun createDiscoveryContent(
+		entry: JSONObject,
+		attrs: JSONObject,
+		mediaType: String,
+	): ScrobblerContent {
+		val titles = attrs.optJSONObject("titles")
+		val canonicalTitle = attrs.optString("canonicalTitle", "")
+		val primaryTitle = titles?.getStringOrNull("ja_jp")
+			?: titles?.getStringOrNull("ja_jp_ro")
+			?: canonicalTitle.takeIf { it.isNotBlank() }
+		val secondaryTitle = sequenceOf(
+			canonicalTitle,
+			titles?.getStringOrNull("en_jp"),
+			titles?.getStringOrNull("en_us"),
+		).filterNotNull().firstOrNull { !it.equals(primaryTitle, ignoreCase = true) }
+		val posterImage = attrs.optJSONObject("posterImage")
+		val subtype = attrs.optString("subtype").takeIf { it.isNotBlank() }?.replaceFirstChar { it.uppercase() }
+		val status = attrs.getStringOrNull("status")?.replace("_", " ")
+		return ScrobblerContent(
+			id = entry.getAsLong("id"),
+			name = canonicalTitle.ifBlank { primaryTitle.orEmpty() },
+			altName = primaryTitle ?: secondaryTitle,
+			cover = posterImage?.getStringOrNull("small") ?: posterImage?.getStringOrNull("medium").orEmpty(),
+			url = "$BASE_WEB_URL/$mediaType/${attrs.getString("slug")}",
+			mediaType = subtype,
+			primaryTitle = primaryTitle ?: canonicalTitle,
+			secondaryTitle = secondaryTitle,
+			subtitle = listOfNotNull(
+				subtype,
+				status,
+			).joinToString(" · ").ifBlank { null },
+			progressText = if (mediaType == "anime") {
+				attrs.optInt("episodeCount", 0).takeIf { it > 0 }?.let { "EP $it" }
+			} else {
+				attrs.optInt("chapterCount", 0).takeIf { it > 0 }?.let { "CH $it" }
+			},
+			updatedAtText = attrs.getStringOrNull("updatedAt")?.takeIf { it.isNotBlank() }?.take(10),
+			score = attrs.getStringOrNull("averageRating")?.toFloatOrNull(),
+			scoreMax = 100f,
+		)
+	}
+
+	private fun String.toKitsuReleaseDate(): LocalDate? {
+		return runCatching {
+			OffsetDateTime.parse(this)
+				.atZoneSameInstant(ZoneId.systemDefault())
+				.toLocalDate()
+		}.getOrNull()
+	}
+
+	private fun String.toKitsuStartDate(): LocalDate? {
+		return runCatching { LocalDate.parse(this) }.getOrNull()
 	}
 	
 	private suspend fun isAnimeContent(mangaId: Long): Boolean {
@@ -229,6 +332,7 @@ class KitsuRepository(
 		val id = mainData.getAsLong("id")
 		val attrs = mainData.getJSONObject("attributes")
 		val included = data.optJSONArray("included")
+		val discussion = fetchDiscussionPayload(mediaType, id)
 
 		// --- Basic info ---
 		val canonicalTitle = attrs.optString("canonicalTitle", "")
@@ -412,8 +516,105 @@ class KitsuRepository(
 			tags = tags,
 			infoboxProperties = infobox,
 			episodes = episodes,
+			commentThreads = discussion.commentThreads,
+			reviews = discussion.reviews,
 			relatedWorks = relatedWorks,
 		)
+	}
+
+	private suspend fun fetchDiscussionPayload(
+		mediaType: String,
+		mediaId: Long,
+	): KitsuDiscussionPayload {
+		val filterKey = if (mediaType == "anime") "animeId" else "mangaId"
+		val commentThreads = runCatching {
+			val request = Request.Builder()
+				.get()
+				.url(
+					"$BASE_WEB_URL/api/edge/media-reactions?page[limit]=10" +
+						"&filter[$filterKey]=$mediaId&include=user",
+				)
+			val response = okHttp.newCall(request.build()).await().parseJson().ensureSuccess()
+			parseMediaReactionThreads(response)
+		}.getOrElse { emptyList() }
+		val reviews = runCatching {
+			val request = Request.Builder()
+				.get()
+				.url("$BASE_WEB_URL/api/edge/$mediaType/$mediaId/reviews?page[limit]=10&include=user")
+			val response = okHttp.newCall(request.build()).await().parseJson().ensureSuccess()
+			parseReviews(response)
+		}.getOrElse { emptyList() }
+		return KitsuDiscussionPayload(
+			commentThreads = commentThreads,
+			reviews = reviews,
+		)
+	}
+
+	private fun parseMediaReactionThreads(json: JSONObject): List<ScrobblerContentInfo.CommentThread> {
+		val users = json.buildUserLookup()
+		val data = json.optJSONArray("data") ?: return emptyList()
+		return buildList {
+			for (i in 0 until data.length()) {
+				val item = data.optJSONObject(i) ?: continue
+				val attrs = item.optJSONObject("attributes") ?: continue
+				val reaction = attrs.getStringOrNull("reaction")
+					?.trim()
+					?.takeIf { it.isNotBlank() }
+					?: continue
+				val userId = item.optJSONObject("relationships")
+					?.optJSONObject("user")
+					?.optJSONObject("data")
+					?.optString("id")
+					?.takeIf { it.isNotBlank() }
+				val user = userId?.let(users::get)
+				add(
+					ScrobblerContentInfo.CommentThread(
+						id = item.optString("id").ifBlank { i.toString() },
+						userName = user?.name ?: "Kitsu User",
+						userUrl = user?.profileUrl,
+						avatarUrl = user?.avatarUrl,
+						postedAt = attrs.getStringOrNull("createdAt")?.take(10),
+						content = reaction,
+					),
+				)
+			}
+		}
+	}
+
+	private fun parseReviews(json: JSONObject): List<ScrobblerContentInfo.ReviewEntry> {
+		val users = json.buildUserLookup()
+		val data = json.optJSONArray("data") ?: return emptyList()
+		return buildList {
+			for (i in 0 until data.length()) {
+				val item = data.optJSONObject(i) ?: continue
+				val attrs = item.optJSONObject("attributes") ?: continue
+				val excerpt = attrs.getStringOrNull("contentFormatted")
+					?.toPlainText()
+					?: attrs.getStringOrNull("content")?.normalizeWhitespace()
+					?: continue
+				val trimmedExcerpt = excerpt.takeIf { it.isNotBlank() } ?: continue
+				val userId = item.optJSONObject("relationships")
+					?.optJSONObject("user")
+					?.optJSONObject("data")
+					?.optString("id")
+					?.takeIf { it.isNotBlank() }
+				val user = userId?.let(users::get)
+				val reviewId = item.optString("id").ifBlank { i.toString() }
+				add(
+					ScrobblerContentInfo.ReviewEntry(
+						id = reviewId,
+						title = trimmedExcerpt.toReviewTitle(),
+						authorName = user?.name ?: "Kitsu User",
+						authorUrl = user?.profileUrl,
+						avatarUrl = user?.avatarUrl,
+						postedAt = attrs.getStringOrNull("createdAt")?.take(10),
+						excerpt = trimmedExcerpt,
+						url = "$BASE_WEB_URL/reviews/$reviewId",
+						repliesCount = null,
+					),
+				)
+			}
+		}
 	}
 
 	override suspend fun createRate(mangaId: Long, content: ScrobblerContent) {
@@ -603,4 +804,93 @@ class KitsuRepository(
 		is String -> rawValue.toLong()
 		else -> throw IllegalArgumentException("Value $rawValue at \"$name\" is not of type long")
 	}
+
+	private suspend fun loadStats(userId: Long): ScrobblerUserStats? {
+		val request = Request.Builder()
+			.get()
+			.url("$BASE_WEB_URL/api/edge/users/$userId/stats")
+		val data = okHttp.newCall(request.build()).await().parseJson().ensureSuccess().optJSONArray("data")
+			?: return null
+		var animeCount: Int? = null
+		var mangaCount: Int? = null
+		var episodesWatched: Int? = null
+		var chaptersRead: Int? = null
+		for (i in 0 until data.length()) {
+			val item = data.optJSONObject(i) ?: continue
+			val attrs = item.optJSONObject("attributes") ?: continue
+			val statsData = attrs.optJSONObject("statsData") ?: continue
+			when (attrs.getStringOrNull("kind")) {
+				"anime-amount-consumed" -> {
+					animeCount = statsData.optInt("completed").takeIf { it > 0 }
+						?: statsData.optInt("media").takeIf { it > 0 }
+					episodesWatched = statsData.optInt("units").takeIf { it > 0 }
+				}
+				"manga-amount-consumed" -> {
+					mangaCount = statsData.optInt("completed").takeIf { it > 0 }
+						?: statsData.optInt("media").takeIf { it > 0 }
+					chaptersRead = statsData.optInt("units").takeIf { it > 0 }
+				}
+			}
+		}
+		if (animeCount == null && mangaCount == null && episodesWatched == null && chaptersRead == null) {
+			return null
+		}
+		return ScrobblerUserStats(
+			animeCount = animeCount,
+			mangaCount = mangaCount,
+			episodesWatched = episodesWatched,
+			chaptersRead = chaptersRead,
+		)
+	}
+
+	private fun JSONObject.buildUserLookup(): Map<String, KitsuUserProfile> {
+		val included = optJSONArray("included") ?: return emptyMap()
+		return buildMap {
+			for (i in 0 until included.length()) {
+				val item = included.optJSONObject(i) ?: continue
+				if (item.optString("type") != "users") continue
+				val id = item.optString("id").takeIf { it.isNotBlank() } ?: continue
+				val attrs = item.optJSONObject("attributes")
+				val slug = attrs?.getStringOrNull("slug")
+				put(
+					id,
+					KitsuUserProfile(
+						name = attrs?.getStringOrNull("name")?.takeIf { it.isNotBlank() } ?: "Kitsu User",
+						profileUrl = slug?.let { "$BASE_WEB_URL/users/$it" },
+						avatarUrl = attrs?.optJSONObject("avatar")?.getStringOrNull("small")
+							?: attrs?.optJSONObject("avatar")?.getStringOrNull("medium")
+							?: attrs?.optJSONObject("avatar")?.getStringOrNull("original"),
+					),
+				)
+			}
+		}
+	}
+
+	private fun String.toPlainText(): String {
+		return Jsoup.parse(this).text().normalizeWhitespace()
+	}
+
+	private fun String.normalizeWhitespace(): String {
+		return replace(Regex("\\s+"), " ").trim()
+	}
+
+	private fun String.toReviewTitle(): String {
+		return lineSequence()
+			.map { it.trim() }
+			.firstOrNull { it.isNotBlank() }
+			?.take(72)
+			?.takeIf { it.isNotBlank() }
+			?: "Review"
+	}
+
+	private data class KitsuDiscussionPayload(
+		val commentThreads: List<ScrobblerContentInfo.CommentThread> = emptyList(),
+		val reviews: List<ScrobblerContentInfo.ReviewEntry> = emptyList(),
+	)
+
+	private data class KitsuUserProfile(
+		val name: String,
+		val profileUrl: String?,
+		val avatarUrl: String?,
+	)
 }

@@ -58,7 +58,8 @@ fun mangaGridItemAD(
 
 		androidx.core.view.ViewCompat.setTransitionName(binding.imageViewCover, "cover_${item.manga.source.name}_${item.manga.url}")
 		binding.imageViewCover.setImageAsync(item.coverUrl, item.manga)
-		binding.badge.number = item.counter
-		binding.badge.isVisible = item.counter > 0
+		binding.badge.labelText = item.scoreText.takeIf { item.metadataTrackingService != null && !it.isNullOrBlank() }
+		binding.badge.number = if (binding.badge.labelText == null) item.counter else 0
+		binding.badge.isVisible = binding.badge.labelText != null || item.counter > 0
 	}
 }

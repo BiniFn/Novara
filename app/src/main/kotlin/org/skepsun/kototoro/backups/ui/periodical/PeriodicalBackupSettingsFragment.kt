@@ -4,13 +4,15 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.text.format.DateUtils
+import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import androidx.activity.result.ActivityResultCallback
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
-import androidx.preference.EditTextPreference
-import androidx.preference.Preference
-import androidx.preference.PreferenceCategory
-import androidx.preference.SwitchPreferenceCompat
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
@@ -18,145 +20,96 @@ import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.os.OpenDocumentTreeHelper
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.ui.BasePreferenceFragment
-import org.skepsun.kototoro.core.util.ext.observe
+import org.skepsun.kototoro.core.ui.theme.KototoroTheme
+import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.tryLaunch
-import org.skepsun.kototoro.settings.utils.EditTextFallbackSummaryProvider
+import org.skepsun.kototoro.settings.SettingsActivity
+import org.skepsun.kototoro.settings.compose.PeriodicalBackupSettingsScreen
 import java.util.Date
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class PeriodicalBackupSettingsFragment : BasePreferenceFragment(R.string.periodic_backups),
-	ActivityResultCallback<Uri?> {
+class PeriodicalBackupSettingsFragment : Fragment(), ActivityResultCallback<Uri?> {
 
-	@Inject
-	lateinit var telegramBackupUploader: TelegramBackupUploader
+    @Inject
+    lateinit var telegramBackupUploader: TelegramBackupUploader
 
-	private val viewModel by viewModels<PeriodicalBackupSettingsViewModel>()
+    @Inject
+    lateinit var appSettings: AppSettings
 
-	private val outputSelectCall = OpenDocumentTreeHelper(this, this)
+    private val viewModel by viewModels<PeriodicalBackupSettingsViewModel>()
 
-	override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-		addPreferencesFromResource(R.xml.pref_backup_periodic)
-		findPreference<PreferenceCategory>(AppSettings.KEY_BACKUP_TG)?.isVisible = viewModel.isTelegramAvailable
-		findPreference<EditTextPreference>(AppSettings.KEY_BACKUP_TG_CHAT)?.summaryProvider =
-			EditTextFallbackSummaryProvider(R.string.telegram_chat_id_summary)
-	}
+    private val outputSelectCall = OpenDocumentTreeHelper(this, this)
 
-	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-		super.onViewCreated(view, savedInstanceState)
-		viewModel.lastBackupDate.observe(viewLifecycleOwner, ::bindLastBackupInfo)
-		viewModel.backupsDirectory.observe(viewLifecycleOwner, ::bindOutputSummary)
-		viewModel.webDavLastAction.observe(viewLifecycleOwner, ::bindWebDavLastAction)
-		viewModel.onError.observeEvent(viewLifecycleOwner, SnackbarErrorObserver(listView, this))
-		viewModel.onActionDone.observeEvent(viewLifecycleOwner, org.skepsun.kototoro.core.ui.util.ReversibleActionObserver(listView))
-		viewModel.isTelegramCheckLoading.observe(viewLifecycleOwner) {
-			findPreference<Preference>(AppSettings.KEY_BACKUP_TG_TEST)?.isEnabled = !it
-		}
-		viewModel.isWebDavCheckLoading.observe(viewLifecycleOwner) {
-			findPreference<Preference>(AppSettings.KEY_BACKUP_WEBDAV_TEST)?.isEnabled = !it
-			findPreference<Preference>(AppSettings.KEY_BACKUP_WEBDAV_UPLOAD_NOW)?.isEnabled = !it
-			findPreference<Preference>(AppSettings.KEY_BACKUP_WEBDAV_RESTORE_NOW)?.isEnabled = !it
-		}
-		updatePolicyNoteVisibility()
-		findPreference<SwitchPreferenceCompat>(AppSettings.KEY_BACKUP_WEBDAV_KEEP_LOCAL_COPY)?.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, _ ->
-			updatePolicyNoteVisibility(); true
-		}
-		findPreference<SwitchPreferenceCompat>(AppSettings.KEY_BACKUP_WEBDAV_ENABLED)?.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, _ ->
-			updatePolicyNoteVisibility(); true
-		}
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+        return ComposeView(requireContext()).apply {
+            setContent {
+                val lastBackupDate by viewModel.lastBackupDate.collectAsState(initial = null)
+                val backupsDirectory by viewModel.backupsDirectory.collectAsState(initial = null)
+                val webDavLastAction by viewModel.webDavLastAction.collectAsState(initial = null)
+                val isTelegramCheckLoading by viewModel.isTelegramCheckLoading.collectAsState(initial = false)
+                val isWebDavCheckLoading by viewModel.isWebDavCheckLoading.collectAsState(initial = false)
 
-	}
+                val keepLocal = appSettings.isBackupWebDavKeepLocalCopyEnabled
+                val isLastBackupVisible = lastBackupDate != null || !keepLocal
+                val isLastBackupError = lastBackupDate == null && !keepLocal
+                val lastBackupSummary = if (lastBackupDate != null) {
+                    getString(R.string.last_successful_backup, DateUtils.getRelativeTimeSpanString(lastBackupDate!!.time))
+                } else if (!keepLocal) {
+                    getString(R.string.backup_periodic_last_local_empty)
+                } else {
+                    null
+                }
 
-	override fun onPreferenceTreeClick(preference: Preference): Boolean {
-		val result = when (preference.key) {
-			AppSettings.KEY_BACKUP_PERIODICAL_OUTPUT -> outputSelectCall.tryLaunch(null)
-			AppSettings.KEY_BACKUP_TG_OPEN -> telegramBackupUploader.openBotInApp(router)
-			AppSettings.KEY_BACKUP_TG_TEST -> {
-				viewModel.checkTelegram()
-				true
-			}
-			AppSettings.KEY_BACKUP_WEBDAV_TEST -> {
-				viewModel.checkWebDav()
-				true
-			}
-			AppSettings.KEY_BACKUP_WEBDAV_UPLOAD_NOW -> {
-				viewModel.uploadWebDavNow()
-				true
-			}
-			AppSettings.KEY_BACKUP_WEBDAV_RESTORE_NOW -> {
-				viewModel.restoreWebDavNow()
-				true
-			}
+                val outputSummary = when (backupsDirectory) {
+                    null -> getString(R.string.invalid_value_message)
+                    "" -> null
+                    else -> backupsDirectory
+                }
 
-			else -> return super.onPreferenceTreeClick(preference)
-		}
-		if (!result) {
-			Snackbar.make(listView, R.string.operation_not_supported, Snackbar.LENGTH_SHORT).show()
-		}
-		return true
-	}
+                val webDavLastActionText = webDavLastAction?.let { action ->
+                    "${getString(action.first)} • ${DateUtils.getRelativeTimeSpanString(action.second)}"
+                }
 
-	override fun onActivityResult(result: Uri?) {
-		if (result != null) {
-			val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-			context?.contentResolver?.takePersistableUriPermission(result, takeFlags)
-			settings.periodicalBackupDirectory = result
-			viewModel.updateSummaryData()
-		}
-	}
+                KototoroTheme {
+                    PeriodicalBackupSettingsScreen(
+                        settings = appSettings,
+                        outputSummary = outputSummary,
+                        isOutputError = backupsDirectory == null,
+                        lastBackupSummary = lastBackupSummary,
+                        isLastBackupVisible = isLastBackupVisible,
+                        isLastBackupError = isLastBackupError,
+                        isTelegramAvailable = viewModel.isTelegramAvailable,
+                        isTelegramCheckLoading = isTelegramCheckLoading,
+                        isWebDavCheckLoading = isWebDavCheckLoading,
+                        webDavLastActionText = webDavLastActionText,
+                        onOutputClick = { outputSelectCall.tryLaunch(null) },
+                        onTelegramOpenClick = { telegramBackupUploader.openBotInApp(router) },
+                        onTelegramTestClick = { viewModel.checkTelegram() },
+                        onWebDavTestClick = { viewModel.checkWebDav() },
+                        onWebDavUploadClick = { viewModel.uploadWebDavNow() },
+                        onWebDavRestoreClick = { viewModel.restoreWebDavNow() },
+                    )
+                }
+            }
+        }
+    }
 
-	private fun bindOutputSummary(path: String?) {
-		val preference = findPreference<Preference>(AppSettings.KEY_BACKUP_PERIODICAL_OUTPUT) ?: return
-		preference.summary = when (path) {
-			null -> getString(R.string.invalid_value_message)
-			"" -> null
-			else -> path
-		}
-		preference.icon = if (path == null) {
-			getWarningIcon()
-		} else {
-			null
-		}
-	}
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.periodic_backups))
+        
+        viewModel.onError.observeEvent(viewLifecycleOwner, SnackbarErrorObserver(view, this))
+        viewModel.onActionDone.observeEvent(viewLifecycleOwner, ReversibleActionObserver(view))
+    }
 
-	private fun bindLastBackupInfo(lastBackupDate: Date?) {
-		val preference = findPreference<Preference>(AppSettings.KEY_BACKUP_PERIODICAL_LAST) ?: return
-		val keepLocal = settings.isBackupWebDavKeepLocalCopyEnabled
-		if (lastBackupDate != null) {
-			preference.summary = preference.context.getString(
-				R.string.last_successful_backup,
-				DateUtils.getRelativeTimeSpanString(lastBackupDate.time),
-			)
-			preference.isVisible = true
-			preference.icon = null
-		} else if (!keepLocal) {
-			preference.summary = getString(R.string.backup_periodic_last_local_empty)
-			preference.isVisible = true
-			preference.icon = getWarningIcon()
-		} else {
-			preference.isVisible = false
-			preference.icon = null
-		}
-	}
-
-	private fun bindWebDavLastAction(action: Pair<Int, Long>?) {
-		val preference = findPreference<Preference>(AppSettings.KEY_BACKUP_WEBDAV_LAST_ACTIONS) ?: return
-		if (action == null) {
-			preference.isVisible = false
-			return
-		}
-		preference.title = getString(R.string.recent_webdav_action)
-		preference.summary = getString(action.first) + " • " + DateUtils.getRelativeTimeSpanString(action.second)
-		preference.isVisible = true
-	}
-
-	private fun updatePolicyNoteVisibility() {
-		val pref = findPreference<Preference>(AppSettings.KEY_BACKUP_WEBDAV_POLICY_NOTE) ?: return
-		val visible = !settings.isBackupWebDavKeepLocalCopyEnabled && settings.isBackupWebDavUploadEnabled
-		pref.isVisible = visible
-	}
-
-    
+    override fun onActivityResult(result: Uri?) {
+        if (result != null) {
+            val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            context?.contentResolver?.takePersistableUriPermission(result, takeFlags)
+            appSettings.periodicalBackupDirectory = result
+            viewModel.updateSummaryData()
+        }
+    }
 }

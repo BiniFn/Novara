@@ -8,7 +8,7 @@ import androidx.core.view.MenuProvider
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
-import org.skepsun.kototoro.favourites.ui.list.FavouritesListFragment.Companion.NO_ID
+import org.skepsun.kototoro.core.model.FavouriteCategory.Companion.NO_ID
 
 class FavouriteTabPopupMenuProvider(
 	private val context: Context,

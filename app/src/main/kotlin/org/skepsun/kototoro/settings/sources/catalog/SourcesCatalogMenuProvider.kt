@@ -7,7 +7,6 @@ import android.view.MenuItem
 import androidx.appcompat.widget.SearchView
 import androidx.core.view.MenuProvider
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 
 class SourcesCatalogMenuProvider(
 	private val activity: Activity,
@@ -30,8 +29,7 @@ class SourcesCatalogMenuProvider(
 	override fun onMenuItemSelected(menuItem: MenuItem): Boolean = false
 
 	override fun onMenuItemActionExpand(item: MenuItem): Boolean {
-		(activity as? AppBarOwner)?.appBar?.setExpanded(true, true)
-		return expandListener.onMenuItemActionExpand(item)
+				return expandListener.onMenuItemActionExpand(item)
 	}
 
 	override fun onMenuItemActionCollapse(item: MenuItem): Boolean {

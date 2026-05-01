@@ -16,13 +16,6 @@ class RelatedListFragment : ContentListFragment() {
 
 	override fun onScrolledToEnd() = Unit
 
-	override fun onCreateActionMode(
-		controller: ListSelectionController,
-		menuInflater: MenuInflater,
-		menu: Menu
-	): Boolean {
-		menuInflater.inflate(R.menu.mode_remote, menu)
-		return super.onCreateActionMode(controller, menuInflater, menu)
-	}
+
 }
 

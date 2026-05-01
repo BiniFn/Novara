@@ -6,6 +6,7 @@ import org.skepsun.kototoro.core.model.getPreferredBranch
 import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.details.domain.ProgressUpdateUseCase
+import org.skepsun.kototoro.entitygraph.data.EntityBindingRecord
 import org.skepsun.kototoro.history.data.HistoryEntity
 import org.skepsun.kototoro.history.data.toContentHistory
 import org.skepsun.kototoro.list.domain.ReadingProgress.Companion.PROGRESS_NONE
@@ -45,6 +46,7 @@ constructor(
 		}
 		mangaDataRepository.storeContent(newDetails, replaceExisting = true)
 		database.withTransaction {
+			val currentTime = System.currentTimeMillis()
 			// replace favorites
 			val favoritesDao = database.getFavouritesDao()
 			val oldFavourites = favoritesDao.findAllRaw(oldDetails.id)
@@ -69,6 +71,44 @@ constructor(
 					newHistory
 				} else {
 					null
+			}
+			// replace preferences so metadata source selection and reader prefs follow the migrated title
+			database.getPreferencesDao().find(oldDetails.id)?.let { pref ->
+				database.getPreferencesDao().upsert(pref.copy(mangaId = newDetails.id))
+			}
+			// replace tracking discovery links
+			val trackingSiteDao = database.getTrackingSiteDao()
+			val oldTrackingLinks = trackingSiteDao.findLinksByManga(oldDetails.id)
+			if (oldTrackingLinks.isNotEmpty()) {
+				oldTrackingLinks.forEach { link ->
+					trackingSiteDao.deleteLinksByManga(link.service, newDetails.id)
+					trackingSiteDao.upsertLink(
+						link.copy(
+							mangaId = newDetails.id,
+							sourceName = newDetails.source.name,
+							updatedAt = currentTime,
+						),
+					)
+					trackingSiteDao.deleteLink(link.service, link.remoteId, oldDetails.id)
+				}
+			}
+			// keep the migrated content bound to the same entity graph node so source alternatives stay grouped
+			val entityGraphDao = database.getEntityGraphDao()
+			listOf("local_manga", "0")
+				.mapNotNull { source ->
+					entityGraphDao.findBinding(source, oldDetails.id.toString())
+				}
+				.firstOrNull()
+				?.let { binding ->
+					entityGraphDao.upsertBinding(
+						EntityBindingRecord(
+							entityId = binding.entityId,
+							source = "local_manga",
+							externalId = newDetails.id.toString(),
+							confidence = binding.confidence,
+							isPrimary = false,
+						),
+					)
 				}
 			// track
 			val tracksDao = database.getTracksDao()
@@ -80,7 +120,7 @@ constructor(
 						mangaId = newDetails.id,
 						lastChapterId = lastChapter?.id ?: 0L,
 						newChapters = 0,
-						lastCheckTime = System.currentTimeMillis(),
+						lastCheckTime = currentTime,
 						lastChapterDate = lastChapter?.uploadDate ?: 0L,
 						lastResult = TrackEntity.RESULT_EXTERNAL_MODIFICATION,
 						lastError = null,
@@ -124,7 +164,7 @@ constructor(
 				}
 			}
 		}
-		progressUpdateUseCase(newContent)
+		progressUpdateUseCase(newDetails)
 	}
 
 	private fun makeNewHistory(

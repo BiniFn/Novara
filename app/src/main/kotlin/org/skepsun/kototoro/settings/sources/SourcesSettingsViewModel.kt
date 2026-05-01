@@ -69,6 +69,10 @@ class SourcesSettingsViewModel @Inject constructor(
 
 	val isLinksEnabled = MutableStateFlow(isLinksEnabled())
 
+	fun refreshLinksEnabled() {
+		isLinksEnabled.value = isLinksEnabled()
+	}
+
 	fun setLinksEnabled(isEnabled: Boolean) {
 		context.packageManager.setComponentEnabledSetting(
 			linksHandlerActivity,

@@ -48,7 +48,7 @@ import org.skepsun.kototoro.parsers.model.YEAR_MIN
 import org.skepsun.kototoro.parsers.util.ifZero
 import org.skepsun.kototoro.parsers.util.nullIfEmpty
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
-import org.skepsun.kototoro.remotelist.ui.RemoteListFragment
+
 import org.skepsun.kototoro.search.domain.ContentSearchRepository
 import java.util.Calendar
 import java.util.Locale
@@ -64,7 +64,7 @@ class FilterCoordinator @Inject constructor(
 ) {
 
     private val coroutineScope = lifecycle.lifecycleScope + Dispatchers.Default
-    private val repository = mangaRepositoryFactory.create(ContentSource(savedStateHandle[RemoteListFragment.ARG_SOURCE]))
+    private val repository = mangaRepositoryFactory.create(ContentSource(savedStateHandle[org.skepsun.kototoro.core.nav.AppRouter.KEY_SOURCE]))
     private val sourceLocale = repository.source.getLocale()?.language
 
     private val currentListFilter = MutableStateFlow(ContentListFilter.EMPTY)
@@ -368,7 +368,7 @@ class FilterCoordinator @Inject constructor(
             val remaining = currentlySelected - id
             selectedSavedFilterIds.value = remaining
             if (remaining.isEmpty()) {
-                // Last one deselected → clear the filter entirely
+                // Last one deselected �?clear the filter entirely
                 currentListFilter.value = ContentListFilter.EMPTY
             } else {
                 currentListFilter.update { current ->
@@ -698,4 +698,4 @@ class FilterCoordinator @Inject constructor(
     }
 }
 
-// 当前 parser 模型不再暴露 tag group 的独占元信息，过滤 UI 统一回退为非独占。
+// 当前 parser 模型不再暴露 tag group 的独占元信息，过�?UI 统一回退为非独占�?

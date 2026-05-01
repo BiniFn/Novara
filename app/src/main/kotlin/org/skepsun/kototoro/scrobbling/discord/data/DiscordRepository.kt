@@ -6,6 +6,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
@@ -43,20 +47,25 @@ class DiscordRepository @Inject constructor(
 		val token = checkNotNull(settings.discordToken) {
 			"Discord token is missing"
 		}
+		val payload = buildJsonObject {
+			put("urls", buildJsonArray { add(JsonPrimitive(url)) })
+		}.toString()
 		val request = Request.Builder()
 			.url("https://discord.com/api/v10/applications/${appId}/external-assets")
 			.header(CommonHeaders.AUTHORIZATION, token)
-			.post("{\"urls\":[\"${url}\"]}".toRequestBody("application/json".toMediaType()))
+			.post(payload.toRequestBody("application/json".toMediaType()))
 			.build()
-		val body = httpClient.newCall(request).await().parseRaw()
+		val response = httpClient.newCall(request).await()
+		response.ensureSuccess()
+		val body = response.parseRaw()
 		when (val json = Json.parseToJsonElement(body)) {
 			is JsonObject -> throw RuntimeException(json.jsonObject["message"]?.jsonPrimitive?.content)
 			is JsonArray -> {
 				val externalAssetPath = json.firstOrNull()
 					?.jsonObject
 					?.get("external_asset_path")
-					?.toString()
-					?.replace("\"", "")
+					?.jsonPrimitive
+					?.contentOrNull
 				return externalAssetPath?.let { SCHEME_MP + it }
 			}
 			else -> throw RuntimeException("Unexpected response: $json")

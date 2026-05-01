@@ -1,49 +1,63 @@
 package org.skepsun.kototoro.settings
 
 import android.os.Bundle
-import androidx.preference.ListPreference
-import androidx.preference.Preference
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.fragment.app.Fragment
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.prefs.VideoSuperResolutionMode
-import org.skepsun.kototoro.core.prefs.VideoSuperResolutionShader
-import org.skepsun.kototoro.core.ui.BasePreferenceFragment
-import org.skepsun.kototoro.core.util.ext.setDefaultValueCompat
-import org.skepsun.kototoro.parsers.util.names
+import org.skepsun.kototoro.core.ui.theme.KototoroTheme
+import org.skepsun.kototoro.settings.compose.AIVideoEnhancementSettingsScreen
+import org.skepsun.kototoro.video.ui.VideoSuperResolutionAdvancedSheet
+import javax.inject.Inject
 
 @AndroidEntryPoint
-class AIVideoEnhancementSettingsFragment : BasePreferenceFragment(R.string.ai_video_enhancement_settings) {
+class AIVideoEnhancementSettingsFragment : Fragment() {
 
-	override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-		addPreferencesFromResource(R.xml.pref_ai_video)
+    @Inject
+    lateinit var appSettings: AppSettings
 
-		findPreference<ListPreference>(AppSettings.KEY_VIDEO_SUPER_RES_MODE)?.run {
-			entryValues = VideoSuperResolutionMode.entries.names()
-			setDefaultValueCompat(VideoSuperResolutionMode.BALANCED.name)
-		}
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+        return ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+        }
+    }
 
-		findPreference<ListPreference>(AppSettings.KEY_VIDEO_SUPER_RES_QUALITY_SHADER)?.run {
-			entryValues = VideoSuperResolutionShader.entries.names()
-			setDefaultValueCompat(VideoSuperResolutionShader.MODE_A.name)
-		}
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        (view as ComposeView).setContent {
+            KototoroTheme {
+                AIVideoEnhancementSettingsRoute(
+                    settings = appSettings,
+                    onAdvancedSettingsClick = {
+                        VideoSuperResolutionAdvancedSheet().show(
+                            parentFragmentManager,
+                            "VideoSuperResolutionAdvancedSheet",
+                        )
+                    },
+                )
+            }
+        }
+    }
 
-		findPreference<ListPreference>(AppSettings.KEY_VIDEO_SUPER_RES_BALANCED_SHADER)?.run {
-			entryValues = VideoSuperResolutionShader.entries.names()
-			setDefaultValueCompat(VideoSuperResolutionShader.MODE_B.name)
-		}
+    override fun onResume() {
+        super.onResume()
+        (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.ai_video_enhancement_settings))
+    }
+}
 
-		findPreference<ListPreference>(AppSettings.KEY_VIDEO_SUPER_RES_PERFORMANCE_SHADER)?.run {
-			entryValues = VideoSuperResolutionShader.entries.names()
-			setDefaultValueCompat(VideoSuperResolutionShader.MODE_C.name)
-		}
-
-		findPreference<Preference>("video_super_resolution_advanced_settings_button")?.setOnPreferenceClickListener {
-			org.skepsun.kototoro.video.ui.VideoSuperResolutionAdvancedSheet().show(
-				parentFragmentManager,
-				"VideoSuperResolutionAdvancedSheet",
-			)
-			true
-		}
-	}
+@Composable
+fun AIVideoEnhancementSettingsRoute(
+    settings: AppSettings,
+    onAdvancedSettingsClick: () -> Unit,
+) {
+    AIVideoEnhancementSettingsScreen(
+        settings = settings,
+        onAdvancedSettingsClick = onAdvancedSettingsClick,
+    )
 }

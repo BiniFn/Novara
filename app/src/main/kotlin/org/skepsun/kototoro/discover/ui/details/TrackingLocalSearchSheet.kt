@@ -1,0 +1,268 @@
+package org.skepsun.kototoro.discover.ui.details
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import kotlinx.coroutines.launch
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.ContentSourceInfo
+import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
+import org.skepsun.kototoro.parsers.model.Content
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TrackingLocalSearchSheet(
+    availableSources: List<ContentSourceInfo>,
+    selectedSourceName: String?,
+    results: Map<String, LocalSearchState>,
+    initialQuery: String,
+    onSourceSelected: (String) -> Unit,
+    onSearch: (String) -> Unit,
+    onCandidateClick: (Content) -> Unit,
+    onDismissRequest: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val coroutineScope = rememberCoroutineScope()
+    var currentQuery by remember(initialQuery) { mutableStateOf(initialQuery) }
+
+    val closeSheet = {
+        coroutineScope.launch {
+            sheetState.hide()
+        }.invokeOnCompletion {
+            if (!sheetState.isVisible) {
+                onDismissRequest()
+            }
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = sheetState,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            // Search Bar
+            OutlinedTextField(
+                value = currentQuery,
+                onValueChange = { currentQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                placeholder = { Text(stringResource(R.string.search)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (currentQuery.isNotEmpty()) {
+                        IconButton(onClick = { currentQuery = "" }) {
+                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear))
+                        }
+                    }
+                },
+                singleLine = true,
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                    onSearch = { onSearch(currentQuery) }
+                ),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    imeAction = androidx.compose.ui.text.input.ImeAction.Search
+                ),
+            )
+
+            if (availableSources.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(164.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.nothing_found),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                return@ModalBottomSheet
+            }
+
+            val selectedIndex = availableSources.indexOfFirst { it.mangaSource.name == selectedSourceName }
+                .coerceAtLeast(0)
+
+            LaunchedEffect(selectedSourceName, availableSources) {
+                if (selectedSourceName == null && availableSources.isNotEmpty()) {
+                    onSourceSelected(availableSources.first().mangaSource.name)
+                }
+            }
+
+            ScrollableTabRow(
+                selectedTabIndex = selectedIndex,
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.0f),
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                edgePadding = 16.dp,
+                indicator = { positions ->
+                    if (selectedIndex < positions.size) {
+                        TabRowDefaults.SecondaryIndicator(
+                            Modifier.tabIndicatorOffset(positions[selectedIndex]),
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                },
+                divider = {},
+            ) {
+                availableSources.forEachIndexed { index, info ->
+                    val sourceTitle = rememberResolvedSourceTitle(info.mangaSource)
+                    Tab(
+                        selected = index == selectedIndex,
+                        onClick = { onSourceSelected(info.mangaSource.name) },
+                        text = {
+                            Text(
+                                text = sourceTitle,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        },
+                    )
+                }
+            }
+
+            val currentName = availableSources.getOrNull(selectedIndex)?.mangaSource?.name
+            val state = currentName?.let { results[it] }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                when (state) {
+                    null -> Text(
+                        text = stringResource(R.string.search),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    LocalSearchState.Loading -> CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                    is LocalSearchState.Loaded -> {
+                        if (state.items.isEmpty()) {
+                            Text(
+                                text = stringResource(R.string.nothing_found),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                items(state.items, key = { it.id }) { c ->
+                                    TrackingCandidateCard(
+                                        content = c,
+                                        onClick = {
+                                            onCandidateClick(c)
+                                            closeSheet()
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    is LocalSearchState.Error -> {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                text = state.throwable.localizedMessage ?: stringResource(R.string.error_occurred),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            TextButton(onClick = { onSearch(currentQuery) }) {
+                                Text(stringResource(R.string.retry))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrackingCandidateCard(
+    content: Content,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .width(108.dp)
+            .clickable(onClick = onClick),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        AsyncImage(
+            model = content.coverUrl,
+            contentDescription = content.title,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(152.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentScale = ContentScale.Crop,
+        )
+        Text(
+            text = content.title,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 2.dp),
+        )
+    }
+}

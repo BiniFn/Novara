@@ -380,7 +380,7 @@ class SuggestionsWorker @AssistedInject constructor(
 				PendingIntentCompat.getActivity(
 					applicationContext,
 					0,
-					AppRouter.suggestionsIntent(applicationContext),
+					AppRouter.homeIntent(applicationContext),
 					0,
 					false,
 				),

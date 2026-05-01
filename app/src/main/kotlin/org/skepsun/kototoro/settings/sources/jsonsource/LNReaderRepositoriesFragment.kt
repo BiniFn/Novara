@@ -25,12 +25,15 @@ import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.databinding.FragmentInstalledExtensionsBinding
+import org.skepsun.kototoro.settings.sources.unified.UnifiedSourceKind
+import org.skepsun.kototoro.settings.sources.unified.redirectToUnifiedSources
 
 @AndroidEntryPoint
 class LNReaderRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBinding>() {
 
 	private val viewModel by viewModels<LNReaderRepositoriesViewModel>()
 	private var adapter: LNReaderRepositoriesAdapter? = null
+	private var redirected = false
 
 	override fun onCreateViewBinding(
 		inflater: LayoutInflater,
@@ -57,6 +60,11 @@ class LNReaderRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBin
 
 	override fun onResume() {
 		super.onResume()
+		if (!redirected) {
+			redirected = true
+			redirectToUnifiedSources(UnifiedSourceKind.LNREADER)
+			return
+		}
 		setSupportTitle("LNReader Repositories")
 	}
 

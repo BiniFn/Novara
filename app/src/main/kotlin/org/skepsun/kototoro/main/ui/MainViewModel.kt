@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.skepsun.kototoro.core.exceptions.EmptyHistoryException
 import org.skepsun.kototoro.core.github.AppUpdateRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -35,6 +37,31 @@ class MainViewModel @Inject constructor(
 
 	val onOpenReader = MutableEventFlow<Content>()
 	val onFirstStart = MutableEventFlow<Unit>()
+
+	private val _topBarHeightPx = MutableStateFlow(0)
+	val topBarHeightPx = _topBarHeightPx.asStateFlow()
+
+	private val _bottomNavHeightPx = MutableStateFlow(0)
+	val bottomNavHeightPx = _bottomNavHeightPx.asStateFlow()
+
+	private val _topContentInsetPx = MutableStateFlow(0)
+	val topContentInsetPx = _topContentInsetPx.asStateFlow()
+
+	private val _bottomContentInsetPx = MutableStateFlow(0)
+	val bottomContentInsetPx = _bottomContentInsetPx.asStateFlow()
+
+	fun setTopBarHeightPx(height: Int) {
+		_topBarHeightPx.value = height
+	}
+
+	fun setBottomNavHeightPx(height: Int) {
+		_bottomNavHeightPx.value = height
+	}
+
+	fun setContentInsetsPx(top: Int, bottom: Int) {
+		_topContentInsetPx.value = top
+		_bottomContentInsetPx.value = bottom
+	}
 
 	val isResumeEnabled = readingResumeEnabledUseCase()
 		.withErrorHandling()

@@ -32,7 +32,9 @@ import org.skepsun.kototoro.local.data.LocalStorageChanges
 import org.skepsun.kototoro.local.data.LocalStorageManager
 import org.skepsun.kototoro.local.domain.DeleteLocalContentUseCase
 import org.skepsun.kototoro.local.domain.model.LocalContent
+import org.skepsun.kototoro.core.model.LocalMangaSource
 import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.remotelist.ui.RemoteListViewModel
 import javax.inject.Inject
 
@@ -152,6 +154,10 @@ class LocalListViewModel @Inject constructor(
 			textSecondary = R.string.text_local_holder_secondary,
 			actionStringRes = R.string._import,
 		)
+	}
+
+	override fun resolveInitialSource(savedStateHandle: SavedStateHandle): ContentSource {
+		return LocalMangaSource
 	}
 
 	private suspend fun createFilterHeader(maxCount: Int): QuickFilter? {

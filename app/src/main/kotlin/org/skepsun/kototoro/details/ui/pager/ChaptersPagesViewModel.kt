@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.plus
 import okio.FileNotFoundException
 import org.skepsun.kototoro.bookmarks.domain.BookmarksRepository
+import org.skepsun.kototoro.core.model.getPreferredBranch
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.model.toChipModel
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -199,6 +200,18 @@ abstract class ChaptersPagesViewModel(
 			localStorageChanges
 				.collect { onDownloadComplete(it) }
 		}
+		launchJob(Dispatchers.Default) {
+			mangaDetails.collect { details ->
+				val content = details?.toContent() ?: return@collect
+				if (content.chapters.isNullOrEmpty()) {
+					return@collect
+				}
+				val currentBranch = selectedBranch.value
+				if (currentBranch == null || details.chapters[currentBranch].isNullOrEmpty()) {
+					selectedBranch.value = content.getPreferredBranch(null)
+				}
+			}
+		}
 	}
 
 	fun setChaptersReversed(newValue: Boolean) {
@@ -242,6 +255,26 @@ abstract class ChaptersPagesViewModel(
 
 	fun download(chapterId: Long, isMeteredNetworkAllowed: Boolean, preferredQuality: String? = null) {
 		download(setOf(chapterId), isMeteredNetworkAllowed, preferredQuality)
+	}
+
+	fun addBookmarksForChapters(chapterIds: Set<Long>) {
+		launchJob(Dispatchers.Default) {
+			val manga = mangaDetails.value?.toContent() ?: return@launchJob
+			val chapterItems = chapters.value.filter { it.chapter.id in chapterIds }
+			for (item in chapterItems) {
+				val bookmark = org.skepsun.kototoro.bookmarks.domain.Bookmark(
+					manga = manga,
+					pageId = item.chapter.id,
+					chapterId = item.chapter.id,
+					page = 0,
+					scroll = 0,
+					imageUrl = manga.coverUrl.orEmpty(),
+					createdAt = java.time.Instant.now(),
+					percent = 0f,
+				)
+				bookmarksRepository.addBookmark(bookmark)
+			}
+		}
 	}
 
 	fun probeAndDownload(snapshot: Set<Long>) {

@@ -6,10 +6,15 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.DialogInterface
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.View
+import android.util.Log
 import androidx.annotation.CheckResult
 import androidx.annotation.UiContext
 import androidx.core.app.ShareCompat
@@ -24,10 +29,9 @@ import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.EntryPointAccessors
 import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.alternatives.ui.AlternativesActivity
+import org.skepsun.kototoro.alternatives.ui.AlternativesSheet
 import org.skepsun.kototoro.backups.ui.backup.BackupDialogFragment
 import org.skepsun.kototoro.backups.ui.restore.RestoreDialogFragment
-import org.skepsun.kototoro.bookmarks.ui.AllBookmarksActivity
 import org.skepsun.kototoro.browser.BrowserActivity
 import org.skepsun.kototoro.browser.cloudflare.CloudFlareActivity
 import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
@@ -41,8 +45,9 @@ import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.isBroken
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
-import org.skepsun.kototoro.core.model.parcelable.ParcelableContentListFilter
 import org.skepsun.kototoro.core.model.parcelable.ParcelableContentPage
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContentListFilter
+import org.skepsun.kototoro.details.ui.model.DetailsOrigin
 import org.skepsun.kototoro.core.network.CommonHeaders
 import org.skepsun.kototoro.core.parser.external.ExternalContentSource
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -64,11 +69,9 @@ import org.skepsun.kototoro.details.ui.DetailsActivity
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet
 import org.skepsun.kototoro.details.ui.related.RelatedContentActivity
 import org.skepsun.kototoro.details.ui.scrobbling.ScrobblingInfoSheet
-import org.skepsun.kototoro.discover.ui.details.TrackingSiteDetailsActivity
 import org.skepsun.kototoro.download.ui.dialog.DownloadDialogFragment
 import org.skepsun.kototoro.download.ui.list.DownloadsActivity
 import org.skepsun.kototoro.favourites.ui.FavouritesActivity
-import org.skepsun.kototoro.favourites.ui.FavouritesContainerActivity
 import org.skepsun.kototoro.favourites.ui.categories.FavouriteCategoriesActivity
 import org.skepsun.kototoro.favourites.ui.categories.edit.FavouritesCategoryEditActivity
 import org.skepsun.kototoro.favourites.ui.categories.select.FavoriteDialog
@@ -76,6 +79,7 @@ import org.skepsun.kototoro.filter.ui.FilterCoordinator
 import org.skepsun.kototoro.filter.ui.sheet.FilterSheetFragment
 import org.skepsun.kototoro.filter.ui.tags.TagsCatalogSheet
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.explore.ui.preset.SourcePresetListActivity
 import org.skepsun.kototoro.history.ui.HistoryActivity
 import org.skepsun.kototoro.image.ui.ImageActivity
 import org.skepsun.kototoro.list.ui.config.ListConfigBottomSheet
@@ -114,13 +118,13 @@ import org.skepsun.kototoro.settings.override.OverrideConfigActivity
 import org.skepsun.kototoro.settings.reader.ReaderTapGridConfigActivity
 import org.skepsun.kototoro.settings.sources.auth.SourceAuthActivity
 import org.skepsun.kototoro.settings.sources.catalog.SourcesCatalogActivity
+import org.skepsun.kototoro.settings.sources.unified.UnifiedSourcesActivity
 import org.skepsun.kototoro.settings.storage.ContentDirectorySelectDialog
 import org.skepsun.kototoro.settings.storage.directories.ContentDirectoriesActivity
 import org.skepsun.kototoro.settings.tracker.categories.TrackerCategoriesConfigSheet
 import org.skepsun.kototoro.stats.ui.StatsActivity
 import org.skepsun.kototoro.stats.ui.sheet.ContentStatsSheet
-import org.skepsun.kototoro.suggestions.ui.SuggestionsActivity
-import org.skepsun.kototoro.tracker.ui.updates.UpdatesActivity
+
 import java.io.File
 import androidx.appcompat.R as appcompatR
 
@@ -161,6 +165,8 @@ class AppRouter private constructor(
         advancedTitle: String? = null,
         advancedTags: String? = null,
         advancedAuthor: String? = null,
+        pinnedOnly: Boolean = false,
+        hideEmpty: Boolean = false,
     ) {
         val intent = Intent(contextOrNull() ?: return, SearchActivity::class.java)
             .putExtra(KEY_QUERY, query)
@@ -168,6 +174,8 @@ class AppRouter private constructor(
             .putExtra(KEY_ADVANCED_TITLE, advancedTitle)
             .putExtra(KEY_ADVANCED_TAGS, advancedTags)
             .putExtra(KEY_ADVANCED_AUTHOR, advancedAuthor)
+            .putExtra(KEY_PINNED_ONLY, pinnedOnly)
+            .putExtra(KEY_HIDE_EMPTY, hideEmpty)
         if (!sourceTypes.isNullOrEmpty()) {
             intent.putExtra(KEY_SOURCE_TYPES, org.skepsun.kototoro.search.domain.sourceTypesToNames(sourceTypes))
         }
@@ -179,15 +187,18 @@ class AppRouter private constructor(
 
     fun openSearch(source: ContentSource, query: String) = openList(source, ContentListFilter(query = query), null)
 
+    fun openSourcePresets() {
+        startActivity(SourcePresetListActivity::class.java)
+    }
+
     fun openDetails(manga: Content, anchor: View? = null) {
-        startActivity(
-            detailsIntent(contextOrNull() ?: return, manga),
-            if (settings.isSharedElementTransitionsEnabled) anchor?.let { sceneTransitionOptionsOf(it) } else null
-        )
+        val context = contextOrNull() ?: return
+        val intent = detailsIntent(context, DetailsOrigin.LocalMangaContent(ParcelableContent(manga)))
+        startActivity(intent, null)
     }
 
     fun openDetails(mangaId: Long) {
-        startActivity(detailsIntent(contextOrNull() ?: return, mangaId))
+        startActivity(detailsIntent(contextOrNull() ?: return, DetailsOrigin.LocalMangaId(mangaId)))
     }
 
     fun openDetails(link: Uri) {
@@ -197,14 +208,24 @@ class AppRouter private constructor(
         )
     }
 
-    fun openTrackingSiteDetails(service: ScrobblerService, remoteId: Long, url: String? = null) {
-        startActivity(
-            Intent(contextOrNull() ?: return, TrackingSiteDetailsActivity::class.java)
-                .putExtra(KEY_ID, service.id)
-                .putExtra(KEY_REMOTE_ID, remoteId)
-                .putExtra(KEY_URL, url),
-        )
+    fun openEntityDetails(entityId: Long) {
+        startActivity(detailsIntent(contextOrNull() ?: return, DetailsOrigin.EntityGraph(entityId)))
     }
+
+    fun openTrackingSiteDetails(service: ScrobblerService, remoteId: Long, url: String? = null) {
+        startActivity(detailsIntent(contextOrNull() ?: return, DetailsOrigin.TrackingItem(service.id.toString(), remoteId, url)))
+    }
+
+    fun openTrackingSiteRawDetails(service: ScrobblerService, remoteId: Long, url: String? = null) {
+        startActivity(detailsIntent(contextOrNull() ?: return, DetailsOrigin.TrackingItem(service.id.toString(), remoteId, url)))
+    }
+
+	fun openTrackingDiscover(service: ScrobblerService) {
+		startActivity(
+			Intent(contextOrNull() ?: return, org.skepsun.kototoro.discover.ui.TrackingDiscoverActivity::class.java)
+				.putExtra(KEY_ID, service.name),
+		)
+	}
 
 	fun openTrackingDiscoveryCategory(service: ScrobblerService, categoryId: String, titleResId: Int) {
 		startActivity(
@@ -212,7 +233,7 @@ class AppRouter private constructor(
 				.putExtra(KEY_ID, service.name)
 				.putExtra(KEY_KIND, categoryId)
 				.putExtra(KEY_TITLE, titleResId)
-				.putExtra(org.skepsun.kototoro.remotelist.ui.RemoteListFragment.ARG_SOURCE, (if (service.name == "BANGUMI") "TRACKING_BANGUMI_" else "TRACKING_SHIKIMORI_") + categoryId)
+				.putExtra(KEY_SOURCE, (if (service.name == "BANGUMI") "TRACKING_BANGUMI_" else "TRACKING_SHIKIMORI_") + categoryId)
 		)
 	}
 
@@ -234,7 +255,7 @@ class AppRouter private constructor(
                 lastSegment.endsWith(".mp4", ignoreCase = true)
 
             if (isDirectStream) {
-                // 直链视频：若已加载章节，则附带首章 ReaderState 以便统计/保存进度
+                // 鐩撮摼瑙嗛锛氳嫢宸插姞杞界珷鑺傦紝鍒欓檮甯﹂?ReaderState 浠ヤ究缁熻/淇濆瓨杩涘害
                 val state = runCatching {
                     val chapters = manga.chapters
                     if (!chapters.isNullOrEmpty()) {
@@ -248,10 +269,10 @@ class AppRouter private constructor(
                     state = state,
                 )
             } else {
-                // 非直链：需要加载章节才能解析URL
-                // 如果章节未加载，先加载章节
+                // 闈炵洿閾撅細闇€瑕佸姞杞界珷鑺傛墠鑳借В鏋怳RL
+                // 濡傛灉绔犺妭鏈姞杞斤紝鍏堝姞杞界珷?
                 if (manga.chapters.isNullOrEmpty()) {
-                    // 异步加载章节后再打开播放器
+                    // 寮傛鍔犺浇绔犺妭鍚庡啀鎵撳紑鎾斁?
                     val lifecycleOwner = (activity as? LifecycleOwner) ?: (fragment as? LifecycleOwner)
                     lifecycleOwner?.lifecycleScope?.launch {
                         try {
@@ -272,7 +293,7 @@ class AppRouter private constructor(
                             )
                         } catch (e: Exception) {
                             android.util.Log.e("AppRouter", "Failed to load chapters for video", e)
-                            // 兜底：仍然尝试打开，让VideoPlayerActivity处理错误
+                            // 鍏滃簳锛氫粛鐒跺皾璇曟墦寮€锛岃VideoPlayerActivity澶勭悊閿欒
                             openVideo(
                                 url = url,
                                 manga = manga,
@@ -282,7 +303,7 @@ class AppRouter private constructor(
                         }
                     }
                 } else {
-                    // 章节已加载，直接打开
+                    // 绔犺妭宸插姞杞斤紝鐩存帴鎵撳?
                     openVideo(
                         url = url,
                         manga = manga,
@@ -313,7 +334,7 @@ class AppRouter private constructor(
 			val parcelable = activityIntent.getParcelableExtraCompat<ParcelableContent>(KEY_MANGA)
 			val manga = parcelable?.manga
 			if (manga != null) {
-                // 对视频内容和EPUB内容：传入 ReaderState，优先使用历史记录中的状态
+                // 瀵硅棰戝唴瀹瑰拰EPUB鍐呭锛氫紶?ReaderState锛屼紭鍏堜娇鐢ㄥ巻鍙茶褰曚腑鐨勭姸?
                 val source = manga.source.unwrap()
                 val history = activityIntent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
                 
@@ -321,15 +342,15 @@ class AppRouter private constructor(
                 
                 if (contentType == ContentType.NOVEL || contentType == ContentType.HENTAI_NOVEL) {
                     val state = if (history != null) {
-                        // 使用历史记录中的状态（包含正确的章节ID）
+                        // 浣跨敤鍘嗗彶璁板綍涓殑鐘舵€侊紙鍖呭惈姝ｇ‘鐨勭珷鑺侷D?
                         history
                     } else {
-                        // 否则使用Intent中携带的状态
+                        // 鍚﹀垯浣跨敤Intent涓惡甯︾殑鐘舵?
                         activityIntent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
                     }
                     val novelIntent = Intent(contextOrNull() ?: return, NovelReaderActivity::class.java)
                         .putExtra(KEY_MANGA, ParcelableContent(manga))
-                    // 传递ReaderState
+                    // 浼犻€扲eaderState
                     if (state != null) {
                         novelIntent.putExtra(ReaderIntent.EXTRA_STATE, state)
                     }
@@ -352,10 +373,10 @@ class AppRouter private constructor(
                             state = state,
                         )
                     } else {
-                        // 非直链：需要加载章节才能解析URL
-                        // 如果章节未加载，先加载章节
+                        // 闈炵洿閾撅細闇€瑕佸姞杞界珷鑺傛墠鑳借В鏋怳RL
+                        // 濡傛灉绔犺妭鏈姞杞斤紝鍏堝姞杞界珷?
                         if (manga.chapters.isNullOrEmpty()) {
-                            // 异步加载章节后再打开播放器
+                            // 寮傛鍔犺浇绔犺妭鍚庡啀鎵撳紑鎾斁?
                             val lifecycleOwner = (activity as? LifecycleOwner) ?: (fragment as? LifecycleOwner)
                             lifecycleOwner?.lifecycleScope?.launch {
                                 try {
@@ -371,7 +392,7 @@ class AppRouter private constructor(
                                     )
                                 } catch (e: Exception) {
                                     android.util.Log.e("AppRouter", "Failed to load chapters for video", e)
-                                    // 兜底：仍然尝试打开，让VideoPlayerActivity处理错误
+                                    // 鍏滃簳锛氫粛鐒跺皾璇曟墦寮€锛岃VideoPlayerActivity澶勭悊閿欒
                                     openVideo(
                                         url = url,
                                         manga = manga,
@@ -381,7 +402,7 @@ class AppRouter private constructor(
                                 }
                             }
                         } else {
-                            // 章节已加载，直接打开
+                            // 绔犺妭宸插姞杞斤紝鐩存帴鎵撳?
                             openVideo(
                                 url = url,
                                 manga = manga,
@@ -401,10 +422,9 @@ class AppRouter private constructor(
     }
 
     fun openAlternatives(manga: Content) {
-        startActivity(
-            Intent(contextOrNull() ?: return, AlternativesActivity::class.java)
-                .putExtra(KEY_MANGA, ParcelableContent(manga)),
-        )
+        AlternativesSheet().withArgs(1) {
+            putParcelable(KEY_MANGA, ParcelableContent(manga))
+        }.showDistinct()
     }
 
     fun openRelated(manga: Content) {
@@ -483,13 +503,9 @@ class AppRouter private constructor(
         )
     }
 
-    fun openBookmarks() = startActivity(AllBookmarksActivity::class.java)
-
     fun openAppUpdate() = startActivity(AppUpdateActivity::class.java)
 
-    fun openSuggestions(groupTab: BrowseGroupTab? = null) {
-        startActivity(suggestionsIntent(contextOrNull() ?: return, groupTab))
-    }
+
 
     fun openSourcesCatalog() = startActivity(SourcesCatalogActivity::class.java)
 
@@ -521,7 +537,6 @@ class AppRouter private constructor(
 
     fun openFavorites() = startActivity(FavouritesActivity::class.java)
 
-    fun openFavoritesContainer() = startActivity(FavouritesContainerActivity::class.java)
 
     fun openFavorites(category: FavouriteCategory) {
         startActivity(
@@ -542,9 +557,6 @@ class AppRouter private constructor(
 
     fun openFavoriteCategoryCreate() = openFavoriteCategoryEdit(FavouritesCategoryEditActivity.NO_ID)
 
-    fun openMangaUpdates(groupTab: BrowseGroupTab? = null) {
-        startActivity(mangaUpdatesIntent(contextOrNull() ?: return, groupTab))
-    }
 
     fun openContentOverrideConfig(manga: Content) {
         val intent = overrideEditIntent(contextOrNull() ?: return, manga)
@@ -952,7 +964,7 @@ class AppRouter private constructor(
         exception.printStackTraceDebug()
     }.getOrNull()
 
-    private fun shareLink(link: String, title: String) {
+    fun shareLink(link: String, title: String) {
         val context = contextOrNull() ?: return
         ShareCompat.IntentBuilder(context)
             .setText(link)
@@ -1014,13 +1026,10 @@ class AppRouter private constructor(
             (view.context.findActivity() as? FragmentActivity)?.let(::AppRouter)
         }
 
-        fun detailsIntent(context: Context, manga: Content) = Intent(context, DetailsActivity::class.java)
-            .putExtra(KEY_MANGA, ParcelableContent(manga))
-            .setData(shortContentUrl(manga.id))
+        fun detailsIntent(context: Context, origin: DetailsOrigin) = Intent(context, DetailsActivity::class.java)
+            .putExtra(KEY_DETAILS_ORIGIN, origin)
 
-        fun detailsIntent(context: Context, mangaId: Long) = Intent(context, DetailsActivity::class.java)
-            .putExtra(KEY_ID, mangaId)
-            .setData(shortContentUrl(mangaId))
+        fun detailsIntent(context: Context, content: org.skepsun.kototoro.parsers.model.Content) = detailsIntent(context, org.skepsun.kototoro.details.ui.model.DetailsOrigin.LocalMangaContent(org.skepsun.kototoro.core.model.parcelable.ParcelableContent(content)))
 
         fun listIntent(context: Context, source: ContentSource, filter: ContentListFilter?, sortOrder: SortOrder?): Intent =
             Intent(context, ContentListActivity::class.java)
@@ -1054,24 +1063,11 @@ class AppRouter private constructor(
             .putExtra(KEY_TITLE, title)
             .putExtra(KEY_SOURCE, source?.name)
 
-        fun suggestionsIntent(context: Context, groupTab: BrowseGroupTab? = null) =
-            Intent(context, SuggestionsActivity::class.java).apply {
-                if (groupTab != null) {
-                    putExtra(KEY_GROUP_TAB, groupTab.id)
-                }
-            }
 
         fun homeIntent(context: Context) = Intent(context, MainActivity::class.java)
 
         fun historyIntent(context: Context, groupTab: BrowseGroupTab? = null) =
             Intent(context, HistoryActivity::class.java).apply {
-                if (groupTab != null) {
-                    putExtra(KEY_GROUP_TAB, groupTab.id)
-                }
-            }
-
-        fun mangaUpdatesIntent(context: Context, groupTab: BrowseGroupTab? = null) =
-            Intent(context, UpdatesActivity::class.java).apply {
                 if (groupTab != null) {
                     putExtra(KEY_GROUP_TAB, groupTab.id)
                 }
@@ -1118,8 +1114,7 @@ class AppRouter private constructor(
                 .setAction(ACTION_SOURCES)
 
         fun manageSourcesIntent(context: Context) =
-            Intent(context, SettingsActivity::class.java)
-                .setAction(ACTION_MANAGE_SOURCES)
+            UnifiedSourcesActivity.newIntent(context)
 
         fun downloadsSettingsIntent(context: Context) =
             Intent(context, SettingsActivity::class.java)
@@ -1166,6 +1161,8 @@ class AppRouter private constructor(
             advancedTitle: String? = null,
             advancedTags: String? = null,
             advancedAuthor: String? = null,
+            pinnedOnly: Boolean = false,
+            hideEmpty: Boolean = false,
         ): Intent {
             val intent = Intent(context, SearchActivity::class.java)
                 .putExtra(KEY_QUERY, query)
@@ -1174,6 +1171,8 @@ class AppRouter private constructor(
                 .putExtra(KEY_ADVANCED_TITLE, advancedTitle)
                 .putExtra(KEY_ADVANCED_TAGS, advancedTags)
                 .putExtra(KEY_ADVANCED_AUTHOR, advancedAuthor)
+                .putExtra(KEY_PINNED_ONLY, pinnedOnly)
+                .putExtra(KEY_HIDE_EMPTY, hideEmpty)
             if (!sourceTypes.isNullOrEmpty()) {
                 intent.putExtra(KEY_SOURCE_TYPES, org.skepsun.kototoro.search.domain.sourceTypesToNames(sourceTypes))
             }
@@ -1184,6 +1183,7 @@ class AppRouter private constructor(
         }
 
         const val KEY_DATA = "data"
+        const val KEY_ENTITY_ID = "entity_id"
         const val KEY_ENTRIES = "entries"
         const val KEY_ERROR = "error"
         const val KEY_EPUB_FILE_PATH = "epub_file_path"
@@ -1197,11 +1197,13 @@ class AppRouter private constructor(
         const val KEY_IS_BOTTOMTAB = "is_btab"
         const val KEY_KIND = "kind"
         const val KEY_LIST_SECTION = "list_section"
+        const val KEY_DETAILS_ORIGIN = "details_origin"
         const val KEY_MANGA = "manga"
         const val KEY_MANGA_LIST = "manga_list"
         const val KEY_PAGES = "pages"
         const val KEY_PREVIEW = "preview"
         const val KEY_PICK_MODE = "pick_mode"
+        const val KEY_PINNED_ONLY = "pinned_only"
         const val KEY_QUERY = "query"
         const val KEY_ADVANCED_TITLE = "advanced_title"
         const val KEY_ADVANCED_TAGS = "advanced_tags"
@@ -1212,6 +1214,7 @@ class AppRouter private constructor(
         const val KEY_SOURCE = "source"
         const val KEY_SOURCE_TYPES = "source_types"
         const val KEY_CONTENT_KINDS = "content_kinds"
+        const val KEY_HIDE_EMPTY = "hide_empty"
         const val KEY_GROUP_TAB = "group_tab"
         const val KEY_TAB = "tab"
         const val KEY_TITLE = "title"

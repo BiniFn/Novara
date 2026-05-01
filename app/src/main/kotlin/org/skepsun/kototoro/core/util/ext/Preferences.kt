@@ -61,7 +61,15 @@ fun SharedPreferences.Editor.putAll(values: Map<String, *>) {
 		when (val v = e.value) {
 			is Boolean -> putBoolean(e.key, v)
 			is Int -> putInt(e.key, v)
-			is Long -> putLong(e.key, v)
+			is Long -> {
+				// JSON deserialization often promotes Int to Long; store as Int when possible
+				// to avoid ClassCastException on getInt() reads
+				if (v in Int.MIN_VALUE..Int.MAX_VALUE) {
+					putInt(e.key, v.toInt())
+				} else {
+					putLong(e.key, v)
+				}
+			}
 			is Float -> putFloat(e.key, v)
 			is String -> putString(e.key, v)
 			is JSONArray -> putStringSet(e.key, v.toStringSet())

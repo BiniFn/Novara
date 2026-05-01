@@ -4,14 +4,23 @@ import android.content.ComponentCallbacks2
 import android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE
 import android.content.Context
 import android.content.res.Configuration
+import android.net.Uri
 import android.view.View
+import android.widget.ImageView
 import androidx.annotation.CallSuper
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.viewbinding.ViewBinding
+import android.graphics.drawable.Animatable
+import coil3.request.ImageRequest
+import coil3.request.allowHardware
+import coil3.request.target
+import coil3.size.Size
+import coil3.util.CoilUtils
 import com.davemorrissey.labs.subscaleview.DefaultOnImageEventListener
+import com.davemorrissey.labs.subscaleview.ImageSource
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -53,6 +62,7 @@ abstract class BasePageHolder<B : ViewBinding>(
 	)
 	protected val bindingInfo = LayoutPageInfoBinding.bind(binding.root)
 	protected abstract val ssiv: SubsamplingScaleImageView
+	protected abstract val animatedView: ImageView
 
 	protected val settings: ReaderSettings
 		get() = viewModel.settingsProducer.value
@@ -64,6 +74,7 @@ abstract class BasePageHolder<B : ViewBinding>(
 		private set
 	private var lastTranslationDisplaySignature: String? = null
 	private var lastTranslationContentSignature: String? = null
+	private var pendingAnimatedUri: Uri? = null
 
 	init {
 		lifecycleScope.launch(Dispatchers.Main) {
@@ -147,11 +158,23 @@ abstract class BasePageHolder<B : ViewBinding>(
 		if (viewModel.state.value is PageState.Error && !viewModel.isLoading()) {
 			boundData?.let { viewModel.retry(it.toContentPage(), isFromUser = false) }
 		}
+		val uri = pendingAnimatedUri ?: return
+		val current = animatedView.drawable
+		if (current == null) {
+			// Holder just became the current page — kick off the deferred animated decode now.
+			enqueueAnimated(uri)
+		} else {
+			(current as? Animatable)?.let { if (!it.isRunning) it.start() }
+		}
 	}
 
 	override fun onPause() {
 		super.onPause()
 		ssiv.applyDownSampling(isForeground = false)
+		// Adjacent (offscreen) holders are technically attached to the window, so the
+		// drawable's own setVisible(false) hook won't fire. Stop here to keep the frame
+		// timer from running on pages the user can't see.
+		(animatedView.drawable as? Animatable)?.stop()
 	}
 
 	override fun onDestroy() {
@@ -166,7 +189,12 @@ abstract class BasePageHolder<B : ViewBinding>(
 	@CallSuper
 	open fun onRecycled() {
 		viewModel.onRecycle()
+		ssiv.isVisible = true
 		ssiv.recycle()
+		pendingAnimatedUri = null
+		releaseAnimatedDrawable()
+		CoilUtils.dispose(animatedView)
+		animatedView.isVisible = false
 	}
 
 	override fun onTrimMemory(level: Int) {
@@ -214,6 +242,16 @@ abstract class BasePageHolder<B : ViewBinding>(
 			}
 
 			is PageState.Loaded -> {
+				// Reset view visibility in case this holder just showed an animated page
+				// (without this the animatedView can linger with stale content when the
+				// holder is reused across pages of different formats).
+				if (animatedView.isVisible) {
+					pendingAnimatedUri = null
+					releaseAnimatedDrawable()
+					CoilUtils.dispose(animatedView)
+					animatedView.isVisible = false
+				}
+				ssiv.isVisible = true
 				bindingInfo.textViewStatus.setText(R.string.preparing_)
 				ssiv.setImage(state.source)
 			}
@@ -224,8 +262,60 @@ abstract class BasePageHolder<B : ViewBinding>(
 				}
 			}
 
-			is PageState.Shown -> Unit
+			is PageState.Shown -> {
+				if (state.isAnimated) {
+					prepareAnimated((state.source as? ImageSource.Uri)?.uri ?: return)
+				}
+			}
 		}
+	}
+
+	private fun releaseAnimatedDrawable() {
+		(animatedView.drawable as? org.skepsun.kototoro.core.image.AvifAnimatedDrawable)?.release()
+	}
+
+	private fun prepareAnimated(uri: Uri) {
+		// Always swap the views so the layout is consistent — but defer the heavy
+		// libavif full-sequence decode until this holder is actually the current page.
+		// Adjacent holders (offscreen page limit > 0) get bound and would otherwise
+		// decode every frame of an AVIS in the background, which is the main source
+		// of stutter while the user is sitting on a different page.
+		pendingAnimatedUri = uri
+		ssiv.recycle()
+		ssiv.isVisible = false
+		animatedView.isVisible = true
+		if (isResumed()) {
+			enqueueAnimated(uri)
+		} else {
+			// Drop any stale drawable from a previous binding so we don't show wrong frames
+			// briefly when the user lands on this page.
+			releaseAnimatedDrawable()
+			CoilUtils.dispose(animatedView)
+			animatedView.setImageDrawable(null)
+		}
+	}
+
+	private fun enqueueAnimated(uri: Uri) {
+		releaseAnimatedDrawable()
+		CoilUtils.dispose(animatedView)
+		viewModel.imageLoader.enqueue(
+			ImageRequest.Builder(context)
+				.data(uri)
+				.target(animatedView)
+				// Size.ORIGINAL preserves intrinsic dimensions; any scaling is delegated to the ImageView's fitCenter.
+				.size(Size.ORIGINAL)
+				// AnimatedImageDrawable cannot be backed by an immutable hardware bitmap;
+				// without this the first frame is decoded as a hardware bitmap and playback never starts.
+				.allowHardware(false)
+				.listener(
+					onSuccess = { _, _ ->
+						(animatedView.drawable as? Animatable)?.let { anim ->
+							if (!anim.isRunning) anim.start()
+						}
+					},
+				)
+				.build(),
+		)
 	}
 
 	protected fun SubsamplingScaleImageView.applyDownSampling(isForeground: Boolean) {

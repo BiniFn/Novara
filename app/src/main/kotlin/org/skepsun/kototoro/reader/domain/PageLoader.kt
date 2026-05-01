@@ -94,7 +94,7 @@ class PageLoader @Inject constructor(
 	lifecycle: ActivityRetainedLifecycle,
 	@ContentHttpClient private val okHttp: OkHttpClient,
 	@PageCache private val cache: LocalStorageCache,
-	private val coil: ImageLoader,
+	val imageLoader: ImageLoader,
 	private val settings: AppSettings,
 	private val mangaRepositoryFactory: ContentRepository.Factory,
 	private val imageProxyInterceptor: ImageProxyInterceptor,
@@ -161,14 +161,14 @@ class PageLoader @Inject constructor(
 			.mangaSourceExtra(page.source)
 			.transformations(TrimTransformation())
 			.build()
-		return coil.execute(request).image?.toImageSource()
+		return imageLoader.execute(request).image?.toImageSource()
 	}
 
 	fun peekPreviewSource(preview: String?): ImageSource? {
 		if (preview.isNullOrEmpty()) {
 			return null
 		}
-		coil.memoryCache?.let { cache ->
+		imageLoader.memoryCache?.let { cache ->
 			val key = MemoryCache.Key(preview)
 			cache[key]?.image?.let {
 				return if (it is BitmapImage) {
@@ -178,7 +178,7 @@ class PageLoader @Inject constructor(
 				}
 			}
 		}
-		coil.diskCache?.let { cache ->
+		imageLoader.diskCache?.let { cache ->
 			cache.openSnapshot(preview)?.use { snapshot ->
 				return ImageSource.file(snapshot.data.toFile())
 			}

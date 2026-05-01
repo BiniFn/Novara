@@ -13,6 +13,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
+import org.skepsun.kototoro.core.jsonsource.JsonSourceImportMetadata
 import org.skepsun.kototoro.core.jsonsource.JsonSourceManager
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
 import javax.inject.Inject
@@ -106,7 +107,10 @@ class JsonSourceEditViewModel @Inject constructor(
 						enabled = data.enabled
 					)
 					
-					val updatedConfig = json.encodeToString(updatedSource)
+					val updatedConfig = JsonSourceImportMetadata.copyMetadata(
+						fromConfig = entity.config,
+						toConfig = json.encodeToString(updatedSource),
+					)
 					val updatedEntity = entity.copy(
 						name = data.name,
 						config = updatedConfig,

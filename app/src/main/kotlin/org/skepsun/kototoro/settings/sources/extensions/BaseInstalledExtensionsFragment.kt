@@ -19,8 +19,9 @@ import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.databinding.FragmentInstalledExtensionsBinding
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
-import org.skepsun.kototoro.settings.SettingsActivity
 import org.skepsun.kototoro.core.nav.router
+import org.skepsun.kototoro.settings.sources.unified.redirectToUnifiedSources
+import org.skepsun.kototoro.settings.sources.unified.toUnifiedSourceKind
 
 abstract class BaseInstalledExtensionsFragment<VM> : BaseFragment<FragmentInstalledExtensionsBinding>()
 	where VM : ViewModel, VM : InstalledExtensionsScreenModel {
@@ -131,24 +132,16 @@ abstract class BaseInstalledExtensionsFragment<VM> : BaseFragment<FragmentInstal
 
 		override fun onMenuItemSelected(menuItem: MenuItem): Boolean = when (menuItem.itemId) {
 			org.skepsun.kototoro.R.id.action_available_extensions -> {
-				openFragment(AvailableExtensionsFragment::class.java)
+				redirectToUnifiedSources(extensionType.toUnifiedSourceKind())
 				true
 			}
 
 			org.skepsun.kototoro.R.id.action_manage_repositories -> {
-				openFragment(ExtensionRepositoriesFragment::class.java)
+				redirectToUnifiedSources(extensionType.toUnifiedSourceKind())
 				true
 			}
 
 			else -> false
 		}
-	}
-
-	private fun openFragment(fragmentClass: Class<out androidx.fragment.app.Fragment>) {
-		(activity as? SettingsActivity)?.openFragment(
-			fragmentClass = fragmentClass,
-			args = Bundle(1).apply { putString(ARG_EXTENSION_TYPE, extensionType.name) },
-			isFromRoot = false,
-		)
 	}
 }

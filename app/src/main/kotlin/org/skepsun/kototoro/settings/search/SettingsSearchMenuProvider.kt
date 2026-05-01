@@ -11,12 +11,7 @@ class SettingsSearchMenuProvider(
 	private val viewModel: SettingsSearchViewModel,
 ) : MenuProvider, MenuItem.OnActionExpandListener, SearchView.OnQueryTextListener {
 
-    init {
-        android.util.Log.d("KototoroDebug", "SettingsSearchMenuProvider created! Trace: ", Exception())
-    }
-
 	override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
-        android.util.Log.d("KototoroDebug", "SettingsSearchMenuProvider onCreateMenu called")
 		menuInflater.inflate(R.menu.opt_search, menu)
 		val menuItem = menu.findItem(R.id.action_search)
 		menuItem.setOnActionExpandListener(this)

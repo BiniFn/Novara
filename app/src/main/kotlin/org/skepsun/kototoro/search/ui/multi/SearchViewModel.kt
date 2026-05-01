@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.search.ui.multi
 
+import android.net.Uri
 import androidx.collection.ArraySet
 import androidx.collection.LongSet
 import androidx.lifecycle.SavedStateHandle
@@ -21,8 +22,11 @@ import kotlinx.coroutines.plus
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.jsonsource.SourceType
+import org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier
 import org.skepsun.kototoro.core.model.LocalMangaSource
 import org.skepsun.kototoro.core.model.UnknownContentSource
+import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
@@ -31,12 +35,9 @@ import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.append
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.toLocale
-import org.skepsun.kototoro.core.jsonsource.SourceType
-import org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier
-import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
-import org.skepsun.kototoro.favourites.domain.GlobalFavoritesState
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
+import org.skepsun.kototoro.favourites.domain.GlobalFavoritesState
 import org.skepsun.kototoro.history.data.HistoryRepository
 import org.skepsun.kototoro.list.domain.ContentListMapper
 import org.skepsun.kototoro.list.ui.model.ButtonFooter
@@ -46,18 +47,18 @@ import org.skepsun.kototoro.list.ui.model.LoadingFooter
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.util.levenshteinDistance
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
-import org.skepsun.kototoro.search.domain.ALL_SOURCE_TYPES
 import org.skepsun.kototoro.search.domain.ALL_SEARCH_CONTENT_KINDS
-import org.skepsun.kototoro.search.domain.SearchKind
+import org.skepsun.kototoro.search.domain.ALL_SOURCE_TYPES
 import org.skepsun.kototoro.search.domain.AdvancedSearchParams
 import org.skepsun.kototoro.search.domain.SearchContentKind
+import org.skepsun.kototoro.search.domain.SearchKind
 import org.skepsun.kototoro.search.domain.SearchV2Helper
 import org.skepsun.kototoro.search.domain.matches
 import org.skepsun.kototoro.search.domain.searchContentKindsFromNames
 import org.skepsun.kototoro.search.domain.sourceTypesFromNames
 import org.skepsun.kototoro.search.domain.sourceTypesFromTags
-import org.skepsun.kototoro.parsers.util.levenshteinDistance
 import java.util.Locale
 import javax.inject.Inject
 
@@ -76,8 +77,8 @@ class SearchViewModel @Inject constructor(
 	private val favouritesRepository: FavouritesRepository,
 ) : BaseViewModel() {
 
-	val query = savedStateHandle.get<String>(AppRouter.KEY_QUERY).orEmpty()
-	val kind = savedStateHandle.get<SearchKind>(AppRouter.KEY_KIND) ?: SearchKind.SIMPLE
+	val query = savedStateHandle.getStringArg(AppRouter.KEY_QUERY).orEmpty()
+	val kind = savedStateHandle.getSearchKindArg(AppRouter.KEY_KIND) ?: SearchKind.SIMPLE
 	
 	val advancedQuery = if (kind == SearchKind.ADVANCED) {
 		AdvancedSearchParams(
@@ -89,14 +90,14 @@ class SearchViewModel @Inject constructor(
 	} else null
 
 	private var includeDisabledSources = MutableStateFlow(false)
-	private var pinnedOnly = MutableStateFlow(false)
-	private var hideEmpty = MutableStateFlow(false)
+	private var pinnedOnly = MutableStateFlow(savedStateHandle.getBooleanArg(AppRouter.KEY_PINNED_ONLY) == true)
+	private var hideEmpty = MutableStateFlow(savedStateHandle.getBooleanArg(AppRouter.KEY_HIDE_EMPTY) == true)
 	private var sourceTypes = MutableStateFlow(
-		sourceTypesFromNames(savedStateHandle.get<ArrayList<String>>(AppRouter.KEY_SOURCE_TYPES))
+		sourceTypesFromNames(savedStateHandle.getStringList(AppRouter.KEY_SOURCE_TYPES))
 			?: sourceTypesFromTags(globalFavoritesState.selectedSourceTags.value),
 	)
 	private var contentKinds = MutableStateFlow(
-		searchContentKindsFromNames(savedStateHandle.get<ArrayList<String>>(AppRouter.KEY_CONTENT_KINDS))
+		searchContentKindsFromNames(savedStateHandle.getStringList(AppRouter.KEY_CONTENT_KINDS))
 			?: ALL_SEARCH_CONTENT_KINDS,
 	)
 	val activeTvBoxRepositoryTitle: StateFlow<String?> = appSettings.observeAsStateFlow(
@@ -160,6 +161,19 @@ class SearchViewModel @Inject constructor(
 		return result
 	}
 
+	fun getItems(ids: Set<Long>): Set<Content> {
+		val snapshot = results.value
+		val result = ArraySet<Content>(ids.size)
+		snapshot.forEach { x ->
+			for (item in x.list) {
+				if (item.id in ids) {
+					result.add(item.manga)
+				}
+			}
+		}
+		return result
+	}
+
 	fun retry() {
 		searchJob?.cancel()
 		results.value = emptyList()
@@ -177,6 +191,12 @@ class SearchViewModel @Inject constructor(
 	fun setHideEmpty(value: Boolean) {
 		hideEmpty.value = value
 	}
+
+	val isPinnedOnlySelected: Boolean
+		get() = pinnedOnly.value
+
+	val isHideEmptySelected: Boolean
+		get() = hideEmpty.value
 
 	fun isSourceTypeEnabled(type: SourceType): Boolean {
 		return type in sourceTypes.value
@@ -469,4 +489,41 @@ class SearchViewModel @Inject constructor(
 		return res
 	}
 
+}
+
+private fun SavedStateHandle.getStringList(key: String): ArrayList<String>? {
+	return when (val raw = get<Any?>(key)) {
+		is ArrayList<*> -> ArrayList(raw.filterIsInstance<String>().map { it.trim() }.filter { it.isNotEmpty() })
+			.takeIf { it.isNotEmpty() }
+		is Collection<*> -> ArrayList(raw.filterIsInstance<String>().map { it.trim() }.filter { it.isNotEmpty() })
+			.takeIf { it.isNotEmpty() }
+		is String -> Uri.decode(raw)
+			.takeIf { it.isNotBlank() }
+			?.split(',')
+			?.map { it.trim() }
+			?.filter { it.isNotEmpty() }
+			?.let(::ArrayList)
+		else -> null
+	}
+}
+
+private fun SavedStateHandle.getStringArg(key: String): String? = when (val raw = get<Any?>(key)) {
+	is String -> Uri.decode(raw)
+	is CharSequence -> raw.toString()
+	is Enum<*> -> raw.name
+	else -> null
+}
+
+private fun SavedStateHandle.getBooleanArg(key: String): Boolean? = when (val raw = get<Any?>(key)) {
+	is Boolean -> raw
+	is String -> Uri.decode(raw).toBooleanStrictOrNull()
+	is Number -> raw.toInt() != 0
+	else -> null
+}
+
+private fun SavedStateHandle.getSearchKindArg(key: String): SearchKind? = when (val raw = get<Any?>(key)) {
+	is SearchKind -> raw
+	is String -> runCatching { SearchKind.valueOf(Uri.decode(raw)) }.getOrNull()
+	is Enum<*> -> runCatching { SearchKind.valueOf(raw.name) }.getOrNull()
+	else -> null
 }

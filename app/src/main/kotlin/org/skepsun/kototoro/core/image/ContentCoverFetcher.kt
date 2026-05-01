@@ -36,7 +36,7 @@ class ContentCoverFetcher(
 
 	override suspend fun fetch(): FetchResult? {
 		val request = repo.createCoverRequest(imageUrl)
-		
+
 		val response = try {
 			imageClient.newCall(request).execute()
 		} catch (e: org.skepsun.kototoro.core.exceptions.CloudFlareException) {
@@ -63,7 +63,7 @@ class ContentCoverFetcher(
 			response.close()
 			throw HttpException(response.toNetworkResponse())
 		}
-		
+
 		val mimeType = response.mimeType?.toMimeTypeOrNull()
 		// Since Coil manages its own disk caching for covers, we just stream it to Coil's SourceFetchResult.
 		// NetworkResponseBody handles caching if needed by Coil's internal disk cache.

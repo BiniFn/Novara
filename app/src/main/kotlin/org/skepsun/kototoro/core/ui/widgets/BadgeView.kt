@@ -19,6 +19,12 @@ class BadgeView @JvmOverloads constructor(
 
 	private var maxCharacterCount = Int.MAX_VALUE
 
+	var labelText: String? = null
+		set(value) {
+			field = value?.takeIf { it.isNotBlank() }
+			updateText()
+		}
+
 	var number: Int = 0
 		set(value) {
 			field = value
@@ -55,6 +61,10 @@ class BadgeView @JvmOverloads constructor(
 	}
 
 	private fun updateText() {
+		labelText?.let {
+			text = it
+			return
+		}
 		if (number <= 0) {
 			text = null
 			return

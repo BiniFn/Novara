@@ -1,0 +1,632 @@
+package org.skepsun.kototoro.settings.sources.unified
+
+import android.content.Context
+import android.net.Uri
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.onStart
+import kotlinx.serialization.json.Json
+import org.skepsun.kototoro.aniyomi.AniyomiExtensionManager
+import org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource
+import org.skepsun.kototoro.core.LocalizedAppContext
+import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.core.db.TABLE_JSON_SOURCES
+import org.skepsun.kototoro.core.db.TABLE_SOURCES
+import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
+import org.skepsun.kototoro.core.db.entity.JsonSourceType
+import org.skepsun.kototoro.core.db.entity.MangaSourceEntity
+import org.skepsun.kototoro.core.extensions.GlobalExtensionManager
+import org.skepsun.kototoro.core.extensions.PluginContentSource
+import org.skepsun.kototoro.core.extensions.PluginMangaSource
+import org.skepsun.kototoro.core.jsonsource.JsonContentSource
+import org.skepsun.kototoro.core.jsonsource.JsonSourceImportMetadata
+import org.skepsun.kototoro.core.jsonsource.JsonSourceManager
+import org.skepsun.kototoro.core.lnreader.LNReaderPluginMetadata
+import org.skepsun.kototoro.core.model.getContentType
+import org.skepsun.kototoro.core.model.getLocale
+import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.model.isBroken
+import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
+import org.skepsun.kototoro.core.model.jsonsource.TVBoxStoredConfig
+import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsFlow
+import org.skepsun.kototoro.explore.data.ContentSourcesRepository
+import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepo
+import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepoRepository
+import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
+import org.skepsun.kototoro.ireader.IReaderExtensionManager
+import org.skepsun.kototoro.ireader.model.IReaderMangaSource
+import org.skepsun.kototoro.mihon.MihonExtensionManager
+import org.skepsun.kototoro.mihon.model.MihonMangaSource
+import org.skepsun.kototoro.parsers.model.ContentSource
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class UnifiedSourceCatalogRepository @Inject constructor(
+	@ApplicationContext private val appContext: Context,
+	@LocalizedAppContext private val localizedContext: Context,
+	private val database: MangaDatabase,
+	private val settings: AppSettings,
+	private val contentSourcesRepository: ContentSourcesRepository,
+	private val jsonSourceManager: JsonSourceManager,
+	private val extensionRepoRepository: ExternalExtensionRepoRepository,
+	private val mihonExtensionManager: MihonExtensionManager,
+	private val aniyomiExtensionManager: AniyomiExtensionManager,
+	private val ireaderExtensionManager: IReaderExtensionManager,
+	private val json: Json,
+) {
+
+	fun observeState(): Flow<UnifiedSourceCatalogState> {
+		return combine(
+			observeRepositories(),
+			observePackages(),
+			observeSources(),
+		) { repositories, packages, sources ->
+			UnifiedSourceCatalogState(
+				repositories = repositories,
+				packages = packages,
+				sources = sources,
+			)
+		}
+	}
+
+	fun observeRepositories(): Flow<List<UnifiedSourceRepositoryItem>> {
+		val externalRepos = combine(
+			extensionRepoRepository.observeByType(ExternalExtensionType.JAR),
+			extensionRepoRepository.observeByType(ExternalExtensionType.MIHON),
+			extensionRepoRepository.observeByType(ExternalExtensionType.ANIYOMI),
+			extensionRepoRepository.observeByType(ExternalExtensionType.IREADER),
+		) { jar, mihon, aniyomi, ireader ->
+			jar + mihon + aniyomi + ireader
+		}
+		val lnReaderRepos = settings.observeAsFlow(AppSettings.KEY_LNREADER_REPOS) {
+			lnReaderRepoUrls
+		}
+		return combine(
+			externalRepos,
+			lnReaderRepos,
+			jsonSourceManager.observeAllJsonSources(),
+		) { external, lnReader, jsonSources ->
+			val configured = external.map { it.toUnifiedRepositoryItem(isPreset = false) } +
+				lnReader.map { url ->
+					UnifiedSourceRepositoryItem(
+						id = repositoryId(UnifiedSourceKind.LNREADER, url),
+						kind = UnifiedSourceKind.LNREADER,
+						name = repositoryTitleFromUrl(url, fallback = "LNReader"),
+						url = url,
+						locationType = resolveLocationType(url),
+						website = url,
+						isConfigured = true,
+						isPreset = false,
+						capabilities = setOf(
+							UnifiedRepositoryCapability.REFRESH,
+							UnifiedRepositoryCapability.VERSIONED_INDEX,
+							UnifiedRepositoryCapability.IMPORT_JSON_LIST,
+						),
+					)
+				} +
+				jsonSources.toJsonRepositoryItems()
+
+			configured.withPresetRepositories()
+		}
+	}
+
+	fun observePackages(): Flow<List<UnifiedSourcePackageItem>> {
+		val apkPackages = combine(
+			mihonExtensionManager.installedExtensions,
+			aniyomiExtensionManager.installedExtensions,
+			ireaderExtensionManager.installedExtensions,
+		) { mihon, aniyomi, ireader ->
+			buildList {
+				mihon.forEach { extension ->
+					add(
+						UnifiedSourcePackageItem(
+							id = packageId(UnifiedSourceKind.MIHON, extension.pkgName),
+							kind = UnifiedSourceKind.MIHON,
+							name = extension.appName.removePrefix("Tachiyomi: "),
+							packageName = extension.pkgName,
+							repositoryId = null,
+							repositoryName = null,
+							versionName = extension.versionName,
+							versionCode = extension.versionCode,
+							libVersion = extension.libVersion,
+							language = extension.lang,
+							isInstalled = true,
+							isNsfw = extension.isNsfw,
+							sourceCount = extension.sources.size,
+							sourceNames = extension.sources.map { it.name },
+						),
+					)
+				}
+				aniyomi.forEach { extension ->
+					add(
+						UnifiedSourcePackageItem(
+							id = packageId(UnifiedSourceKind.ANIYOMI, extension.pkgName),
+							kind = UnifiedSourceKind.ANIYOMI,
+							name = extension.appName.removePrefix("Aniyomi: "),
+							packageName = extension.pkgName,
+							repositoryId = null,
+							repositoryName = null,
+							versionName = extension.versionName,
+							versionCode = extension.versionCode,
+							libVersion = extension.libVersion,
+							language = extension.lang,
+							isInstalled = true,
+							isNsfw = extension.isNsfw,
+							sourceCount = extension.sources.size,
+							sourceNames = extension.sources.map { it.name },
+						),
+					)
+				}
+				ireader.forEach { extension ->
+					add(
+						UnifiedSourcePackageItem(
+							id = packageId(UnifiedSourceKind.IREADER, extension.pkgName),
+							kind = UnifiedSourceKind.IREADER,
+							name = extension.appName,
+							packageName = extension.pkgName,
+							repositoryId = null,
+							repositoryName = null,
+							versionName = extension.versionName,
+							versionCode = extension.versionCode,
+							libVersion = extension.libVersion,
+							language = extension.sources.firstOrNull()?.lang,
+							isInstalled = true,
+							isNsfw = extension.isNsfw,
+							sourceCount = extension.sources.size,
+							sourceNames = extension.sources.map { it.name },
+						),
+					)
+				}
+			}
+		}
+
+		val jarPackages = combine(
+			GlobalExtensionManager.mangaSources,
+			GlobalExtensionManager.contentSources,
+		) { mangaSources, contentSources ->
+			val versionPrefs = appContext.getSharedPreferences("jar_plugin_versions", Context.MODE_PRIVATE)
+			(mangaSources.map { it.jarName to it.name } + contentSources.map { it.jarName to it.name })
+				.groupBy(keySelector = { it.first }, valueTransform = { it.second })
+				.map { (jarName, sourceNames) ->
+					val packageName = jarName.removeSuffix(".jar")
+					UnifiedSourcePackageItem(
+						id = packageId(UnifiedSourceKind.JAR, packageName),
+						kind = UnifiedSourceKind.JAR,
+						name = packageName,
+						packageName = packageName,
+						repositoryId = null,
+						repositoryName = null,
+						versionName = versionPrefs.getLong(packageName, 1L).toString(),
+						versionCode = versionPrefs.getLong(packageName, 1L),
+						libVersion = 1.0,
+						language = null,
+						isInstalled = true,
+						isNsfw = false,
+						sourceCount = sourceNames.size,
+						sourceNames = sourceNames.sorted(),
+					)
+				}
+		}
+
+		val jsonPackages = jsonSourceManager.observeAllJsonSources().map { sources ->
+			sources.toJsonPackageItems()
+		}
+
+		return combine(apkPackages, jarPackages, jsonPackages) { apk, jar, json ->
+			(apk + jar + json).sortedWith(compareBy({ it.kind.ordinal }, { it.name.lowercase() }))
+		}
+	}
+
+	fun observeSources(): Flow<List<UnifiedSourceItem>> {
+		val dbChanges = database.invalidationTracker.createFlow(TABLE_SOURCES, TABLE_JSON_SOURCES)
+			.onStart { emit(emptySet()) }
+		val runtimeChanges = observeRuntimeSourceChanges()
+		val settingsChanges = settings.observeAsFlow(AppSettings.KEY_SOURCES_ENABLED_ALL) {
+			isAllSourcesEnabled
+		}
+		return combine(dbChanges, runtimeChanges, settingsChanges) { _, _, _ -> Unit }
+			.mapLatest { buildSourceItems() }
+	}
+
+	private fun observeRuntimeSourceChanges(): Flow<Unit> {
+		val apkChanges = combine(
+			mihonExtensionManager.installedExtensions,
+			aniyomiExtensionManager.installedExtensions,
+			ireaderExtensionManager.installedExtensions,
+		) { _, _, _ -> Unit }
+		val jarChanges = combine(
+			GlobalExtensionManager.mangaSources,
+			GlobalExtensionManager.contentSources,
+		) { _, _ -> Unit }
+		return combine(apkChanges, jarChanges) { _, _ -> Unit }
+			.onStart { emit(Unit) }
+	}
+
+	private suspend fun buildSourceItems(): List<UnifiedSourceItem> {
+		val availableSources = contentSourcesRepository.getAllAvailableSourcesUnfiltered()
+		val sourceEntities = database.getSourcesDao().findAll().associateBy { it.source }
+		val jsonEntities = jsonSourceManager.observeAllJsonSources().first()
+		val jsonById = jsonEntities.associateBy { it.id }
+		val sourceMap = LinkedHashMap<String, ContentSource>()
+		availableSources.forEach { sourceMap[it.name] = it }
+		jsonEntities.forEach { sourceMap[it.id] = JsonContentSource(it) }
+
+		return sourceMap.values
+			.map { source ->
+				val jsonEntity = jsonById[source.name]
+				val sourceEntity = sourceEntities[source.name]
+				source.toUnifiedSourceItem(sourceEntity, jsonEntity)
+			}
+			.sortedWith(compareBy({ it.kind.ordinal }, { it.title.lowercase() }))
+	}
+
+	private fun ContentSource.toUnifiedSourceItem(
+		sourceEntity: MangaSourceEntity?,
+		jsonEntity: JsonSourceEntity?,
+	): UnifiedSourceItem {
+		val kind = resolveKind()
+		val jsonRepository = jsonEntity?.jsonRepositoryRef()
+		val packageRef = resolvePackageRef(jsonEntity)
+		return UnifiedSourceItem(
+			id = name,
+			kind = kind,
+			source = this,
+			title = getTitle(localizedContext),
+			language = getLocale()?.language ?: locale.takeIf { it.isNotBlank() },
+			contentType = getContentType(),
+			repositoryId = jsonRepository?.id,
+			repositoryName = jsonRepository?.title,
+			packageId = packageRef?.first,
+			packageName = packageRef?.second,
+			isEnabled = jsonEntity?.enabled ?: (settings.isAllSourcesEnabled || sourceEntity?.isEnabled == true),
+			isPinned = jsonEntity?.isPinned ?: (sourceEntity?.isPinned == true),
+			isAvailable = true,
+			isInstalled = kind != UnifiedSourceKind.NATIVE,
+			isNsfw = isNsfw(),
+			isBroken = isBroken,
+		)
+	}
+
+	private fun ContentSource.resolveKind(): UnifiedSourceKind {
+		return when (this) {
+			is JsonContentSource -> entity.type.toUnifiedKind()
+			is MihonMangaSource -> UnifiedSourceKind.MIHON
+			is AniyomiAnimeSource -> UnifiedSourceKind.ANIYOMI
+			is IReaderMangaSource -> UnifiedSourceKind.IREADER
+			is PluginContentSource -> UnifiedSourceKind.JAR
+			is KotatsuParserSource -> if (delegate is PluginMangaSource) UnifiedSourceKind.JAR else UnifiedSourceKind.NATIVE
+			else -> UnifiedSourceKind.NATIVE
+		}
+	}
+
+	private fun ContentSource.resolvePackageRef(jsonEntity: JsonSourceEntity?): Pair<String, String>? {
+		return when (this) {
+			is MihonMangaSource -> packageId(UnifiedSourceKind.MIHON, pkgName) to pkgName
+			is AniyomiAnimeSource -> packageId(UnifiedSourceKind.ANIYOMI, pkgName) to pkgName
+			is IReaderMangaSource -> packageId(UnifiedSourceKind.IREADER, pkgName) to pkgName
+			is PluginContentSource -> {
+				val packageName = jarName.removeSuffix(".jar")
+				packageId(UnifiedSourceKind.JAR, packageName) to packageName
+			}
+			is KotatsuParserSource -> {
+				val pluginSource = delegate as? PluginMangaSource ?: return null
+				val packageName = pluginSource.jarName.removeSuffix(".jar")
+				packageId(UnifiedSourceKind.JAR, packageName) to packageName
+			}
+			is JsonContentSource -> jsonEntity?.jsonPackageRef()
+			else -> null
+		}
+	}
+
+	private fun JsonSourceType.toUnifiedKind(): UnifiedSourceKind {
+		return when (this) {
+			JsonSourceType.LEGADO -> UnifiedSourceKind.LEGADO
+			JsonSourceType.TVBOX -> UnifiedSourceKind.TVBOX
+			JsonSourceType.JS -> UnifiedSourceKind.JS
+			JsonSourceType.LNREADER -> UnifiedSourceKind.LNREADER
+		}
+	}
+
+	private fun ExternalExtensionRepo.toUnifiedRepositoryItem(isPreset: Boolean): UnifiedSourceRepositoryItem {
+		val kind = type.toUnifiedKind()
+		return UnifiedSourceRepositoryItem(
+			id = repositoryId(kind, baseUrl),
+			kind = kind,
+			name = displayName,
+			url = "$baseUrl/index.min.json",
+			locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+			website = website,
+			isConfigured = true,
+			isPreset = isPreset,
+			capabilities = type.repositoryCapabilities(),
+			version = version,
+			lastSuccessAt = lastSuccessAt,
+			lastError = lastError,
+		)
+	}
+
+	private fun ExternalExtensionType.toUnifiedKind(): UnifiedSourceKind {
+		return when (this) {
+			ExternalExtensionType.MIHON -> UnifiedSourceKind.MIHON
+			ExternalExtensionType.ANIYOMI -> UnifiedSourceKind.ANIYOMI
+			ExternalExtensionType.IREADER -> UnifiedSourceKind.IREADER
+			ExternalExtensionType.JAR -> UnifiedSourceKind.JAR
+		}
+	}
+
+	private fun ExternalExtensionType.repositoryCapabilities(): Set<UnifiedRepositoryCapability> {
+		val base = setOf(
+			UnifiedRepositoryCapability.REFRESH,
+			UnifiedRepositoryCapability.VERSIONED_INDEX,
+			UnifiedRepositoryCapability.INSTALL_PACKAGE,
+		)
+		return if (this == ExternalExtensionType.JAR || this == ExternalExtensionType.IREADER) {
+			base
+		} else {
+			base + UnifiedRepositoryCapability.TRUST_FINGERPRINT
+		}
+	}
+
+	private fun List<UnifiedSourceRepositoryItem>.withPresetRepositories(): List<UnifiedSourceRepositoryItem> {
+		val configuredByKindAndUrl = associateBy { it.kind to normalizeRepositoryUrl(it.url) }
+		val configuredWithPresetFlag = map { item ->
+			val matchedPreset = UnifiedRecommendedRepositories.all.any { preset ->
+				preset.kind == item.kind && normalizeRepositoryUrl(preset.url) == normalizeRepositoryUrl(item.url)
+			}
+			if (matchedPreset) item.copy(isPreset = true) else item
+		}
+		val missingPresets = UnifiedRecommendedRepositories.all
+			.filter { preset -> (preset.kind to normalizeRepositoryUrl(preset.url)) !in configuredByKindAndUrl }
+			.map { preset ->
+				UnifiedSourceRepositoryItem(
+					id = repositoryId(preset.kind, preset.url),
+					kind = preset.kind,
+					name = preset.name,
+					url = preset.url,
+					locationType = preset.locationType,
+					website = preset.url,
+					isConfigured = false,
+					isPreset = true,
+					capabilities = preset.capabilities,
+				)
+			}
+		return (configuredWithPresetFlag + missingPresets)
+			.sortedWith(compareBy({ it.kind.ordinal }, { !it.isConfigured }, { it.name.lowercase() }))
+	}
+
+	private fun List<JsonSourceEntity>.toJsonRepositoryItems(): List<UnifiedSourceRepositoryItem> {
+		return asSequence()
+			.filter { it.type == JsonSourceType.LEGADO || it.type == JsonSourceType.TVBOX }
+			.mapNotNull { it.jsonRepositoryRef() }
+			.distinctBy { it.id }
+			.map { ref ->
+				UnifiedSourceRepositoryItem(
+					id = ref.id,
+					kind = ref.kind,
+					name = ref.title,
+					url = ref.locator,
+					locationType = resolveLocationType(ref.locator),
+					website = ref.locator,
+					isConfigured = true,
+					isPreset = false,
+					capabilities = setOf(
+						UnifiedRepositoryCapability.REFRESH,
+						UnifiedRepositoryCapability.IMPORT_JSON_LIST,
+					),
+				)
+			}
+			.toList()
+	}
+
+	private fun List<JsonSourceEntity>.toJsonPackageItems(): List<UnifiedSourcePackageItem> {
+		val result = mutableListOf<UnifiedSourcePackageItem>()
+		val legado = filter { it.type == JsonSourceType.LEGADO }
+		if (legado.isNotEmpty()) {
+			val groups = legado.mapNotNull { entity ->
+				runCatching { json.decodeFromString<LegadoBookSource>(entity.config).bookSourceGroup }.getOrNull()
+			}.flatMap { it.split(',', ';', '，', '；') }
+				.map { it.trim() }
+				.filter { it.isNotBlank() }
+				.distinct()
+			result += UnifiedSourcePackageItem(
+				id = packageId(UnifiedSourceKind.LEGADO, "imported"),
+				kind = UnifiedSourceKind.LEGADO,
+				name = "Imported Legado JSON",
+				packageName = null,
+				repositoryId = null,
+				repositoryName = null,
+				versionName = null,
+				versionCode = null,
+				language = null,
+				isInstalled = true,
+				isNsfw = false,
+				sourceCount = legado.size,
+				sourceNames = legado.map { it.name }.sorted(),
+				iconUrl = null,
+			)
+			if (groups.isNotEmpty()) {
+				result += UnifiedSourcePackageItem(
+					id = packageId(UnifiedSourceKind.LEGADO, "groups"),
+					kind = UnifiedSourceKind.LEGADO,
+					name = "Legado Groups",
+					packageName = null,
+					repositoryId = null,
+					repositoryName = null,
+					versionName = null,
+					versionCode = null,
+					language = null,
+					isInstalled = true,
+					isNsfw = false,
+					sourceCount = groups.size,
+					sourceNames = groups.sorted(),
+					iconUrl = null,
+				)
+			}
+		}
+
+		filter { it.type == JsonSourceType.TVBOX }
+			.groupBy { it.jsonRepositoryRef() }
+			.forEach { (repoRef, sources) ->
+				val packageKey = repoRef?.id ?: "inline"
+				val packageTitle = repoRef?.title ?: "Imported TVBox JSON"
+				result += UnifiedSourcePackageItem(
+					id = packageId(UnifiedSourceKind.TVBOX, packageKey),
+					kind = UnifiedSourceKind.TVBOX,
+					name = packageTitle,
+					packageName = null,
+					repositoryId = repoRef?.id,
+					repositoryName = repoRef?.title,
+					versionName = null,
+					versionCode = null,
+					language = null,
+					isInstalled = true,
+					isNsfw = false,
+					sourceCount = sources.size,
+					sourceNames = sources.map { it.name }.sorted(),
+					iconUrl = null,
+				)
+			}
+
+		filter { it.type == JsonSourceType.LNREADER }.forEach { entity ->
+			val metadata = LNReaderPluginMetadata.extractFromCode(entity.config, entity.id)
+			result += UnifiedSourcePackageItem(
+				id = packageId(UnifiedSourceKind.LNREADER, metadata?.id ?: entity.id),
+				kind = UnifiedSourceKind.LNREADER,
+				name = metadata?.name ?: entity.name,
+				packageName = metadata?.id,
+				repositoryId = null,
+				repositoryName = null,
+				versionName = metadata?.version,
+				versionCode = null,
+				language = metadata?.lang,
+				isInstalled = true,
+				isNsfw = false,
+				sourceCount = 1,
+				sourceNames = listOf(entity.name),
+				iconUrl = metadata?.icon,
+			)
+		}
+
+		filter { it.type == JsonSourceType.JS }.forEach { entity ->
+			result += UnifiedSourcePackageItem(
+				id = packageId(UnifiedSourceKind.JS, entity.id),
+				kind = UnifiedSourceKind.JS,
+				name = entity.name,
+				packageName = entity.id,
+				repositoryId = null,
+				repositoryName = null,
+				versionName = null,
+				versionCode = null,
+				language = null,
+				isInstalled = true,
+				isNsfw = false,
+				sourceCount = 1,
+				sourceNames = listOf(entity.name),
+				iconUrl = null,
+			)
+		}
+
+		return result
+	}
+
+	private fun JsonSourceEntity.jsonPackageRef(): Pair<String, String>? {
+		return when (type) {
+			JsonSourceType.LEGADO -> {
+				val repoRef = jsonRepositoryRef()
+				packageId(UnifiedSourceKind.LEGADO, repoRef?.id ?: "imported") to (repoRef?.title ?: "Imported Legado JSON")
+			}
+			JsonSourceType.TVBOX -> {
+				val repoRef = jsonRepositoryRef()
+				packageId(UnifiedSourceKind.TVBOX, repoRef?.id ?: "inline") to (repoRef?.title ?: "Imported TVBox JSON")
+			}
+			JsonSourceType.JS -> packageId(UnifiedSourceKind.JS, id) to name
+			JsonSourceType.LNREADER -> {
+				val metadata = LNReaderPluginMetadata.extractFromCode(config, id)
+				packageId(UnifiedSourceKind.LNREADER, metadata?.id ?: id) to (metadata?.name ?: name)
+			}
+		}
+	}
+
+	private fun JsonSourceEntity.jsonRepositoryRef(): JsonRepositoryRef? {
+		return when (type) {
+			JsonSourceType.LEGADO -> {
+				val metadata = JsonSourceImportMetadata.parse(config) ?: return null
+				val locator = metadata.sourceLocator?.trim()?.takeIf { it.isNotBlank() } ?: return null
+				val title = metadata.sourceTitle?.trim()?.takeIf { it.isNotBlank() }
+					?: repositoryTitleFromUrl(locator, fallback = "Legado")
+				JsonRepositoryRef(
+					id = repositoryId(UnifiedSourceKind.LEGADO, locator),
+					kind = UnifiedSourceKind.LEGADO,
+					locator = locator,
+					title = title,
+				)
+			}
+			JsonSourceType.TVBOX -> {
+				val stored = runCatching { TVBoxStoredConfig.parse(config) }.getOrNull() ?: return null
+				val locator = stored.meta.sourceLocator?.trim()?.takeIf { it.isNotBlank() } ?: return null
+				val title = stored.meta.sourceTitle?.trim()?.takeIf { it.isNotBlank() }
+					?: repositoryTitleFromUrl(locator, fallback = "TVBox")
+				JsonRepositoryRef(
+					id = repositoryId(UnifiedSourceKind.TVBOX, locator),
+					kind = UnifiedSourceKind.TVBOX,
+					locator = locator,
+					title = title,
+				)
+			}
+			JsonSourceType.JS,
+			JsonSourceType.LNREADER -> null
+		}
+	}
+
+	private fun repositoryTitleFromUrl(url: String, fallback: String): String {
+		val uri = runCatching { Uri.parse(url) }.getOrNull()
+		val host = uri?.host?.trim().orEmpty()
+		val tail = uri?.lastPathSegment?.trim().orEmpty()
+		return when {
+			host.isNotBlank() && tail.isNotBlank() -> "$host / $tail"
+			host.isNotBlank() -> host
+			tail.isNotBlank() -> tail
+			else -> fallback
+		}
+	}
+
+	private data class JsonRepositoryRef(
+		val id: String,
+		val kind: UnifiedSourceKind,
+		val locator: String,
+		val title: String,
+	)
+}
+
+private fun repositoryId(kind: UnifiedSourceKind, url: String): String {
+	return "repo:${kind.name}:${normalizeRepositoryUrl(url)}"
+}
+
+private fun packageId(kind: UnifiedSourceKind, value: String): String {
+	return "package:${kind.name}:${value.trim()}"
+}
+
+private fun normalizeRepositoryUrl(url: String): String {
+	return url.trim()
+		.trimEnd('/')
+		.removeSuffix("/index.min.json")
+		.trimEnd('/')
+}
+
+private fun resolveLocationType(locator: String): UnifiedRepositoryLocationType {
+	return when {
+		locator.startsWith("content://", ignoreCase = true) -> UnifiedRepositoryLocationType.LOCAL_FILE
+		locator.startsWith("file://", ignoreCase = true) -> UnifiedRepositoryLocationType.LOCAL_FILE
+		locator.startsWith("http://", ignoreCase = true) -> UnifiedRepositoryLocationType.REMOTE_URL
+		locator.startsWith("https://", ignoreCase = true) -> UnifiedRepositoryLocationType.REMOTE_URL
+		else -> UnifiedRepositoryLocationType.INLINE_IMPORT
+	}
+}

@@ -12,12 +12,13 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.jsonsource.SourceGroupManager
-import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
-import org.skepsun.kototoro.explore.ui.model.SourceTag
+import org.skepsun.kototoro.core.model.FavouriteCategory
+import org.skepsun.kototoro.core.model.FavouriteCategory.Companion.NO_ID
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.observeAsFlow
@@ -28,6 +29,9 @@ import org.skepsun.kototoro.core.ui.util.ReversibleAction
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.calculateTimeAgo
 import org.skepsun.kototoro.core.util.ext.call
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.explore.ui.model.SourceTag
+import org.skepsun.kototoro.favourites.domain.GlobalFavoritesState
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.list.domain.ContentListMapper
 import org.skepsun.kototoro.list.domain.QuickFilterListener
@@ -36,12 +40,14 @@ import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.list.ui.model.toErrorState
+import org.skepsun.kototoro.favourites.domain.FavouritesRepository
 import org.skepsun.kototoro.tracker.domain.TrackingRepository
 import org.skepsun.kototoro.tracker.domain.UpdatesListQuickFilter
 import org.skepsun.kototoro.tracker.domain.model.TrackingLogItem
 import org.skepsun.kototoro.tracker.ui.feed.model.FeedItem
 import org.skepsun.kototoro.tracker.ui.feed.model.UpdatedContentHeader
 import org.skepsun.kototoro.tracker.work.TrackWorker
+import org.skepsun.kototoro.parsers.model.Content
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 
@@ -55,12 +61,30 @@ class FeedViewModel @Inject constructor(
 	private val mangaListMapper: ContentListMapper,
 	private val quickFilter: UpdatesListQuickFilter,
 	private val sourceGroupManager: SourceGroupManager,
-	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
+	private val favouritesRepository: FavouritesRepository,
+	private val globalFavoritesState: GlobalFavoritesState,
 	private val sourcePresetsRepository: org.skepsun.kototoro.explore.data.SourcePresetsRepository,
 ) : BaseViewModel(), QuickFilterListener by quickFilter {
 
+	private data class HeaderParams(
+		val hasHeader: Boolean,
+		val categoryId: Long,
+		val groupTab: BrowseGroupTab,
+		val sourceTags: Set<SourceTag>,
+		val favorites: List<org.skepsun.kototoro.favourites.data.FavouriteContent>,
+		val preset: org.skepsun.kototoro.explore.data.SourcePreset?,
+	)
+
 	private val limit = MutableStateFlow(PAGE_SIZE)
 	private val isReady = AtomicBoolean(false)
+	private val selectedCategoryId = MutableStateFlow(NO_ID)
+
+	val categories = favouritesRepository.observeCategoriesForLibrary()
+		.map { listOf(FavouriteCategory(id = NO_ID, title = "", sortKey = Int.MIN_VALUE, order = org.skepsun.kototoro.list.domain.ListSortOrder.NEWEST, createdAt = java.time.Instant.EPOCH, isTrackingEnabled = false, isVisibleInLibrary = true)) + it }
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, emptyList())
+
+	val currentCategoryId = selectedCategoryId
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, NO_ID)
 
 	val currentGroupTab = globalFavoritesState.selectedGroupTab
 	val currentSourceTags = globalFavoritesState.selectedSourceTags
@@ -82,8 +106,11 @@ class FeedViewModel @Inject constructor(
 		quickFilter.appliedOptions,
 		combine(limit, quickFilter.appliedOptions.combineWithSettings(), ::Pair)
 			.flatMapLatest { repository.observeTrackingLog(it.first, it.second) },
+		selectedCategoryId,
 		currentGroupTab,
 		currentSourceTags,
+		favouritesRepository.observeAllRawFavorites(),
+		mangaListMapper.observeDisplayChanges().onStart { emit(Unit) },
 		settings.observeAsFlow(AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID) { activeSourcePresetId }
 			.flatMapLatest { id ->
 				if (id == -1L) flowOf(null)
@@ -93,21 +120,26 @@ class FeedViewModel @Inject constructor(
 		val header = values[0] as UpdatedContentHeader?
 		val filters = values[1] as Set<ListFilterOption>
 		val list = values[2] as List<TrackingLogItem>
-		val groupTab = values[3] as BrowseGroupTab
-		val sourceTags = values[4] as Set<SourceTag>
-		val preset = values[5] as? org.skepsun.kototoro.explore.data.SourcePreset
+		val categoryId = values[3] as Long
+		val groupTab = values[4] as BrowseGroupTab
+		val sourceTags = values[5] as Set<SourceTag>
+		val favorites = values[6] as List<org.skepsun.kototoro.favourites.data.FavouriteContent>
+		val preset = values[8] as? org.skepsun.kototoro.explore.data.SourcePreset
+		val mangaCategoryIds = favorites.associate { favorite ->
+			favorite.feedLookupKey() to favorite.categories.mapTo(linkedSetOf()) { it.categoryId.toLong() }
+		}
 
 		val filteredList = list.filter { item ->
 			val source = item.manga.source
 			if (preset != null && source.name !in preset.sources) {
 				return@filter false
 			}
-
 			val contentGroup = sourceGroupManager.getContentGroup(source)
-			val originGroup = sourceGroupManager.getOriginGroup(item.manga.source)
-			
-			groupTab.matchesContentGroup(contentGroup) &&
-				(sourceTags.isEmpty() || sourceTags.any { it.matches(contentGroup, originGroup) })
+			val originGroup = sourceGroupManager.getOriginGroup(source)
+			val matchesCategory = categoryId == NO_ID || categoryId in mangaCategoryIds[item.manga.feedLookupKey()].orEmpty()
+			val matchesGroup = groupTab.matchesContentGroup(contentGroup)
+			val matchesSourceTag = sourceTags.isEmpty() || sourceTags.any { it.matches(contentGroup, originGroup) }
+			matchesCategory && matchesGroup && matchesSourceTag
 		}
 
 		val result = ArrayList<ListModel>((filteredList.size * 1.4).toInt().coerceAtLeast(3))
@@ -167,6 +199,10 @@ class FeedViewModel @Inject constructor(
 		}
 	}
 
+	fun selectCategory(categoryId: Long) {
+		selectedCategoryId.value = categoryId
+	}
+
 	fun setSelectedGroupTab(tab: BrowseGroupTab) {
 		globalFavoritesState.setSelectedGroupTab(tab)
 	}
@@ -193,32 +229,44 @@ class FeedViewModel @Inject constructor(
 
 	private fun observeHeader() = combine(
 		isHeaderEnabled,
+		selectedCategoryId,
 		currentGroupTab,
 		currentSourceTags,
+		favouritesRepository.observeAllRawFavorites(),
+		mangaListMapper.observeDisplayChanges().onStart { emit(Unit) },
 		settings.observeAsFlow(AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID) { activeSourcePresetId }
 			.flatMapLatest { id ->
 				if (id == -1L) flowOf(null)
 				else sourcePresetsRepository.observe(id)
 			}
-	) { hasHeader, groupTab, sourceTags, preset ->
-		data class HeaderParams(val hasHeader: Boolean, val groupTab: BrowseGroupTab, val sourceTags: Set<SourceTag>, val preset: org.skepsun.kototoro.explore.data.SourcePreset?)
-		HeaderParams(hasHeader, groupTab, sourceTags, preset)
+	) { values: Array<Any?> ->
+		HeaderParams(
+			hasHeader = values[0] as Boolean,
+			categoryId = values[1] as Long,
+			groupTab = values[2] as BrowseGroupTab,
+			sourceTags = values[3] as Set<SourceTag>,
+			favorites = values[4] as List<org.skepsun.kototoro.favourites.data.FavouriteContent>,
+			preset = values[6] as? org.skepsun.kototoro.explore.data.SourcePreset,
+		)
 	}.flatMapLatest { args ->
 		if (args.hasHeader) {
 			quickFilter.appliedOptions.combineWithSettings().flatMapLatest {
 				repository.observeUpdatedContent(10, it)
 			}.map { mangaList ->
+				val mangaCategoryIds = args.favorites.associate { favorite ->
+					favorite.feedLookupKey() to favorite.categories.mapTo(linkedSetOf()) { it.categoryId.toLong() }
+				}
 				val filteredContentList = mangaList.filter { item ->
 					val source = item.manga.source
 					if (args.preset != null && source.name !in args.preset.sources) {
 						return@filter false
 					}
-
 					val contentGroup = sourceGroupManager.getContentGroup(source)
 					val originGroup = sourceGroupManager.getOriginGroup(source)
-					
-					args.groupTab.matchesContentGroup(contentGroup) &&
-						(args.sourceTags.isEmpty() || args.sourceTags.any { it.matches(contentGroup, originGroup) })
+					val matchesCategory = args.categoryId == NO_ID || args.categoryId in mangaCategoryIds[item.manga.feedLookupKey()].orEmpty()
+					val matchesGroup = args.groupTab.matchesContentGroup(contentGroup)
+					val matchesSourceTag = args.sourceTags.isEmpty() || args.sourceTags.any { it.matches(contentGroup, originGroup) }
+					matchesCategory && matchesGroup && matchesSourceTag
 				}
 				if (filteredContentList.isEmpty()) {
 					null
@@ -242,4 +290,12 @@ class FeedViewModel @Inject constructor(
 			filters
 		}
 	}
+}
+
+private fun org.skepsun.kototoro.favourites.data.FavouriteContent.feedLookupKey(): String {
+	return "${manga.source}|${manga.url}"
+}
+
+private fun Content.feedLookupKey(): String {
+	return "${source.name}|$url"
 }

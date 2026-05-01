@@ -9,6 +9,7 @@ import androidx.core.text.method.LinkMovementMethodCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.viewModels
+import androidx.fragment.app.commit
 import com.google.android.material.chip.Chip
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
@@ -132,6 +133,6 @@ class PreviewFragment : BaseFragment<FragmentPreviewBinding>(), View.OnClickList
 	}
 
 	private fun closeSelf() {
-		((activity as? ContentListActivity)?.hidePreview())
+		activity?.supportFragmentManager?.commit { remove(this@PreviewFragment) }
 	}
 }

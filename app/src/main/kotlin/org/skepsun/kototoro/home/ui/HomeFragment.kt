@@ -1,49 +1,46 @@
 package org.skepsun.kototoro.home.ui
 
 import android.os.Bundle
-import android.text.format.DateUtils
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
-import androidx.core.widget.NestedScrollView
-
 import androidx.fragment.app.viewModels
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
+import androidx.fragment.app.activityViewModels
+import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.prefs.NavItem
 import org.skepsun.kototoro.core.ui.BaseFragment
-import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
-import org.skepsun.kototoro.core.prefs.observeAsFlow
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.databinding.FragmentHomeBinding
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
-import org.skepsun.kototoro.main.ui.MainActivity
-import org.skepsun.kototoro.main.ui.owners.AppBarOwner
+
 import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 import org.skepsun.kototoro.explore.ui.model.SourceTag
-import kotlin.math.abs
+import org.skepsun.kototoro.home.ui.compose.HomeScreenActions
+import org.skepsun.kototoro.home.ui.compose.HomeScreen
+import org.skepsun.kototoro.core.ui.theme.KototoroTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import org.skepsun.kototoro.main.ui.MainActivity
 
 @AndroidEntryPoint
 class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewController.Callback {
+	private val mainViewModel: org.skepsun.kototoro.main.ui.MainViewModel by activityViewModels()
+
 
 	@javax.inject.Inject
-	lateinit var settings: org.skepsun.kototoro.core.prefs.AppSettings
+	lateinit var settings: AppSettings
 
 	private val viewModel by viewModels<HomeViewModel>()
-	private val recentCoverAdapter by lazy { HomeCoverAdapter { manga, view -> router.openDetails(manga, view) } }
-	private val updateCoverAdapter by lazy { HomeCoverAdapter { manga, view -> router.openDetails(manga, view) } }
-	private val recommendationCoverAdapter by lazy { HomeCoverAdapter { manga, view -> router.openDetails(manga, view) } }
-	private var homeScrollAnchorY = 0
 	private var isHomeChromeHidden = false
 	private var filterMenuProvider: SearchBarFilterViewController? = null
-	private val sharedViewPool = RecyclerView.RecycledViewPool()
 
 	override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): FragmentHomeBinding {
 		return FragmentHomeBinding.inflate(inflater, container, false)
@@ -51,205 +48,84 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 
 	override fun onViewBindingCreated(binding: FragmentHomeBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
-		with(binding) {
-			buttonSettings.setOnClickListener { router.openSettings() }
-			buttonReaderSettings.setOnClickListener { router.openReaderSettings() }
-			buttonSyncSettings.setOnClickListener { router.openSyncSettings() }
-			buttonSyncBackup.setOnClickListener { viewModel.uploadWebDavNow() }
-			buttonSyncRestore.setOnClickListener { viewModel.restoreWebDavNow() }
-			buttonViewAllRecent.setOnClickListener { router.openHistory(currentBrowseGroupTab()) }
-			buttonViewAllUpdates.setOnClickListener { router.openMangaUpdates(currentBrowseGroupTab()) }
-			buttonViewAllRecommendations.setOnClickListener { router.openSuggestions(currentBrowseGroupTab()) }
-			buttonSourceSettings.setOnClickListener { router.openSourcesSettings() }
-			buttonLibraryOpen.setOnClickListener { openFavoritesEntry() }
-			buttonBookmarks.setOnClickListener { router.openBookmarks() }
-			buttonLocal.setOnClickListener { router.openList(org.skepsun.kototoro.core.model.LocalMangaSource, null, null) }
-			buttonDownloads.setOnClickListener { router.openDownloads() }
-			buttonRandom.setOnClickListener { viewModel.openRandom() }
-			buttonAutoTranslate.setOnClickListener { router.openTranslationSettings() }
-			setupCoverStrip(recyclerViewRecentHistory, recentCoverAdapter)
-			setupCoverStrip(recyclerViewRecentUpdates, updateCoverAdapter)
-			setupCoverStrip(recyclerViewRecommendations, recommendationCoverAdapter)
-		}
+
 		
 		filterMenuProvider = SearchBarFilterViewController(this)
 		filterMenuProvider?.attachTo(this)
-		
-		setupHomeScrollChrome(binding.root)
 		showHomeChrome()
 
-		viewModel.isRandomLoading.observe(viewLifecycleOwner) { isLoading ->
-			binding.buttonRandom.isEnabled = !isLoading
-			binding.buttonRandom.alpha = if (isLoading) 0.5f else 1.0f
-		}
 		viewModel.onOpenContent.observeEvent(viewLifecycleOwner) { manga ->
-			router.openDetails(manga)
-		}
+			router.openDetails(manga, binding.root)
+        }
 
-		viewModel.summaryState.observe(viewLifecycleOwner) { state ->
-			syncSelectedTab(state.selectedTab)
-			binding.textViewRecentCount.text = state.recentHistoryCount.toString()
-			binding.textViewUpdatesCount.text = state.unreadUpdatesCount.toString()
-			binding.textViewRecommendationsCount.text = state.recommendationsCount.toString()
-			val isWebDavConfigured = state.syncState.isWebDavEnabled
-			binding.buttonSyncBackup.visibility = if (isWebDavConfigured) View.VISIBLE else View.GONE
-			binding.buttonSyncRestore.visibility = if (isWebDavConfigured) View.VISIBLE else View.GONE
+        binding.composeView.setContent {
+            val state by viewModel.summaryState.collectAsStateWithLifecycle()
+            val isRandomLoading by viewModel.isRandomLoading.collectAsStateWithLifecycle()
 
-			val syncStatusText = when {
-				state.syncState.isWebDavEnabled && state.syncState.isAutoSyncEnabled -> getString(R.string.home_sync_status_auto)
-				state.syncState.isWebDavEnabled -> getString(R.string.home_sync_status_ready)
-				else -> getString(R.string.home_sync_status_not_configured)
-			}
-			binding.textViewSyncStatus.text = syncStatusText
-			binding.textViewSyncSubtitle.text = when {
-				state.syncState.lastUploadTime > 0L -> {
-					getString(
-						R.string.home_sync_last_upload,
-						DateUtils.getRelativeTimeSpanString(
-							state.syncState.lastUploadTime,
-							System.currentTimeMillis(),
-							DateUtils.MINUTE_IN_MILLIS,
-						),
+            syncSelectedTab(state.selectedTab)
+			
+			KototoroTheme {
+				val actions = remember(router, viewModel) {
+					HomeScreenActions(
+						onSettingsClick = { router.openSettings() },
+						onReaderSettingsClick = { router.openReaderSettings() },
+						onSyncSettingsClick = { router.openSyncSettings() },
+						onViewAllRecentClick = { router.openHistory(currentBrowseGroupTab()) },
+						onViewAllUpdatesClick = { /* router.openMangaUpdates(currentBrowseGroupTab()) */ },
+						onViewAllRecommendationsClick = { /* router.openSuggestions(currentBrowseGroupTab()) */ },
+						onRecentSearchClick = { query -> router.openSearch(query) },
+						onSourceSettingsClick = { router.openSourcesSettings() },
+						onLibraryOpenClick = { router.openFavorites() },
+						onBookmarksClick = { /* router.openBookmarks() */ },
+						onLocalClick = { router.openList(org.skepsun.kototoro.core.model.LocalMangaSource, null, null) },
+						onDownloadsClick = { router.openDownloads() },
+						onRandomClick = { viewModel.openRandom() },
+						onAutoTranslateClick = { router.openTranslationSettings() },
 					)
 				}
-				state.syncState.isWebDavEnabled -> getString(R.string.home_sync_subtitle_ready)
-				else -> getString(R.string.home_sync_subtitle_configure)
-			}
-
-
-			recentCoverAdapter.submitContents(state.recentHistoryItems.map { it.content })
-			updateCoverAdapter.submitContents(state.recentUpdates.map { it.content })
-			recommendationCoverAdapter.submitContents(state.recommendations.map { it.content })
-
-			val sourceBreakdown = state.sourceBreakdown
-			val sourceViews = listOf(
-				binding.textViewSourceItem1,
-				binding.textViewSourceItem2,
-				binding.textViewSourceItem3,
-			)
-			sourceViews.forEachIndexed { index, textView ->
-				val item = sourceBreakdown.getOrNull(index)
-				textView.text = if (item != null) {
-					getString(
-						R.string.home_source_breakdown_item,
-						getSourceOriginLabel(item.origin),
-						item.count,
-					)
-				} else {
-					getString(R.string.home_source_breakdown_empty)
-				}
-				textView.alpha = if (item != null) 1f else 0.6f
+				HomeScreen(
+					state = state,
+					onContentClick = { content, coverBounds, _ ->
+						router.openDetails(content, binding.root)
+					},
+					actions = actions,
+					isRandomLoading = isRandomLoading
+				)
 			}
 		}
-
-		settings.observeAsFlow(AppSettings.KEY_SHOW_SOURCE_ON_CARDS) { isShowSourceOnCards }
-			.observe(viewLifecycleOwner) {
-				recentCoverAdapter.notifyDataSetChanged()
-				updateCoverAdapter.notifyDataSetChanged()
-				recommendationCoverAdapter.notifyDataSetChanged()
-			}
-	}
-
-	override fun onApplyWindowInsets(view: View, insets: WindowInsetsCompat): WindowInsetsCompat {
-		val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-		requireViewBinding().root.clipToPadding = false
-		requireViewBinding().root.updatePadding(
-			left = systemBars.left,
-			right = systemBars.right,
-			bottom = 0, // padding is handled by the container below
-		)
-		requireViewBinding().homeContentContainer.updatePadding(
-			bottom = systemBars.bottom + resources.getDimensionPixelOffset(R.dimen.list_spacing_normal),
-		)
-		return insets
 	}
 
 	private fun syncSelectedTab(tab: HomeContentTab?) {
 		filterMenuProvider?.updateIcons()
 	}
 
-	private fun currentBrowseGroupTab(): BrowseGroupTab {
-		return when (viewModel.summaryState.value.selectedTab) {
-			HomeContentTab.MANGA -> BrowseGroupTab.Content
-			HomeContentTab.NOVEL -> BrowseGroupTab.Novel
-			HomeContentTab.VIDEO -> BrowseGroupTab.Video
-			null -> BrowseGroupTab.All
-		}
+    private fun currentBrowseGroupTab(): BrowseGroupTab {
+        return when (viewModel.summaryState.value.selectedTab) {
+            HomeContentTab.MANGA -> BrowseGroupTab.Content
+            HomeContentTab.NOVEL -> BrowseGroupTab.Novel
+            HomeContentTab.VIDEO -> BrowseGroupTab.Video
+            null -> BrowseGroupTab.All
+        }
 	}
 
 	override fun onDestroyView() {
-		requireViewBinding().root.setOnScrollChangeListener(null as NestedScrollView.OnScrollChangeListener?)
+		filterMenuProvider?.destroy()
+		filterMenuProvider = null
 		showHomeChrome()
 		super.onDestroyView()
-	}
-
-	private fun setupCoverStrip(recyclerView: RecyclerView, adapter: HomeCoverAdapter) {
-		recyclerView.layoutManager = LinearLayoutManager(recyclerView.context, RecyclerView.HORIZONTAL, false)
-		recyclerView.adapter = adapter
-		recyclerView.setRecycledViewPool(sharedViewPool)
-		recyclerView.isNestedScrollingEnabled = false
-	}
-
-	private fun getSourceOriginLabel(origin: HomeSourceOrigin): String {
-		return when (origin) {
-			HomeSourceOrigin.BUILT_IN -> getString(R.string.source_type_native)
-			HomeSourceOrigin.MIHON -> getString(R.string.source_type_mihon)
-			HomeSourceOrigin.ANIYOMI -> getString(R.string.source_type_aniyomi)
-			HomeSourceOrigin.LEGADO -> getString(R.string.source_type_legado)
-			HomeSourceOrigin.TVBOX -> getString(R.string.source_type_tvbox)
-			HomeSourceOrigin.EXTERNAL -> getString(R.string.external_source)
-			HomeSourceOrigin.IREADER -> getString(R.string.source_type_ireader)
-		}
-	}
-
-	private fun openFavoritesEntry() {
-		val mainActivity = activity as? MainActivity
-		val hasFavoritesNav = settings.mainNavItems.contains(NavItem.FAVORITES)
-		if (mainActivity != null && hasFavoritesNav && mainActivity.selectMainNavigationItem(R.id.nav_favorites)) {
-			return
-		}
-		router.openFavoritesContainer()
-	}
-
-	private fun setupHomeScrollChrome(scrollView: NestedScrollView) {
-		val scrollThreshold = resources.getDimensionPixelOffset(R.dimen.list_spacing_large) * 2
-		homeScrollAnchorY = scrollView.scrollY
-		scrollView.setOnScrollChangeListener { _, _, scrollY, _, _ ->
-			val delta = scrollY - homeScrollAnchorY
-			when {
-				scrollY <= 0 -> {
-					homeScrollAnchorY = 0
-					showHomeChrome()
-				}
-
-				abs(delta) < scrollThreshold -> Unit
-
-				delta > 0 -> {
-					homeScrollAnchorY = scrollY
-					hideHomeChrome()
-				}
-
-				else -> {
-					homeScrollAnchorY = scrollY
-					showHomeChrome()
-				}
-			}
-		}
 	}
 
 	private fun hideHomeChrome() {
 		if (isHomeChromeHidden) return
 		val bottomNav = (activity as? BottomNavOwner)?.bottomNav
 		if (bottomNav?.isPinned == true) return
-		(activity as? AppBarOwner)?.appBar?.setExpanded(false, true)
-		bottomNav?.hide()
+				bottomNav?.hide()
 		isHomeChromeHidden = true
 	}
 
 	private fun showHomeChrome() {
 		if (!isHomeChromeHidden) return
-		(activity as? AppBarOwner)?.appBar?.setExpanded(true, true)
-		(activity as? BottomNavOwner)?.bottomNav?.show()
+				(activity as? BottomNavOwner)?.bottomNav?.show()
 		isHomeChromeHidden = false
 	}
 	
@@ -266,7 +142,12 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 	}
 
 	override fun onSourceTagSelected(tag: SourceTag?) {
-		val selectedTags = if (tag != null) setOf(tag) else emptySet()
+		val current = getSelectedSourceTags()
+		val selectedTags = when {
+			tag == null -> emptySet()
+			tag in current -> current - tag
+			else -> current + tag
+		}
 		viewModel.setSelectedSourceTags(selectedTags)
 	}
 
@@ -274,9 +155,9 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 		return currentBrowseGroupTab()
 	}
 
-	override fun getSelectedSourceTags(): Set<SourceTag> {
-		return viewModel.summaryState.value.selectedSourceTags
-	}
+    override fun getSelectedSourceTags(): Set<SourceTag> {
+        return viewModel.summaryState.value.selectedSourceTags
+    }
 
 	override fun isLanguagePresetFilterVisible(): Boolean = settings.isShowLanguagePresetFilter
 	override fun isContentTypeFilterVisible(): Boolean = settings.isShowContentTypeFilter && true
@@ -290,5 +171,10 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(), SearchBarFilterViewCon
 
 	override fun isSourceTagEnabled(tag: SourceTag): Boolean {
 		return getSelectedContentType().supportsSourceTag(tag)
+	}
+
+	override fun onApplyWindowInsets(view: android.view.View, insets: androidx.core.view.WindowInsetsCompat): androidx.core.view.WindowInsetsCompat {
+		requireViewBinding().root.clipToPadding = false
+		return insets
 	}
 }

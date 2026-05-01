@@ -1,425 +1,150 @@
 package org.skepsun.kototoro.settings
 
-import android.content.SharedPreferences
-import androidx.core.content.edit
+
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
-import android.widget.Toast
-import androidx.lifecycle.lifecycleScope
-import androidx.preference.ListPreference
-import androidx.preference.Preference
-import androidx.preference.PreferenceManager
-import androidx.preference.SwitchPreferenceCompat
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import android.view.ViewGroup
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.fragment.app.Fragment
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.prefs.ReaderOcrEngine
-import org.skepsun.kototoro.core.prefs.ReaderTranslationMode
-import org.skepsun.kototoro.core.prefs.ReaderTranslationPipelineMode
-import androidx.preference.PreferenceCategory
-import org.skepsun.kototoro.core.ui.BasePreferenceFragment
+import org.skepsun.kototoro.settings.compose.TranslationSettingsScreen
+import org.skepsun.kototoro.core.ui.theme.KototoroTheme
 import org.skepsun.kototoro.reader.translate.data.OnnxModelManager
 import org.skepsun.kototoro.reader.translate.data.OnnxModelCategory
 import org.skepsun.kototoro.reader.translate.data.OnnxOfficialModelCatalog
-import org.skepsun.kototoro.settings.support.TranslationApiSettingsSupport
+import org.skepsun.kototoro.settings.compose.SettingsChoiceOption
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class TranslationSettingsFragment :
-	BasePreferenceFragment(R.string.translation_settings),
-	SharedPreferences.OnSharedPreferenceChangeListener {
+class TranslationSettingsFragment : Fragment() {
 
-	@Inject
-	lateinit var onnxModelManager: OnnxModelManager
+    @Inject
+    lateinit var onnxModelManager: OnnxModelManager
 
-	@Inject
-	@ContentHttpClient
-	lateinit var okHttpClient: OkHttpClient
+    private val settings: AppSettings by lazy { AppSettings(requireContext()) }
 
-	private var fetchModelsJob: Job? = null
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        return ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+        }
+    }
 
-	override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-		addPreferencesFromResource(R.xml.pref_translation)
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        (view as ComposeView).setContent {
+            KototoroTheme {
+                TranslationSettingsRoute(
+                    settings = settings,
+                    onnxModelManager = onnxModelManager,
+                    onOpenOcrModels = {
+                        (activity as? SettingsActivity)?.openDestination(SettingsDestination.OcrModelsSettings, null, false)
+                    },
+                    onOpenApiSettings = {
+                        (activity as? SettingsActivity)?.openDestination(SettingsDestination.TranslationApiSettings, null, false)
+                    },
+                    onOpenE2eApiSettings = {
+                        (activity as? SettingsActivity)?.openDestination(SettingsDestination.TranslationE2EApiSettings, null, false)
+                    },
+                )
+            }
+        }
+    }
 
-		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_MODE)?.run {
-			entryValues = ReaderTranslationMode.entries.map { it.name }.toTypedArray()
-			setDefaultValue(ReaderTranslationMode.LOCAL_FIRST.name)
-		}
-		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_API_PROVIDER_PRESET)?.run {
-			setDefaultValue("CUSTOM")
-			setOnPreferenceChangeListener { _, newValue ->
-				TranslationApiSettingsSupport.applyApiProviderPreset(
-					sharedPreferences = PreferenceManager.getDefaultSharedPreferences(requireContext()),
-					presetInput = (newValue as? String).orEmpty(),
-					forceOverride = true,
-				)
-				true
-			}
-		}
-		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_BUBBLE_GROUPING_TUNING)?.run {
-			setDefaultValue("BALANCED")
-		}
-		findPreference<SwitchPreferenceCompat>(AppSettings.KEY_READER_TRANSLATION_BUBBLE_DETECTOR_ENABLED)?.run {
-			setDefaultValue(true)
-		}
-		findPreference<SwitchPreferenceCompat>(AppSettings.KEY_READER_TRANSLATION_BUBBLE_GROUPING_ENABLED)?.run {
-			setDefaultValue(true)
-		}
-		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_OVERLAY_COMPACTNESS)?.run {
-			setDefaultValue("BALANCED")
-		}
-		findPreference<SwitchPreferenceCompat>(AppSettings.KEY_READER_TRANSLATION_PADDLE_OCR_ONLY)?.run {
-			setDefaultValue(true)
-		}
-		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_OCR_PIPELINE_STRATEGY)?.run {
-			setDefaultValue("HYBRID")
-		}
+    override fun onResume() {
+        super.onResume()
+        (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.translation_settings))
+    }
+}
 
-		normalizeDeprecatedOcrEngineSelection()
-		normalizeDeprecatedOcrModelSelection()
-		applyApiProviderPreset(settings.readerTranslationApiProviderPreset)
-		updateOcrEngineDependency()
-		updateApiPreferenceVisibility()
-		updatePaddleDetModelEntries()
-		updatePaddleOfficialModelEntries()
-		updateOnnxOfficialModelEntries()
-		updateOnnxBubbleOfficialModelEntries()
-		updateBubbleGroupingSummary()
-		updateBubbleExperimentVisibility()
-		updatePipelineModeVisibility()
-	}
+@Composable
+fun TranslationSettingsRoute(
+    settings: AppSettings,
+    onnxModelManager: OnnxModelManager,
+    onOpenOcrModels: () -> Unit,
+    onOpenApiSettings: () -> Unit,
+    onOpenE2eApiSettings: () -> Unit,
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val onnxModels = buildList {
+        add(SettingsChoiceOption("", context.getString(R.string.reader_translation_local_model_mlkit)))
+        addAll(
+            OnnxOfficialModelCatalog.models
+                .filter { it.category == OnnxModelCategory.CLASSIC_TRANSLATION }
+                .map {
+                    val suffix = if (onnxModelManager.isModelDownloaded(it.id)) {
+                        ""
+                    } else {
+                        context.getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
+                    }
+                    SettingsChoiceOption(it.id, it.title + suffix)
+                },
+        )
+    }
+    val paddleDetModels = buildList {
+        add(SettingsChoiceOption("MLKIT", context.getString(R.string.reader_translation_ocr_det_mlkit)))
+        addAll(
+            OnnxOfficialModelCatalog.models
+                .filter { it.category == OnnxModelCategory.OCR_DETECTOR }
+                .map {
+                    val suffix = if (onnxModelManager.isModelDownloaded(it.id)) {
+                        ""
+                    } else {
+                        context.getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
+                    }
+                    SettingsChoiceOption(it.id, it.title + suffix)
+                },
+        )
+    }
+    val paddleOfficialModels = buildList {
+        add(SettingsChoiceOption("AUTO", context.getString(R.string.reader_translation_ocr_rec_model_auto)))
+        add(SettingsChoiceOption("MLKIT", context.getString(R.string.reader_translation_ocr_det_mlkit)))
+        add(SettingsChoiceOption("mangaocr_2025_onnx", "MangaOCR 2025"))
+        addAll(
+            OnnxOfficialModelCatalog.models
+                .filter { it.category == OnnxModelCategory.OCR_RECOGNIZER && !it.id.startsWith("mangaocr") }
+                .map {
+                    val suffix = if (onnxModelManager.isModelDownloaded(it.id)) {
+                        ""
+                    } else {
+                        context.getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
+                    }
+                    SettingsChoiceOption(it.id, it.title + suffix)
+                },
+        )
+    }
+    val onnxBubbleModels = buildList {
+        add(SettingsChoiceOption("AUTO", context.getString(R.string.reader_translation_ocr_model_onnx_automatic)))
+        addAll(
+            OnnxOfficialModelCatalog.models
+                .filter { it.category == OnnxModelCategory.BUBBLE_DETECTION }
+                .map {
+                    val suffix = if (onnxModelManager.isModelDownloaded(it.id)) {
+                        ""
+                    } else {
+                        context.getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
+                    }
+                    SettingsChoiceOption(it.id, it.title + suffix)
+                },
+        )
+    }
 
-	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-		super.onViewCreated(view, savedInstanceState)
-		settings.subscribe(this)
-	}
-
-	override fun onDestroyView() {
-		settings.unsubscribe(this)
-		super.onDestroyView()
-	}
-
-	override fun onPreferenceTreeClick(preference: Preference): Boolean {
-		return when (preference.key) {
-			AppSettings.KEY_READER_TRANSLATION_API_FETCH_MODELS -> {
-				fetchAndPickApiModel()
-				true
-			}
-			else -> super.onPreferenceTreeClick(preference)
-		}
-	}
-
-	override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
-		when (key) {
-			AppSettings.KEY_READER_TRANSLATION_OCR_ENGINE -> {
-				updateOcrEngineDependency()
-				updatePaddleDetModelEntries()
-				updatePaddleOfficialModelEntries()
-				updateOnnxOfficialModelEntries()
-				updateOnnxBubbleOfficialModelEntries()
-				updateBubbleDetectorNmsPreference()
-				updateBubbleExperimentVisibility()
-			}
-			AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID -> {
-				normalizeDeprecatedOcrModelSelection()
-				applyOfficialPaddleModel()
-				updatePaddleOfficialModelEntries()
-			}
-			AppSettings.KEY_READER_TRANSLATION_PADDLE_DET_MODEL_ID -> {
-				updatePaddleDetModelEntries()
-			}
-			AppSettings.KEY_READER_TRANSLATION_ONNX_MODEL_ID -> {
-				updateOnnxOfficialModelEntries()
-			}
-			AppSettings.KEY_READER_TRANSLATION_BUBBLE_DETECTOR_MODEL_ID -> {
-				updateOnnxBubbleOfficialModelEntries()
-				updateBubbleDetectorNmsPreference()
-			}
-			AppSettings.KEY_READER_TRANSLATION_MODE -> {
-				updateApiPreferenceVisibility()
-				updateOnnxOfficialModelEntries()
-			}
-			AppSettings.KEY_READER_TRANSLATION_BUBBLE_DETECTOR_ENABLED -> {
-				updateBubbleGroupingSummary()
-				updateOnnxBubbleOfficialModelEntries()
-				updateBubbleDetectorNmsPreference()
-				updateBubbleExperimentVisibility()
-			}
-			AppSettings.KEY_READER_TRANSLATION_BUBBLE_GROUPING_ENABLED -> {
-				updateBubbleGroupingSummary()
-			}
-			AppSettings.KEY_READER_TRANSLATION_API_PROVIDER_PRESET -> {
-				applyApiProviderPreset(settings.readerTranslationApiProviderPreset, forceOverride = true)
-			}
-			AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_URL,
-			AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_VERSION,
-			AppSettings.KEY_READER_TRANSLATION_PADDLE_MODEL_SHA256 -> applyOfficialPaddleModel()
-			AppSettings.KEY_READER_TRANSLATION_PIPELINE_MODE -> {
-				updatePipelineModeVisibility()
-			}
-		}
-	}
-
-	private fun updateOcrEngineDependency() {
-		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID)?.isVisible = true
-	}
-
-	private fun updateBubbleDetectorNmsPreference() {
-		val nmsPref = findPreference<androidx.preference.SeekBarPreference>("reader_translation_bubble_detector_nms_dummy")
-		nmsPref?.apply {
-			isPersistent = false
-			val modelId = settings.readerTranslationBubbleDetectorModelId
-			val isDetr = modelId.contains("detr", ignoreCase = true) || modelId.contains("transformers", ignoreCase = true)
-			val nmsVal = settings.getBubbleDetectorNms(modelId, isDetr)
-			value = (nmsVal * 100).toInt()
-			isVisible = settings.isReaderTranslationBubbleDetectorEnabled
-			
-			summary = getString(R.string.reader_translation_bubble_detector_nms_summary)
-			
-			setOnPreferenceChangeListener { _, newValue ->
-				val intValue = newValue as Int
-				settings.setBubbleDetectorNms(modelId, intValue / 100f)
-				true
-			}
-		}
-	}
-
-	private fun updateApiPreferenceVisibility() {
-		val showApi = settings.readerTranslationMode != ReaderTranslationMode.LOCAL_ONLY && settings.readerTranslationPipelineMode != ReaderTranslationPipelineMode.END_TO_END_API
-		val showE2eApi = settings.readerTranslationPipelineMode == ReaderTranslationPipelineMode.END_TO_END_API
-
-		findPreference<Preference>("reader_translation_open_api_settings")?.isVisible = showApi
-		findPreference<Preference>("reader_e2e_open_api_settings")?.isVisible = showE2eApi
-
-		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_API_ENDPOINT)?.isVisible = showApi
-		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_API_KEY)?.isVisible = showApi
-		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_API_PROVIDER_PRESET)?.isVisible = showApi
-		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_API_MODEL)?.isVisible = showApi
-		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_API_FETCH_MODELS)?.isVisible = showApi
-	}
-
-	private fun updatePipelineModeVisibility() {
-		val isTwoStage = settings.readerTranslationPipelineMode == ReaderTranslationPipelineMode.TWO_STAGE
-		findPreference<PreferenceCategory>("translation_section_ocr")?.isVisible = isTwoStage
-		findPreference<PreferenceCategory>("translation_section_bubble")?.isVisible = isTwoStage
-		findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_MODE)?.isVisible = isTwoStage
-		updateApiPreferenceVisibility()
-	}
-
-	private fun updateBubbleGroupingSummary() {
-		findPreference<SwitchPreferenceCompat>(AppSettings.KEY_READER_TRANSLATION_BUBBLE_GROUPING_ENABLED)?.apply {
-			title = getString(
-				if (settings.isReaderTranslationBubbleDetectorEnabled) {
-					R.string.reader_translation_bubble_grouping_enabled
-				} else {
-					R.string.reader_translation_bubble_grouping_enabled_no_detector
-				},
-			)
-			summary = getString(
-				if (settings.isReaderTranslationBubbleDetectorEnabled) {
-					R.string.reader_translation_bubble_grouping_enabled_summary
-				} else {
-					R.string.reader_translation_bubble_grouping_enabled_summary_no_detector
-				},
-			)
-		}
-	}
-
-	private fun updateBubbleExperimentVisibility() {
-		// ROI catch-all has been removed from runtime settings.
-	}
-
-	private fun applyOfficialPaddleModel() {
-		// The active Paddle path now uses ONNX OCR bundles resolved by model id.
-	}
-
-	private fun updatePaddleDetModelEntries() {
-		val models = OnnxOfficialModelCatalog.models.filter {
-			it.category == OnnxModelCategory.OCR_DETECTOR
-		}
-		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_PADDLE_DET_MODEL_ID)?.run {
-			entries = arrayOf(
-				getString(R.string.reader_translation_ocr_det_mlkit),
-			) + models.map { model ->
-				val suffix = if (onnxModelManager.isModelDownloaded(model.id)) ""
-				else getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
-				model.title + suffix
-			}.toTypedArray()
-			entryValues = arrayOf("MLKIT") + models.map { it.id }.toTypedArray()
-			setDefaultValue("MLKIT")
-			summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
-			val values = entryValues?.map { it.toString() }.orEmpty()
-			if (value.isNullOrBlank() || value == "AUTO" || value !in values) {
-				value = "MLKIT"
-			}
-			isVisible = true
-		}
-	}
-
-	private fun updatePaddleOfficialModelEntries() {
-		val paddleModels = OnnxOfficialModelCatalog.models.filter {
-			it.category == OnnxModelCategory.OCR_RECOGNIZER && !it.id.startsWith("mangaocr")
-		}
-		val isMangaOcrDownloaded = onnxModelManager.isModelDownloaded("mangaocr_2025_onnx")
-		val mangaOcrSuffix = if (isMangaOcrDownloaded) ""
-			else getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
-		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID)?.run {
-			entries = arrayOf(
-				getString(R.string.reader_translation_ocr_rec_model_auto),
-				getString(R.string.reader_translation_ocr_det_mlkit),
-				"MangaOCR 2025$mangaOcrSuffix",
-			) + paddleModels.map { model ->
-				val suffix = if (onnxModelManager.isModelDownloaded(model.id)) ""
-				else getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
-				model.title + suffix
-			}.toTypedArray()
-			entryValues = arrayOf("AUTO", "MLKIT", "mangaocr_2025_onnx") + paddleModels.map { it.id }.toTypedArray()
-			setDefaultValue("AUTO")
-			summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
-			val values = entryValues?.map { it.toString() }.orEmpty()
-			if (value.isNullOrBlank() || value !in values) {
-				value = "AUTO"
-			}
-			isVisible = true
-		}
-	}
-
-	private fun updateOnnxOfficialModelEntries() {
-		val models = OnnxOfficialModelCatalog.models.filter { model ->
-			model.category == OnnxModelCategory.CLASSIC_TRANSLATION
-		}
-		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_ONNX_MODEL_ID)?.run {
-			entries = arrayOf(getString(R.string.reader_translation_local_model_mlkit)) + models.map { model ->
-				val suffix = if (onnxModelManager.isModelDownloaded(model.id)) ""
-				else getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
-				model.title + suffix
-			}.toTypedArray()
-			entryValues = arrayOf("") + models.map { it.id }.toTypedArray()
-			setDefaultValue("")
-			summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
-			val values = entryValues?.map { it.toString() }.orEmpty()
-			if (value != null && value !in values) {
-				value = ""
-			}
-			isVisible = settings.readerTranslationMode != ReaderTranslationMode.API_ONLY
-		}
-	}
-
-	private fun updateOnnxBubbleOfficialModelEntries() {
-		val models = OnnxOfficialModelCatalog.models.filter { model ->
-			model.category == OnnxModelCategory.BUBBLE_DETECTION
-		}
-		findPreference<ListPreference>(AppSettings.KEY_READER_TRANSLATION_BUBBLE_DETECTOR_MODEL_ID)?.run {
-			entries = arrayOf(getString(R.string.reader_translation_ocr_model_onnx_automatic)) + models.map { model ->
-				val suffix = if (onnxModelManager.isModelDownloaded(model.id)) ""
-				else getString(R.string.reader_translation_ocr_model_selection_not_downloaded_suffix)
-				model.title + suffix
-			}.toTypedArray()
-			entryValues = arrayOf("AUTO") + models.map { it.id }.toTypedArray()
-			setDefaultValue("AUTO")
-			summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
-			val values = entryValues?.map { it.toString() }.orEmpty()
-			if (value != null && value !in values) {
-				value = "AUTO"
-			}
-			isVisible = settings.isReaderTranslationBubbleDetectorEnabled
-		}
-	}
-
-	private fun normalizeDeprecatedOcrEngineSelection() {
-		val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(requireContext())
-		val raw = sharedPreferences.getString(AppSettings.KEY_READER_TRANSLATION_OCR_ENGINE, ReaderOcrEngine.MLKIT.name)
-		if (raw == "TFLITE" || raw == "HYBRID" || raw == "NCNN") {
-			sharedPreferences.edit {
-				putString(AppSettings.KEY_READER_TRANSLATION_OCR_ENGINE, ReaderOcrEngine.PADDLE.name)
-			}
-		}
-	}
-
-	private fun normalizeDeprecatedOcrModelSelection() {
-		val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(requireContext())
-		when (sharedPreferences.getString(AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID, "")) {
-			"ppocrv5_mobile_onnx" -> sharedPreferences.edit {
-				putString(AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID, "ppocrv5_mobile_rec_onnx")
-			}
-			"ppocrv5_server_onnx" -> sharedPreferences.edit {
-				putString(AppSettings.KEY_READER_TRANSLATION_PADDLE_OFFICIAL_MODEL_ID, "ppocrv5_server_rec_onnx")
-			}
-		}
-	}
-
-	private fun applyApiProviderPreset(presetInput: String, forceOverride: Boolean = false) {
-		TranslationApiSettingsSupport.applyApiProviderPreset(
-			sharedPreferences = PreferenceManager.getDefaultSharedPreferences(requireContext()),
-			presetInput = presetInput,
-			forceOverride = forceOverride,
-		)
-	}
-
-	private fun fetchAndPickApiModel() {
-		fetchModelsJob?.cancel()
-		fetchModelsJob = viewLifecycleOwner.lifecycleScope.launch {
-			val pref = findPreference<Preference>(AppSettings.KEY_READER_TRANSLATION_API_FETCH_MODELS)
-			pref?.isEnabled = false
-			pref?.summary = getString(R.string.loading_)
-			try {
-				val endpoint = settings.readerTranslationApiEndpoint.trim()
-				if (endpoint.isBlank()) {
-					Toast.makeText(requireContext(), R.string.reader_translation_api_endpoint_missing, Toast.LENGTH_SHORT).show()
-					return@launch
-				}
-				val modelsUrl = TranslationApiSettingsSupport.buildModelsUrl(endpoint)
-				val key = settings.readerTranslationApiKey.trim()
-				val models = withContext(Dispatchers.IO) {
-					val requestBuilder = Request.Builder().get().url(modelsUrl)
-					if (key.isNotBlank()) {
-						requestBuilder.header("Authorization", "Bearer $key")
-						requestBuilder.header("X-API-Key", key)
-					}
-					okHttpClient.newCall(requestBuilder.build()).execute().use { response ->
-						if (!response.isSuccessful) return@withContext emptyList<String>()
-						val body = response.body?.string().orEmpty()
-						TranslationApiSettingsSupport.parseModelIds(body)
-					}
-				}
-				if (models.isEmpty()) {
-					Toast.makeText(requireContext(), R.string.reader_translation_api_models_fetch_failed, Toast.LENGTH_SHORT).show()
-					return@launch
-				}
-				showModelPickerDialog(models)
-			} catch (e: Throwable) {
-				e.printStackTrace()
-				Toast.makeText(requireContext(), R.string.reader_translation_api_models_fetch_failed, Toast.LENGTH_SHORT).show()
-			} finally {
-				pref?.isEnabled = true
-				pref?.summary = getString(R.string.reader_translation_api_models_fetch_summary)
-			}
-		}
-	}
-
-	private fun showModelPickerDialog(models: List<String>) {
-		val current = settings.readerTranslationApiModel.trim()
-		val selected = models.indexOf(current).coerceAtLeast(0)
-		MaterialAlertDialogBuilder(requireContext())
-			.setTitle(R.string.reader_translation_api_models_pick_title)
-			.setSingleChoiceItems(models.toTypedArray(), selected) { dialog, which ->
-				val chosen = models.getOrNull(which).orEmpty()
-				if (chosen.isNotBlank()) {
-					PreferenceManager.getDefaultSharedPreferences(requireContext()).edit {
-						putString(AppSettings.KEY_READER_TRANSLATION_API_MODEL, chosen)
-					}
-				}
-				dialog.dismiss()
-			}
-			.setNegativeButton(android.R.string.cancel, null)
-			.show()
-	}
+    TranslationSettingsScreen(
+        settings = settings,
+        onnxModels = onnxModels,
+        paddleDetModels = paddleDetModels,
+        paddleOfficialModels = paddleOfficialModels,
+        onnxBubbleModels = onnxBubbleModels,
+        onOpenOcrModels = onOpenOcrModels,
+        onOpenApiSettings = onOpenApiSettings,
+        onOpenE2eApiSettings = onOpenE2eApiSettings,
+    )
 }

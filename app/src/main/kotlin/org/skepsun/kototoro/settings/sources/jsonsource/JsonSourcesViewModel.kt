@@ -20,6 +20,7 @@ import org.skepsun.kototoro.core.db.entity.JsonSourceType
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.jsonsource.GroupedSourceList
 import org.skepsun.kototoro.core.jsonsource.GroupingStrategy
+import org.skepsun.kototoro.core.jsonsource.JsonSourceImportMetadata
 import org.skepsun.kototoro.core.jsonsource.JsonSourceManager
 import org.skepsun.kototoro.core.jsonsource.SourceGroup
 import org.skepsun.kototoro.core.jsonsource.SourceGroupManager
@@ -371,7 +372,7 @@ class JsonSourcesViewModel @Inject constructor(
 		sources.forEach { entity ->
 			try {
 				// entity.config contains the original Legado JSON
-				val jsonObject = org.json.JSONObject(entity.config)
+				val jsonObject = org.json.JSONObject(JsonSourceImportMetadata.strip(entity.config))
 				jsonArray.put(jsonObject)
 			} catch (e: Exception) {
 				// Fallback to basic info if config is invalid

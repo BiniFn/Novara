@@ -1,0 +1,28 @@
+package org.skepsun.kototoro.details.ui.model
+
+import android.os.Parcelable
+import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
+import org.skepsun.kototoro.parsers.model.Content
+import kotlinx.parcelize.IgnoredOnParcel
+import kotlinx.parcelize.Parcelize
+
+sealed interface DetailsOrigin : Parcelable {
+    @Parcelize
+    data class LocalMangaId(val mangaId: Long) : DetailsOrigin
+
+    @Parcelize
+    data class LocalMangaContent(val parcelableContent: ParcelableContent) : DetailsOrigin {
+        @IgnoredOnParcel
+        val manga: Content get() = parcelableContent.manga
+    }
+
+    @Parcelize
+    data class EntityGraph(val entityId: Long) : DetailsOrigin
+
+    @Parcelize
+    data class TrackingItem(
+        val serviceId: String,
+        val remoteId: Long,
+        val url: String? = null
+    ) : DetailsOrigin
+}

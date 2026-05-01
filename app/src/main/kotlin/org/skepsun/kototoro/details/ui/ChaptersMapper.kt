@@ -43,8 +43,15 @@ fun ContentDetails.mapChapters(
 	isGrid: Boolean,
 	isDownloadedOnly: Boolean,
 ): List<ChapterListItem> {
-	val remoteChapters = chapters[branch].orEmpty()
-	val localChapters = local?.manga?.getChapters(branch).orEmpty()
+	val resolvedBranch = when {
+		branch == null -> null
+		chapters[branch].isNullOrEmpty() && local?.manga?.getChapters(branch).isNullOrEmpty() -> {
+			chapters.maxByOrNull { it.value.size }?.key
+		}
+		else -> branch
+	}
+	val remoteChapters = chapters[resolvedBranch].orEmpty()
+	val localChapters = local?.manga?.getChapters(resolvedBranch).orEmpty()
 	
 	if (remoteChapters.isEmpty() && localChapters.isEmpty()) {
 		return emptyList()

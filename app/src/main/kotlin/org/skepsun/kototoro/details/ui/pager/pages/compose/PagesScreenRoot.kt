@@ -1,0 +1,120 @@
+package org.skepsun.kototoro.details.ui.pager.pages.compose
+
+import android.content.Context
+import android.view.View
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.android.material.snackbar.Snackbar
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.details.ui.compose.state.DetailsPaneState
+import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
+import org.skepsun.kototoro.details.ui.pager.pages.PageThumbnail
+import org.skepsun.kototoro.details.ui.pager.pages.PagesViewModel
+import org.skepsun.kototoro.reader.ui.PageSaveHelper
+
+@Composable
+fun PagesScreenRoot(
+	activityViewModel: ChaptersPagesViewModel,
+	router: AppRouter,
+	context: Context,
+	pageSaveHelper: PageSaveHelper,
+	viewForSnackbar: View,
+	lifecycleOwner: LifecycleOwner,
+	viewModel: PagesViewModel,
+	detailsPaneState: DetailsPaneState? = null,
+) {
+	val thumbnails by viewModel.thumbnails.collectAsStateWithLifecycle(initialValue = emptyList())
+	val isLoading by viewModel.isLoading.collectAsStateWithLifecycle(initialValue = false)
+	val gridScale by viewModel.gridScale.collectAsStateWithLifecycle(initialValue = 1f)
+	val selectedItemIds = remember { mutableStateListOf<Long>() }
+	val selectedIds = remember(selectedItemIds.toList()) {
+		selectedItemIds.toSet()
+	}
+
+	val mangaDetails by activityViewModel.mangaDetails.collectAsStateWithLifecycle(initialValue = null)
+	val readingState by activityViewModel.readingState.collectAsStateWithLifecycle(initialValue = null)
+	val selectedBranch by activityViewModel.selectedBranch.collectAsStateWithLifecycle(initialValue = null)
+
+	LaunchedEffect(mangaDetails, readingState, selectedBranch) {
+		if (mangaDetails != null) {
+			viewModel.updateState(PagesViewModel.State(mangaDetails!!, readingState, selectedBranch))
+		}
+	}
+
+	DisposableEffect(Unit) {
+		viewModel.onPageSaved.observeEvent(lifecycleOwner) { uris ->
+			if (uris.isEmpty()) return@observeEvent
+			if (uris.size == 1) {
+				Snackbar.make(viewForSnackbar, R.string.page_saved, Snackbar.LENGTH_LONG).show()
+			} else {
+				Snackbar.make(
+					viewForSnackbar,
+					context.getString(R.string.pages_saved),
+					Snackbar.LENGTH_LONG,
+				).show()
+			}
+		}
+		onDispose {}
+	}
+
+	PagesScreen(
+		items = thumbnails,
+		gridMinSize = (120.dp / gridScale.coerceIn(0.5f, 1.5f)),
+		selectedItemIds = selectedIds,
+		emptyMessageResId = null,
+		isLoading = isLoading,
+		detailsPaneState = detailsPaneState,
+		onLoadPrevious = viewModel::loadPrevChapter,
+		onLoadNext = viewModel::loadNextChapter,
+		onVisiblePlaceholder = viewModel::loadTowardsChapter,
+		onItemClick = { item ->
+			val thumbnail = item as PageThumbnail
+			if (selectedItemIds.isNotEmpty()) {
+				if (selectedItemIds.contains(thumbnail.page.id)) {
+					selectedItemIds.remove(thumbnail.page.id)
+				} else {
+					selectedItemIds.add(thumbnail.page.id)
+				}
+			} else {
+				val manga = activityViewModel.getContentOrNull() ?: return@PagesScreen
+				router.openReader(
+					org.skepsun.kototoro.core.nav.ReaderIntent.Builder(context)
+						.manga(manga)
+						.state(org.skepsun.kototoro.reader.ui.ReaderState(thumbnail.page.chapterId, thumbnail.page.index, 0))
+						.build(),
+				)
+			}
+		},
+		onItemLongClick = { item ->
+			val thumbnail = item as PageThumbnail
+			if (selectedItemIds.contains(thumbnail.page.id)) {
+				selectedItemIds.remove(thumbnail.page.id)
+			} else {
+				selectedItemIds.add(thumbnail.page.id)
+			}
+		},
+		onSelectionActionClick = { actionId ->
+			if (selectedIds.isEmpty()) return@PagesScreen
+			when (actionId) {
+				R.id.action_save -> {
+					val snapshot = thumbnails.filterIsInstance<PageThumbnail>()
+						.filter { it.page.id in selectedIds }
+						.map { it.page }
+						.toSet()
+					viewModel.savePages(pageSaveHelper, snapshot)
+				}
+			}
+			selectedItemIds.clear()
+		},
+		onClearSelection = { selectedItemIds.clear() },
+	)
+}

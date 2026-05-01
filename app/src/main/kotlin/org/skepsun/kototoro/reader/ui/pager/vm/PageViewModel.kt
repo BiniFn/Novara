@@ -3,6 +3,8 @@ package org.skepsun.kototoro.reader.ui.pager.vm
 import android.graphics.Rect
 import android.net.Uri
 import androidx.annotation.WorkerThread
+import androidx.core.net.toFile
+import coil3.ImageLoader
 import com.davemorrissey.labs.subscaleview.DefaultOnImageEventListener
 import com.davemorrissey.labs.subscaleview.ImageSource
 import kotlinx.coroutines.CancellationException
@@ -22,7 +24,10 @@ import kotlinx.coroutines.withContext
 import okio.IOException
 import android.graphics.BitmapFactory
 import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
+import org.skepsun.kototoro.core.image.BitmapDecoderCompat
 import org.skepsun.kototoro.core.os.NetworkState
+import org.skepsun.kototoro.core.util.ext.isFileUri
+import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.throttle
 import org.skepsun.kototoro.parsers.model.ContentPage
@@ -66,6 +71,7 @@ class PageViewModel(
 			}.launchIn(scope)
 	}
 
+	val imageLoader: ImageLoader get() = loader.imageLoader
 	val state = MutableStateFlow<PageState>(PageState.Empty)
 
 	fun isLoading() = job?.isActive == true
@@ -227,11 +233,17 @@ class PageViewModel(
 				currentUri = uri,
 				showTranslated = settingsProducer.value.isTranslationShowTranslated,
 			) ?: uri
-			cachedBounds = resolveTrimmedBounds(displayUri)
-			state.value = if (settingsProducer.value.isTranslationEnabled && settingsProducer.value.isTranslationShowTranslated && displayUri == uri) {
-				PageState.AwaitingTranslation(displayUri.toImageSource(cachedBounds), isConverted = false)
+			val isAnimated = displayUri.isFileUri() &&
+				runCatchingCancellable { BitmapDecoderCompat.isAnimated(displayUri.toFile()) }.getOrDefault(false)
+			if (isAnimated) {
+				state.value = PageState.Shown(displayUri.toImageSource(null), isConverted = false, isAnimated = true)
 			} else {
-				PageState.Loaded(displayUri.toImageSource(cachedBounds), isConverted = false)
+				cachedBounds = resolveTrimmedBounds(displayUri)
+				state.value = if (settingsProducer.value.isTranslationEnabled && settingsProducer.value.isTranslationShowTranslated && displayUri == uri) {
+					PageState.AwaitingTranslation(displayUri.toImageSource(cachedBounds), isConverted = false)
+				} else {
+					PageState.Loaded(displayUri.toImageSource(cachedBounds), isConverted = false)
+				}
 			}
 			applyPendingLayerSwitchIfNeeded(data, displayUri)
 		} catch (e: CancellationException) {
@@ -307,8 +319,9 @@ class PageViewModel(
 		if (uri.scheme == "file" && path != null) {
 			options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
 			BitmapFactory.decodeFile(path, options)
-			// Threshold of 1.15 to consider as a double page
-			if (options.outWidth > options.outHeight * 1.15) {
+			// outWidth/outHeight are -1 for formats BitmapFactory can't probe (e.g. AVIF).
+			// Guard > 0 to avoid false wide-page detection: -1 > -1*1.15 would otherwise be true.
+			if (options.outWidth > 0 && options.outHeight > 0 && options.outWidth > options.outHeight * 1.15) {
 				boundPage?.let { loader.widePageDetectedEvent.tryEmit(it.id) }
 			}
 		}
@@ -329,7 +342,8 @@ class PageViewModel(
 			}
 		} else null
 
-		val baseBounds = cropBounds ?: options?.let { Rect(0, 0, it.outWidth, it.outHeight) }
+		// Only create baseBounds when BitmapFactory returned valid dimensions (> 0).
+		val baseBounds = cropBounds ?: options?.let { if (it.outWidth > 0 && it.outHeight > 0) Rect(0, 0, it.outWidth, it.outHeight) else null }
 		if (baseBounds != null && boundPageSplit != org.skepsun.kototoro.reader.ui.pager.ReaderPageSplit.NONE) {
 			val halfWidth = baseBounds.width() / 2
 			return if (boundPageSplit == org.skepsun.kototoro.reader.ui.pager.ReaderPageSplit.LEFT) {

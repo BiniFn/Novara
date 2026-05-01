@@ -30,20 +30,16 @@ import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.toLocale
 import org.skepsun.kototoro.databinding.ActivitySourcesCatalogBinding
 import org.skepsun.kototoro.list.ui.adapter.TypedListSpacingDecoration
-import org.skepsun.kototoro.main.ui.owners.AppBarOwner
 import org.skepsun.kototoro.parsers.model.ContentType
 
 @AndroidEntryPoint
 class SourcesCatalogActivity : BaseActivity<ActivitySourcesCatalogBinding>(),
 	OnListItemClickListener<SourceCatalogItem.Source>,
-	AppBarOwner,
 	MenuItem.OnActionExpandListener,
 	ChipsView.OnChipClickListener {
 
 
-	override val appBar: AppBarLayout
-		get() = viewBinding.appbar
-
+	
 	private val viewModel by viewModels<SourcesCatalogViewModel>()
 
 	override fun onCreate(savedInstanceState: Bundle?) {

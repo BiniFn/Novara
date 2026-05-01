@@ -4,6 +4,7 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
+import org.skepsun.kototoro.core.model.isAdultTagKeyword
 import org.skepsun.kototoro.parsers.model.ContentRating
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentChapter
@@ -56,8 +57,7 @@ fun SManga.toKotoContent(
             val safeTags = setOf("safe", "all ages", "non-h", "sfw", "非h", "正常向", "全年龄", "全年龄向")
             val isExplicitlySafe = safeGenres?.any { it.lowercase() in safeTags } == true
             
-            val adultGenres = setOf("adult", "hentai", "18+", "nsfw", "mature", "ecchi")
-            val isContentNsfw = (!isExplicitlySafe && source.isNsfw) || safeGenres?.any { it.lowercase() in adultGenres } == true
+            val isContentNsfw = (!isExplicitlySafe && source.isNsfw) || safeGenres?.any { it.isAdultTagKeyword() } == true
             
             if (isExplicitlySafe) {
                 ContentRating.SAFE

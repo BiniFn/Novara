@@ -48,3 +48,10 @@ fun sceneTransitionOptionsOf(view: View): Bundle? {
 	val activity = view.context.findActivity() ?: return scaleUpActivityOptionsOf(view)
 	return androidx.core.app.ActivityOptionsCompat.makeSceneTransitionAnimation(activity, view, view.transitionName).toBundle()
 }
+
+fun activityTransitionOptionsOf(activity: FragmentActivity): Bundle? {
+	if (!activity.isAnimationsEnabled) {
+		return null
+	}
+	return androidx.core.app.ActivityOptionsCompat.makeSceneTransitionAnimation(activity).toBundle()
+}

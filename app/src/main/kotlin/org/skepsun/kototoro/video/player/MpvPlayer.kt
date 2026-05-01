@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.video.player
 
+import android.graphics.Color
 import android.view.Surface
 import `is`.xyz.mpv.MPV
 import `is`.xyz.mpv.MPVNode
@@ -211,6 +212,50 @@ class MpvPlayer(
 	}
 	fun setVolume(volume: Double) {
 		mpv.setPropertyDouble("volume", volume)
+	}
+
+	fun applySubtitleStyle(
+		fontSizeSp: Float,
+		isBold: Boolean,
+		isItalic: Boolean,
+		textColor: Int,
+		borderColor: Int,
+		borderSize: Float,
+		backgroundColor: Int,
+		alignX: Int,
+		position: Int,
+	) {
+		val fontWeight = when {
+			isBold && isItalic -> "bold-italic"
+			isBold -> "bold"
+			else -> "normal"
+		}
+		val alignXValue = when (alignX) {
+			0 -> "left"
+			2 -> "right"
+			else -> "center"
+		}
+		val mappedPosition = (100 - (position / 3f).toInt()).coerceIn(0, 100)
+
+		runCatching { mpv.setOptionString("sub-font-size", fontSizeSp.toInt().coerceAtLeast(1).toString()) }
+		runCatching { mpv.setPropertyString("sub-font-size", fontSizeSp.toInt().coerceAtLeast(1).toString()) }
+		runCatching { mpv.setOptionString("sub-color", textColor.toMpvColor()) }
+		runCatching { mpv.setPropertyString("sub-color", textColor.toMpvColor()) }
+		runCatching { mpv.setOptionString("sub-border-color", borderColor.toMpvColor()) }
+		runCatching { mpv.setPropertyString("sub-border-color", borderColor.toMpvColor()) }
+		runCatching { mpv.setOptionString("sub-border-size", borderSize.coerceAtLeast(0f).toString()) }
+		runCatching { mpv.setPropertyString("sub-border-size", borderSize.coerceAtLeast(0f).toString()) }
+		runCatching { mpv.setOptionString("sub-back-color", backgroundColor.toMpvColor()) }
+		runCatching { mpv.setPropertyString("sub-back-color", backgroundColor.toMpvColor()) }
+		runCatching { mpv.setOptionString("sub-align-x", alignXValue) }
+		runCatching { mpv.setPropertyString("sub-align-x", alignXValue) }
+		runCatching { mpv.setOptionString("sub-pos", mappedPosition.toString()) }
+		runCatching { mpv.setPropertyString("sub-pos", mappedPosition.toString()) }
+		runCatching { mpv.setOptionString("sub-bold", if (isBold) "yes" else "no") }
+		runCatching { mpv.setPropertyString("sub-bold", if (isBold) "yes" else "no") }
+		runCatching { mpv.setOptionString("sub-italic", if (isItalic) "yes" else "no") }
+		runCatching { mpv.setPropertyString("sub-italic", if (isItalic) "yes" else "no") }
+		runCatching { mpv.setOptionString("sub-ass-force-style", "Weight=$fontWeight") }
 	}
 
 	fun applyCacheSettings(sizeMb: Int, cacheDir: File) {
@@ -499,4 +544,14 @@ class MpvPlayer(
 			Log.w("MpvPlayer", "Captured playback error log: $lastPlaybackErrorMessage")
 		}
 	}
+}
+
+private fun Int.toMpvColor(): String {
+	return String.format(
+		"#%02X%02X%02X%02X",
+		Color.alpha(this),
+		Color.red(this),
+		Color.green(this),
+		Color.blue(this),
+	)
 }

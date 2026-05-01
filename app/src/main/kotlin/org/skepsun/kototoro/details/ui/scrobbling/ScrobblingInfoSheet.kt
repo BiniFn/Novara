@@ -12,6 +12,7 @@ import android.widget.RatingBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.widget.PopupMenu
+import androidx.core.text.parseAsHtml
 import androidx.core.text.method.LinkMovementMethodCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
@@ -143,7 +144,7 @@ class ScrobblingInfoSheet :
 		val binding = viewBinding ?: return
 		binding.textViewTitle.text = scrobbling.title
 		binding.ratingBar.rating = scrobbling.rating * binding.ratingBar.numStars
-		binding.textViewDescription.text = scrobbling.description?.sanitize()
+		binding.textViewDescription.text = renderDescription(scrobbling.description?.toString())
 		binding.spinnerStatus.setSelection(scrobbling.status?.ordinal ?: -1)
 		binding.imageViewLogo.contentDescription = getString(scrobbling.scrobbler.titleResId)
 		binding.imageViewLogo.setImageResource(scrobbling.scrobbler.iconResId)
@@ -227,7 +228,18 @@ class ScrobblingInfoSheet :
 
 		// Update description if current one is empty and details has one
 		if (binding.textViewDescription.text.isNullOrBlank() && !details.description.isNullOrBlank()) {
-			binding.textViewDescription.text = details.description?.sanitize()
+			binding.textViewDescription.text = renderDescription(details.description)
+		}
+	}
+
+	private fun renderDescription(raw: String?): CharSequence? {
+		if (raw.isNullOrBlank()) {
+			return null
+		}
+		return runCatching {
+			raw.parseAsHtml().sanitize()
+		}.getOrElse {
+			raw.sanitize()
 		}
 	}
 

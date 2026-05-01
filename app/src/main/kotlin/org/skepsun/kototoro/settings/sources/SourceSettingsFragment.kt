@@ -1,8 +1,13 @@
 package org.skepsun.kototoro.settings.sources
 
+import android.content.Context
 import android.os.Bundle
+import android.text.InputType
 import android.view.View
 import androidx.appcompat.app.AlertDialog
+import androidx.core.view.OnApplyWindowInsetsListener
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.EditTextPreference
@@ -10,16 +15,19 @@ import androidx.preference.EditTextPreferenceDialogFragmentCompat
 import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
+import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
+import androidx.preference.get
+import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import android.content.Context
-import android.text.InputType
 import org.skepsun.kototoro.settings.utils.EditTextBindListener
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.model.getEnableSourceTitleResId
 import org.skepsun.kototoro.core.model.getContentType
@@ -33,10 +41,18 @@ import org.skepsun.kototoro.core.parser.JsContentRepository
 import org.skepsun.kototoro.core.parser.ParserContentRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.SourceSettings
-import org.skepsun.kototoro.core.ui.BasePreferenceFragment
+import org.skepsun.kototoro.core.ui.BaseActivityEntryPoint
+import org.skepsun.kototoro.core.util.ext.consumeAllSystemBarsInsets
+import org.skepsun.kototoro.core.util.ext.container
+import org.skepsun.kototoro.core.util.ext.end
+import org.skepsun.kototoro.core.util.ext.getThemeColor
+import org.skepsun.kototoro.core.util.ext.getThemeDrawable
 import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.parentView
+import org.skepsun.kototoro.core.util.ext.start
+import org.skepsun.kototoro.core.util.ext.systemBarsInsets
 import org.skepsun.kototoro.core.util.ext.withArgs
 import org.skepsun.kototoro.parsers.model.ContentType
 
@@ -59,9 +75,20 @@ import org.skepsun.kototoro.core.model.jsonsource.TVBoxStoredConfig
 import org.skepsun.kototoro.core.parser.tvbox.TVBoxRepository
 import org.skepsun.kototoro.settings.utils.EditTextDefaultSummaryProvider
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import org.skepsun.kototoro.settings.SettingsActivity
+import javax.inject.Inject
+import com.google.android.material.R as materialR
 
 @AndroidEntryPoint
-class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenceChangeListener {
+class SourceSettingsFragment :
+	PreferenceFragmentCompat(),
+	OnApplyWindowInsetsListener,
+	Preference.OnPreferenceChangeListener {
+
+	@Inject
+	lateinit var settings: AppSettings
+
+	private lateinit var exceptionResolver: ExceptionResolver
 
 	private val viewModel: SourceSettingsViewModel by viewModels()
 
@@ -69,10 +96,20 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 		Json { ignoreUnknownKeys = true; isLenient = true; allowTrailingComma = true }
 	}
 
+	override fun onAttach(context: Context) {
+		super.onAttach(context)
+		val entryPoint = EntryPointAccessors.fromApplication<BaseActivityEntryPoint>(context)
+		exceptionResolver = entryPoint.exceptionResolverFactory.create(this)
+	}
+
 	override fun onResume() {
 		super.onResume()
 		context?.let { ctx ->
-			setTitle(viewModel.source.getTitle(ctx))
+			(activity as? SettingsActivity)?.setSectionTitle(viewModel.source.getTitle(ctx))
+		}
+		arguments?.getString(SettingsActivity.ARG_PREF_KEY)?.let { key ->
+			focusPreference(key)
+			arguments?.remove(SettingsActivity.ARG_PREF_KEY)
 		}
 		viewModel.onResume()
 	}
@@ -121,6 +158,10 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 
 	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
 		super.onViewCreated(view, savedInstanceState)
+		ViewCompat.setOnApplyWindowInsetsListener(view, this)
+		val themedContext = (view.parentView ?: view).context
+		view.setBackgroundColor(themedContext.getThemeColor(android.R.attr.colorBackground))
+		listView.clipToPadding = false
 		tryAddJsPreferences()
 		tryAddMihonPreferences()
 		tryAddAniyomiPreferences()
@@ -190,6 +231,19 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 			}
 		}
 		viewModel.onActionDone.observeEvent(viewLifecycleOwner, ReversibleActionObserver(listView))
+	}
+
+	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
+		val barsInsets = insets.systemBarsInsets
+		val isTablet = !resources.getBoolean(R.bool.is_tablet)
+		val isMaster = container?.id == R.id.container_master
+		listView.setPaddingRelative(
+			if (isTablet && !isMaster) 0 else barsInsets.start(v),
+			0,
+			if (isTablet && isMaster) 0 else barsInsets.end(v),
+			barsInsets.bottom,
+		)
+		return insets.consumeAllSystemBarsInsets()
 	}
 
 	private fun tryAddTvBoxPreferences() {
@@ -865,6 +919,33 @@ class SourceSettingsFragment : BasePreferenceFragment(0), Preference.OnPreferenc
 			else -> return false
 		}
 		return true
+	}
+
+	private fun focusPreference(key: String) {
+		val preference = findPreference<Preference>(key)
+		if (preference == null) {
+			scrollToPreference(key)
+			return
+		}
+		scrollToPreference(preference)
+		val preferenceIndex = preferenceScreen.indexOf(key)
+		val itemView = if (preferenceIndex >= 0) {
+			listView.findViewHolderForAdapterPosition(preferenceIndex)?.itemView ?: return
+		} else {
+			return
+		}
+		itemView.context.getThemeDrawable(materialR.attr.colorTertiaryContainer)?.let {
+			itemView.background = it
+		}
+	}
+
+	private fun PreferenceScreen.indexOf(key: String): Int {
+		for (index in 0 until preferenceCount) {
+			if (get(index).key == key) {
+				return index
+			}
+		}
+		return -1
 	}
 
 	class DomainDialogFragment : EditTextPreferenceDialogFragmentCompat() {

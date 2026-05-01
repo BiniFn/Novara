@@ -8,6 +8,8 @@ data class EmptyState(
 	@StringRes val textPrimary: Int,
 	@StringRes val textSecondary: Int,
 	@StringRes val actionStringRes: Int,
+	val textPrimaryText: CharSequence? = null,
+	val textSecondaryText: CharSequence? = null,
 ) : ListModel {
 
 	override fun areItemsTheSame(other: ListModel): Boolean {

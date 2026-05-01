@@ -32,6 +32,8 @@ import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.start
 import org.skepsun.kototoro.core.util.ext.systemBarsInsets
 import org.skepsun.kototoro.databinding.FragmentJsonSourcesBinding
+import org.skepsun.kototoro.settings.sources.unified.redirectToUnifiedSources
+import org.skepsun.kototoro.settings.sources.unified.toUnifiedSourceKind
 
 /**
  * Fragment for managing JSON sources with grouped display.
@@ -63,6 +65,7 @@ class JsonSourcesFragment :
 	private var currentSort: SortOption = SortOption.NAME
 	private var currentFilter: FilterOption = FilterOption.ALL
 	private var currentGrouping = org.skepsun.kototoro.core.jsonsource.GroupingStrategy.BY_ORIGIN
+	private var redirected = false
 
 	companion object {
 		private const val TVBOX_REPOSITORY_MENU_BASE_ID = 50_000
@@ -166,7 +169,23 @@ class JsonSourcesFragment :
 		
 		addSupportMenuProvider(JsonSourcesMenuProvider())
 	}
-	
+
+	override fun onResume() {
+		super.onResume()
+		if (!redirected) {
+			redirected = true
+			arguments
+				?.getString(ARG_SOURCE_TYPE)
+				?.let { runCatching { enumValueOf<JsonSourceType>(it) }.getOrNull() }
+				?.let { redirectToUnifiedSources(it.toUnifiedSourceKind()) }
+				?: redirectToUnifiedSources()
+			return
+		}
+		if (parentFragment == null) {
+			setSupportTitle(R.string.json_sources_directory)
+		}
+	}
+
 	private fun setupSelectActionBar(binding: FragmentJsonSourcesBinding) {
 		binding.selectActionBar.setMainActionText(R.string.delete)
 		binding.selectActionBar.setCallback(this)
@@ -192,13 +211,6 @@ class JsonSourcesFragment :
 		)
 		viewBinding?.selectActionBar?.setPadding(0, 0, 0, barsInsets.bottom)
 		return insets.consumeAllSystemBarsInsets()
-	}
-	
-	override fun onResume() {
-		super.onResume()
-		if (parentFragment == null) {
-			setSupportTitle(R.string.json_sources_directory)
-		}
 	}
 	
 	override fun onDestroyView() {
@@ -605,4 +617,3 @@ class JsonSourcesFragment :
 		}
 	}
 }
-

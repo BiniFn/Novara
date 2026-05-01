@@ -8,6 +8,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import org.jsoup.Jsoup
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.model.getContentType
@@ -33,6 +34,8 @@ private const val DOMAIN = "shikimori.one"
 private const val REDIRECT_URI = "kotatsu://shikimori-auth"
 private const val BASE_URL = "https://$DOMAIN/"
 private const val MANGA_PAGE_SIZE = 10
+private const val SHIKIMORI_DISCUSSION_FORUM = "animanga"
+private const val SHIKIMORI_REVIEW_FORUM = "critiques"
 
 @Singleton
 class ShikimoriRepository @Inject constructor(
@@ -206,7 +209,12 @@ class ShikimoriRepository @Inject constructor(
 			.url("${BASE_URL}api/mangas/$id")
 		val response = okHttp.newCall(request.build()).await().parseJson()
 		val related = fetchRelated("mangas", id)
-		return parseDetailJson(response, related)
+		val discussion = fetchDiscussionPayload(
+			linkedType = "Manga",
+			linkedId = id,
+			contentUrl = response.getString("url").toAbsoluteUrl(DOMAIN),
+		)
+		return parseDetailJson(response, related, discussion)
 	}
 
 	/**
@@ -362,7 +370,153 @@ class ShikimoriRepository @Inject constructor(
 			.url("${BASE_URL}api/animes/$id")
 		val response = okHttp.newCall(request.build()).await().parseJson()
 		val related = fetchRelated("animes", id)
-		return parseDetailJson(response, related)
+		val discussion = fetchDiscussionPayload(
+			linkedType = "Anime",
+			linkedId = id,
+			contentUrl = response.getString("url").toAbsoluteUrl(DOMAIN),
+		)
+		return parseDetailJson(response, related, discussion)
+	}
+
+	private suspend fun fetchDiscussionPayload(
+		linkedType: String,
+		linkedId: Long,
+		contentUrl: String,
+	): ShikimoriDiscussionPayload {
+		return runCatching {
+			val discussionTopics = fetchTopics(
+				forum = SHIKIMORI_DISCUSSION_FORUM,
+				linkedType = linkedType,
+				linkedId = linkedId,
+				limit = 3,
+			)
+			val reviewTopics = fetchTopics(
+				forum = SHIKIMORI_REVIEW_FORUM,
+				linkedType = linkedType,
+				linkedId = linkedId,
+				limit = 5,
+			)
+			val commentThreads = buildList {
+				for (topic in discussionTopics) {
+					topicToCommentThread(topic)?.let(::add)
+				}
+			}
+			val reviews = reviewTopics.mapNotNull { topic ->
+				topicToReviewEntry(
+					topic = topic,
+					contentUrl = contentUrl,
+				)
+			}
+			ShikimoriDiscussionPayload(
+				commentThreads = commentThreads,
+				reviews = reviews,
+			)
+		}.getOrDefault(ShikimoriDiscussionPayload())
+	}
+
+	private suspend fun fetchTopics(
+		forum: String,
+		linkedType: String,
+		linkedId: Long,
+		limit: Int,
+	): List<JSONObject> {
+		val url = BASE_URL.toHttpUrl().newBuilder()
+			.addPathSegment("api")
+			.addPathSegment("topics")
+			.addEncodedQueryParameter("forum", forum)
+			.addEncodedQueryParameter("linked_type", linkedType)
+			.addEncodedQueryParameter("linked_id", linkedId.toString())
+			.addEncodedQueryParameter("page", "1")
+			.addEncodedQueryParameter("limit", limit.toString())
+			.build()
+		val request = Request.Builder().url(url).get().build()
+		return okHttp.newCall(request).await().parseJsonArray().mapJSON { it }
+	}
+
+	private suspend fun topicToCommentThread(topic: JSONObject): ScrobblerContentInfo.CommentThread? {
+		val topicId = topic.optLong("id", 0L)
+		if (topicId <= 0L) {
+			return null
+		}
+		val user = topic.optJSONObject("user")
+		val replies = fetchTopicReplies(topicId)
+		val content = topic.optString("body")
+			.takeIf { it.isNotBlank() }
+			?: topic.getStringOrNull("html_body")?.htmlToPlainText()
+			?: topic.getStringOrNull("topic_title")?.takeIf { it.isNotBlank() }
+		if (content.isNullOrBlank() && replies.isEmpty()) {
+			return null
+		}
+		return ScrobblerContentInfo.CommentThread(
+			id = "topic_$topicId",
+			userName = user?.getStringOrNull("nickname").orEmpty().ifBlank { "Shikimori" },
+			userUrl = user?.getStringOrNull("url")?.toAbsoluteUrl(DOMAIN),
+			avatarUrl = user?.getStringOrNull("avatar")?.toAbsoluteUrl(DOMAIN),
+			status = topic.optJSONObject("forum")?.getStringOrNull("name"),
+			postedAt = topic.getStringOrNull("created_at"),
+			content = content.orEmpty().ifBlank { "Topic #$topicId" },
+			replies = replies,
+		)
+	}
+
+	private suspend fun fetchTopicReplies(topicId: Long): List<ScrobblerContentInfo.CommentReply> {
+		val url = BASE_URL.toHttpUrl().newBuilder()
+			.addPathSegment("api")
+			.addPathSegment("comments")
+			.addEncodedQueryParameter("commentable_id", topicId.toString())
+			.addEncodedQueryParameter("commentable_type", "Topic")
+			.addEncodedQueryParameter("page", "1")
+			.addEncodedQueryParameter("limit", "10")
+			.addEncodedQueryParameter("desc", "0")
+			.build()
+		val request = Request.Builder().url(url).get().build()
+		return runCatching {
+			okHttp.newCall(request).await().parseJsonArray().mapJSON { json ->
+				val user = json.optJSONObject("user")
+				ScrobblerContentInfo.CommentReply(
+					id = json.optLong("id", 0L).takeIf { it > 0L }?.toString()
+						?: "comment_${topicId}_${json.hashCode()}",
+					userName = user?.getStringOrNull("nickname").orEmpty().ifBlank { "Shikimori" },
+					userUrl = user?.getStringOrNull("url")?.toAbsoluteUrl(DOMAIN),
+					avatarUrl = user?.getStringOrNull("avatar")?.toAbsoluteUrl(DOMAIN),
+					postedAt = json.getStringOrNull("created_at"),
+					content = json.optString("body")
+						.takeIf { it.isNotBlank() }
+						?: json.getStringOrNull("html_body")?.htmlToPlainText().orEmpty(),
+				)
+			}.filter { it.content.isNotBlank() }
+		}.getOrElse { emptyList() }
+	}
+
+	private fun topicToReviewEntry(
+		topic: JSONObject,
+		contentUrl: String,
+	): ScrobblerContentInfo.ReviewEntry? {
+		val user = topic.optJSONObject("user") ?: return null
+		val reviewLinked = topic.optJSONObject("linked")
+		val reviewId = reviewLinked?.optLong("id", 0L)?.takeIf { it > 0L }
+			?: topic.optLong("id", 0L).takeIf { it > 0L }
+			?: return null
+		val authorName = user.getStringOrNull("nickname").orEmpty()
+		val excerpt = topic.optString("body")
+			.takeIf { it.isNotBlank() }
+			?: topic.getStringOrNull("html_body")?.htmlToPlainText()
+			?: reviewLinked?.getStringOrNull("body")
+			?: reviewLinked?.getStringOrNull("html_body")?.htmlToPlainText()
+		if (authorName.isBlank() || excerpt.isNullOrBlank()) {
+			return null
+		}
+		return ScrobblerContentInfo.ReviewEntry(
+			id = reviewId.toString(),
+			title = topic.getStringOrNull("topic_title")?.takeIf { it.isNotBlank() } ?: "Review #$reviewId",
+			authorName = authorName,
+			authorUrl = user.getStringOrNull("url")?.toAbsoluteUrl(DOMAIN),
+			avatarUrl = user.getStringOrNull("avatar")?.toAbsoluteUrl(DOMAIN),
+			postedAt = topic.getStringOrNull("created_at"),
+			excerpt = excerpt.truncateForReviewExcerpt(),
+			url = "${contentUrl.trimEnd('/')}/reviews/$reviewId",
+			repliesCount = topic.optInt("comments_count", 0).takeIf { it > 0 },
+		)
 	}
 
 	/**
@@ -398,6 +552,7 @@ class ShikimoriRepository @Inject constructor(
 	private fun parseDetailJson(
 		json: JSONObject,
 		relatedWorks: List<ScrobblerContentInfo.RelatedWork>,
+		discussion: ShikimoriDiscussionPayload = ShikimoriDiscussionPayload(),
 	): ScrobblerContentInfo {
 		// Genres as tags
 		val genres = json.optJSONArray("genres")
@@ -475,20 +630,29 @@ class ShikimoriRepository @Inject constructor(
 			descriptionHtml = json.optString("description_html", ""),
 			tags = tags,
 			infoboxProperties = infobox,
+			commentThreads = discussion.commentThreads,
+			reviews = discussion.reviews,
 			relatedWorks = relatedWorks,
 		)
 	}
 
+	private fun String.htmlToPlainText(): String {
+		return Jsoup.parse(this)
+			.text()
+			.replace(Regex("\\s+"), " ")
+			.trim()
+	}
+
+	private fun String.truncateForReviewExcerpt(maxLength: Int = 220): String {
+		if (length <= maxLength) {
+			return this
+		}
+		return take(maxLength).trimEnd() + "…"
+	}
+
 	private fun parseShikimoriList(array: org.json.JSONArray, mediaType: String): List<ScrobblerContent> {
 		return array.mapJSON { json ->
-			ScrobblerContent(
-				id = json.getLong("id"),
-				name = json.getString("name"),
-				altName = json.getStringOrNull("russian"),
-				cover = json.getJSONObject("image").getString("preview").toAbsoluteUrl(DOMAIN),
-				url = json.getString("url").toAbsoluteUrl(DOMAIN),
-				mediaType = json.optString("kind", "").ifBlank { null }?.replace("_", " "),
-			)
+			createDiscoveryContent(json, mediaType)
 		}
 	}
 
@@ -506,16 +670,49 @@ class ShikimoriRepository @Inject constructor(
 		db.getScrobblingDao().upsert(entity)
 	}
 
-	private fun ScrobblerContent(json: JSONObject, sourceTitle: String) = ScrobblerContent(
-		id = json.getLong("id"),
-		name = json.getString("name"),
-		altName = json.getStringOrNull("russian"),
-		cover = json.getJSONObject("image").getString("preview").toAbsoluteUrl(DOMAIN),
-		url = json.getString("url").toAbsoluteUrl(DOMAIN),
-		mediaType = json.optString("kind", "").ifBlank { null }?.replace("_", " "),
-		isBestMatch = sourceTitle.equals(json.getString("name"), ignoreCase = true)
-			|| json.getStringOrNull("russian")?.equals(sourceTitle, ignoreCase = true) == true
-	)
+	private fun ScrobblerContent(json: JSONObject, sourceTitle: String): ScrobblerContent {
+		val mediaType = if (json.getString("url").contains("/animes/")) "animes" else "mangas"
+		val content = createDiscoveryContent(json, mediaType)
+		return content.copy(
+			isBestMatch = sequenceOf(content.name, content.primaryTitle, content.secondaryTitle, content.altName)
+				.filterNotNull()
+				.any { it.equals(sourceTitle, ignoreCase = true) },
+		)
+	}
+
+	private fun createDiscoveryContent(json: JSONObject, mediaType: String): ScrobblerContent {
+		val primaryTitle = json.getString("name")
+		val secondaryTitle = json.getStringOrNull("russian")?.takeIf { !it.equals(primaryTitle, ignoreCase = true) }
+		val kind = json.optString("kind", "").ifBlank { null }?.replace("_", " ")
+		val status = json.getStringOrNull("status")?.replace("_", " ")
+		val progressText = if (mediaType.contains("anime")) {
+			val aired = json.optInt("episodes_aired", 0)
+			val total = json.optInt("episodes", 0)
+			when {
+				aired > 0 && total > 0 -> "EP $aired/$total"
+				total > 0 -> "EP $total"
+				else -> null
+			}
+		} else {
+			json.optInt("chapters", 0).takeIf { it > 0 }?.let { "CH $it" }
+		}
+		return ScrobblerContent(
+			id = json.getLong("id"),
+			name = primaryTitle,
+			altName = secondaryTitle,
+			cover = json.getJSONObject("image").getString("preview").toAbsoluteUrl(DOMAIN),
+			url = json.getString("url").toAbsoluteUrl(DOMAIN),
+			mediaType = kind,
+			primaryTitle = primaryTitle,
+			secondaryTitle = secondaryTitle,
+			subtitle = listOfNotNull(kind, status).joinToString(" · ").ifBlank { null },
+			progressText = progressText,
+			updatedAtText = json.getStringOrNull("aired_on")?.takeIf { it.isNotBlank() }
+				?: json.getStringOrNull("released_on")?.takeIf { it.isNotBlank() },
+			score = json.optString("score").toFloatOrNull()?.takeIf { it > 0f },
+			scoreMax = 10f,
+		)
+	}
 
 	@Suppress("FunctionName")
 	private fun ShikimoriUser(json: JSONObject) = ScrobblerUser(
@@ -523,5 +720,10 @@ class ShikimoriRepository @Inject constructor(
 		nickname = json.getString("nickname"),
 		avatar = json.getStringOrNull("avatar"),
 		service = ScrobblerService.SHIKIMORI,
+	)
+
+	private data class ShikimoriDiscussionPayload(
+		val commentThreads: List<ScrobblerContentInfo.CommentThread> = emptyList(),
+		val reviews: List<ScrobblerContentInfo.ReviewEntry> = emptyList(),
 	)
 }

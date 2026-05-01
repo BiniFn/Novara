@@ -2,13 +2,14 @@ package org.skepsun.kototoro.reader.novel.tts
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.content.pm.ServiceInfo
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import androidx.lifecycle.LifecycleService
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -31,6 +32,7 @@ class TtsService : LifecycleService() {
 
     private val _serviceState = kotlinx.coroutines.flow.MutableStateFlow(org.skepsun.kototoro.reader.novel.tts.TtsState.IDLE)
     private var stateCollectionJob: kotlinx.coroutines.Job? = null
+    private var isForegroundStarted = false
 
     inner class TtsBinder : Binder() {
         fun getService(): TtsService = this@TtsService
@@ -38,16 +40,10 @@ class TtsService : LifecycleService() {
 
     override fun onCreate() {
         super.onCreate()
-        
+
+        createNotificationChannel()
         ttsManager = createTtsManager()
         observeManagerState()
-        
-        createNotificationChannel()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, buildNotification(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
-        } else {
-            startForeground(NOTIFICATION_ID, buildNotification())
-        }
     }
 
     private fun observeManagerState() {
@@ -58,6 +54,7 @@ class TtsService : LifecycleService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        ensureForegroundStarted()
         super.onStartCommand(intent, flags, startId)
         return START_NOT_STICKY
     }
@@ -76,6 +73,7 @@ class TtsService : LifecycleService() {
 
     // Public API for binding components
     fun startTts(tokens: List<Token>, startIndex: Int) {
+        ensureForegroundStarted()
         ttsManager.start(tokens, startIndex)
     }
 
@@ -84,6 +82,7 @@ class TtsService : LifecycleService() {
     }
 
     fun resume() {
+        ensureForegroundStarted()
         ttsManager.resume()
     }
     
@@ -97,7 +96,10 @@ class TtsService : LifecycleService() {
 
     fun stopTts() {
         ttsManager.stop()
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        if (isForegroundStarted) {
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+            isForegroundStarted = false
+        }
         stopSelf()
     }
 
@@ -167,8 +169,27 @@ class TtsService : LifecycleService() {
         .setContentTitle("Kototoro ")
         .setContentText("朗读中...")
         .setSmallIcon(R.mipmap.ic_launcher)
-        // Add pending intent to return to Reader UI
+        .setOngoing(true)
+        .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
         .build()
+
+    private fun ensureForegroundStarted() {
+        if (isForegroundStarted) {
+            return
+        }
+        val notification = buildNotification()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ServiceCompat.startForeground(
+                this,
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
+            )
+        } else {
+            ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, 0)
+        }
+        isForegroundStarted = true
+    }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

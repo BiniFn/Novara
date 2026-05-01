@@ -1,0 +1,204 @@
+package org.skepsun.kototoro.tracker.ui.feed.compose
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.FavouriteCategory
+import org.skepsun.kototoro.core.model.FavouriteCategory.Companion.NO_ID
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
+import org.skepsun.kototoro.list.ui.model.ContentListModel
+import org.skepsun.kototoro.list.ui.model.EmptyState
+import org.skepsun.kototoro.list.ui.model.ListHeader
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.model.LoadingState
+import org.skepsun.kototoro.tracker.ui.feed.model.FeedItem
+import org.skepsun.kototoro.tracker.ui.feed.model.UpdatedContentHeader
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FeedScreen(
+	contentPadding: PaddingValues = PaddingValues(0.dp),
+	items: List<ListModel>,
+	isRefreshing: Boolean,
+	onRefresh: () -> Unit,
+	onLoadMore: () -> Unit,
+	onFeedItemClick: (FeedItem, Rect?) -> Unit,
+	onUpdatedContentItemClick: (ContentListModel, Rect?) -> Unit,
+	onUpdatedContentMoreClick: (UpdatedContentHeader) -> Unit,
+	categories: List<FavouriteCategory>,
+	selectedCategoryId: Long,
+	onCategorySelected: (Long) -> Unit,
+	modifier: Modifier = Modifier
+) {
+	val listState = rememberLazyListState()
+	val context = LocalContext.current
+	val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
+	val carouselPrefs by settings.observeAsState(
+		AppSettings.KEY_GRID_SIZE,
+		AppSettings.KEY_BADGES_BOTTOM_RIGHT,
+	) {
+		UpdatedContentCarouselPrefs(
+			gridScale = gridSize / 100f,
+			badgesBottomRight = badgesBottomRight,
+		)
+	}
+	
+	// Trigger pagination threshold
+	val shouldLoadMore by remember {
+		derivedStateOf {
+			val layoutInfo = listState.layoutInfo
+			val totalVisibleItems = layoutInfo.visibleItemsInfo.size
+			val lastVisibleItemIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+			lastVisibleItemIndex >= layoutInfo.totalItemsCount - 4 && totalVisibleItems > 0
+		}
+	}
+
+	LaunchedEffect(shouldLoadMore) {
+		if (shouldLoadMore && !isRefreshing) {
+			onLoadMore()
+		}
+	}
+
+	KototoroPullToRefreshBox(
+		isRefreshing = isRefreshing,
+		onRefresh = onRefresh,
+		modifier = modifier.fillMaxSize()
+	) {
+		LazyColumn(
+			state = listState,
+			contentPadding = PaddingValues(
+				top = contentPadding.calculateTopPadding() + 12.dp,
+				bottom = contentPadding.calculateBottomPadding(),
+				start = 0.dp,
+				end = 0.dp,
+			),
+			modifier = Modifier.fillMaxSize()
+		) {
+			item(key = "feed_filters") {
+				FeedFilterBar(
+					categories = categories,
+					selectedCategoryId = selectedCategoryId,
+					onCategorySelected = onCategorySelected,
+				)
+			}
+			items(
+				items = items,
+				key = { item ->
+					when (item) {
+						is FeedItem -> "feed_${item.id}"
+						is UpdatedContentHeader -> "updates_header"
+						is ListHeader -> "header_${item.hashCode()}"
+						is LoadingState -> "loading"
+						is EmptyState -> "empty"
+						else -> item.hashCode().toString()
+					}
+				},
+				contentType = { item ->
+					when (item) {
+						is FeedItem -> "feed_item"
+						is UpdatedContentHeader -> "updated_carousel"
+						is ListHeader -> "list_header"
+						else -> "feed_other"
+					}
+				},
+			) { item ->
+				when (item) {
+					is FeedItem -> {
+						FeedItemCard(
+							item = item,
+							onClick = { coverBounds -> onFeedItemClick(item, coverBounds) }
+						)
+					}
+					is UpdatedContentHeader -> {
+						// Here we render the horizontal carousel of updated contents
+						UpdatedContentCarousel(
+							header = item,
+							prefs = carouselPrefs,
+							onItemClick = onUpdatedContentItemClick,
+							onMoreClick = { onUpdatedContentMoreClick(item) }
+						)
+					}
+					is ListHeader -> {
+						Text(
+							text = item.getText(context)?.toString().orEmpty(),
+							style = MaterialTheme.typography.titleMedium,
+							color = MaterialTheme.colorScheme.onBackground,
+							modifier = Modifier
+								.fillMaxWidth()
+								.padding(horizontal = 16.dp, vertical = 12.dp)
+						)
+					}
+					// loading and empty states could be mapped to existing Compose components
+				}
+			}
+		}
+	}
+}
+
+@Composable
+private fun FeedFilterBar(
+	categories: List<FavouriteCategory>,
+	selectedCategoryId: Long,
+	onCategorySelected: (Long) -> Unit,
+	modifier: Modifier = Modifier,
+) {
+	LazyRow(
+		modifier = modifier
+			.fillMaxWidth()
+			.padding(bottom = 8.dp),
+		contentPadding = PaddingValues(horizontal = 12.dp),
+		horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+	) {
+		items(categories, key = { "category_${it.id}" }, contentType = { "filter_chip" }) { category ->
+			FilterChip(
+				selected = selectedCategoryId == category.id,
+				onClick = { onCategorySelected(category.id) },
+				label = {
+					Text(
+						if (category.id == NO_ID) {
+							stringResource(R.string.all_favourites)
+						} else {
+							category.title
+						},
+					)
+				},
+				leadingIcon = {
+					androidx.compose.material3.Icon(
+						painter = painterResource(
+							if (category.id == NO_ID) R.drawable.ic_heart else R.drawable.ic_bookmark
+						),
+						contentDescription = null,
+					)
+				},
+			)
+		}
+	}
+}

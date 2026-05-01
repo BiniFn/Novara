@@ -31,6 +31,8 @@ import org.skepsun.kototoro.core.prefs.VideoDecoderMode
 import org.skepsun.kototoro.core.prefs.VideoRendererMode
 import org.skepsun.kototoro.core.prefs.VideoSuperResolutionMode
 import org.skepsun.kototoro.core.prefs.VideoSuperResolutionShader
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.util.find
 import org.skepsun.kototoro.parsers.util.mapNotNullToSet
@@ -52,10 +54,36 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
+private fun SharedPreferences.getSafeInt(key: String, defValue: Int): Int {
+	return try {
+		getInt(key, defValue)
+	} catch (_: ClassCastException) {
+		getLong(key, defValue.toLong()).toInt().also {
+			edit { putInt(key, it) }
+		}
+	}
+}
+
+private fun SharedPreferences.getSafeLong(key: String, defValue: Long): Long {
+	return try {
+		getLong(key, defValue)
+	} catch (_: ClassCastException) {
+		when (val raw = all[key]) {
+			is Int -> raw.toLong()
+			is Long -> raw
+			is Float -> raw.toLong()
+			is String -> raw.toLongOrNull() ?: defValue
+			else -> defValue
+		}.also {
+			edit { putLong(key, it) }
+		}
+	}
+}
+
 @Singleton
 class AppSettings @Inject constructor(@ApplicationContext private val context: Context) {
 
-	private val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+	val prefs = PreferenceManager.getDefaultSharedPreferences(context)
 	private val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 	private val mangaListBadgesDefault = ArraySet(context.resources.getStringArray(R.array.values_list_badges))
 
@@ -67,18 +95,22 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getEnumValue(KEY_LIST_MODE, ListMode.GRID)
 		set(value) = prefs.edit { putEnumValue(KEY_LIST_MODE, value) }
 
-	val theme: Int
+	var theme: Int
 		get() = prefs.getString(KEY_THEME, null)?.toIntOrNull()
 			?: AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+		set(value) = prefs.edit { putString(KEY_THEME, value.toString()) }
 
-	val colorScheme: ColorScheme
+	var colorScheme: ColorScheme
 		get() = prefs.getEnumValue(KEY_COLOR_THEME, ColorScheme.default)
+		set(value) = prefs.edit { putEnumValue(KEY_COLOR_THEME, value) }
 
-	val isAmoledTheme: Boolean
+	var isAmoledTheme: Boolean
 		get() = prefs.getBoolean(KEY_THEME_AMOLED, false)
+		set(value) = prefs.edit { putBoolean(KEY_THEME_AMOLED, value) }
 
-	val tabletUiMode: TabletUiMode
+	var tabletUiMode: TabletUiMode
 		get() = prefs.getEnumValue(KEY_TABLET_UI_MODE, TabletUiMode.RELAXED)
+		set(value) = prefs.edit { putEnumValue(KEY_TABLET_UI_MODE, value) }
 
 	var mainNavItems: List<NavItem>
 		get() {
@@ -103,35 +135,45 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 			}
 		}
 
-	val isNavLabelsVisible: Boolean
+	var isNavLabelsVisible: Boolean
 		get() = prefs.getBoolean(KEY_NAV_LABELS, true)
+		set(value) = prefs.edit { putBoolean(KEY_NAV_LABELS, value) }
 
-	val isNavBarPinned: Boolean
+	var isEntityGraphMigrated: Boolean
+		get() = prefs.getBoolean(KEY_ENTITY_GRAPH_MIGRATED, false)
+		set(value) = prefs.edit { putBoolean(KEY_ENTITY_GRAPH_MIGRATED, value) }
+
+	var isNavBarPinned: Boolean
 		get() = prefs.getBoolean(KEY_NAV_PINNED, false)
+		set(value) = prefs.edit { putBoolean(KEY_NAV_PINNED, value) }
 
 	var isNavFloating: Boolean
 		get() = prefs.getBoolean(KEY_NAV_FLOATING, false)
 		set(value) = prefs.edit { putBoolean(KEY_NAV_FLOATING, value) }
 
-	val navHeight: Int
-		get() = prefs.getInt(KEY_NAV_HEIGHT, 80)
+	var navHeight: Int
+		get() = prefs.getSafeInt(KEY_NAV_HEIGHT, 80).coerceIn(48, 88)
+		set(value) = prefs.edit { putInt(KEY_NAV_HEIGHT, value.coerceIn(48, 88)) }
 
-	val navFloatingHeight: Int
-		get() = prefs.getInt(KEY_NAV_FLOATING_HEIGHT, 64)
+	var navFloatingHeight: Int
+		get() = prefs.getSafeInt(KEY_NAV_FLOATING_HEIGHT, 64).coerceIn(48, 84)
+		set(value) = prefs.edit { putInt(KEY_NAV_FLOATING_HEIGHT, value.coerceIn(48, 84)) }
 
-	val isMainFabEnabled: Boolean
+	var isMainFabEnabled: Boolean
 		get() = prefs.getBoolean(KEY_MAIN_FAB, true)
+		set(value) = prefs.edit { putBoolean(KEY_MAIN_FAB, value) }
 
 	var gridSize: Int
-		get() = prefs.getInt(KEY_GRID_SIZE, 100)
-		set(value) = prefs.edit { putInt(KEY_GRID_SIZE, value) }
+		get() = prefs.getSafeInt(KEY_GRID_SIZE, 100).coerceIn(50, 150)
+		set(value) = prefs.edit { putInt(KEY_GRID_SIZE, value.coerceIn(50, 150)) }
 
 	var gridSizePages: Int
-		get() = prefs.getInt(KEY_GRID_SIZE_PAGES, 100)
-		set(value) = prefs.edit { putInt(KEY_GRID_SIZE_PAGES, value) }
+		get() = prefs.getSafeInt(KEY_GRID_SIZE_PAGES, 100).coerceIn(50, 150)
+		set(value) = prefs.edit { putInt(KEY_GRID_SIZE_PAGES, value.coerceIn(50, 150)) }
 
-	val isQuickFilterEnabled: Boolean
+	var isQuickFilterEnabled: Boolean
 		get() = prefs.getBoolean(KEY_QUICK_FILTER, true)
+		set(value) = prefs.edit { putBoolean(KEY_QUICK_FILTER, value) }
 
 	var isShowLanguagePresetFilter: Boolean
 		get() = prefs.getBoolean(KEY_SHOW_LANGUAGE_PRESET_FILTER, true)
@@ -167,24 +209,42 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		}
 		set(value) = prefs.edit { putLong(KEY_ACTIVE_SOURCE_PRESET_ID, value) }
 
-	val isDescriptionExpanded: Boolean
+	var isDescriptionExpanded: Boolean
 		get() = !prefs.getBoolean(KEY_COLLAPSE_DESCRIPTION, true)
+		set(value) = prefs.edit { putBoolean(KEY_COLLAPSE_DESCRIPTION, !value) }
 
 	var isPanoramaCoverEnabled: Boolean
 		get() = prefs.getBoolean(KEY_PANORAMA_ENABLED, true)
 		set(value) = prefs.edit { putBoolean(KEY_PANORAMA_ENABLED, value) }
 
 	var panoramaCoverBlur: Int
-		get() = prefs.getInt(KEY_PANORAMA_BLUR, 35)
-		set(value) = prefs.edit { putInt(KEY_PANORAMA_BLUR, value) }
+		get() = prefs.getSafeInt(KEY_PANORAMA_BLUR, 35).coerceIn(0, 100)
+		set(value) = prefs.edit { putInt(KEY_PANORAMA_BLUR, value.coerceIn(0, 100)) }
+
+	var isPanoramaCoverAnimationEnabled: Boolean
+		get() = prefs.getBoolean(KEY_PANORAMA_ANIMATION_ENABLED, true)
+		set(value) = prefs.edit { putBoolean(KEY_PANORAMA_ANIMATION_ENABLED, value) }
+
+	var panoramaAnimationSpeed: Int
+		get() = prefs.getSafeInt(KEY_PANORAMA_ANIMATION_SPEED, 100).coerceIn(50, 200)
+		set(value) = prefs.edit { putInt(KEY_PANORAMA_ANIMATION_SPEED, value.coerceIn(50, 200)) }
 
 	var panoramaCoverExtraHeight: Int
-		get() = prefs.getInt(KEY_PANORAMA_EXTRA_HEIGHT, 50)
-		set(value) = prefs.edit { putInt(KEY_PANORAMA_EXTRA_HEIGHT, value) }
+		get() = prefs.getSafeInt(KEY_PANORAMA_EXTRA_HEIGHT, 50).coerceIn(0, 100)
+		set(value) = prefs.edit { putInt(KEY_PANORAMA_EXTRA_HEIGHT, value.coerceIn(0, 100)) }
 
 	var panoramaBottomGradientAlpha: Int
-		get() = prefs.getInt(KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA, 100)
-		set(value) = prefs.edit { putInt(KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA, value) }
+		get() = prefs.getSafeInt(KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA, 100).coerceIn(0, 100)
+		set(value) = prefs.edit { putInt(KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA, value.coerceIn(0, 100)) }
+
+	var browsePanoramaBottomGradientAlpha: Int
+		get() = prefs.getSafeInt(KEY_BROWSE_PANORAMA_BOTTOM_GRADIENT_ALPHA, panoramaBottomGradientAlpha)
+			.coerceIn(0, 100)
+		set(value) = prefs.edit { putInt(KEY_BROWSE_PANORAMA_BOTTOM_GRADIENT_ALPHA, value.coerceIn(0, 100)) }
+
+	var browsePanoramaBlendHeight: Int
+		get() = prefs.getSafeInt(KEY_BROWSE_PANORAMA_BLEND_HEIGHT, 156).coerceIn(48, 220)
+		set(value) = prefs.edit { putInt(KEY_BROWSE_PANORAMA_BLEND_HEIGHT, value.coerceIn(48, 220)) }
 
 	var historyListMode: ListMode
 		get() = prefs.getEnumValue(KEY_LIST_MODE_HISTORY, listMode)
@@ -198,8 +258,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getEnumValue(KEY_LIST_MODE_FAVORITES, listMode)
 		set(value) = prefs.edit { putEnumValue(KEY_LIST_MODE_FAVORITES, value) }
 
-	val isTagsWarningsEnabled: Boolean
+	var isTagsWarningsEnabled: Boolean
 		get() = prefs.getBoolean(KEY_TAGS_WARNINGS, true)
+		set(value) = prefs.edit { putBoolean(KEY_TAGS_WARNINGS, value) }
 
 	var isNsfwContentDisabled: Boolean
 		get() = prefs.getBoolean(KEY_DISABLE_NSFW, true)
@@ -337,45 +398,54 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 			ReaderControl.entries.find(it)
 		} ?: ReaderControl.DEFAULT
 
-	val isOfflineCheckDisabled: Boolean
+	var isOfflineCheckDisabled: Boolean
 		get() = prefs.getBoolean(KEY_OFFLINE_DISABLED, false)
+		set(value) = prefs.edit { putBoolean(KEY_OFFLINE_DISABLED, value) }
 
 	var isAllFavouritesVisible: Boolean
 		get() = prefs.getBoolean(KEY_ALL_FAVOURITES_VISIBLE, true)
 		set(value) = prefs.edit { putBoolean(KEY_ALL_FAVOURITES_VISIBLE, value) }
 
-	val isTrackerEnabled: Boolean
+	var isTrackerEnabled: Boolean
 		get() = prefs.getBoolean(KEY_TRACKER_ENABLED, true)
+		set(value) = prefs.edit { putBoolean(KEY_TRACKER_ENABLED, value) }
 
-	val isTrackerWifiOnly: Boolean
+	var isTrackerWifiOnly: Boolean
 		get() = prefs.getBoolean(KEY_TRACKER_WIFI_ONLY, false)
+		set(value) = prefs.edit { putBoolean(KEY_TRACKER_WIFI_ONLY, value) }
 
-	val trackerFrequencyFactor: Float
+	var trackerFrequencyFactor: Float
 		get() = prefs.getString(KEY_TRACKER_FREQUENCY, null)?.toFloatOrNull() ?: 1f
+		set(value) = prefs.edit { putString(KEY_TRACKER_FREQUENCY, value.toString()) }
 
-	val isTrackerNotificationsEnabled: Boolean
+	var isTrackerNotificationsEnabled: Boolean
 		get() = prefs.getBoolean(KEY_TRACKER_NOTIFICATIONS, true)
+		set(value) = prefs.edit { putBoolean(KEY_TRACKER_NOTIFICATIONS, value) }
 
 	var preferredTrackingSite: ScrobblerService
 		get() = prefs.getEnumValue(KEY_PREFERRED_TRACKING_SITE, ScrobblerService.BANGUMI)
 		set(value) = prefs.edit { putEnumValue(KEY_PREFERRED_TRACKING_SITE, value) }
 
-	val isTrackerNsfwDisabled: Boolean
+	var isTrackerNsfwDisabled: Boolean
 		get() = prefs.getBoolean(KEY_TRACKER_NO_NSFW, false)
+		set(value) = prefs.edit { putBoolean(KEY_TRACKER_NO_NSFW, value) }
 
-	val trackerDownloadStrategy: TrackerDownloadStrategy
+	var trackerDownloadStrategy: TrackerDownloadStrategy
 		get() = prefs.getEnumValue(KEY_TRACKER_DOWNLOAD, TrackerDownloadStrategy.DISABLED)
+		set(value) = prefs.edit { putEnumValue(KEY_TRACKER_DOWNLOAD, value) }
 
 	var notificationSound: Uri
 		get() = prefs.getString(KEY_NOTIFICATIONS_SOUND, null)?.toUriOrNull()
 			?: Settings.System.DEFAULT_NOTIFICATION_URI
 		set(value) = prefs.edit { putString(KEY_NOTIFICATIONS_SOUND, value.toString()) }
 
-	val notificationVibrate: Boolean
+	var notificationVibrate: Boolean
 		get() = prefs.getBoolean(KEY_NOTIFICATIONS_VIBRATE, false)
+		set(value) = prefs.edit { putBoolean(KEY_NOTIFICATIONS_VIBRATE, value) }
 
-	val notificationLight: Boolean
+	var notificationLight: Boolean
 		get() = prefs.getBoolean(KEY_NOTIFICATIONS_LIGHT, true)
+		set(value) = prefs.edit { putBoolean(KEY_NOTIFICATIONS_LIGHT, value) }
 
 	val readerAnimation: ReaderAnimation
 		get() = prefs.getEnumValue(KEY_READER_ANIMATION, ReaderAnimation.DEFAULT)
@@ -424,19 +494,19 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putBoolean(KEY_VIDEO_DANMAKU_ENABLED, value) }
 
 	var videoDanmakuSizePercent: Int
-		get() = prefs.getInt(KEY_VIDEO_DANMAKU_SIZE, 100)
+		get() = prefs.getSafeInt(KEY_VIDEO_DANMAKU_SIZE, 100)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_SIZE, value) }
 
 	var videoDanmakuSpeedPercent: Int
-		get() = prefs.getInt(KEY_VIDEO_DANMAKU_SPEED, 100)
+		get() = prefs.getSafeInt(KEY_VIDEO_DANMAKU_SPEED, 100)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_SPEED, value) }
 
 	var videoDanmakuOpacityPercent: Int
-		get() = prefs.getInt(KEY_VIDEO_DANMAKU_OPACITY, 100)
+		get() = prefs.getSafeInt(KEY_VIDEO_DANMAKU_OPACITY, 100)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_OPACITY, value) }
 
 	var videoDanmakuStrokePercent: Int
-		get() = prefs.getInt(KEY_VIDEO_DANMAKU_STROKE, 50)
+		get() = prefs.getSafeInt(KEY_VIDEO_DANMAKU_STROKE, 50)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_STROKE, value) }
 
 	var videoDanmakuShowScroll: Boolean
@@ -452,19 +522,19 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putBoolean(KEY_VIDEO_DANMAKU_SHOW_BOTTOM, value) }
 
 	var videoDanmakuMaxScrollLines: Int
-		get() = prefs.getInt(KEY_VIDEO_DANMAKU_MAX_SCROLL_LINES, 0)
+		get() = prefs.getSafeInt(KEY_VIDEO_DANMAKU_MAX_SCROLL_LINES, 0)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_MAX_SCROLL_LINES, value) }
 
 	var videoDanmakuMaxTopLines: Int
-		get() = prefs.getInt(KEY_VIDEO_DANMAKU_MAX_TOP_LINES, 0)
+		get() = prefs.getSafeInt(KEY_VIDEO_DANMAKU_MAX_TOP_LINES, 0)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_MAX_TOP_LINES, value) }
 
 	var videoDanmakuMaxBottomLines: Int
-		get() = prefs.getInt(KEY_VIDEO_DANMAKU_MAX_BOTTOM_LINES, 0)
+		get() = prefs.getSafeInt(KEY_VIDEO_DANMAKU_MAX_BOTTOM_LINES, 0)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_MAX_BOTTOM_LINES, value) }
 
 	var videoDanmakuMaxScreenNum: Int
-		get() = prefs.getInt(KEY_VIDEO_DANMAKU_MAX_SCREEN_NUM, 0)
+		get() = prefs.getSafeInt(KEY_VIDEO_DANMAKU_MAX_SCREEN_NUM, 0)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_MAX_SCREEN_NUM, value) }
 
 	var videoDanmakuSourceDanDan: Boolean
@@ -480,19 +550,19 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putBoolean(KEY_VIDEO_DANMAKU_SOURCE_QQ, value) }
 
 	var videoPlaybackSpeed: Float
-		get() = prefs.getInt(KEY_VIDEO_PLAYBACK_SPEED, 100) / 100f
+		get() = prefs.getSafeInt(KEY_VIDEO_PLAYBACK_SPEED, 100) / 100f
 		set(value) = prefs.edit { putInt(KEY_VIDEO_PLAYBACK_SPEED, (value * 100).toInt()) }
 
 	var videoDefaultSpeed: Float
-		get() = prefs.getInt(KEY_VIDEO_DEFAULT_SPEED, 100) / 100f
+		get() = prefs.getSafeInt(KEY_VIDEO_DEFAULT_SPEED, 100) / 100f
 		set(value) = prefs.edit { putInt(KEY_VIDEO_DEFAULT_SPEED, (value * 100).toInt()) }
 
 	var videoSeekForwardMs: Int
-		get() = prefs.getInt(KEY_VIDEO_SEEK_FORWARD_MS, 10_000)
+		get() = prefs.getSafeInt(KEY_VIDEO_SEEK_FORWARD_MS, 10_000)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_SEEK_FORWARD_MS, value) }
 
 	var videoSeekBackwardMs: Int
-		get() = prefs.getInt(KEY_VIDEO_SEEK_BACKWARD_MS, 10_000)
+		get() = prefs.getSafeInt(KEY_VIDEO_SEEK_BACKWARD_MS, 10_000)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_SEEK_BACKWARD_MS, value) }
 
 	var videoVolumeBoostEnabled: Boolean
@@ -508,11 +578,11 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putBoolean(KEY_VIDEO_LANDSCAPE_SENSOR, value) }
 
 	var videoCacheSizeMb: Int
-		get() = prefs.getInt(KEY_VIDEO_CACHE_MB, 1024)
+		get() = prefs.getSafeInt(KEY_VIDEO_CACHE_MB, 1024)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_CACHE_MB, value) }
 
 	var videoAspectRatio: Int
-		get() = prefs.getInt(KEY_VIDEO_ASPECT_RATIO, 0)
+		get() = prefs.getSafeInt(KEY_VIDEO_ASPECT_RATIO, 0)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_ASPECT_RATIO, value) }
 
 	var videoDoubleTapSeekEnabled: Boolean
@@ -532,11 +602,11 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putBoolean(KEY_VIDEO_SUBTITLE_ITALIC, value) }
 
 	var videoSubtitleTextColor: Int
-		get() = prefs.getInt(KEY_VIDEO_SUBTITLE_TEXT_COLOR, android.graphics.Color.WHITE)
+		get() = prefs.getSafeInt(KEY_VIDEO_SUBTITLE_TEXT_COLOR, android.graphics.Color.WHITE)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_SUBTITLE_TEXT_COLOR, value) }
 
 	var videoSubtitleBorderColor: Int
-		get() = prefs.getInt(KEY_VIDEO_SUBTITLE_BORDER_COLOR, android.graphics.Color.BLACK)
+		get() = prefs.getSafeInt(KEY_VIDEO_SUBTITLE_BORDER_COLOR, android.graphics.Color.BLACK)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_SUBTITLE_BORDER_COLOR, value) }
 
 	var videoSubtitleBorderSize: Float
@@ -544,20 +614,20 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putFloat(KEY_VIDEO_SUBTITLE_BORDER_SIZE, value) }
 
 	var videoSubtitleBgColor: Int
-		get() = prefs.getInt(KEY_VIDEO_SUBTITLE_BG_COLOR, 0x66000000)
+		get() = prefs.getSafeInt(KEY_VIDEO_SUBTITLE_BG_COLOR, 0x66000000)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_SUBTITLE_BG_COLOR, value) }
 
 	var videoSubtitleAlignX: Int
-		get() = prefs.getInt(KEY_VIDEO_SUBTITLE_ALIGN_X, 1) // 0=left, 1=center, 2=right
+		get() = prefs.getSafeInt(KEY_VIDEO_SUBTITLE_ALIGN_X, 1) // 0=left, 1=center, 2=right
 		set(value) = prefs.edit { putInt(KEY_VIDEO_SUBTITLE_ALIGN_X, value) }
 
 	var videoSubtitlePosition: Int
-		get() = prefs.getInt(KEY_VIDEO_SUBTITLE_POSITION, 80)
+		get() = prefs.getSafeInt(KEY_VIDEO_SUBTITLE_POSITION, 80)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_SUBTITLE_POSITION, value) }
 
 	@get:FloatRange(0.3, 1.0)
 	var videoControlsAlpha: Float
-		get() = prefs.getInt(KEY_VIDEO_CONTROLS_ALPHA, 90) / 100f
+		get() = prefs.getSafeInt(KEY_VIDEO_CONTROLS_ALPHA, 90) / 100f
 		set(@FloatRange(0.3, 1.0) value) = prefs.edit { putInt(KEY_VIDEO_CONTROLS_ALPHA, (value * 100).toInt()) }
 
 	var preferredVideoQuality: String
@@ -566,7 +636,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	@get:FloatRange(0.0, 1.0)
 	var videoGradientAlpha: Float
-		get() = prefs.getInt(KEY_VIDEO_GRADIENT_ALPHA, 70) / 100f
+		get() = prefs.getSafeInt(KEY_VIDEO_GRADIENT_ALPHA, 70) / 100f
 		set(@FloatRange(0.0, 1.0) value) = prefs.edit { putInt(KEY_VIDEO_GRADIENT_ALPHA, (value * 100).toInt()) }
 
 	val defaultReaderMode: ReaderMode
@@ -587,8 +657,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getBoolean(KEY_FEED_HEADER, true)
 		set(value) = prefs.edit { putBoolean(KEY_FEED_HEADER, value) }
 
-	val progressIndicatorMode: ProgressIndicatorMode
+	var progressIndicatorMode: ProgressIndicatorMode
 		get() = prefs.getEnumValue(KEY_PROGRESS_INDICATORS, ProgressIndicatorMode.PERCENT_READ)
+		set(value) = prefs.edit { putEnumValue(KEY_PROGRESS_INDICATORS, value) }
 
 	enum class LoadingCircleStyle(val value: String) {
 		THICK_STRAIGHT("thick_straight"),
@@ -606,8 +677,38 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = LoadingCircleStyle.fromValue(prefs.getString(KEY_LOADING_CIRCLE_STYLE, LoadingCircleStyle.THICK_STRAIGHT.value))
 		set(value) = prefs.edit { putString(KEY_LOADING_CIRCLE_STYLE, value.value) }
 
-	val popupRadius: Int
-		get() = prefs.getString(KEY_POPUP_RADIUS, "-1")?.toIntOrNull() ?: -1
+	var railAnimationIntensityPercent: Int
+		get() = prefs.getSafeInt(KEY_RAIL_ANIMATION_INTENSITY, 100).coerceIn(0, 300)
+		set(value) = prefs.edit { putInt(KEY_RAIL_ANIMATION_INTENSITY, value.coerceIn(0, 300)) }
+
+	var isVerticalListRailAnimationEnabled: Boolean
+		get() = prefs.getBoolean(KEY_VERTICAL_LIST_RAIL_ANIMATION, false)
+		set(value) = prefs.edit { putBoolean(KEY_VERTICAL_LIST_RAIL_ANIMATION, value) }
+
+	var cornerRadius: Int
+		get() = prefs.getString(KEY_POPUP_RADIUS, "-1")?.toIntOrNull()
+			?.takeIf { it in CORNER_RADIUS_ALLOWED_VALUES } ?: -1
+		set(value) = prefs.edit { putString(KEY_POPUP_RADIUS, value.takeIf { it in CORNER_RADIUS_ALLOWED_VALUES }?.toString() ?: "-1") }
+
+	var badgesTopLeft: Set<String>
+		get() = prefs.getStringSet(KEY_BADGES_TOP_LEFT, setOf("tracker")) ?: setOf("tracker")
+		set(value) = prefs.edit { putStringSet(KEY_BADGES_TOP_LEFT, value) }
+
+	var badgesTopRight: Set<String>
+		get() = prefs.getStringSet(KEY_BADGES_TOP_RIGHT, setOf("score")) ?: setOf("score")
+		set(value) = prefs.edit { putStringSet(KEY_BADGES_TOP_RIGHT, value) }
+
+	var badgesBottomLeft: Set<String>
+		get() = prefs.getStringSet(KEY_BADGES_BOTTOM_LEFT, setOf("favorite", "saved")) ?: setOf("favorite", "saved")
+		set(value) = prefs.edit { putStringSet(KEY_BADGES_BOTTOM_LEFT, value) }
+
+	var badgesBottomRight: Set<String>
+		get() = prefs.getStringSet(KEY_BADGES_BOTTOM_RIGHT, setOf("nsfw")) ?: setOf("nsfw")
+		set(value) = prefs.edit { putStringSet(KEY_BADGES_BOTTOM_RIGHT, value) }
+
+	var popupRadius: Int
+		get() = cornerRadius
+		set(value) { cornerRadius = value }
 
 	enum class BlurMode(val value: String) {
 		STANDARD("standard"),
@@ -623,6 +724,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	var blurMode: BlurMode
 		get() = BlurMode.fromValue(prefs.getString(KEY_BLUR_MODE, BlurMode.STANDARD.value))
 		set(value) = prefs.edit { putString(KEY_BLUR_MODE, value.value) }
+
+	var hazeOpacityPercent: Int
+		get() = prefs.getSafeInt(KEY_HAZE_OPACITY, 82).coerceIn(45, 100)
+		set(value) = prefs.edit { putInt(KEY_HAZE_OPACITY, value.coerceIn(45, 100)) }
 
 	var incognitoModeForNsfw: TriStateOption
 		get() = prefs.getEnumValue(KEY_INCOGNITO_NSFW, TriStateOption.ASK)
@@ -646,8 +751,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	val zoomMode: ZoomMode
 		get() = prefs.getEnumValue(KEY_ZOOM_MODE, ZoomMode.FIT_CENTER)
 
-	val trackSources: Set<String>
+	var trackSources: Set<String>
 		get() = prefs.getStringSet(KEY_TRACK_SOURCES, null) ?: setOf(TRACK_FAVOURITES)
+		set(value) = prefs.edit { putStringSet(KEY_TRACK_SOURCES, value) }
 
 	var appPassword: String?
 		get() = prefs.getString(KEY_APP_PASSWORD, null)
@@ -659,33 +765,44 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getBoolean(KEY_APP_PASSWORD_NUMERIC, false)
 		set(value) = prefs.edit { putBoolean(KEY_APP_PASSWORD_NUMERIC, value) }
 
-	val searchSuggestionTypes: Set<SearchSuggestionType>
+	var searchSuggestionTypes: Set<SearchSuggestionType>
 		get() = prefs.getStringSet(KEY_SEARCH_SUGGESTION_TYPES, null)?.let { stringSet ->
 			stringSet.mapNotNullTo(EnumSet.noneOf(SearchSuggestionType::class.java)) { x ->
-				enumValueOf<SearchSuggestionType>(x)
+				SearchSuggestionType.entries.firstOrNull { it.name == x }
+			}.ifEmpty {
+				if (stringSet.isEmpty()) emptySet() else EnumSet.allOf(SearchSuggestionType::class.java)
 			}
 		} ?: EnumSet.allOf(SearchSuggestionType::class.java)
+		set(value) = prefs.edit { putStringSet(KEY_SEARCH_SUGGESTION_TYPES, value.mapToSet { it.name }) }
 
 	var isBiometricProtectionEnabled: Boolean
 		get() = prefs.getBoolean(KEY_PROTECT_APP_BIOMETRIC, true)
 		set(value) = prefs.edit { putBoolean(KEY_PROTECT_APP_BIOMETRIC, value) }
 
-	val isMirrorSwitchingEnabled: Boolean
+	var isMirrorSwitchingEnabled: Boolean
 		get() = prefs.getBoolean(KEY_MIRROR_SWITCHING, false)
+		set(value) = prefs.edit { putBoolean(KEY_MIRROR_SWITCHING, value) }
 
-	val isExitConfirmationEnabled: Boolean
+	var isExitConfirmationEnabled: Boolean
 		get() = prefs.getBoolean(KEY_EXIT_CONFIRM, false)
+		set(value) = prefs.edit { putBoolean(KEY_EXIT_CONFIRM, value) }
 
-	val isDynamicShortcutsEnabled: Boolean
+	var isDynamicShortcutsEnabled: Boolean
 		get() = prefs.getBoolean(KEY_SHORTCUTS, true)
+		set(value) = prefs.edit { putBoolean(KEY_SHORTCUTS, value) }
 
 	val isUnstableUpdatesAllowed: Boolean
 		get() = prefs.getBoolean(KEY_UPDATES_UNSTABLE, false)
 
-	val isPagesTabEnabled: Boolean
+	var isPagesTabEnabled: Boolean
 		get() = prefs.getBoolean(KEY_PAGES_TAB, true)
+		set(value) = prefs.edit { putBoolean(KEY_PAGES_TAB, value) }
 
-	val defaultDetailsTab: Int
+	var isDetailsTranslateButtonVisible: Boolean
+		get() = prefs.getBoolean(KEY_DETAILS_TRANSLATE_BUTTON, true)
+		set(value) = prefs.edit { putBoolean(KEY_DETAILS_TRANSLATE_BUTTON, value) }
+
+	var defaultDetailsTab: Int
 		get() = if (isPagesTabEnabled) {
 			val raw = prefs.getString(KEY_DETAILS_TAB, null)?.toIntOrNull() ?: -1
 			if (raw == -1) {
@@ -696,9 +813,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		} else {
 			0
 		}
+		set(value) = prefs.edit { putString(KEY_DETAILS_TAB, value.toString()) }
 
 	var lastDetailsTab: Int
-		get() = prefs.getInt(KEY_DETAILS_LAST_TAB, 0)
+		get() = prefs.getSafeInt(KEY_DETAILS_LAST_TAB, 0)
 		set(value) = prefs.edit { putInt(KEY_DETAILS_LAST_TAB, value) }
 
 	val isContentPrefetchEnabled: Boolean
@@ -709,6 +827,16 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 			val policy =
 				NetworkPolicy.from(prefs.getString(KEY_PREFETCH_CONTENT, null), NetworkPolicy.NEVER)
 			return policy.isNetworkAllowed(connectivityManager)
+		}
+
+	var contentPrefetchPolicy: NetworkPolicy
+		get() = NetworkPolicy.from(prefs.getString(KEY_PREFETCH_CONTENT, null), NetworkPolicy.NEVER)
+		set(value) = prefs.edit {
+			putString(KEY_PREFETCH_CONTENT, when (value) {
+				NetworkPolicy.ALWAYS -> "1"
+				NetworkPolicy.NON_METERED -> "2"
+				NetworkPolicy.NEVER -> "0"
+			})
 		}
 
 	var sourcesSortOrder: SourcesSortOrder
@@ -736,14 +864,16 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		}
 
 	var sourcesVersion: Int
-		get() = prefs.getInt(KEY_SOURCES_VERSION, 0)
+		get() = prefs.getSafeInt(KEY_SOURCES_VERSION, 0)
 		set(value) = prefs.edit { putInt(KEY_SOURCES_VERSION, value) }
 
 	var isAllSourcesEnabled: Boolean
 		get() = prefs.getBoolean(KEY_SOURCES_ENABLED_ALL, false)
 		set(value) = prefs.edit { putBoolean(KEY_SOURCES_ENABLED_ALL, value) }
 
-
+	var jarPriorityOrder: String
+		get() = prefs.getString(KEY_JAR_PRIORITY_ORDER, DEFAULT_JAR_PRIORITY_ORDER).orEmpty()
+		set(value) = prefs.edit { putString(KEY_JAR_PRIORITY_ORDER, value) }
 
 	var isExtensionsGridMode: Boolean
 		get() = prefs.getBoolean(KEY_EXTENSIONS_GRID, false)
@@ -905,7 +1035,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	fun getBubbleDetectorNms(modelId: String, defaultIsDetr: Boolean): Float {
 		val key = getReaderTranslationBubbleDetectorNmsKey(modelId)
 		val defaultVal = if (defaultIsDetr) 85 else 45
-		return prefs.getInt(key, defaultVal) / 100f
+		return prefs.getSafeInt(key, defaultVal) / 100f
 	}
 
 	fun setBubbleDetectorNms(modelId: String, value: Float) {
@@ -914,18 +1044,20 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	}
 
 	var readerThreads: Int
-		get() = prefs.getInt(KEY_READER_THREADS, 3)
+		get() = prefs.getSafeInt(KEY_READER_THREADS, 3)
 		set(value) = prefs.edit { putInt(KEY_READER_THREADS, value.coerceIn(1, 10)) }
 
 	var readerPrefetchLimit: Int
-		get() = prefs.getInt(KEY_READER_PREFETCH_LIMIT, 6)
+		get() = prefs.getSafeInt(KEY_READER_PREFETCH_LIMIT, 6)
 		set(value) = prefs.edit { putInt(KEY_READER_PREFETCH_LIMIT, value.coerceIn(1, 20)) }
 
-	val screenshotsPolicy: ScreenshotsPolicy
+	var screenshotsPolicy: ScreenshotsPolicy
 		get() = prefs.getEnumValue(KEY_SCREENSHOTS_POLICY, ScreenshotsPolicy.ALLOW)
+		set(value) = prefs.edit { putEnumValue(KEY_SCREENSHOTS_POLICY, value) }
 
-	val isAdBlockEnabled: Boolean
+	var isAdBlockEnabled: Boolean
 		get() = prefs.getBoolean(KEY_ADBLOCK, false)
+		set(value) = prefs.edit { putBoolean(KEY_ADBLOCK, value) }
 
 	var userSpecifiedContentDirectories: Set<File>
 		get() {
@@ -981,8 +1113,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getEnumValue(KEY_DOWNLOADS_METERED_NETWORK, TriStateOption.ASK)
 		set(value) = prefs.edit { putEnumValue(KEY_DOWNLOADS_METERED_NETWORK, value) }
 
-	val preferredDownloadFormat: DownloadFormat
+	var preferredDownloadFormat: DownloadFormat
 		get() = prefs.getEnumValue(KEY_DOWNLOADS_FORMAT, DownloadFormat.AUTOMATIC)
+		set(value) = prefs.edit { putEnumValue(KEY_DOWNLOADS_FORMAT, value) }
 
 	var isDownloadAlignedWithReader: Boolean
 		get() = prefs.getBoolean(KEY_DOWNLOADS_ALIGN_READER, false)
@@ -993,23 +1126,23 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putBoolean(KEY_DOWNLOADS_AUTO_RETRY, value) }
 
 	var downloadThreads: Int
-		get() = prefs.getInt(KEY_DOWNLOADS_THREADS, readerThreads).coerceIn(1, 10)
+		get() = prefs.getSafeInt(KEY_DOWNLOADS_THREADS, readerThreads).coerceIn(1, 10)
 		set(value) = prefs.edit { putInt(KEY_DOWNLOADS_THREADS, value.coerceIn(1, 10)) }
 
 	var downloadRequestDelayMs: Int
-		get() = prefs.getInt(KEY_DOWNLOADS_REQUEST_DELAY, DOWNLOADS_REQUEST_DELAY_DEFAULT).coerceIn(0, 5000)
+		get() = prefs.getSafeInt(KEY_DOWNLOADS_REQUEST_DELAY, DOWNLOADS_REQUEST_DELAY_DEFAULT).coerceIn(0, 5000)
 		set(value) = prefs.edit { putInt(KEY_DOWNLOADS_REQUEST_DELAY, value.coerceIn(0, 5000)) }
 
 	var downloadRetryCount: Int
-		get() = prefs.getInt(KEY_DOWNLOADS_RETRY_COUNT, DOWNLOADS_RETRY_COUNT_DEFAULT).coerceIn(1, 10)
+		get() = prefs.getSafeInt(KEY_DOWNLOADS_RETRY_COUNT, DOWNLOADS_RETRY_COUNT_DEFAULT).coerceIn(1, 10)
 		set(value) = prefs.edit { putInt(KEY_DOWNLOADS_RETRY_COUNT, value.coerceIn(1, 10)) }
 
 	var downloadRetryDelayMs: Int
-		get() = prefs.getInt(KEY_DOWNLOADS_RETRY_DELAY, DOWNLOADS_RETRY_DELAY_DEFAULT).coerceIn(500, 10_000)
+		get() = prefs.getSafeInt(KEY_DOWNLOADS_RETRY_DELAY, DOWNLOADS_RETRY_DELAY_DEFAULT).coerceIn(500, 10_000)
 		set(value) = prefs.edit { putInt(KEY_DOWNLOADS_RETRY_DELAY, value.coerceIn(500, 10_000)) }
 
 	var downloadChapterDelay: Int
-		get() = prefs.getInt(KEY_DOWNLOADS_CHAPTER_DELAY, 0).coerceIn(0, 10)
+		get() = prefs.getSafeInt(KEY_DOWNLOADS_CHAPTER_DELAY, 0).coerceIn(0, 10)
 		set(value) = prefs.edit { putInt(KEY_DOWNLOADS_CHAPTER_DELAY, value.coerceIn(0, 10)) }
 
 	var isSuggestionsEnabled: Boolean
@@ -1019,8 +1152,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	val isSuggestionsWiFiOnly: Boolean
 		get() = prefs.getBoolean(KEY_SUGGESTIONS_WIFI_ONLY, false)
 
-	val isSuggestionsExcludeNsfw: Boolean
+	var isSuggestionsExcludeNsfw: Boolean
 		get() = prefs.getBoolean(KEY_SUGGESTIONS_EXCLUDE_NSFW, false)
+		set(value) = prefs.edit { putBoolean(KEY_SUGGESTIONS_EXCLUDE_NSFW, value) }
 
 	val isSuggestionsIncludeDisabledSources: Boolean
 		get() = prefs.getBoolean(KEY_SUGGESTIONS_DISABLED_SOURCES, false)
@@ -1105,20 +1239,24 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 			}
 		}
 
-	val imagesProxy: Int
+	var imagesProxy: Int
 		get() {
 			val raw = prefs.getString(KEY_IMAGES_PROXY, null)?.toIntOrNull()
 			return raw ?: if (prefs.getBoolean(KEY_IMAGES_PROXY_OLD, false)) 0 else -1
 		}
+		set(value) = prefs.edit { putString(KEY_IMAGES_PROXY, value.toString()) }
 
-	val dnsOverHttps: DoHProvider
+	var dnsOverHttps: DoHProvider
 		get() = prefs.getEnumValue(KEY_DOH, DoHProvider.NONE)
+		set(value) = prefs.edit { putString(KEY_DOH, value.name) }
 
-	val dohCustomUrl: String?
+	var dohCustomUrl: String?
 		get() = prefs.getString(KEY_DOH_CUSTOM_URL, null)?.nullIfEmpty()
+		set(value) = prefs.edit { putString(KEY_DOH_CUSTOM_URL, value?.nullIfEmpty()) }
 
-	val dohCustomIps: String?
+	var dohCustomIps: String?
 		get() = prefs.getString(KEY_DOH_CUSTOM_IPS, null)?.nullIfEmpty()
+		set(value) = prefs.edit { putString(KEY_DOH_CUSTOM_IPS, value?.nullIfEmpty()) }
 
 	var isSSLBypassEnabled: Boolean
 		get() = prefs.getBoolean(KEY_SSL_BYPASS, false)
@@ -1154,8 +1292,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getEnumValue(KEY_FAVORITES_ORDER, ListSortOrder.NEWEST)
 		set(value) = prefs.edit { putEnumValue(KEY_FAVORITES_ORDER, value) }
 
-	val isRelatedContentEnabled: Boolean
+	var isRelatedContentEnabled: Boolean
 		get() = prefs.getBoolean(KEY_RELATED_MANGA, true)
+		set(value) = prefs.edit { putBoolean(KEY_RELATED_MANGA, value) }
 
 	val isWebtoonZoomEnabled: Boolean
 		get() = prefs.getBoolean(KEY_WEBTOON_ZOOM, true)
@@ -1171,7 +1310,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	@get:FloatRange(from = 0.0, to = 0.5)
 	val defaultWebtoonZoomOut: Float
-		get() = prefs.getInt(KEY_WEBTOON_ZOOM_OUT, 0).coerceIn(0, 50) / 100f
+		get() = prefs.getSafeInt(KEY_WEBTOON_ZOOM_OUT, 0).coerceIn(0, 50) / 100f
 
 	@get:FloatRange(from = 0.0, to = 1.0)
 	var readerAutoscrollSpeed: Float
@@ -1199,6 +1338,16 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 			return policy.isNetworkAllowed(connectivityManager)
 		}
 
+	var pagesPreloadPolicy: NetworkPolicy
+		get() = NetworkPolicy.from(prefs.getString(KEY_PAGES_PRELOAD, null), NetworkPolicy.NON_METERED)
+		set(value) = prefs.edit {
+			putString(KEY_PAGES_PRELOAD, when (value) {
+				NetworkPolicy.ALWAYS -> "1"
+				NetworkPolicy.NON_METERED -> "2"
+				NetworkPolicy.NEVER -> "0"
+			})
+		}
+
 	val is32BitColorsEnabled: Boolean
 		get() = prefs.getBoolean(KEY_32BIT_COLOR, false)
 
@@ -1215,15 +1364,24 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	val isPeriodicalBackupEnabled: Boolean
 		get() = isBackupWebDavUploadEnabled
 
-	val periodicalBackupFrequency: Float
+	var periodicalBackupFrequency: Float
 		get() = prefs.getString(KEY_BACKUP_PERIODICAL_FREQUENCY, null)?.toFloatOrNull() ?: 7f
+		set(value) = prefs.edit { putString(KEY_BACKUP_PERIODICAL_FREQUENCY, value.toString()) }
 
 	val periodicalBackupFrequencyMillis: Long
 		get() = (TimeUnit.DAYS.toMillis(1) * periodicalBackupFrequency).toLong()
 
+	var isPeriodicalBackupTrimEnabled: Boolean
+		get() = prefs.getBoolean(KEY_BACKUP_PERIODICAL_TRIM, true)
+		set(value) = prefs.edit { putBoolean(KEY_BACKUP_PERIODICAL_TRIM, value) }
+
+	var periodicalBackupCount: Int
+		get() = prefs.getSafeInt(KEY_BACKUP_PERIODICAL_COUNT, 10)
+		set(value) = prefs.edit { putInt(KEY_BACKUP_PERIODICAL_COUNT, value) }
+
 	val periodicalBackupMaxCount: Int
-		get() = if (prefs.getBoolean(KEY_BACKUP_PERIODICAL_TRIM, true)) {
-			prefs.getInt(KEY_BACKUP_PERIODICAL_COUNT, 10)
+		get() = if (isPeriodicalBackupTrimEnabled) {
+			periodicalBackupCount
 		} else {
 			Int.MAX_VALUE
 		}
@@ -1239,48 +1397,56 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getString(KEY_BACKUP_TG_CHAT, null)?.nullIfEmpty()
 
 	// WebDAV backup settings
-	val isBackupWebDavUploadEnabled: Boolean
+	var isBackupWebDavUploadEnabled: Boolean
 		get() = prefs.getBoolean(KEY_BACKUP_WEBDAV_ENABLED, false)
+		set(value) = prefs.edit { putBoolean(KEY_BACKUP_WEBDAV_ENABLED, value) }
 
 	// 是否在上传到 WebDAV 后保留本地副本
-	val isBackupWebDavKeepLocalCopyEnabled: Boolean
+	var isBackupWebDavKeepLocalCopyEnabled: Boolean
 		get() = prefs.getBoolean(KEY_BACKUP_WEBDAV_KEEP_LOCAL_COPY, true)
+		set(value) = prefs.edit { putBoolean(KEY_BACKUP_WEBDAV_KEEP_LOCAL_COPY, value) }
 
-	val backupWebDavServerUrl: String?
+	var backupWebDavServerUrl: String?
 		get() = prefs.getString(KEY_BACKUP_WEBDAV_URL, null)?.trim()?.nullIfEmpty()
+		set(value) = prefs.edit { putString(KEY_BACKUP_WEBDAV_URL, value?.trim()?.nullIfEmpty()) }
 
-	val backupWebDavUsername: String?
+	var backupWebDavUsername: String?
 		get() = prefs.getString(KEY_BACKUP_WEBDAV_USERNAME, null)?.trim()?.nullIfEmpty()
+		set(value) = prefs.edit { putString(KEY_BACKUP_WEBDAV_USERNAME, value?.trim()?.nullIfEmpty()) }
 
-	val backupWebDavPassword: String?
+	var backupWebDavPassword: String?
 		get() = prefs.getString(KEY_BACKUP_WEBDAV_PASSWORD, null)?.nullIfEmpty()
+		set(value) = prefs.edit { putString(KEY_BACKUP_WEBDAV_PASSWORD, value?.nullIfEmpty()) }
 
-	val backupWebDavRemotePath: String?
+	var backupWebDavRemotePath: String?
 		get() = prefs.getString(KEY_BACKUP_WEBDAV_PATH, null)?.trim()?.nullIfEmpty()
+		set(value) = prefs.edit { putString(KEY_BACKUP_WEBDAV_PATH, value?.trim()?.nullIfEmpty()) }
 
 	// 是否启用数据自动同步（监听数据变更并自动上传至 WebDAV）
-	val isBackupWebDavAutoSyncEnabled: Boolean
+	var isBackupWebDavAutoSyncEnabled: Boolean
 		get() = prefs.getBoolean(KEY_BACKUP_WEBDAV_AUTO_SYNC, false)
+		set(value) = prefs.edit { putBoolean(KEY_BACKUP_WEBDAV_AUTO_SYNC, value) }
 
 	// 数据版本号（用于版本化命名与兼容性判断）
 	var backupWebDavDataVersion: Int
-		get() = prefs.getInt(KEY_BACKUP_WEBDAV_DATA_VERSION, 1)
+		get() = prefs.getSafeInt(KEY_BACKUP_WEBDAV_DATA_VERSION, 1)
 		set(value) = prefs.edit { putInt(KEY_BACKUP_WEBDAV_DATA_VERSION, value) }
 
-	val isBackupWebDavAutoRestoreEnabled: Boolean
+	var isBackupWebDavAutoRestoreEnabled: Boolean
 		get() = prefs.getBoolean(KEY_BACKUP_WEBDAV_AUTO_RESTORE, false)
+		set(value) = prefs.edit { putBoolean(KEY_BACKUP_WEBDAV_AUTO_RESTORE, value) }
 
 	var backupWebDavLastRestoreTime: Long
-		get() = prefs.getLong(KEY_BACKUP_WEBDAV_LAST_RESTORE_TIME, 0L)
+		get() = prefs.getSafeLong(KEY_BACKUP_WEBDAV_LAST_RESTORE_TIME, 0L)
 		set(value) = prefs.edit { putLong(KEY_BACKUP_WEBDAV_LAST_RESTORE_TIME, value) }
 
 	var backupWebDavLastUploadTime: Long
-		get() = prefs.getLong(KEY_BACKUP_WEBDAV_LAST_UPLOAD_TIME, 0L)
+		get() = prefs.getSafeLong(KEY_BACKUP_WEBDAV_LAST_UPLOAD_TIME, 0L)
 		set(value) = prefs.edit { putLong(KEY_BACKUP_WEBDAV_LAST_UPLOAD_TIME, value) }
 
     // 自动恢复最近一次“检查”的时间（不一定发生了恢复，仅记录检查节流）
     var backupWebDavLastAutoRestoreCheckTime: Long
-        get() = prefs.getLong(KEY_BACKUP_WEBDAV_LAST_AUTO_RESTORE_CHECK_TIME, 0L)
+        get() = prefs.getSafeLong(KEY_BACKUP_WEBDAV_LAST_AUTO_RESTORE_CHECK_TIME, 0L)
         set(value) = prefs.edit { putLong(KEY_BACKUP_WEBDAV_LAST_AUTO_RESTORE_CHECK_TIME, value) }
 
 	// 最近一次 WebDAV 上传类型："auto"（自动）或 "manual"（手动）
@@ -1289,17 +1455,20 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putString(KEY_BACKUP_WEBDAV_LAST_UPLOAD_KIND, value) }
 
 	var backupWebDavLastManualRestoreTime: Long
-		get() = prefs.getLong(KEY_BACKUP_WEBDAV_LAST_MANUAL_RESTORE_TIME, 0L)
+		get() = prefs.getSafeLong(KEY_BACKUP_WEBDAV_LAST_MANUAL_RESTORE_TIME, 0L)
 		set(value) = prefs.edit { putLong(KEY_BACKUP_WEBDAV_LAST_MANUAL_RESTORE_TIME, value) }
 
-	val isReadingTimeEstimationEnabled: Boolean
+	var isReadingTimeEstimationEnabled: Boolean
 		get() = prefs.getBoolean(KEY_READING_TIME, true)
+		set(value) = prefs.edit { putBoolean(KEY_READING_TIME, value) }
 
-	val isPagesSavingAskEnabled: Boolean
+	var isPagesSavingAskEnabled: Boolean
 		get() = prefs.getBoolean(KEY_PAGES_SAVE_ASK, true)
+		set(value) = prefs.edit { putBoolean(KEY_PAGES_SAVE_ASK, value) }
 
-	val isStatsEnabled: Boolean
+	var isStatsEnabled: Boolean
 		get() = prefs.getBoolean(KEY_STATS_ENABLED, false)
+		set(value) = prefs.edit { putBoolean(KEY_STATS_ENABLED, value) }
 
 	val isAutoLocalChaptersCleanupEnabled: Boolean
 		get() = prefs.getBoolean(KEY_CHAPTERS_CLEAR_AUTO, false)
@@ -1339,13 +1508,17 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	}
 
 	fun getContentListBadges(): Int {
-		val raw = prefs.getStringSet(KEY_MANGA_LIST_BADGES, mangaListBadgesDefault).orEmpty()
+		val raw = sanitizeBadgeValues(prefs.getStringSet(KEY_MANGA_LIST_BADGES, null))
 		var result = 0
 		for (item in raw) {
-			result = result or item.toInt()
+			result = result or item.toIntOrNull().orZero()
 		}
 		return result
 	}
+
+	var mangaListBadges: Set<String>
+		get() = sanitizeBadgeValues(prefs.getStringSet(KEY_MANGA_LIST_BADGES, null))
+		set(value) = prefs.edit { putStringSet(KEY_MANGA_LIST_BADGES, sanitizeBadgeValues(value)) }
 
 	fun subscribe(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
 		prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -1364,10 +1537,67 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	fun getAllValues(): Map<String, *> = prefs.all
 
-	fun upsertAll(m: Map<String, *>) = prefs.edit {
-		clear()
-		putAll(m)
+	fun reconcileAfterAppUpgrade(currentVersion: Int) {
+		val previousVersion = prefs.getSafeInt(KEY_APP_VERSION, 0)
+		if (previousVersion == currentVersion) {
+			return
+		}
+		if (previousVersion > 0 || prefs.all.isNotEmpty()) {
+			migrateLegacyUiPreferences()
+		}
+		prefs.edit { putInt(KEY_APP_VERSION, currentVersion) }
 	}
+
+	fun upsertAll(m: Map<String, *>) {
+		prefs.edit {
+			clear()
+			putAll(m)
+		}
+		migrateLegacyUiPreferences()
+	}
+
+	private fun migrateLegacyUiPreferences() {
+		val sanitizedSearchSuggestionTypes = searchSuggestionTypes
+		val sanitizedBadges = mangaListBadges
+		val sanitizedSelectedGroupTab = BrowseGroupTab.fromId(getSelectedGroupTab() ?: BrowseGroupTab.All.id).id
+		val sanitizedSelectedSourceTags = SourceTag
+			.sanitizeQuickFilterSelection(SourceTag.fromIds(getSelectedSourceTags()))
+			.mapToSet { it.id }
+		prefs.edit {
+			putInt(KEY_NAV_HEIGHT, navHeight)
+			putInt(KEY_NAV_FLOATING_HEIGHT, navFloatingHeight)
+			putInt(KEY_GRID_SIZE, gridSize)
+			putInt(KEY_GRID_SIZE_PAGES, gridSizePages)
+			putInt(KEY_PANORAMA_BLUR, panoramaCoverBlur)
+			putInt(KEY_PANORAMA_ANIMATION_SPEED, panoramaAnimationSpeed)
+			putInt(KEY_PANORAMA_EXTRA_HEIGHT, panoramaCoverExtraHeight)
+			putInt(KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA, panoramaBottomGradientAlpha)
+			putInt(KEY_BROWSE_PANORAMA_BOTTOM_GRADIENT_ALPHA, browsePanoramaBottomGradientAlpha)
+			putInt(KEY_BROWSE_PANORAMA_BLEND_HEIGHT, browsePanoramaBlendHeight)
+			putString(KEY_POPUP_RADIUS, popupRadius.toString())
+			putInt(KEY_HAZE_OPACITY, hazeOpacityPercent)
+			putStringSet(KEY_SEARCH_SUGGESTION_TYPES, sanitizedSearchSuggestionTypes.mapToSet { it.name })
+			putStringSet(KEY_MANGA_LIST_BADGES, sanitizedBadges)
+			putString(KEY_SELECTED_GROUP_TAB, sanitizedSelectedGroupTab)
+			putString(KEY_SELECTED_SOURCE_TAGS, sanitizedSelectedSourceTags.joinToString(","))
+			putLong(KEY_BACKUP_WEBDAV_LAST_RESTORE_TIME, backupWebDavLastRestoreTime)
+			putLong(KEY_BACKUP_WEBDAV_LAST_UPLOAD_TIME, backupWebDavLastUploadTime)
+			putLong(KEY_BACKUP_WEBDAV_LAST_AUTO_RESTORE_CHECK_TIME, backupWebDavLastAutoRestoreCheckTime)
+			putLong(KEY_BACKUP_WEBDAV_LAST_MANUAL_RESTORE_TIME, backupWebDavLastManualRestoreTime)
+		}
+	}
+
+	private fun sanitizeBadgeValues(values: Set<String>?): Set<String> {
+		if (values == null) return mangaListBadgesDefault
+		val sanitized = values.filterTo(LinkedHashSet(values.size)) { it in mangaListBadgesDefault }
+		return when {
+			sanitized.isNotEmpty() -> sanitized
+			values.isEmpty() -> emptySet()
+			else -> mangaListBadgesDefault
+		}
+	}
+
+	private fun Int?.orZero(): Int = this ?: 0
 
 	private fun String.toUriOrNull(): Uri? = if (isBlank()) null else Uri.parse(this)
 
@@ -1474,6 +1704,8 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	companion object {
 
+		private val CORNER_RADIUS_ALLOWED_VALUES = setOf(-1, 12, 16, 20, 24)
+
 
 		const val KEY_SHOW_LANGUAGE_PRESET_FILTER = "show_language_preset_filter"
 		const val KEY_HIDDEN_LANGUAGE_PRESET = "hidden_language_preset"
@@ -1508,6 +1740,8 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_UPDATES_FEED_CLEAR = "updates_feed_clear"
 		const val KEY_GRID_SIZE = "grid_size"
 		const val KEY_GRID_SIZE_PAGES = "grid_size_pages"
+		const val KEY_RAIL_ANIMATION_INTENSITY = "rail_animation_intensity"
+		const val KEY_VERTICAL_LIST_RAIL_ANIMATION = "vertical_list_rail_animation"
 		const val KEY_REMOTE_SOURCES = "remote_sources"
 		const val KEY_LOCAL_STORAGE = "local_storage"
 		const val KEY_LOCAL_NOVEL_STORAGE = "local_novel_storage"
@@ -1759,6 +1993,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_LOADING_CIRCLE_STYLE = "loading_circle_style"
 		const val KEY_POPUP_RADIUS = "popup_radius"
 		const val KEY_BLUR_MODE = "blur_mode"
+		const val KEY_HAZE_OPACITY = "haze_opacity"
 		const val KEY_MAIN_FAB = "main_fab"
 		const val KEY_32BIT_COLOR = "enhanced_colors"
 		const val KEY_SOURCES_ORDER = "sources_sort_order"
@@ -1769,6 +2004,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_CF_GRAYSCALE = "cf_grayscale"
 		const val KEY_CF_BOOK = "cf_book"
 		const val KEY_PAGES_TAB = "pages_tab"
+		const val KEY_DETAILS_TRANSLATE_BUTTON = "details_translate_button"
 		const val KEY_DETAILS_TAB = "details_tab"
 		const val KEY_DETAILS_LAST_TAB = "details_last_tab"
 		const val KEY_READING_TIME = "reading_time"
@@ -1781,6 +2017,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_SOURCES_ENABLED_ALL = "sources_enabled_all"
 		const val KEY_EXTENSIONS_GRID = "extensions_grid"
 		const val KEY_SHOW_BROKEN_SOURCES = "show_broken_sources"
+		const val KEY_JAR_PRIORITY_ORDER = "jar_priority_order"
 		const val KEY_EXTENSIONS = "extensions"
 		const val KEY_JSON_SOURCES = "json_sources"
 		const val KEY_MIHON_EXTENSIONS = "mihon_extensions"
@@ -1789,8 +2026,12 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_COLLAPSE_DESCRIPTION = "description_collapse"
 		const val KEY_PANORAMA_ENABLED = "panorama_enabled"
 		const val KEY_PANORAMA_BLUR = "panorama_blur"
+		const val KEY_PANORAMA_ANIMATION_ENABLED = "panorama_animation_enabled"
+		const val KEY_PANORAMA_ANIMATION_SPEED = "panorama_animation_speed"
 		const val KEY_PANORAMA_EXTRA_HEIGHT = "panorama_extra_height"
 		const val KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA = "panorama_bottom_gradient_alpha"
+		const val KEY_BROWSE_PANORAMA_BOTTOM_GRADIENT_ALPHA = "browse_panorama_bottom_gradient_alpha"
+		const val KEY_BROWSE_PANORAMA_BLEND_HEIGHT = "browse_panorama_blend_height"
 		const val KEY_BACKUP_TG_ENABLED = "backup_periodic_tg_enabled"
 		const val KEY_BACKUP_TG_CHAT = "backup_periodic_tg_chat_id"
 		// WebDAV backup keys
@@ -1818,6 +2059,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 		const val KEY_BACKUP_WEBDAV_POLICY_NOTE = "backup_periodic_webdav_policy_note"
 		const val KEY_MANGA_LIST_BADGES = "manga_list_badges"
+		const val KEY_BADGES_TOP_LEFT = "badges_top_left"
+		const val KEY_BADGES_TOP_RIGHT = "badges_top_right"
+		const val KEY_BADGES_BOTTOM_LEFT = "badges_bottom_left"
+		const val KEY_BADGES_BOTTOM_RIGHT = "badges_bottom_right"
 		const val KEY_TAGS_WARNINGS = "tags_warnings"
 		const val KEY_DISCORD_RPC = "discord_rpc"
 		const val KEY_DISCORD_RPC_SKIP_NSFW = "discord_rpc_skip_nsfw"
@@ -1826,6 +2071,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_SELECTED_SOURCE_FILTER = "selected_source_filter"
 		const val KEY_SELECTED_SOURCE_TAGS = "selected_source_tags"
 		const val KEY_SELECTED_ADULT_FILTER = "selected_adult_filter"
+		const val KEY_ENTITY_GRAPH_MIGRATED = "entity_graph_migrated"
 
 		// keys for non-persistent preferences
 		const val KEY_APP_VERSION = "app_version"
@@ -1845,6 +2091,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_CLEAR_MANGA_DATA = "manga_data_clear"
 		const val KEY_STORAGE_USAGE = "storage_usage"
 		const val KEY_WEBVIEW_CLEAR = "webview_clear"
+		private const val DEFAULT_JAR_PRIORITY_ORDER = "kototoro-parsers,kotatsu-parsers-redo,kotatsu-parsers"
 
 		// old keys are for migration only
 		private const val KEY_IMAGES_PROXY_OLD = "images_proxy"

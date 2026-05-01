@@ -1,170 +1,189 @@
 package org.skepsun.kototoro.settings
 
-import android.content.SharedPreferences
 import android.os.Bundle
+import android.text.format.DateUtils
+import android.view.LayoutInflater
 import android.view.View
-import androidx.preference.Preference
-import com.google.android.material.snackbar.Snackbar
+import android.view.ViewGroup
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.fragment.app.Fragment
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.ui.BasePreferenceFragment
-import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
+import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.theme.KototoroTheme
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
-import org.skepsun.kototoro.core.util.ext.viewLifecycleScope
-import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
-import org.skepsun.kototoro.scrobbling.common.ui.ScrobblerAuthHelper
-import org.skepsun.kototoro.settings.utils.SplitSwitchPreference
-import javax.inject.Inject
+import org.skepsun.kototoro.settings.compose.ServicesSettingsScreen
+import org.skepsun.kototoro.settings.compose.ServicesSettingsUiState
+import org.skepsun.kototoro.tracking.animeoffline.data.AnimeOfflineRepository
+import org.skepsun.kototoro.tracking.animeoffline.work.AnimeOfflineUpdateWorker
 
 @AndroidEntryPoint
-class ServicesSettingsFragment : BasePreferenceFragment(R.string.services),
-	SharedPreferences.OnSharedPreferenceChangeListener {
+class ServicesSettingsFragment : Fragment() {
 
-	@Inject
-	lateinit var scrobblerAuthHelper: ScrobblerAuthHelper
+    @Inject
+    lateinit var settings: AppSettings
 
-	override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-		addPreferencesFromResource(R.xml.pref_services)
-		findPreference<SplitSwitchPreference>(AppSettings.KEY_STATS_ENABLED)?.let {
-			it.onContainerClickListener = Preference.OnPreferenceClickListener {
-				router.openStatistic()
-				true
-			}
-		}
+    @Inject
+    lateinit var animeOfflineRepository: AnimeOfflineRepository
 
-	}
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?,
+    ): View {
+        return ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+        }
+    }
 
-	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-		super.onViewCreated(view, savedInstanceState)
-		bindSuggestionsSummary()
-		bindStatsSummary()
-		settings.subscribe(this)
-	}
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        (view as ComposeView).setContent {
+            KototoroTheme {
+                ServicesSettingsRoute(
+                    settings = settings,
+                    animeOfflineRepository = animeOfflineRepository,
+                    onAnimeOfflineUpdate = {
+                        AnimeOfflineUpdateWorker.enqueue(requireContext().applicationContext, force = true)
+                    },
+                    onSuggestionsClick = {
+                        (activity as? SettingsActivity)?.openDestination(
+                            SettingsDestination.SuggestionsSettings,
+                            null,
+                            false,
+                        )
+                    },
+                    onStatsClick = { router.openStatistic() },
+                    onDiscordSettingsClick = {
+                        (activity as? SettingsActivity)?.openDestination(
+                            SettingsDestination.DiscordSettings,
+                            null,
+                            false,
+                        )
+                    },
+                )
+            }
+        }
+    }
 
-	override fun onDestroyView() {
-		settings.unsubscribe(this)
-		super.onDestroyView()
-	}
+    override fun onResume() {
+        super.onResume()
+        (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.services))
+    }
+}
 
-	override fun onResume() {
-		super.onResume()
-		bindScrobblerSummary(AppSettings.KEY_SHIKIMORI, ScrobblerService.SHIKIMORI)
-		bindScrobblerSummary(AppSettings.KEY_ANILIST, ScrobblerService.ANILIST)
-		bindScrobblerSummary(AppSettings.KEY_MAL, ScrobblerService.MAL)
-		bindScrobblerSummary(AppSettings.KEY_KITSU, ScrobblerService.KITSU)
-		bindScrobblerSummary(AppSettings.KEY_BANGUMI, ScrobblerService.BANGUMI)
-		bindScrobblerSummary(AppSettings.KEY_MANGAUPDATES, ScrobblerService.MANGAUPDATES)
-	}
+@Composable
+fun ServicesSettingsRoute(
+    settings: AppSettings,
+    animeOfflineRepository: AnimeOfflineRepository,
+    onAnimeOfflineUpdate: () -> Unit,
+    onSuggestionsClick: () -> Unit,
+    onStatsClick: () -> Unit,
+    onDiscordSettingsClick: () -> Unit,
+) {
+    val context = LocalContext.current
+    val suggestionsEnabled = settings.observeAsState(AppSettings.KEY_SUGGESTIONS) { isSuggestionsEnabled }.value
+    val isRelatedContentEnabled =
+        settings.observeAsState(AppSettings.KEY_RELATED_MANGA) { isRelatedContentEnabled }.value
+    val isStatsEnabled = settings.observeAsState(AppSettings.KEY_STATS_ENABLED) { isStatsEnabled }.value
+    val isReadingTimeEstimationEnabled =
+        settings.observeAsState(AppSettings.KEY_READING_TIME) { isReadingTimeEstimationEnabled }.value
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    val animeOfflineSummary = rememberAnimeOfflineSummary(animeOfflineRepository)
 
-	override fun onSharedPreferenceChanged(prefs: SharedPreferences?, key: String?) {
-		when (key) {
-			AppSettings.KEY_SUGGESTIONS -> bindSuggestionsSummary()
-			AppSettings.KEY_STATS_ENABLED -> bindStatsSummary()
-		}
-	}
+    val state = ServicesSettingsUiState(
+        suggestionsSummary = if (suggestionsEnabled) {
+            context.getString(R.string.enabled)
+        } else {
+            context.getString(R.string.disabled)
+        },
+        animeOfflineSummary = animeOfflineSummary,
+        isRelatedContentEnabled = isRelatedContentEnabled,
+        isStatsEnabled = isStatsEnabled,
+        isReadingTimeEstimationEnabled = isReadingTimeEstimationEnabled,
+    )
 
+    ServicesSettingsScreen(
+        servicesTitle = context.getString(R.string.services),
+        state = state,
+        snackbarHostState = snackbarHostState,
+        onAnimeOfflineClick = {
+            coroutineScope.launch {
+                withContext(Dispatchers.IO) {
+                    onAnimeOfflineUpdate()
+                }
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.anime_offline_database_update_started),
+                )
+            }
+        },
+        onSuggestionsClick = onSuggestionsClick,
+        onRelatedContentChange = { settings.isRelatedContentEnabled = it },
+        onStatsClick = onStatsClick,
+        onStatsEnabledChange = { settings.isStatsEnabled = it },
+        onReadingTimeChange = { settings.isReadingTimeEstimationEnabled = it },
+        onDiscordSettingsClick = onDiscordSettingsClick,
+    )
+}
 
-	override fun onPreferenceTreeClick(preference: Preference): Boolean {
-		return when (preference.key) {
-			AppSettings.KEY_SHIKIMORI -> {
-				handleScrobblerClick(ScrobblerService.SHIKIMORI)
-				true
-			}
+@Composable
+private fun rememberAnimeOfflineSummary(
+    animeOfflineRepository: AnimeOfflineRepository,
+): String {
+    val context = LocalContext.current
+    return produceState(
+        initialValue = context.getString(R.string.loading_),
+        key1 = animeOfflineRepository,
+        key2 = context,
+    ) {
+        value = loadAnimeOfflineSummary(context, animeOfflineRepository)
+    }.value
+}
 
-			AppSettings.KEY_MAL -> {
-				handleScrobblerClick(ScrobblerService.MAL)
-				true
-			}
-
-			AppSettings.KEY_ANILIST -> {
-				handleScrobblerClick(ScrobblerService.ANILIST)
-				true
-			}
-
-			AppSettings.KEY_KITSU -> {
-				handleScrobblerClick(ScrobblerService.KITSU)
-				true
-			}
-
-			AppSettings.KEY_BANGUMI -> {
-				handleScrobblerClick(ScrobblerService.BANGUMI)
-				true
-			}
-
-			AppSettings.KEY_MANGAUPDATES -> {
-				handleScrobblerClick(ScrobblerService.MANGAUPDATES)
-				true
-			}
-
-			else -> super.onPreferenceTreeClick(preference)
-		}
-	}
-
-	private fun bindScrobblerSummary(
-		key: String,
-		scrobblerService: ScrobblerService
-	) {
-		val pref = findPreference<Preference>(key) ?: return
-		if (!scrobblerAuthHelper.isAuthorized(scrobblerService)) {
-			pref.setSummary(R.string.disabled)
-			return
-		}
-		val username = scrobblerAuthHelper.getCachedUser(scrobblerService)?.nickname
-		if (username != null) {
-			pref.summary = getString(R.string.logged_in_as, username)
-		} else {
-			pref.setSummary(R.string.loading_)
-			viewLifecycleScope.launch {
-				pref.summary = withContext(Dispatchers.Default) {
-					runCatching {
-						val user = scrobblerAuthHelper.getUser(scrobblerService)
-						getString(R.string.logged_in_as, user.nickname)
-					}.getOrElse {
-						it.printStackTraceDebug()
-						it.getDisplayMessage(resources)
-					}
-				}
-			}
-		}
-	}
-
-	private fun handleScrobblerClick(scrobblerService: ScrobblerService) {
-		if (!scrobblerAuthHelper.isAuthorized(scrobblerService)) {
-			confirmScrobblerAuth(scrobblerService)
-		} else {
-			router.openScrobblerSettings(scrobblerService)
-		}
-	}
-
-	private fun bindSuggestionsSummary() {
-		findPreference<Preference>(AppSettings.KEY_SUGGESTIONS)?.setSummary(
-			if (settings.isSuggestionsEnabled) R.string.enabled else R.string.disabled,
-		)
-	}
-
-	private fun bindStatsSummary() {
-		findPreference<Preference>(AppSettings.KEY_STATS_ENABLED)?.setSummary(
-			if (settings.isStatsEnabled) R.string.enabled else R.string.disabled,
-		)
-	}
-
-	private fun confirmScrobblerAuth(scrobblerService: ScrobblerService) {
-		buildAlertDialog(context ?: return, isCentered = true) {
-			setIcon(scrobblerService.iconResId)
-			setTitle(scrobblerService.titleResId)
-			setMessage(context.getString(R.string.scrobbler_auth_intro, context.getString(scrobblerService.titleResId)))
-			setPositiveButton(R.string.sign_in) { _, _ ->
-				scrobblerAuthHelper.startAuth(context, scrobblerService).onFailure {
-					Snackbar.make(listView, it.getDisplayMessage(resources), Snackbar.LENGTH_LONG).show()
-				}
-			}
-			setNegativeButton(android.R.string.cancel, null)
-		}.show()
-	}
+private suspend fun loadAnimeOfflineSummary(
+    context: android.content.Context,
+    animeOfflineRepository: AnimeOfflineRepository,
+): String = withContext(Dispatchers.IO) {
+    runCatching {
+        val status = animeOfflineRepository.readStatus()
+        when {
+            status.isInstalled && !status.releaseTag.isNullOrBlank() && status.downloadedAt > 0L -> {
+                context.getString(
+                    R.string.anime_offline_database_summary_installed,
+                    status.releaseTag,
+                    DateUtils.getRelativeTimeSpanString(status.downloadedAt),
+                )
+            }
+            status.isInstalled -> {
+                context.getString(R.string.anime_offline_database_summary_installed_unknown)
+            }
+            status.lastCheckedAt > 0L -> {
+                context.getString(
+                    R.string.anime_offline_database_summary_not_installed_checked,
+                    DateUtils.getRelativeTimeSpanString(status.lastCheckedAt),
+                )
+            }
+            else -> {
+                context.getString(R.string.anime_offline_database_summary_not_installed)
+            }
+        }
+    }.getOrElse {
+        it.printStackTraceDebug()
+        it.getDisplayMessage(context.resources)
+    }
 }
