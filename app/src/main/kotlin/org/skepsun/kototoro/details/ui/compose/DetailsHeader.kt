@@ -1,8 +1,10 @@
 package org.skepsun.kototoro.details.ui.compose
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,10 +35,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -48,6 +52,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -66,6 +71,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
@@ -83,6 +89,7 @@ import coil3.request.crossfade
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.iconResId
 import org.skepsun.kototoro.core.model.containsAdultTagKeyword
+import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.titleResId
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.model.getContentType
@@ -1019,14 +1026,18 @@ fun ReadingSourceSheet(
     searchSections: List<org.skepsun.kototoro.details.ui.ReadingSearchSectionUiState>,
     isLoading: Boolean,
     hasSearched: Boolean,
+    currentContent: Content?,
     unavailableText: String,
     label: String,
     onDismissRequest: () -> Unit,
     onSelectOption: (DetailsSourceOption) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
-    onResultClick: (Content) -> Unit,
+    onTemporaryOpenResult: (Content) -> Unit,
+    onMigrateResult: (Content) -> Unit,
 ) {
+    val context = LocalContext.current
+    var pendingMigrationTarget by remember { mutableStateOf<Content?>(null) }
     val visibleSections = remember(searchSources, searchSections) {
         if (searchSections.isNotEmpty()) {
             searchSections
@@ -1120,7 +1131,10 @@ fun ReadingSourceSheet(
                                     hasSearched = hasSearched,
                                     onItemClick = { item ->
                                         onDismissRequest()
-                                        onResultClick(item)
+                                        onTemporaryOpenResult(item)
+                                    },
+                                    onMigrateClick = { item ->
+                                        pendingMigrationTarget = item
                                     },
                                 )
                             }
@@ -1129,6 +1143,39 @@ fun ReadingSourceSheet(
                 }
             }
         }
+    }
+    pendingMigrationTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { pendingMigrationTarget = null },
+            title = { Text(stringResource(R.string.manga_migration)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.migrate_confirmation,
+                        currentContent?.title.orEmpty(),
+                        currentContent?.source?.getTitle(context).orEmpty(),
+                        target.title,
+                        target.source.getTitle(context),
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingMigrationTarget = null
+                        onDismissRequest()
+                        onMigrateResult(target)
+                    },
+                ) {
+                    Text(stringResource(R.string.migrate))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingMigrationTarget = null }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            },
+        )
     }
 }
 
@@ -1259,6 +1306,7 @@ private fun ReadingSearchSection(
     section: org.skepsun.kototoro.details.ui.ReadingSearchSectionUiState,
     hasSearched: Boolean,
     onItemClick: (Content) -> Unit,
+    onMigrateClick: (Content) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -1290,6 +1338,7 @@ private fun ReadingSearchSection(
                     ReadingSearchResultCard(
                         item = item,
                         onClick = { onItemClick(item) },
+                        onMigrateClick = { onMigrateClick(item) },
                     )
                 }
             }
@@ -1542,9 +1591,11 @@ private fun ReadingSearchResultRow(
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun ReadingSearchResultCard(
     item: Content,
     onClick: () -> Unit,
+    onMigrateClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val latestChapterInfo = remember(item) { item.readingSearchLatestChapterInfo() }
@@ -1556,7 +1607,10 @@ private fun ReadingSearchResultCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onMigrateClick,
+                )
                 .padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -1576,6 +1630,16 @@ private fun ReadingSearchResultCard(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+            val chaptersCount = item.chapters?.size ?: 0
+            if (chaptersCount > 0) {
+                Text(
+                    text = pluralStringResource(R.plurals.chapters, chaptersCount, chaptersCount),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             latestChapterInfo?.let { latestInfo ->
                 Text(
                     text = when (latestInfo) {
@@ -1596,6 +1660,22 @@ private fun ReadingSearchResultCard(
                     color = MaterialTheme.colorScheme.primary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                )
+            }
+            FilledTonalButton(
+                onClick = onMigrateClick,
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_replace),
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = stringResource(R.string.migrate),
+                    style = MaterialTheme.typography.labelSmall,
                 )
             }
         }

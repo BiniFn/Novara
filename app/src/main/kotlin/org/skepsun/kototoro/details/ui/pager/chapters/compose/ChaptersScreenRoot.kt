@@ -38,6 +38,7 @@ import org.skepsun.kototoro.details.ui.pager.chapters.ChapterGroupsManager
 import org.skepsun.kototoro.details.ui.withVolumeHeaders
 import org.skepsun.kototoro.local.ui.LocalChaptersRemoveService
 import org.skepsun.kototoro.parsers.model.ContentType
+import org.skepsun.kototoro.reader.ui.ReaderNavigationCallback
 
 @Composable
 fun ChaptersScreenRoot(
@@ -237,10 +238,16 @@ fun ChaptersScreenRoot(
 					selectedItemIds.add(item.chapter.id)
 				}
 			} else {
-				// ChaptersPagesViewModel delegates chapter selection to reader here
+				val manga = viewModel.getContentOrNull() ?: return@ChaptersScreen
+				val isVideo = manga.source.getContentType() == ContentType.VIDEO ||
+					manga.source.getContentType() == ContentType.HENTAI_VIDEO
+				val navigationCallback = context as? ReaderNavigationCallback
+				if (isVideo && navigationCallback?.onChapterSelected(item.chapter) == true) {
+					return@ChaptersScreen
+				}
 				router.openReader(
 					ReaderIntent.Builder(context)
-						.manga(viewModel.getContentOrNull() ?: return@ChaptersScreen)
+						.manga(manga)
 						.state(org.skepsun.kototoro.reader.ui.ReaderState(item.chapter.id, 0, 0))
 						.build()
 				)

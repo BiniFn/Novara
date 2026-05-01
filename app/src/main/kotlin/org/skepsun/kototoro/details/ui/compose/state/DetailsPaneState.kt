@@ -404,9 +404,11 @@ fun rememberDetailsPaneNestedScrollConnection(
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 if (source != NestedScrollSource.UserInput) return Offset.Zero
                 val hasGestureOwnership = state.hasNestedPaneDragInProgress()
-                val shouldStartPaneDrag = state.anchor == CompactDetailsPaneAnchor.Full &&
-                    available.y > 0f &&
-                    !canChildScrollBackward()
+                val shouldStartPaneDrag = when (state.anchor) {
+                    CompactDetailsPaneAnchor.Hovered,
+                    CompactDetailsPaneAnchor.Collapsed -> available.y != 0f
+                    CompactDetailsPaneAnchor.Full -> available.y > 0f && !canChildScrollBackward()
+                }
                 if (!hasGestureOwnership && !shouldStartPaneDrag) return Offset.Zero
                 val consumedY = state.dispatchPaneDragDelta(available.y)
                 return Offset(
@@ -416,7 +418,7 @@ fun rememberDetailsPaneNestedScrollConnection(
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
-                if (state.anchor != CompactDetailsPaneAnchor.Full || !state.hasNestedPaneDragInProgress()) {
+                if (!state.hasNestedPaneDragInProgress()) {
                     return Velocity.Zero
                 }
                 state.settleAfterNestedDrag(velocityY = available.y)
@@ -424,7 +426,7 @@ fun rememberDetailsPaneNestedScrollConnection(
             }
 
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                if (state.anchor != CompactDetailsPaneAnchor.Full || !state.hasNestedPaneDragInProgress()) {
+                if (!state.hasNestedPaneDragInProgress()) {
                     return Velocity.Zero
                 }
                 val settleVelocity = if (available.y != 0f) available.y else consumed.y

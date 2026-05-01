@@ -3137,8 +3137,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
 
     private fun navigateChapter(offset: Int) {
-        val manga = intent.getParcelableExtraCompat<ParcelableContent>(AppRouter.KEY_MANGA)?.manga ?: return
-        val chapters = manga.chapters ?: return
+        val chapters = chaptersViewModel.chapters.value.map { it.chapter }.ifEmpty {
+            intent.getParcelableExtraCompat<ParcelableContent>(AppRouter.KEY_MANGA)?.manga?.chapters.orEmpty()
+        }
         if (chapters.isEmpty()) return
         val currentId = readerState?.chapterId ?: chapters.first().id
         val currentIndex = chapters.indexOfFirst { it.id == currentId }

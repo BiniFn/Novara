@@ -7,6 +7,7 @@ import android.view.ViewGroup
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -15,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.viewModels
@@ -92,7 +94,11 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
 
         binding.tabs.removeAllTabs()
         for (tabId in tabsList) {
-            binding.tabs.addTab(binding.tabs.newTab().setText(tabTitleRes(tabId)))
+            binding.tabs.addTab(
+                binding.tabs.newTab()
+                    .setIcon(tabIconRes(tabId))
+                    .setContentDescription(tabTitleRes(tabId)),
+            )
         }
 
         (viewModel as? DetailsViewModel)?.let { dvm ->
@@ -144,7 +150,11 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
                 }
 
                 org.skepsun.kototoro.core.ui.theme.KototoroTheme {
-                    Column {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .nestedScroll(rememberNestedScrollInteropConnection()),
+                    ) {
                         chapterSelectionState?.let { selState ->
                             ChapterSelectionBar(
                                 state = selState,
@@ -347,6 +357,12 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
         TAB_PAGES -> R.string.pages
         TAB_BOOKMARKS -> R.string.bookmarks
         else -> R.string.chapters
+    }
+
+    private fun tabIconRes(tabId: Int): Int = when (tabId) {
+        TAB_PAGES -> R.drawable.ic_grid
+        TAB_BOOKMARKS -> R.drawable.ic_bookmark
+        else -> R.drawable.ic_list
     }
 
     companion object {

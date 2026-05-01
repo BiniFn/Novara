@@ -51,6 +51,7 @@ import org.skepsun.kototoro.details.ui.compose.DetailsScreen
 import org.skepsun.kototoro.details.ui.DetailsViewModel
 import org.skepsun.kototoro.details.ui.compose.handleDetailsAction
 import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.local.ui.compose.LocalContentTagFilterBar
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -631,7 +632,16 @@ fun AppNavGraph(
                     },
                     onAddMenuProvider = { act, _, owner ->
                         org.skepsun.kototoro.local.ui.LocalListMenuProvider(appRouter, { appRouter.showImportDialog() })
-                    }
+                    },
+                    listHeader = {
+                        val availableTags by viewModel.filterAvailableTags.collectAsStateWithLifecycle(initialValue = emptySet())
+                        val selectedTagKeys by viewModel.filterSelectedTagKeys.collectAsStateWithLifecycle(initialValue = emptySet())
+                        LocalContentTagFilterBar(
+                            availableTags = availableTags,
+                            selectedTagKeys = selectedTagKeys,
+                            onTagToggle = viewModel::toggleFilterTag,
+                        )
+                    },
                 )
             }
         }

@@ -132,7 +132,7 @@ class LocalStorageManager @Inject constructor(
 	}
 
 	suspend fun getVideoWriteableDirs(): List<File> = runInterruptible(Dispatchers.IO) {
-		getAvailableVideoStorageDirs()
+		getConfiguredVideoStorageDirs()
 			.filter { it.isWriteable() }
 	}
 
@@ -216,6 +216,13 @@ class LocalStorageManager @Inject constructor(
 		result += File(context.filesDir, DIR_NAME_VIDEO)
 		context.getExternalFilesDirs(DIR_NAME_VIDEO).filterNotNullTo(result)
 		result.retainAll { it.exists() || it.mkdirs() }
+		return result
+	}
+
+	@WorkerThread
+	private fun getConfiguredVideoStorageDirs(): MutableSet<File> {
+		val result = getAvailableVideoStorageDirs()
+		settings.videoStorageDir?.let(result::add)
 		return result
 	}
 

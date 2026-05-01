@@ -64,7 +64,8 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     onEmptyActionClick: (() -> Unit)? = null,
     onLoadMore: () -> Unit = {},
     onNavigateToDetails: ((org.skepsun.kototoro.parsers.model.Content, String?) -> Unit)? = null,
-    onAddMenuProvider: ((androidx.activity.ComponentActivity, VM, androidx.lifecycle.LifecycleOwner) -> androidx.core.view.MenuProvider?)? = null
+    onAddMenuProvider: ((androidx.activity.ComponentActivity, VM, androidx.lifecycle.LifecycleOwner) -> androidx.core.view.MenuProvider?)? = null,
+    listHeader: (@Composable () -> Unit)? = null,
 ) {
     val items by viewModel.content.collectAsStateWithLifecycle(initialValue = emptyList())
     val listMode by viewModel.listMode.collectAsStateWithLifecycle(initialValue = org.skepsun.kototoro.core.prefs.ListMode.GRID)
@@ -303,5 +304,6 @@ fun <VM : ContentListViewModel> AppContentListRoute(
         },
         onRetry = viewModel::onRetry,
         showInlineSelectionTopBar = false,
+        listHeader = listHeader,
     )
 }

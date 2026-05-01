@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.settings.sources.unified
 
 import org.skepsun.kototoro.extensions.repo.RepoAvailableExtension
+import org.skepsun.kototoro.core.lnreader.LNReaderPluginInfo
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.ContentType
 
@@ -88,6 +89,7 @@ data class UnifiedSourcePackageItem(
 	val installedVersionName: String? = null,
 	val installProgressPercent: Int? = null,
 	val installPayload: RepoAvailableExtension? = null,
+	val lnReaderPayload: LNReaderPluginInfo? = null,
 )
 
 data class UnifiedSourceItem(

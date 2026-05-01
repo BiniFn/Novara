@@ -32,7 +32,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -86,7 +88,9 @@ private fun AlternativesList(
 	LazyColumn(
 		contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
 		verticalArrangement = Arrangement.spacedBy(8.dp),
-		modifier = Modifier.fillMaxSize(),
+		modifier = Modifier
+			.fillMaxSize()
+			.nestedScroll(rememberNestedScrollInteropConnection()),
 	) {
 		item(key = "hint") {
 			Text(

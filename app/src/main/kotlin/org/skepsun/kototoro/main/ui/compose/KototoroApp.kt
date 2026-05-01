@@ -24,8 +24,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.StateFlow
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -321,15 +323,15 @@ fun KototoroApp(
     }
 
     val density = androidx.compose.ui.platform.LocalDensity.current
-    val visibleTopInsetPx = if (shouldShowChrome) {
-        (topBarHeightPx + topBarOffset).coerceAtLeast(0f).toInt()
+    val contentTopInsetPx = if (shouldShowChrome) {
+        topBarHeightPx
     } else {
         0
     }
     val extraPinnedBottomInsetPx = with(density) {
         if (isNavBarPinned && !isFloating) 12.dp.roundToPx() else 0
     }
-    val visibleBottomInsetPx = if (!shouldShowChrome) {
+    val contentBottomInsetPx = if (!shouldShowChrome) {
         0
     } else if (isLandscapeNavigation) {
         0
@@ -346,14 +348,14 @@ fun KototoroApp(
         }
     }
 
-    LaunchedEffect(visibleTopInsetPx, visibleBottomInsetPx) {
-        onContentInsetsChanged(visibleTopInsetPx, visibleBottomInsetPx)
+    LaunchedEffect(contentTopInsetPx, contentBottomInsetPx) {
+        onContentInsetsChanged(contentTopInsetPx, contentBottomInsetPx)
     }
-    val contentPadding = remember(visibleTopInsetPx, visibleBottomInsetPx, density) {
+    val contentPadding = remember(contentTopInsetPx, contentBottomInsetPx, density) {
         with(density) {
             androidx.compose.foundation.layout.PaddingValues(
-                top = visibleTopInsetPx.toDp(),
-                bottom = visibleBottomInsetPx.toDp()
+                top = contentTopInsetPx.toDp(),
+                bottom = contentBottomInsetPx.toDp()
             )
         }
     }
@@ -391,6 +393,11 @@ fun KototoroApp(
                             },
                             modifier = Modifier
                                 .fillMaxSize()
+                                .chromeContentOffset(
+                                    topBarOffsetPx = topBarOffset,
+                                    topBarHeightPx = contentTopInsetPx,
+                                    enabled = shouldShowChrome,
+                                )
                                 .padding(start = visibleStartInsetDp)
                                 .then(if (useRuntimeHaze) Modifier.haze(hazeState) else Modifier)
                         )
@@ -624,5 +631,35 @@ fun KototoroApp(
             }
         }
         onSearchNavigationHandled()
+    }
+}
+
+private fun Modifier.chromeContentOffset(
+    topBarOffsetPx: Float,
+    topBarHeightPx: Int,
+    enabled: Boolean,
+): Modifier {
+    if (!enabled || topBarHeightPx <= 0) {
+        return this
+    }
+    return layout { measurable, constraints ->
+        val expandedConstraints = constraints.copy(
+            minHeight = constraints.minHeight.addHeightSafely(topBarHeightPx),
+            maxHeight = constraints.maxHeight.addHeightSafely(topBarHeightPx),
+        )
+        val placeable = measurable.measure(expandedConstraints)
+        val offsetY = topBarOffsetPx.toInt().coerceIn(-topBarHeightPx, 0)
+
+        layout(constraints.maxWidth, constraints.maxHeight) {
+            placeable.place(0, offsetY)
+        }
+    }
+}
+
+private fun Int.addHeightSafely(value: Int): Int {
+    return if (this == Constraints.Infinity) {
+        this
+    } else {
+        (this + value).coerceAtLeast(0)
     }
 }

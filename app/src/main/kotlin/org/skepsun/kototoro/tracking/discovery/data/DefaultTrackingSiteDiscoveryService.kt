@@ -13,6 +13,7 @@ import org.skepsun.kototoro.scrobbling.common.domain.ScrobblerRepositoryMap
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
+import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCapabilities
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCatalog
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCategory
@@ -564,10 +565,8 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			return getTrending(catalog)
 		}
 
-		// Determine whether to search anime, manga, or both based on contentType.
-		// VIDEO → anime only; manga-family & novel → manga only; null → both (legacy behavior).
-		val searchAnime = catalog.contentType == null || catalog.contentType == org.skepsun.kototoro.parsers.model.ContentType.VIDEO
-		val searchManga = catalog.contentType == null || catalog.contentType != org.skepsun.kototoro.parsers.model.ContentType.VIDEO
+		val searchAnime = catalog.contentType == null || catalog.contentType in VIDEO_CONTENT_TYPES
+		val searchManga = catalog.contentType == null || catalog.contentType !in VIDEO_CONTENT_TYPES
 
 		if (catalog.service == ScrobblerService.KITSU) {
 			val offset = catalog.page * 20
@@ -622,6 +621,10 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 					.map { item -> item.toTrackingListItem(catalog.service) }
 			}
 		}
+	}
+
+	private companion object {
+		private val VIDEO_CONTENT_TYPES = setOf(ContentType.VIDEO, ContentType.HENTAI_VIDEO)
 	}
 
 	// ── Kitsu helpers ─────────────────────────

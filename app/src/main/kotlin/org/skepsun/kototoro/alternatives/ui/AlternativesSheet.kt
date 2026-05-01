@@ -33,6 +33,7 @@ class AlternativesSheet : BaseAdaptiveSheet<SheetAlternativesBinding>() {
 
 	override fun onViewBindingCreated(binding: SheetAlternativesBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
+		disableFitToContents()
 		binding.composeView.setViewCompositionStrategy(
 			ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed,
 		)

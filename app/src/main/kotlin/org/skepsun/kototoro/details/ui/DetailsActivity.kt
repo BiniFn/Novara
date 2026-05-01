@@ -102,6 +102,7 @@ class DetailsActivity :
                     pageSaveHelper = pageSaveHelper,
                     onBackClick = { onBackPressedDispatcher.onBackPressed() },
                     onActionClick = ::handleActionClick,
+                    isTemporaryReadOnly = intent.getBooleanExtra(AppRouter.KEY_TEMPORARY_DETAILS, false),
                 )
             }
         }

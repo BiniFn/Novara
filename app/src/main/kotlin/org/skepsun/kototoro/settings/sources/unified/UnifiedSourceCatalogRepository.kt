@@ -45,6 +45,8 @@ import org.skepsun.kototoro.ireader.model.IReaderMangaSource
 import org.skepsun.kototoro.mihon.MihonExtensionManager
 import org.skepsun.kototoro.mihon.model.MihonMangaSource
 import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.settings.sources.extensions.normalizeExtensionLanguageCode
+import org.skepsun.kototoro.settings.sources.extensions.selectExtensionLanguageCode
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -137,7 +139,7 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 							versionName = extension.versionName,
 							versionCode = extension.versionCode,
 							libVersion = extension.libVersion,
-							language = extension.lang,
+							language = extension.lang.normalizeExtensionLanguageCode(),
 							isInstalled = true,
 							isNsfw = extension.isNsfw,
 							sourceCount = extension.sources.size,
@@ -157,7 +159,7 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 							versionName = extension.versionName,
 							versionCode = extension.versionCode,
 							libVersion = extension.libVersion,
-							language = extension.lang,
+							language = extension.lang.normalizeExtensionLanguageCode(),
 							isInstalled = true,
 							isNsfw = extension.isNsfw,
 							sourceCount = extension.sources.size,
@@ -177,7 +179,7 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 							versionName = extension.versionName,
 							versionCode = extension.versionCode,
 							libVersion = extension.libVersion,
-							language = extension.sources.firstOrNull()?.lang,
+							language = extension.sources.map { it.lang }.selectExtensionLanguageCode(),
 							isInstalled = true,
 							isNsfw = extension.isNsfw,
 							sourceCount = extension.sources.size,
@@ -280,7 +282,7 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 			kind = kind,
 			source = this,
 			title = getTitle(localizedContext),
-			language = getLocale()?.language ?: locale.takeIf { it.isNotBlank() },
+			language = (getLocale()?.language ?: locale.takeIf { it.isNotBlank() })?.normalizeExtensionLanguageCode(),
 			contentType = getContentType(),
 			repositoryId = jsonRepository?.id,
 			repositoryName = jsonRepository?.title,
@@ -498,7 +500,7 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 		filter { it.type == JsonSourceType.LNREADER }.forEach { entity ->
 			val metadata = LNReaderPluginMetadata.extractFromCode(entity.config, entity.id)
 			result += UnifiedSourcePackageItem(
-				id = packageId(UnifiedSourceKind.LNREADER, metadata?.id ?: entity.id),
+				id = packageId(UnifiedSourceKind.LNREADER, entity.id),
 				kind = UnifiedSourceKind.LNREADER,
 				name = metadata?.name ?: entity.name,
 				packageName = metadata?.id,
@@ -506,7 +508,7 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 				repositoryName = null,
 				versionName = metadata?.version,
 				versionCode = null,
-				language = metadata?.lang,
+				language = metadata?.lang?.normalizeExtensionLanguageCode(),
 				isInstalled = true,
 				isNsfw = false,
 				sourceCount = 1,
@@ -550,7 +552,7 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 			JsonSourceType.JS -> packageId(UnifiedSourceKind.JS, id) to name
 			JsonSourceType.LNREADER -> {
 				val metadata = LNReaderPluginMetadata.extractFromCode(config, id)
-				packageId(UnifiedSourceKind.LNREADER, metadata?.id ?: id) to (metadata?.name ?: name)
+				packageId(UnifiedSourceKind.LNREADER, id) to (metadata?.name ?: name)
 			}
 		}
 	}

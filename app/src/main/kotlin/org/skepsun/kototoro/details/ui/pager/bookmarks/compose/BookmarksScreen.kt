@@ -26,6 +26,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.bookmarks.domain.Bookmark
+import org.skepsun.kototoro.details.ui.compose.state.CompactDetailsPaneAnchor
 import org.skepsun.kototoro.details.ui.compose.state.DetailsPaneState
 import org.skepsun.kototoro.details.ui.compose.state.rememberDetailsPaneNestedScrollConnection
 import org.skepsun.kototoro.list.ui.model.ListHeader
@@ -129,8 +132,18 @@ fun BookmarksScreen(
 	onClearSelection: () -> Unit,
 ) {
     val gridState = rememberLazyGridState()
+    val activeDetailsPaneState by remember(detailsPaneState) {
+        derivedStateOf {
+            val state = detailsPaneState ?: return@derivedStateOf null
+            if (state.anchor == CompactDetailsPaneAnchor.Full && gridState.canScrollBackward) {
+                null
+            } else {
+                state
+            }
+        }
+    }
     val paneNestedScrollConnection = rememberDetailsPaneNestedScrollConnection(
-        state = detailsPaneState,
+        state = activeDetailsPaneState,
         canChildScrollBackward = { gridState.canScrollBackward },
     )
     val paneNestedScrollModifier = remember(paneNestedScrollConnection) {

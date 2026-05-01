@@ -20,11 +20,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
 import kotlinx.coroutines.yield
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.model.ContentSource
+import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
 import org.skepsun.kototoro.discover.ui.model.DiscoverItem
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.favourites.domain.GlobalFavoritesState
 import org.skepsun.kototoro.list.domain.ContentListMapper
-import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
 import org.skepsun.kototoro.list.ui.model.ContentDetailedListModel
@@ -32,6 +35,7 @@ import org.skepsun.kototoro.list.ui.model.ContentGridModel
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.list.ui.model.toErrorState
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.tracking.discovery.data.TrackingSiteCacheRepository
 import org.skepsun.kototoro.tracking.discovery.domain.PreferredTrackingSiteProvider
@@ -44,8 +48,6 @@ import org.skepsun.kototoro.tracking.discovery.domain.displaySecondaryTitle
 import org.skepsun.kototoro.tracking.discovery.domain.displaySupportingText
 import org.skepsun.kototoro.tracking.discovery.domain.displaySubtitle
 import org.skepsun.kototoro.tracking.discovery.domain.displayTitle
-import org.skepsun.kototoro.parsers.model.Content
-import org.skepsun.kototoro.core.model.ContentSource
 import javax.inject.Inject
 
 @HiltViewModel
@@ -54,6 +56,7 @@ class DiscoverViewModel @Inject constructor(
 	private val discoveryService: TrackingSiteDiscoveryService,
 	private val cacheRepository: TrackingSiteCacheRepository,
 	private val contentListMapper: ContentListMapper,
+	private val globalFavoritesState: GlobalFavoritesState,
 	val settings: AppSettings,
 ) : BaseViewModel() {
 
@@ -246,8 +249,12 @@ class DiscoverViewModel @Inject constructor(
 		return true
 	}
 
-	private fun isCategoryVisibleInTab(categoryId: String, service: ScrobblerService, currentTab: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab): Boolean {
-		if (currentTab == org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All) return true
+	private fun isCategoryVisibleInTab(
+		categoryId: String,
+		service: ScrobblerService,
+		currentTab: BrowseGroupTab,
+	): Boolean {
+		if (currentTab == BrowseGroupTab.All) return true
 
 		val isVideo = categoryId.contains("anime") || categoryId.contains("movie") || categoryId.contains("ova") || 
 			categoryId.contains("tv") || categoryId.contains("calendar") || categoryId.contains("real") || 
@@ -263,9 +270,9 @@ class DiscoverViewModel @Inject constructor(
 			(service == ScrobblerService.BANGUMI && categoryId == "book")
 
 		return when (currentTab) {
-			org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.Video -> isVideo
-			org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.Novel -> isNovel
-			org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.Content -> isManga
+			BrowseGroupTab.Video -> isVideo
+			BrowseGroupTab.Novel -> isNovel
+			BrowseGroupTab.Content -> isManga
 			else -> true
 		}
 	}
@@ -379,19 +386,17 @@ class DiscoverViewModel @Inject constructor(
 		}
 	}
 
-	private fun getCurrentBrowseGroupTab(): org.skepsun.kototoro.explore.ui.model.BrowseGroupTab {
-		val currentTabId = settings.getSelectedGroupTab()
-		return currentTabId?.let { org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.fromId(it) }
-			?: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All
+	private fun getCurrentBrowseGroupTab(): BrowseGroupTab {
+		return globalFavoritesState.selectedGroupTab.value
 	}
 
 	private fun resolveVisibleCategoriesForTab(
 		service: ScrobblerService,
 		categories: List<TrackingSiteCategory>,
-		currentTab: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab,
+		currentTab: BrowseGroupTab,
 	): List<TrackingSiteCategory> {
 		val uniqueCategories = categories.distinctBy { it.id }
-		if (currentTab == org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All) {
+		if (currentTab == BrowseGroupTab.All) {
 			return uniqueCategories.withScheduleCategoryFirst(service)
 		}
 		val filtered = uniqueCategories.filter { category ->
@@ -429,6 +434,7 @@ class DiscoverViewModel @Inject constructor(
 		}
 		selectedServiceOverride.value = service
 		selectedCategoryOverride.value = null // reset category
+		globalFavoritesState.clearSelectedGroupTab()
 		preferredTrackingSiteProvider.setPreferredSite(service)
 	}
 

@@ -188,6 +188,7 @@ fun DetailsScreen(
     onBackClick: () -> Unit,
     sharedElementKey: String? = null,
     onActionClick: (DetailsAction) -> Unit = {},
+    isTemporaryReadOnly: Boolean = false,
 ) {
     val detailsPrimaryUiState by viewModel.detailsPrimaryUiState.collectAsStateWithLifecycle()
     val translationUiState by viewModel.translationUiState.collectAsStateWithLifecycle()
@@ -737,6 +738,7 @@ fun DetailsScreen(
                             showCommentsAction = supplementalCommentThreads.isNotEmpty(),
                             showReviewsAction = supplementalReviews.isNotEmpty(),
                             content = content,
+                            isTemporaryReadOnly = isTemporaryReadOnly,
                             sharedElementKey = sharedElementKey,
                             pendingTagSearch = { pendingTagSearch = it },
                             pendingAuthorSearch = { author, source ->
@@ -758,8 +760,12 @@ fun DetailsScreen(
                             },
 							onSelectActiveLocalSource = viewModel::selectActiveLocalSource,
                             onSelectMetadataSource = viewModel::selectMetadataSource,
-                            onOpenMetadataSourceSheet = { showMetadataSourceDialog = true },
-							onOpenReadingSourceSheet = { showReadingSourceDialog = true },
+                            onOpenMetadataSourceSheet = {
+                                if (!isTemporaryReadOnly) showMetadataSourceDialog = true
+                            },
+							onOpenReadingSourceSheet = {
+                                if (!isTemporaryReadOnly) showReadingSourceDialog = true
+                            },
 							onEntityClick = appRouter::openEntityDetails,
 							onActionClick = handleActionClick,
 						)
@@ -836,72 +842,79 @@ fun DetailsScreen(
                         modifier = Modifier
                             .fillMaxSize(),
                     ) {
-                        DetailsScrollableContent(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .graphicsLayer {
-                                    alpha = (1f - compactSheetExpansionProgress).coerceIn(0f, 1f)
+                        if (compactSheetExpansionProgress < 0.995f) {
+                            DetailsScrollableContent(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer {
+                                        alpha = (1f - compactSheetExpansionProgress).coerceIn(0f, 1f)
+                                    },
+                                scrollState = scrollState,
+                                contentPadding = paddingValues,
+                                headerTopSpacing = detailsHeaderTopSpacing,
+                                bottomSpacerHeight = compactPaneCollapsedHeight + 28.dp,
+                                mangaDetails = mangaDetails,
+                                favouriteCategories = favouriteCategories,
+                                historyInfo = historyInfo,
+                                linkedTrackingItems = linkedTrackingItems,
+                                trackingSuggestion = trackingSuggestion,
+                                metadataSourceOptions = metadataSourceOptions,
+                                readingSourceOptions = readingSourceOptions,
+                                activeLocalSourceOptions = activeLocalSourceOptions,
+                                entityChapterSourceInfo = entityChapterSourceInfo,
+                                supplementalMetadataProperties = supplementalMetadataProperties,
+                                supplementalSections = supplementalSections,
+                                supplementalActions = supplementalActions,
+                                resolvedContentType = contentType,
+                                resolvedMetadataLanguage = resolvedMetadataLanguage,
+                                resolvedReadingLanguage = resolvedReadingLanguage,
+                                entityRelationSections = entityRelationSections,
+                                translatedTitle = translatedTitle,
+                                translatedDescription = translatedDescription,
+                                isShowingTranslation = isShowingTranslation,
+                                hasTranslationCache = hasTranslationCache,
+                                isTranslating = isTranslating,
+                                showTranslateAction = showTranslateAction,
+                                settings = settings,
+                                collapseProgressProvider = compactCollapseProgressProvider,
+                                coverVisualAlpha = headerCoverVisualAlpha,
+                                coverUrl = mangaDetails?.coverUrl?.takeIf { it.isNotBlank() } ?: content?.coverUrl,
+                                fallbackCoverUrl = content?.coverUrl,
+                                showCommentsAction = supplementalCommentThreads.isNotEmpty(),
+                                showReviewsAction = supplementalReviews.isNotEmpty(),
+                                content = content,
+                                isTemporaryReadOnly = isTemporaryReadOnly,
+                                sharedElementKey = sharedElementKey,
+                                pendingTagSearch = { pendingTagSearch = it },
+                                pendingAuthorSearch = { author, source ->
+                                    pendingAuthorSearch = PendingAuthorSearch(author = author, source = source)
                                 },
-                            scrollState = scrollState,
-                            contentPadding = paddingValues,
-                            headerTopSpacing = detailsHeaderTopSpacing,
-                            bottomSpacerHeight = compactPaneCollapsedHeight + 28.dp,
-                            mangaDetails = mangaDetails,
-                            favouriteCategories = favouriteCategories,
-                            historyInfo = historyInfo,
-                            linkedTrackingItems = linkedTrackingItems,
-                            trackingSuggestion = trackingSuggestion,
-                            metadataSourceOptions = metadataSourceOptions,
-                            readingSourceOptions = readingSourceOptions,
-                            activeLocalSourceOptions = activeLocalSourceOptions,
-                            entityChapterSourceInfo = entityChapterSourceInfo,
-                            supplementalMetadataProperties = supplementalMetadataProperties,
-                            supplementalSections = supplementalSections,
-                            supplementalActions = supplementalActions,
-                            resolvedContentType = contentType,
-                            resolvedMetadataLanguage = resolvedMetadataLanguage,
-                            resolvedReadingLanguage = resolvedReadingLanguage,
-                            entityRelationSections = entityRelationSections,
-                            translatedTitle = translatedTitle,
-                            translatedDescription = translatedDescription,
-                            isShowingTranslation = isShowingTranslation,
-                            hasTranslationCache = hasTranslationCache,
-                            isTranslating = isTranslating,
-                            showTranslateAction = showTranslateAction,
-                            settings = settings,
-                            collapseProgressProvider = compactCollapseProgressProvider,
-                            coverVisualAlpha = headerCoverVisualAlpha,
-                            coverUrl = mangaDetails?.coverUrl?.takeIf { it.isNotBlank() } ?: content?.coverUrl,
-                            fallbackCoverUrl = content?.coverUrl,
-                            showCommentsAction = supplementalCommentThreads.isNotEmpty(),
-                            showReviewsAction = supplementalReviews.isNotEmpty(),
-                            content = content,
-                            sharedElementKey = sharedElementKey,
-                            pendingTagSearch = { pendingTagSearch = it },
-                            pendingAuthorSearch = { author, source ->
-                                pendingAuthorSearch = PendingAuthorSearch(author = author, source = source)
-                            },
-							onInfoCardTopSync = syncInfoCardTop,
-							onFavoriteClick = { showFavoriteDialog = true },
-							onCommentsClick = { showCommentsDialog = true },
-							onReviewsClick = { showReviewsDialog = true },
-                            onSupplementalRelationClick = { item ->
-                                when {
-                                    shouldOpenTrackingRelationSheet(item) -> {
-                                        selectedSupplementalRelationItem = item
+                                onInfoCardTopSync = syncInfoCardTop,
+                                onFavoriteClick = { showFavoriteDialog = true },
+                                onCommentsClick = { showCommentsDialog = true },
+                                onReviewsClick = { showReviewsDialog = true },
+                                onSupplementalRelationClick = { item ->
+                                    when {
+                                        shouldOpenTrackingRelationSheet(item) -> {
+                                            selectedSupplementalRelationItem = item
+                                        }
+                                        !item.url.isNullOrBlank() -> {
+                                            handleActionClick(DetailsAction.OpenWebUrl(item.url))
+                                        }
                                     }
-                                    !item.url.isNullOrBlank() -> {
-                                        handleActionClick(DetailsAction.OpenWebUrl(item.url))
-                                    }
-                                }
-                            },
-							onSelectActiveLocalSource = viewModel::selectActiveLocalSource,
-                            onSelectMetadataSource = viewModel::selectMetadataSource,
-                            onOpenMetadataSourceSheet = { showMetadataSourceDialog = true },
-							onOpenReadingSourceSheet = { showReadingSourceDialog = true },
-							onEntityClick = appRouter::openEntityDetails,
-							onActionClick = handleActionClick,
-						)
+                                },
+                                onSelectActiveLocalSource = viewModel::selectActiveLocalSource,
+                                onSelectMetadataSource = viewModel::selectMetadataSource,
+                                onOpenMetadataSourceSheet = {
+                                    if (!isTemporaryReadOnly) showMetadataSourceDialog = true
+                                },
+                                onOpenReadingSourceSheet = {
+                                    if (!isTemporaryReadOnly) showReadingSourceDialog = true
+                                },
+                                onEntityClick = appRouter::openEntityDetails,
+                                onActionClick = handleActionClick,
+                            )
+                        }
                     }
                 }
                 DetailsPaneHost(
@@ -1109,13 +1122,18 @@ fun DetailsScreen(
                     searchSections = readingSearchSections,
                     isLoading = readingSearchLoading,
                     hasSearched = readingSearchHasSearched,
+                    currentContent = content,
                     unavailableText = stringResource(R.string.details_reading_source_unavailable),
                     onSelectOption = { option -> option.targetMangaId?.let(viewModel::selectActiveLocalSource) },
                     onSearchQueryChange = viewModel::updateReadingSearchQuery,
                     onSearch = viewModel::searchReadingBindings,
-                    onResultClick = { candidate ->
+                    onTemporaryOpenResult = { candidate ->
+                        showReadingSourceDialog = false
+                        appRouter.openTemporaryDetails(candidate)
+                    },
+                    onMigrateResult = { candidate ->
                         viewModel.bindReadingCandidateToTracking(candidate) {
-                            appRouter.openDetails(candidate)
+                            appRouter.openTemporaryDetails(candidate)
                         }
                     },
                     onDismissRequest = { showReadingSourceDialog = false },
@@ -1635,6 +1653,7 @@ private fun DetailsScrollableContent(
     showCommentsAction: Boolean,
     showReviewsAction: Boolean,
     content: org.skepsun.kototoro.parsers.model.Content?,
+    isTemporaryReadOnly: Boolean,
     scrollState: androidx.compose.foundation.ScrollState,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
@@ -1672,6 +1691,13 @@ private fun DetailsScrollableContent(
     ) {
         if (headerTopSpacing > 0.dp) {
             Spacer(modifier = Modifier.height(headerTopSpacing))
+        }
+        if (isTemporaryReadOnly) {
+            TemporaryDetailsReadOnlyNotice(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            )
         }
         DetailsHeader(
             mangaDetails = mangaDetails,
@@ -1711,8 +1737,12 @@ private fun DetailsScrollableContent(
             onOpenTrackingDiscover = { service ->
                 onActionClick(DetailsAction.OpenTrackingDiscover(service))
             },
-            onOpenMetadataSourceSheet = onOpenMetadataSourceSheet,
-            onOpenReadingSourceSheet = onOpenReadingSourceSheet,
+            onOpenMetadataSourceSheet = {
+                if (!isTemporaryReadOnly) onOpenMetadataSourceSheet()
+            },
+            onOpenReadingSourceSheet = {
+                if (!isTemporaryReadOnly) onOpenReadingSourceSheet()
+            },
             onOpenSupplementalAction = { action ->
                 onActionClick(DetailsAction.OpenWebUrl(action.url))
             },
@@ -1782,6 +1812,24 @@ private fun DetailsScrollableContent(
     }
 }
 
+@Composable
+private fun TemporaryDetailsReadOnlyNotice(
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+    ) {
+        Text(
+            text = stringResource(R.string.details_temporary_read_only_notice),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
 private fun shouldOpenTrackingRelationSheet(item: EntityRelationItem): Boolean {
     return item.trackingService == null &&
         item.remoteId == null &&
@@ -1840,6 +1888,7 @@ private fun DetailsPaneContent(
     val isCollapsedPane = showCollapsedHandle && detailsPaneState.anchor == CompactDetailsPaneAnchor.Collapsed
     val isDarkTheme = colorScheme.background.luminance() < 0.5f
     val useCompactPaneSurfaceTint = showCollapsedHandle
+    val useFlatFullPane = showCollapsedHandle && isSheetFullyExpanded
     val paneShadowElevation = if (useCompactPaneSurfaceTint) 0.dp else 2.dp
     val paneBorderColor = colorScheme.outlineVariant.copy(
         alpha = if (useCompactPaneSurfaceTint) {
@@ -1980,7 +2029,7 @@ private fun DetailsPaneContent(
                             selectedTabId = resolveDetailsTabSelection(selectedTabId, availableTabIds),
                             showTabStrip = false,
                             isSheetFullyExpanded = isSheetFullyExpanded,
-                            isChapterListScrollEnabled = if (showCollapsedHandle) isSheetFullyExpanded else true,
+                            isChapterListScrollEnabled = true,
                             handleSelectionBackPressInternally = !showCollapsedHandle,
                             detailsPaneState = if (showCollapsedHandle) detailsPaneState else null,
                             chapterQuery = chapterQuery,

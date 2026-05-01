@@ -198,6 +198,13 @@ class AppRouter private constructor(
         startActivity(intent, null)
     }
 
+    fun openTemporaryDetails(manga: Content) {
+        val context = contextOrNull() ?: return
+        val intent = detailsIntent(context, DetailsOrigin.LocalMangaContent(ParcelableContent(manga)))
+            .putExtra(KEY_TEMPORARY_DETAILS, true)
+        startActivity(intent, null)
+    }
+
     fun openDetails(mangaId: Long) {
         startActivity(detailsIntent(contextOrNull() ?: return, DetailsOrigin.LocalMangaId(mangaId)))
     }
@@ -1212,6 +1219,7 @@ class AppRouter private constructor(
         const val KEY_DETAILS_ORIGIN = "details_origin"
         const val KEY_MANGA = "manga"
         const val KEY_MANGA_LIST = "manga_list"
+        const val KEY_TEMPORARY_DETAILS = "temporary_details"
         const val KEY_PAGES = "pages"
         const val KEY_PREVIEW = "preview"
         const val KEY_PICK_MODE = "pick_mode"
