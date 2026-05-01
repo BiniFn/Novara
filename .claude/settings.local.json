@@ -41,7 +41,14 @@
       "Bash(where uvx *)",
       "Bash(where uv *)",
       "Bash(curl *)",
-      "Bash(git status *)"
+      "Bash(git status *)",
+      "Bash(grep -E \"\\\\.\\(kt\\)$\")",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 *)",
+      "Bash(./gradlew :app:testDebugUnitTest --no-daemon)",
+      "Bash(awk 'NR>=561 && NR<=630' app/src/main/kotlin/org/skepsun/kototoro/tracking/discovery/data/DefaultTrackingSiteDiscoveryService.kt)",
+      "Bash(find app/src/main/res/drawable* -name \"ic_replace*\")",
+      "Bash(git *)"
     ]
   }
 }

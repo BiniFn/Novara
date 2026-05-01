@@ -109,3 +109,89 @@
 - 后续继续收口时，选择了“不依赖系统共享元素视图树”的更稳路径：主列表点击时缓存封面 bounds，详情页启动后复用已有 `imageViewCover + syncCoverBounds(...)` 机制做自绘封面过渡。
 - 同轮继续把 `Rect?` 透传能力抬升到 `KototoroContentCard`、`DiscoverHeroCarousel`、Home 卡片和 Feed 卡片，确保非统一 Compose 卡片也能把封面 bounds 传到详情页。
 - 补充边界决策：`KototoroExploreHostRoute` 中主路径进入 tracking 详情或外部浏览器的卡片，不强行接入 `DetailsCoverTransitionStore`，避免把只对 `DetailsActivity` 生效的缓存塞进错误链路。
+
+## 2026-04-22：EntityGraph + Tracking 统一接入详情页
+
+- `DetailsScreen` 统一接入 EntityGraph（实体关系图谱）和 Tracking origins。
+- `DetailsHeader` 接入 `DetailsBindingCard`、`linkedTrackingItems`、`trackingSuggestion`。
+- 决策：tracking 绑定卡片成为详情页一等公民，不再作为可选的附加信息块。
+- 详情页 Compose body 的完整度从此进入新阶段。
+
+## 2026-04-24：Hero 转场稳定化
+
+- 封面 bounds 缓存方案覆盖范围扩展：Compose 主列表、Home 三合一卡片、Feed 动态卡片、更新轮播、通用 Discover 组件。
+- 决策：以"自绘封面过渡"为 Compose 终态方案，系统级共享元素锚点逐步退场。
+- 保留 1200ms fallback 作为兜底。
+
+## 2026-04-26：动画与 Glass 渲染优化
+
+- 减少全局动画和 glass 渲染开销，不作为独立功能推进。
+- GlassSurface 仍为 fallback Surface，未接入 haze 真实后端。
+
+## 2026-04-27：Tracking Site 集成扩展
+
+- 新增 AniList、MAL、Simkl 等平台支持。
+- `TrackingCandidateCard` 增强：显示章节数和迁移按钮。
+- `TrackingSiteDetailsActivity` 维持 L2 状态。
+
+## 2026-04-28–29：源管理统一化
+
+- 决策：将分散的源管理入口（扩展仓库、JSON 源、JAR 导入）统一为 `UnifiedSourcesActivity`。
+- 新增 `UnifiedSourcesViewModel` 管理跨类型的统一状态；`LegacySourceRedirects` 将旧入口重定向到统一界面。
+- 统一的代价是新增了一个 ViewBinding 壳的 Compose Activity（`ActivityUnifiedSourcesBinding`），后续需要去壳。
+- 旧 Fragment（`ExtensionsBrowserFragment` 等）保留但入口逐步被替代。
+
+## 2026-04-29：设置导航与搜索重构
+
+- 新增 `SettingsDestination.kt`：typed 枚举替代硬编码路由，覆盖所有设置子页面。
+- `SettingsSearchHelper` 改为 Kotlin key lists，不再依赖 XML 搜索索引。
+- 新增 `SettingsSearchViewModel` + `SettingsSearchMenuProvider`。
+- 决策：设置导航从 Fragment 切页模式向 Compose 路由模式转型的中间态已完成。
+
+## 2026-04-29：VerticalScrollbar 第一次增强
+
+- 滚动条从简单的 `Modifier.verticalScrollbar()` 扩展函数升级：支持可拖拽 thumb、track 背景、`labelProvider` 无障碍标签。
+- 此时仍为 `Modifier` 扩展函数形态，通过 `drawWithContent` 渲染。
+
+## 2026-04-30：AlternativesSheet Compose body
+
+- body 转为 Compose（`AlternativesSheetContent`），壳仍是 `BaseAdaptiveSheet<SheetAlternativesBinding>`。
+- 新增 `disableFitToContents()` 调用。
+- 决策：去壳留待 Phase 3 统一收口。
+
+## 2026-04-30：Local 过滤胶囊条
+
+- 新增 `LocalContentTypeFilterBar` Compose 组件，在本地作品页按内容类型（全部/漫画/小说/视频）过滤。
+- 通过 `AppContentListRoute` 新增的 `listHeader` 参数注入。
+
+## 2026-05-01：VerticalScrollbar 第二次重写 + 详情页 pane 联动优化
+
+### VerticalScrollbar 重写
+
+- 决策：从 `Modifier` 扩展函数改为独立 `BoxScope.VerticalScrollbar()` composable。
+- 原因：`Modifier` 形态无法承载日益复杂的交互（拖拽、标签气泡、Track 渲染、Channel 批处理）。
+- 新 API 同时接受 `LazyListState` 和 `LazyGridState`，内部统一路由到 `FastScrollbar`。
+- 拖拽改用 `pointerInput` + `awaitEachGesture`，解决旧 `detectDragGestures` 在某些情况下的手势竞争问题。
+- 拖拽时通过 `requestDisallowInterceptTouchEvent(true)` 防止父容器（如 BottomSheet）拦截。
+- 滚动目标通过 `Channel<Int>(CONFLATED)` + `withFrameNanos` 去抖动批处理。
+- 标签气泡使用 Material3 `Surface` + `Text`，自动约束在 track 范围内。
+- 可见性逻辑：滚动/拖拽时保持可见，停止后延迟 1s 渐隐。
+- 调用方（ChaptersScreen、PagesScreen、BookmarksScreen）已完成迁移。
+
+### 详情页 pane 嵌套滚动联动
+
+- ChaptersScreen 新增 `fastScrollLabels`：为每个章节生成中文章节标签（如"第N章"），传给 `VerticalScrollbar.labelProvider`。
+- 三个 pane 页面（ChaptersScreen、PagesScreen、BookmarksScreen）统一新增 `activeDetailsPaneState` derived 状态：当 pane 处于全屏锚点且列表可回滚时，抑制 pane 嵌套滚动连接，避免滚动冲突。
+
+### 其他
+
+- `ChaptersPagesSheet` tab 改图标 + contentDescription（不再用文字标签）。
+- `ChaptersScreenRoot`：视频内容点击章节优先走 `ReaderNavigationCallback.onChapterSelected`。
+- `DiscoverViewModel`：通过 `GlobalFavoritesState` 读取 group tab；服务切换时清理 tab 状态。
+- `ExploreHostScreen`：移除 4 行 showcase 上限。
+- `UnifiedSourcesViewModel`：完整 LNReader 插件浏览/安装/卸载链路；语言码归一化（中文→zh）。
+- `UnifiedSourceModels`：`UnifiedSourcePackageItem` 新增 `lnReaderPayload` 字段。
+- `SettingsActivity`：修复 master-details 模式下非 source action 回退到 Root 而非 AppearanceSettings。
+- `DefaultTrackingSiteDiscoveryService`：`VIDEO_CONTENT_TYPES` 包含 `HENTAI_VIDEO`。
+- `VideoPlayerActivity`：章节导航优先 ViewModel 列表，fallback 到 intent parcelable。
+- `LocalStorageManager`：`getConfiguredVideoStorageDirs()` 包含用户配置的视频目录。
