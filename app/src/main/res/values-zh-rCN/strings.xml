@@ -146,6 +146,7 @@
     <string name="manga_save_location">漫画下载目录</string>
     <string name="novel_save_location">小说下载目录</string>
     <string name="video_save_location">视频下载目录</string>
+    <string name="details_temporary_read_only_notice">临时预览页面。这里不能更改元数据源和阅读源。</string>
     <string name="not_available">不可用</string>
     <string name="cannot_find_available_storage">没有多余的存储空间</string>
     <string name="other_storage">其他存储</string>

@@ -168,7 +168,7 @@ internal fun observeIReaderInstalledExtensionEntries(
 		versionNameOf = { it.versionName },
 		versionCodeOf = { it.versionCode },
 		libVersionOf = { it.libVersion },
-		languageOf = { ext -> ext.sources.firstOrNull()?.lang ?: "all" },
+		languageOf = { ext -> ext.sources.map { it.lang }.selectExtensionLanguageCode() },
 		isNsfwOf = { it.isNsfw },
 		sourceNamesOf = { ext -> ext.sources.map { it.name } },
 	)

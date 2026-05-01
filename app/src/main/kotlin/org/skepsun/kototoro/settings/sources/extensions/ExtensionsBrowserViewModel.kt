@@ -144,7 +144,7 @@ class ExtensionsBrowserViewModel @Inject constructor(
 	}.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
 	val availableLanguageCodes: StateFlow<List<String>> = combine(installedExtensions, availableExtensions) { installed, available ->
-		(installed.asSequence().map { it.lang.normalizeExtensionLanguageCode() } + available.asSequence().map { it.lang.normalizeExtensionLanguageCode() })
+		(installed.asSequence().map { it.lang.normalizeExtensionLanguageCode() } + available.asSequence().map { it.normalizeExtensionLanguageCode() })
 			.filter { it.isNotBlank() || it == "" }
 			.distinct()
 			.sorted()

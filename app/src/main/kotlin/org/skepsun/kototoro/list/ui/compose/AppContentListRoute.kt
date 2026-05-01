@@ -64,7 +64,8 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     onEmptyActionClick: (() -> Unit)? = null,
     onLoadMore: () -> Unit = {},
     onNavigateToDetails: ((org.skepsun.kototoro.parsers.model.Content, String?) -> Unit)? = null,
-    onAddMenuProvider: ((androidx.activity.ComponentActivity, VM, androidx.lifecycle.LifecycleOwner) -> androidx.core.view.MenuProvider?)? = null
+    onAddMenuProvider: ((androidx.activity.ComponentActivity, VM, androidx.lifecycle.LifecycleOwner) -> androidx.core.view.MenuProvider?)? = null,
+    listHeader: (@Composable () -> Unit)? = null,
 ) {
     val items by viewModel.content.collectAsStateWithLifecycle(initialValue = emptyList())
     val listMode by viewModel.listMode.collectAsStateWithLifecycle(initialValue = org.skepsun.kototoro.core.prefs.ListMode.GRID)
@@ -194,23 +195,26 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     // (e.g. FavoritesHostScreen centralizes it to avoid HorizontalPager contention)
     if (registerFilterCallback) {
         val mainActivity = activity as? MainActivity
+        val selectedGroupTab by viewModel.currentGroupTab.collectAsStateWithLifecycle()
+        val selectedSourceTags by viewModel.currentSourceTags.collectAsStateWithLifecycle()
+
         DisposableEffect(mainActivity, viewModel) {
             val callback = object : SearchBarFilterViewController.Callback {
                 override fun isContentTypeFilterVisible(): Boolean = isContentTypeFilterVisible
                 override fun isSourceTagFilterVisible(): Boolean = isSourceTagFilterVisible
-                
+
                 override fun getSelectedContentType(): org.skepsun.kototoro.explore.ui.model.BrowseGroupTab {
                     return viewModel.currentGroupTab.value ?: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All
                 }
-                
+
                 override fun onContentTypeSelected(tab: org.skepsun.kototoro.explore.ui.model.BrowseGroupTab) {
                     viewModel.setSelectedGroupTab(if (viewModel.currentGroupTab.value == tab) org.skepsun.kototoro.explore.ui.model.BrowseGroupTab.All else tab)
                 }
-                
+
                 override fun getSelectedSourceTags(): Set<org.skepsun.kototoro.explore.ui.model.SourceTag> {
                     return viewModel.currentSourceTags.value ?: emptySet()
                 }
-                
+
                 override fun onSourceTagSelected(tag: org.skepsun.kototoro.explore.ui.model.SourceTag?) {
                     val current = viewModel.currentSourceTags.value ?: emptySet()
                     viewModel.setSelectedSourceTags(
@@ -223,16 +227,21 @@ fun <VM : ContentListViewModel> AppContentListRoute(
                         }
                     )
                 }
-                
+
                 override fun getSourceTagEntries(): List<org.skepsun.kototoro.explore.ui.model.SourceTag> {
                     return org.skepsun.kototoro.explore.ui.model.SourceTag.quickFilterEntries
                 }
             }
-            
+
             mainActivity?.setActiveFilterCallback(callback)
             onDispose {
                 mainActivity?.clearActiveFilterCallback(callback)
             }
+        }
+
+        // 每次过滤状态变化时刷新胶囊栏的选中状态
+        SideEffect {
+            mainActivity?.refreshFilters()
         }
     }
 
@@ -295,5 +304,6 @@ fun <VM : ContentListViewModel> AppContentListRoute(
         },
         onRetry = viewModel::onRetry,
         showInlineSelectionTopBar = false,
+        listHeader = listHeader,
     )
 }

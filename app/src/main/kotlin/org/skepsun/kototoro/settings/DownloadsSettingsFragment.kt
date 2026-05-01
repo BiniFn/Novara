@@ -329,7 +329,7 @@ private suspend fun loadStorageSummary(
     return if (storage != null) {
         storageManager.getDirectoryDisplayName(storage, isFullPath = true)
     } else {
-        context.getString(R.string.not_available)
+        context.getString(R.string.not_set)
     }
 }
 

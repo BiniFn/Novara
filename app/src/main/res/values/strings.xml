@@ -129,6 +129,7 @@
     <string name="novel_save_location">Novel downloads folder</string>
     <string name="video_save_location">Video downloads folder</string>
     <string name="not_available">Not available</string>
+    <string name="not_set">Not set</string>
     <string name="cannot_find_available_storage">No available storage</string>
     <string name="other_storage">Other storage</string>
     <string name="done">Done</string>
@@ -1544,6 +1545,7 @@
     <string name="details_search_result_latest_chapter">Latest: Chapter %1$s</string>
     <string name="details_search_result_latest_title">Latest: %1$s</string>
     <string name="details_reading_source_unavailable">Unavailable</string>
+    <string name="details_temporary_read_only_notice">Temporary preview. Metadata source and reading source cannot be changed here.</string>
     <string name="details_metadata_source_login_hint">Search and local binding work without login. Sign in to auto-link online progress.</string>
     <string name="details_additional_metadata">Additional metadata</string>
     <string name="details_related_works">Related works</string>

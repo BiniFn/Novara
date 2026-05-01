@@ -36,6 +36,7 @@ import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.toLocaleOrNull
 import org.skepsun.kototoro.databinding.FragmentInstalledExtensionsBinding
+import org.skepsun.kototoro.extensions.runtime.getExternalExtensionLanguageDisplayName
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
 import java.util.Locale
 import org.skepsun.kototoro.core.nav.router
@@ -283,8 +284,7 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 		val selectedCodes = settings.extensionLanguages.map { it.normalizeExtensionLanguageCode() }.toSet()
 
 		val labels = availableCodes.map { code ->
-			val locale = if (code.isBlank()) Locale.ROOT else code.toLocaleOrNull()
-			locale.getDisplayName(requireContext())
+			formatLanguageLabel(code)
 		}.toTypedArray()
 
 		val checkedItems = availableCodes.map { it in selectedCodes }.toBooleanArray()
@@ -335,9 +335,7 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 				getString(R.string.filter_extensions_by_language)
 			} else {
 				val size = settings.extensionLanguages.size
-				val selectedFirst = settings.extensionLanguages.first().let { code ->
-					if (code.isBlank()) Locale.ROOT else code.toLocaleOrNull()
-				}.getDisplayName(requireContext())
+				val selectedFirst = formatLanguageLabel(settings.extensionLanguages.first().normalizeExtensionLanguageCode())
 				if (size == 1) {
 					getString(R.string.filter_extensions_by_language_with_value, selectedFirst)
 				} else {
@@ -406,6 +404,18 @@ class ExtensionsBrowserFragment : BaseFragment<FragmentInstalledExtensionsBindin
 		if (!isSearchExpanded) {
 			invalidateSupportMenu()
 		}
+	}
+
+	private fun formatLanguageLabel(code: String): String {
+		if (code.isBlank()) {
+			return getString(R.string.multi_language_short)
+		}
+		val extensionLabel = getExternalExtensionLanguageDisplayName(code)
+		if (extensionLabel != code.uppercase(Locale.ROOT)) {
+			return extensionLabel
+		}
+		return (code.toLocaleOrNull() ?: Locale.forLanguageTag(code)).getDisplayName(requireContext())
+			.ifBlank { code.uppercase(Locale.ROOT) }
 	}
 
 }

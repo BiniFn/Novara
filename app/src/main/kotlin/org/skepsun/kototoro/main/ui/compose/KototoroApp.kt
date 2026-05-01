@@ -4,10 +4,13 @@ import android.content.res.Configuration
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -208,6 +211,11 @@ fun KototoroApp(
     var isSearchOverlayQueryCommitted by rememberSaveable { mutableStateOf(false) }
     var topBarOverrideState by remember { mutableStateOf<TopBarOverrideState?>(null) }
 
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val statusBarHeightPx = with(density) {
+        WindowInsets.statusBars.asPaddingValues().calculateTopPadding().roundToPx()
+    }
+
     val nestedScrollConnection = remember(
         isNavBarPinned,
         isLandscapeNavigation,
@@ -320,16 +328,16 @@ fun KototoroApp(
         }
     }
 
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val visibleTopInsetPx = if (shouldShowChrome) {
-        (topBarHeightPx + topBarOffset).coerceAtLeast(0f).toInt()
+    val maxCollapsePx = (topBarHeightPx - statusBarHeightPx).coerceAtLeast(0)
+    val contentTopInsetPx = if (shouldShowChrome) {
+        (topBarHeightPx + topBarOffset).toInt().coerceIn(maxCollapsePx, topBarHeightPx)
     } else {
         0
     }
     val extraPinnedBottomInsetPx = with(density) {
         if (isNavBarPinned && !isFloating) 12.dp.roundToPx() else 0
     }
-    val visibleBottomInsetPx = if (!shouldShowChrome) {
+    val contentBottomInsetPx = if (!shouldShowChrome) {
         0
     } else if (isLandscapeNavigation) {
         0
@@ -346,14 +354,14 @@ fun KototoroApp(
         }
     }
 
-    LaunchedEffect(visibleTopInsetPx, visibleBottomInsetPx) {
-        onContentInsetsChanged(visibleTopInsetPx, visibleBottomInsetPx)
+    LaunchedEffect(contentTopInsetPx, contentBottomInsetPx) {
+        onContentInsetsChanged(contentTopInsetPx, contentBottomInsetPx)
     }
-    val contentPadding = remember(visibleTopInsetPx, visibleBottomInsetPx, density) {
+    val contentPadding = remember(contentTopInsetPx, contentBottomInsetPx, density) {
         with(density) {
             androidx.compose.foundation.layout.PaddingValues(
-                top = visibleTopInsetPx.toDp(),
-                bottom = visibleBottomInsetPx.toDp()
+                top = contentTopInsetPx.toDp(),
+                bottom = contentBottomInsetPx.toDp()
             )
         }
     }

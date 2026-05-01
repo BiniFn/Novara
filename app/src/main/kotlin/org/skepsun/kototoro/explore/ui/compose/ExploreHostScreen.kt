@@ -194,7 +194,7 @@ private fun prepareBrowseDiscoverItems(items: List<ListModel>): BrowseDiscoverIt
 
     var heroRow: DiscoverCarouselRow? = null
     var heroItems: List<ContentListModel> = emptyList()
-    val showcaseRows = ArrayList<BrowseShowcaseRow>()
+    val showcaseCandidates = ArrayList<BrowseShowcaseRow>()
     val popularItems = ArrayList<ContentListModel>()
     val popularIds = HashSet<Long>()
 
@@ -207,8 +207,8 @@ private fun prepareBrowseDiscoverItems(items: List<ListModel>): BrowseDiscoverIt
             heroRow = row
             heroItems = rowItems.take(6)
         } else {
-            if (showcaseRows.size < 4 && rowItems.isNotEmpty()) {
-                showcaseRows += BrowseShowcaseRow(row = row, items = rowItems.take(12))
+            if (rowItems.isNotEmpty()) {
+                showcaseCandidates += BrowseShowcaseRow(row = row, items = rowItems.take(12))
             }
             rowItems.forEach { item ->
                 if (popularIds.add(item.id)) {
@@ -221,7 +221,7 @@ private fun prepareBrowseDiscoverItems(items: List<ListModel>): BrowseDiscoverIt
     return BrowseDiscoverItems(
         heroRow = heroRow,
         heroItems = heroItems,
-        showcaseRows = showcaseRows,
+        showcaseRows = showcaseCandidates,
         popularItems = popularItems,
         isLoadingOnly = isLoadingOnly,
     )

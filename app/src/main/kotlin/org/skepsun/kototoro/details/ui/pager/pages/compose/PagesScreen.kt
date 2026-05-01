@@ -17,6 +17,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalContext
@@ -31,7 +33,8 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
-import org.skepsun.kototoro.core.ui.compose.verticalScrollbar
+import org.skepsun.kototoro.core.ui.compose.VerticalScrollbar
+import org.skepsun.kototoro.details.ui.compose.state.CompactDetailsPaneAnchor
 import org.skepsun.kototoro.details.ui.compose.state.DetailsPaneState
 import org.skepsun.kototoro.details.ui.compose.state.rememberDetailsPaneNestedScrollConnection
 import org.skepsun.kototoro.details.ui.pager.pages.PageThumbnail
@@ -173,8 +176,18 @@ fun PagesScreen(
 ) {
     val context = LocalContext.current
     val listState = rememberLazyGridState()
+    val activeDetailsPaneState by remember(detailsPaneState) {
+        derivedStateOf {
+            val state = detailsPaneState ?: return@derivedStateOf null
+            if (state.anchor == CompactDetailsPaneAnchor.Full && listState.canScrollBackward) {
+                null
+            } else {
+                state
+            }
+        }
+    }
     val paneNestedScrollConnection = rememberDetailsPaneNestedScrollConnection(
-        state = detailsPaneState,
+        state = activeDetailsPaneState,
         canChildScrollBackward = { listState.canScrollBackward },
     )
     val paneNestedScrollModifier = remember(paneNestedScrollConnection) {
@@ -249,10 +262,6 @@ fun PagesScreen(
 				verticalArrangement = Arrangement.spacedBy(8.dp),
 				modifier = Modifier
                     .fillMaxSize()
-                    .verticalScrollbar(
-                        state = listState,
-                        labelProvider = { index -> "${index + 1}" },
-                    )
                     .then(paneNestedScrollModifier),
 			) {
                 items(
@@ -299,7 +308,11 @@ fun PagesScreen(
                         }
                     }
                 }
-			}
+            }
+            VerticalScrollbar(
+                state = listState,
+                labelProvider = { index -> "${index + 1}" },
+            )
 		}
 
 		androidx.compose.animation.AnimatedVisibility(

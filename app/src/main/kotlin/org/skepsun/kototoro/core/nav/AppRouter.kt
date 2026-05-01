@@ -118,6 +118,7 @@ import org.skepsun.kototoro.settings.override.OverrideConfigActivity
 import org.skepsun.kototoro.settings.reader.ReaderTapGridConfigActivity
 import org.skepsun.kototoro.settings.sources.auth.SourceAuthActivity
 import org.skepsun.kototoro.settings.sources.catalog.SourcesCatalogActivity
+import org.skepsun.kototoro.settings.sources.unified.UnifiedSourceKind
 import org.skepsun.kototoro.settings.sources.unified.UnifiedSourcesActivity
 import org.skepsun.kototoro.settings.storage.ContentDirectorySelectDialog
 import org.skepsun.kototoro.settings.storage.directories.ContentDirectoriesActivity
@@ -194,6 +195,13 @@ class AppRouter private constructor(
     fun openDetails(manga: Content, anchor: View? = null) {
         val context = contextOrNull() ?: return
         val intent = detailsIntent(context, DetailsOrigin.LocalMangaContent(ParcelableContent(manga)))
+        startActivity(intent, null)
+    }
+
+    fun openTemporaryDetails(manga: Content) {
+        val context = contextOrNull() ?: return
+        val intent = detailsIntent(context, DetailsOrigin.LocalMangaContent(ParcelableContent(manga)))
+            .putExtra(KEY_TEMPORARY_DETAILS, true)
         startActivity(intent, null)
     }
 
@@ -1122,12 +1130,23 @@ class AppRouter private constructor(
 
         fun sourceSettingsIntent(context: Context, source: ContentSource): Intent = when (source) {
             is ContentSourceInfo -> sourceSettingsIntent(context, source.mangaSource)
-            is ExternalContentSource -> Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                .setData(Uri.fromParts("package", source.packageName, null))
+            is ExternalContentSource -> {
+                val kind = inferUnifiedSourceKind(source.packageName)
+                UnifiedSourcesActivity.newIntent(context, initialRepositoryKind = kind)
+            }
 
             else -> Intent(context, SettingsActivity::class.java)
                 .setAction(ACTION_SOURCE)
                 .putExtra(KEY_SOURCE, source.name)
+        }
+
+        private fun inferUnifiedSourceKind(packageName: String): UnifiedSourceKind? {
+            return when {
+                packageName.startsWith("eu.kanade.tachiyomi.animeextension") -> UnifiedSourceKind.ANIYOMI
+                packageName.startsWith("eu.kanade.tachiyomi") -> UnifiedSourceKind.MIHON
+                packageName.startsWith("ireader") -> UnifiedSourceKind.IREADER
+                else -> null
+            }
         }
 
         fun sourceAuthIntent(context: Context, source: ContentSource): Intent {
@@ -1200,6 +1219,7 @@ class AppRouter private constructor(
         const val KEY_DETAILS_ORIGIN = "details_origin"
         const val KEY_MANGA = "manga"
         const val KEY_MANGA_LIST = "manga_list"
+        const val KEY_TEMPORARY_DETAILS = "temporary_details"
         const val KEY_PAGES = "pages"
         const val KEY_PREVIEW = "preview"
         const val KEY_PICK_MODE = "pick_mode"

@@ -85,6 +85,7 @@ import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.core.util.ext.getDisplayName
 import org.skepsun.kototoro.core.util.ext.toLocaleOrNull
+import org.skepsun.kototoro.extensions.runtime.getExternalExtensionLanguageDisplayName
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepo
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.settings.sources.extensions.formatExtensionFingerprint
@@ -1714,7 +1715,11 @@ private fun UnifiedRepositoryLocationType.displayLabel(): String {
 
 @Composable
 private fun String.displayLanguageLabel(): String {
-	if (isBlank()) return stringResource(R.string.all)
+	if (isBlank()) return stringResource(R.string.multi_language_short)
+	val extensionLabel = getExternalExtensionLanguageDisplayName(this)
+	if (extensionLabel != uppercase(Locale.ROOT)) {
+		return extensionLabel
+	}
 	val locale = toLocaleOrNull() ?: Locale.forLanguageTag(this)
 	return locale.getDisplayName(LocalContext.current).ifBlank { uppercase() }
 }

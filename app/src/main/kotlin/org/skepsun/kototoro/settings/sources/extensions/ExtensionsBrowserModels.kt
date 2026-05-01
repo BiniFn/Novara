@@ -5,6 +5,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.extensions.install.ExtensionInstallDownloadState
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
 import org.skepsun.kototoro.extensions.repo.RepoAvailableExtension
+import java.util.Locale
 
 internal data class InstalledExtensionEntry(
 	val pkgName: String,
@@ -87,7 +88,7 @@ internal fun buildExtensionsBrowserItems(
 	available.forEach { extension ->
 		val installedSearchKey = type.normalizePackageNameForMatching(extension.pkgName)
 
-		val normalizedLanguage = extension.lang.normalizeExtensionLanguageCode()
+		val normalizedLanguage = extension.normalizeExtensionLanguageCode()
 		val installedEntry = installedMap[installedSearchKey]
 		val downloadState = downloadStates[extension.pkgName]
 		val isDownloading = downloadState != null
@@ -238,12 +239,96 @@ private fun List<ExtensionsBrowserListItem.Entry>.filterByLanguage(allowedLangua
 }
 
 internal fun String.normalizeExtensionLanguageCode(): String {
-	return if (equals("all", ignoreCase = true)) {
-		""
-	} else {
-		lowercase()
+	val normalized = filterNot { Character.getType(it) == Character.FORMAT.toInt() }
+		.trim()
+		.replace('_', '-')
+		.lowercase(Locale.ROOT)
+	if (normalized.isBlank()) {
+		return ""
+	}
+	normalizeSingleExtensionLanguageCode(normalized)?.let { return it }
+
+	val parts = normalized
+		.split(languageCodeSeparators)
+		.mapNotNull { part -> normalizeSingleExtensionLanguageCode(part.trim()) }
+		.filter { it.isNotBlank() }
+		.distinct()
+
+	return when {
+		"zh" in parts -> "zh"
+		parts.size == 1 -> parts.single()
+		else -> ""
 	}
 }
+
+internal fun RepoAvailableExtension.normalizeExtensionLanguageCode(): String {
+	val language = lang.normalizeExtensionLanguageCode()
+	if (language.isNotBlank() || type != ExternalExtensionType.IREADER) {
+		return language
+	}
+	return pkgName.inferIReaderLanguageCode().normalizeExtensionLanguageCode()
+}
+
+internal fun Iterable<String>.selectExtensionLanguageCode(): String {
+	val languages = map { it.normalizeExtensionLanguageCode() }
+		.filter { it.isNotBlank() }
+		.distinct()
+	return when {
+		"zh" in languages -> "zh"
+		languages.size == 1 -> languages.single()
+		else -> ""
+	}
+}
+
+private fun normalizeSingleExtensionLanguageCode(language: String): String? {
+	return when (language) {
+		"all",
+		"multi",
+		"multiple",
+		"multilingual",
+		"various",
+		"various-languages",
+		"mixed" -> ""
+
+		"中文",
+		"简体中文",
+		"繁體中文",
+		"繁体中文",
+		"漢語",
+		"汉语",
+		"chinese",
+		"cn",
+		"chn",
+		"sc",
+		"chs",
+		"zh",
+		"zh-cn",
+		"zh-sg",
+		"zh-hans",
+		"tw",
+		"hk",
+		"mo",
+		"tc",
+		"cht",
+		"zh-tw",
+		"zh-hk",
+		"zh-mo",
+		"zh-hant" -> "zh"
+
+		"jp" -> "ja"
+		"kr" -> "ko"
+		else -> language
+	}
+}
+
+private fun String.inferIReaderLanguageCode(): String {
+	if (!startsWith("ireader-", ignoreCase = true)) {
+		return ""
+	}
+	return split("-").getOrNull(1).orEmpty()
+}
+
+private val languageCodeSeparators = Regex("""[,/|;+\s]+""")
 
 private fun MutableList<ExtensionsBrowserListItem>.addSection(
 	section: ExtensionsBrowserSection,

@@ -1,165 +1,314 @@
 package org.skepsun.kototoro.core.ui.compose
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.gestures.detectDragGestures
+import android.view.View
+import androidx.appcompat.R as appcompatR
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
+import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.util.ext.getThemeColor
+import kotlin.math.roundToInt
 
-fun Modifier.verticalScrollbar(
-    state: LazyListState,
-    width: Dp = 8.dp,
-    color: Color = Color.Gray.copy(alpha = 0.5f),
-    draggable: Boolean = true,
-    labelProvider: ((Int) -> String)? = null,
-): Modifier = composed {
-    val coroutineScope = rememberCoroutineScope()
-    val isScrollInProgress = state.isScrollInProgress
-    val totalItems = state.layoutInfo.totalItemsCount
-    val visibleItems = state.layoutInfo.visibleItemsInfo.size
-    val showScrollbar = totalItems > visibleItems
+private const val SCROLLBAR_HIDE_DELAY_MS = 1000L
 
-    var isDragging by remember(state) { mutableStateOf(false) }
-    var dragLabelIndex by remember(state) { mutableIntStateOf(0) }
+private val FastScrollTouchWidth = 32.dp
+private val FastScrollInsetEnd = 24.dp
+private val FastScrollHandleEndPadding = 0.dp
 
-    val alpha by animateFloatAsState(
-        targetValue = if ((isScrollInProgress || isDragging) && showScrollbar) 1f else 0f,
-        animationSpec = tween(durationMillis = if (isScrollInProgress || isDragging) 150 else 1000),
-        label = "scrollbar_alpha",
-    )
-
-    val thumbWidthPx = with(LocalDensity.current) { width.toPx() }
-    val touchWidthPx = with(LocalDensity.current) { 24.dp.toPx() }
-    val minThumbHeightPx = with(LocalDensity.current) { 48.dp.toPx() }
-
-    this
-        .then(
-            if (draggable) {
-                Modifier.pointerInput(state) {
-                    detectDragGestures(
-                        onDragStart = { offset ->
-                            val layoutInfo = state.layoutInfo
-                            val totalItems = layoutInfo.totalItemsCount
-                            val visibleItems = layoutInfo.visibleItemsInfo.size
-                            val barHeightFraction = (visibleItems.toFloat() / totalItems).coerceIn(0.05f, 1f)
-                            val barHeight = size.height * barHeightFraction
-                            val firstVisible = state.firstVisibleItemIndex
-                            val scrollFraction = firstVisible.toFloat() / (totalItems - visibleItems).coerceAtLeast(1)
-                            val barTop = (size.height - barHeight) * scrollFraction
-                            val inThumbX = offset.x >= size.width - touchWidthPx
-                            val inThumbY = offset.y >= barTop - 24f && offset.y <= barTop + barHeight + 24f
-                            if (inThumbX && inThumbY) {
-                                isDragging = true
-                            }
-                        },
-                        onDragEnd = { isDragging = false },
-                        onDragCancel = { isDragging = false },
-                        onDrag = { change, _ ->
-                            if (isDragging) {
-                                change.consume()
-                                val currentTotal = state.layoutInfo.totalItemsCount
-                                if (currentTotal > 0) {
-                                    val newY = change.position.y.coerceIn(0f, size.height.toFloat())
-                                    val fraction = newY / size.height
-                                    val targetIndex = (fraction * currentTotal).toInt().coerceIn(0, currentTotal - 1)
-                                    dragLabelIndex = targetIndex
-                                    coroutineScope.launch {
-                                        state.scrollToItem(targetIndex)
-                                    }
-                                }
-                            }
-                        },
-                    )
-                }
-            } else {
-                Modifier
-            },
-        )
-        .drawWithContent {
-            drawContent()
-            if (alpha > 0f && totalItems > 0 && visibleItems > 0) {
-                val firstVisible = if (isDragging) dragLabelIndex else state.firstVisibleItemIndex
-                val scrollFraction = firstVisible.toFloat() / (totalItems - visibleItems).coerceAtLeast(1)
-                val barHeightFraction = (visibleItems.toFloat() / totalItems).coerceIn(0.05f, 1f)
-                val barHeight = size.height * barHeightFraction
-                val barTop = (size.height - barHeight) * scrollFraction
-
-                drawRoundRect(
-                    color = color.copy(alpha = color.alpha * alpha * 0.3f),
-                    topLeft = Offset(size.width - thumbWidthPx, 0f),
-                    size = Size(thumbWidthPx, size.height),
-                    cornerRadius = CornerRadius(thumbWidthPx / 2f),
-                )
-                drawRoundRect(
-                    color = color.copy(alpha = color.alpha * alpha),
-                    topLeft = Offset(size.width - thumbWidthPx, barTop),
-                    size = Size(thumbWidthPx, barHeight.coerceAtLeast(minThumbHeightPx)),
-                    cornerRadius = CornerRadius(thumbWidthPx / 2f),
-                )
-            }
-        }
+@Composable
+fun BoxScope.VerticalScrollbar(
+	state: LazyListState,
+	modifier: Modifier = Modifier,
+	width: Dp = dimensionResource(R.dimen.fastscroll_handle_width),
+	color: Color = Color.Unspecified,
+	draggable: Boolean = true,
+	labelProvider: ((Int) -> String)? = null,
+) {
+	FastScrollbar(
+		modifier = modifier,
+		width = width,
+		color = color,
+		draggable = draggable,
+		labelProvider = labelProvider,
+		totalItemsCount = { state.layoutInfo.totalItemsCount },
+		visibleItemsCount = { state.layoutInfo.visibleItemsInfo.size },
+		scrollPosition = { state.smoothListPosition() },
+		isScrollInProgress = { state.isScrollInProgress },
+		requestScrollToItem = state::requestScrollToItem,
+	)
 }
 
-fun Modifier.verticalScrollbar(
-    state: LazyGridState,
-    width: Dp = 8.dp,
-    color: Color = Color.Gray.copy(alpha = 0.5f),
-    draggable: Boolean = false,
-    labelProvider: ((Int) -> String)? = null,
-): Modifier = composed {
-    val isScrollInProgress = state.isScrollInProgress
-    val totalItems = state.layoutInfo.totalItemsCount
-    val visibleItems = state.layoutInfo.visibleItemsInfo.size
-    val showScrollbar = totalItems > visibleItems
+@Composable
+fun BoxScope.VerticalScrollbar(
+	state: LazyGridState,
+	modifier: Modifier = Modifier,
+	width: Dp = dimensionResource(R.dimen.fastscroll_handle_width),
+	color: Color = Color.Unspecified,
+	draggable: Boolean = true,
+	labelProvider: ((Int) -> String)? = null,
+) {
+	FastScrollbar(
+		modifier = modifier,
+		width = width,
+		color = color,
+		draggable = draggable,
+		labelProvider = labelProvider,
+		totalItemsCount = { state.layoutInfo.totalItemsCount },
+		visibleItemsCount = { state.layoutInfo.visibleItemsInfo.size },
+		scrollPosition = { state.smoothGridPosition() },
+		isScrollInProgress = { state.isScrollInProgress },
+		requestScrollToItem = state::requestScrollToItem,
+	)
+}
 
-    val alpha by animateFloatAsState(
-        targetValue = if (isScrollInProgress && showScrollbar) 1f else 0f,
-        animationSpec = tween(durationMillis = if (isScrollInProgress) 150 else 1000),
-        label = "scrollbar_alpha",
-    )
+@Composable
+private fun BoxScope.FastScrollbar(
+	modifier: Modifier,
+	width: Dp,
+	color: Color,
+	draggable: Boolean,
+	labelProvider: ((Int) -> String)?,
+	totalItemsCount: () -> Int,
+	visibleItemsCount: () -> Int,
+	scrollPosition: () -> Float,
+	isScrollInProgress: () -> Boolean,
+	requestScrollToItem: (Int) -> Unit,
+) {
+	val context = LocalContext.current
+	val rootView = LocalView.current
+	val scrollTargets = remember { Channel<Int>(Channel.CONFLATED) }
+	val showScrollbar by remember {
+		derivedStateOf {
+			val totalItems = totalItemsCount()
+			totalItems > 0 && totalItems > visibleItemsCount()
+		}
+	}
 
-    val minThumbHeightPx = with(LocalDensity.current) { 48.dp.toPx() }
+	var isDragging by remember { mutableStateOf(false) }
+	var dragPosition by remember { mutableFloatStateOf(0f) }
+	var keepVisible by remember { mutableStateOf(false) }
+	var lastDragTarget by remember { mutableIntStateOf(-1) }
+	var trackHeightPx by remember { mutableFloatStateOf(0f) }
+	val scrolling = isScrollInProgress()
 
-    drawWithContent {
-        drawContent()
-        if (alpha > 0f && totalItems > 0 && visibleItems > 0) {
-            val firstVisible = state.firstVisibleItemIndex
-            val scrollFraction = firstVisible.toFloat() / (totalItems - visibleItems).coerceAtLeast(1)
-            val barHeightFraction = (visibleItems.toFloat() / totalItems).coerceIn(0.05f, 1f)
-            val barHeight = size.height * barHeightFraction
-            val barTop = (size.height - barHeight) * scrollFraction
-            val widthPx = width.toPx()
+	DisposableEffect(scrollTargets) {
+		onDispose {
+			scrollTargets.close()
+		}
+	}
 
-            drawRoundRect(
-                color = color.copy(alpha = color.alpha * alpha * 0.3f),
-                topLeft = Offset(size.width - widthPx, 0f),
-                size = Size(widthPx, size.height),
-                cornerRadius = CornerRadius(widthPx / 2f),
-            )
-            drawRoundRect(
-                color = color.copy(alpha = color.alpha * alpha),
-                topLeft = Offset(size.width - widthPx, barTop),
-                size = Size(widthPx, barHeight.coerceAtLeast(minThumbHeightPx)),
-                cornerRadius = CornerRadius(widthPx / 2f),
-            )
-        }
-    }
+	LaunchedEffect(scrollTargets) {
+		while (true) {
+			val firstTarget = scrollTargets.receiveCatching().getOrNull() ?: break
+			withFrameNanos { }
+			var target = firstTarget
+			while (true) {
+				target = scrollTargets.tryReceive().getOrNull() ?: break
+			}
+			requestScrollToItem(target)
+		}
+	}
+
+	LaunchedEffect(scrolling, isDragging, showScrollbar) {
+		if ((scrolling || isDragging) && showScrollbar) {
+			keepVisible = true
+		} else {
+			delay(SCROLLBAR_HIDE_DELAY_MS)
+			keepVisible = false
+		}
+	}
+
+	val alpha = if (keepVisible && showScrollbar) 1f else 0f
+	val density = LocalDensity.current
+	val handleColor = remember(context, color) {
+		if (color == Color.Unspecified) {
+			Color(context.getThemeColor(appcompatR.attr.colorControlNormal, android.graphics.Color.DKGRAY))
+		} else {
+			color
+		}
+	}
+	val handleHeight = dimensionResource(R.dimen.fastscroll_handle_height)
+	val handleRadius = dimensionResource(R.dimen.fastscroll_handle_radius)
+	val scrollbarMarginTop = dimensionResource(R.dimen.fastscroll_scrollbar_margin_top)
+	val scrollbarMarginBottom = dimensionResource(R.dimen.fastscroll_scrollbar_margin_bottom)
+	val handleWidthPx = with(density) { width.toPx() }
+	val handleHeightPx = with(density) { handleHeight.toPx() }
+	val handleRadiusPx = with(density) { handleRadius.toPx() }
+	val handleEndPaddingPx = with(density) { FastScrollHandleEndPadding.toPx() }
+
+	Box(
+		modifier = modifier
+			.align(Alignment.CenterEnd)
+			.fillMaxHeight()
+			.padding(
+				top = scrollbarMarginTop,
+				end = FastScrollInsetEnd,
+				bottom = scrollbarMarginBottom,
+			)
+			.width(FastScrollTouchWidth)
+			.then(
+				if (draggable) {
+					Modifier.fastScrollbarPointerInput(
+						rootView = rootView,
+						showScrollbar = { showScrollbar },
+						totalItemsCount = totalItemsCount,
+						visibleItemsCount = visibleItemsCount,
+						handleHeightPx = handleHeightPx,
+						onDragStart = {
+							isDragging = true
+							keepVisible = true
+							lastDragTarget = -1
+						},
+						onDragStop = {
+							isDragging = false
+						},
+						onDragChanged = { position, index ->
+							dragPosition = position
+							if (index != lastDragTarget) {
+								lastDragTarget = index
+								scrollTargets.trySend(index)
+							}
+						},
+					)
+				} else {
+					Modifier
+				},
+			),
+	) {
+		Box(
+			modifier = Modifier
+				.fillMaxSize()
+				.onSizeChanged { size -> trackHeightPx = size.height.toFloat() },
+		) {
+			val totalItems = totalItemsCount()
+			val visibleItems = visibleItemsCount()
+			val maxScrollPosition = (totalItems - 1).coerceAtLeast(1)
+			val currentScrollFraction = if (isDragging) {
+				dragPosition / maxScrollPosition
+			} else {
+				scrollPosition() / maxScrollPosition
+			}
+			val barHeightPx = handleHeightPx.coerceAtMost(trackHeightPx)
+			val barTopPx = (trackHeightPx - barHeightPx) * currentScrollFraction.coerceIn(0f, 1f)
+
+			Canvas(modifier = Modifier.fillMaxSize()) {
+				if (alpha <= 0f || !showScrollbar || totalItems <= 0 || visibleItems <= 0 || totalItems <= visibleItems) {
+					return@Canvas
+				}
+
+				val barLeft = size.width - handleEndPaddingPx - handleWidthPx
+				drawRoundRect(
+					color = handleColor.copy(alpha = handleColor.alpha * alpha),
+					topLeft = Offset(barLeft, barTopPx),
+					size = Size(handleWidthPx, barHeightPx),
+					cornerRadius = CornerRadius(handleRadiusPx),
+				)
+			}
+		}
+	}
+}
+
+private fun Modifier.fastScrollbarPointerInput(
+	rootView: View,
+	showScrollbar: () -> Boolean,
+	totalItemsCount: () -> Int,
+	visibleItemsCount: () -> Int,
+	handleHeightPx: Float,
+	onDragStart: () -> Unit,
+	onDragStop: () -> Unit,
+	onDragChanged: (position: Float, targetIndex: Int) -> Unit,
+): Modifier = pointerInput(rootView, handleHeightPx) {
+	awaitEachGesture {
+		val down = awaitFirstDown(requireUnconsumed = false)
+		if (!showScrollbar()) {
+			return@awaitEachGesture
+		}
+
+		rootView.parent?.requestDisallowInterceptTouchEvent(true)
+		onDragStart()
+		down.consume()
+
+		fun scrollToPointer(y: Float) {
+			val totalItems = totalItemsCount()
+			val visibleItems = visibleItemsCount()
+			if (totalItems <= 0 || totalItems <= visibleItems) {
+				return
+			}
+
+			val maxScrollPosition = (totalItems - 1).coerceAtLeast(1)
+			val availableHeight = (size.height - handleHeightPx).coerceAtLeast(1f)
+			val fraction = (y - handleHeightPx / 2f).coerceIn(0f, availableHeight) / availableHeight
+			val position = fraction * maxScrollPosition
+			val targetIndex = position.roundToInt().coerceIn(0, totalItems - 1)
+			onDragChanged(position, targetIndex)
+		}
+
+		try {
+			scrollToPointer(down.position.y)
+			while (true) {
+				val event = awaitPointerEvent()
+				val change = event.changes.firstOrNull { it.id == down.id } ?: break
+				if (!change.pressed) {
+					break
+				}
+				change.consume()
+				scrollToPointer(change.position.y)
+			}
+		} finally {
+			onDragStop()
+			rootView.parent?.requestDisallowInterceptTouchEvent(false)
+		}
+	}
+}
+
+private fun LazyListState.smoothListPosition(): Float {
+	val itemInfo = layoutInfo.visibleItemsInfo.firstOrNull { it.index == firstVisibleItemIndex }
+		?: layoutInfo.visibleItemsInfo.firstOrNull()
+		?: return firstVisibleItemIndex.toFloat()
+	val itemSize = itemInfo.size.coerceAtLeast(1)
+	val offsetFraction = firstVisibleItemScrollOffset.toFloat() / itemSize
+	return firstVisibleItemIndex + offsetFraction.coerceIn(0f, 1f)
+}
+
+private fun LazyGridState.smoothGridPosition(): Float {
+	val firstInfo = layoutInfo.visibleItemsInfo.minByOrNull { it.index }
+		?: return firstVisibleItemIndex.toFloat()
+	val itemSize = firstInfo.size.height.coerceAtLeast(1)
+	val offsetFraction = firstVisibleItemScrollOffset.toFloat() / itemSize
+	return firstVisibleItemIndex + offsetFraction.coerceIn(0f, 1f)
 }

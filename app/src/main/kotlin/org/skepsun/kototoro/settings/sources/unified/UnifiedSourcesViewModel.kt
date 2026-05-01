@@ -21,9 +21,14 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.extensions.GlobalExtensionManager
 import org.skepsun.kototoro.core.jsonsource.JsonSourceManager
+import org.skepsun.kototoro.core.lnreader.LNReaderPluginInfo
+import org.skepsun.kototoro.core.lnreader.LNReaderRepository
+import org.skepsun.kototoro.core.lnreader.LNReaderPluginMetadata
+import org.skepsun.kototoro.core.network.jsonsource.JsonSourceHttpClient
 import org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.BaseViewModel
@@ -39,6 +44,7 @@ import org.skepsun.kototoro.extensions.repo.InstalledExtensionSignatureValidator
 import org.skepsun.kototoro.extensions.repo.RepoAvailableExtension
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.settings.sources.extensions.ExtensionBatchUpdateStateMachine
+import org.skepsun.kototoro.settings.sources.extensions.normalizeExtensionLanguageCode
 import org.skepsun.kototoro.settings.sources.extensions.normalizePackageNameForMatching
 import org.skepsun.kototoro.settings.sources.extensions.toInstalledIReaderPackageName
 import javax.inject.Inject
@@ -50,6 +56,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 	private val contentSourcesRepository: ContentSourcesRepository,
 	private val jsonSourceManager: JsonSourceManager,
 	private val legadoHttpClient: LegadoHttpClient,
+	@JsonSourceHttpClient private val okHttpClient: OkHttpClient,
 	private val extensionRepoRepository: ExternalExtensionRepoRepository,
 	private val installService: ExtensionInstallService,
 	private val signatureValidator: InstalledExtensionSignatureValidator,
@@ -57,6 +64,15 @@ class UnifiedSourcesViewModel @Inject constructor(
 ) : BaseViewModel() {
 
 	private val availableExternalExtensions = MutableStateFlow<List<RepoAvailableExtension>>(emptyList())
+	private val availableLnReaderPlugins = MutableStateFlow<List<LnReaderAvailablePlugin>>(emptyList())
+	private val installingLnReaderPackageIds = MutableStateFlow<Set<String>>(emptySet())
+	private val lnReaderPackageSnapshot = combine(
+		availableLnReaderPlugins,
+		installingLnReaderPackageIds,
+	) { plugins, installingIds ->
+		LnReaderPackageSnapshot(plugins, installingIds)
+	}
+	private val lnReaderRepository = LNReaderRepository(okHttpClient, jsonSourceManager)
 	private val batchUpdateState = ExtensionBatchUpdateStateMachine()
 	private val filterState = MutableStateFlow(
 		UnifiedSourcesFilterState(
@@ -72,9 +88,11 @@ class UnifiedSourcesViewModel @Inject constructor(
 		availableExternalExtensions,
 		installService.downloadStates,
 		filterState,
-	) { catalog, availableExtensions, downloadStates, filters ->
+		lnReaderPackageSnapshot,
+	) { catalog, availableExtensions, downloadStates, filters, lnReaderSnapshot ->
 		catalog
 			.withAvailableExternalPackages(availableExtensions, downloadStates)
+			.withAvailableLnReaderPackages(lnReaderSnapshot.plugins, lnReaderSnapshot.installingPackageIds)
 			.toUiState(filters)
 	}.stateIn(
 		scope = viewModelScope,
@@ -163,6 +181,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 				types.forEach { type -> extensionRepoRepository.refresh(type) }
 			}
 			refreshAvailableExternalPackages(types)
+			refreshAvailableLnReaderPackages()
 		}
 		if (showLoading) {
 			launchLoadingJob(Dispatchers.IO, block = refreshBlock)
@@ -173,6 +192,10 @@ class UnifiedSourcesViewModel @Inject constructor(
 
 	fun installPackage(packageId: String) {
 		val item = currentPackage(packageId) ?: return
+		if (item.kind == UnifiedSourceKind.LNREADER && item.lnReaderPayload != null) {
+			requestLnReaderInstall(item)
+			return
+		}
 		if (item.state == UnifiedSourcePackageState.INSTALLED || item.packageName in installService.downloadStates.value) {
 			return
 		}
@@ -181,6 +204,10 @@ class UnifiedSourcesViewModel @Inject constructor(
 
 	fun cancelPackageInstall(packageId: String) {
 		val item = currentPackage(packageId) ?: return
+		if (item.kind == UnifiedSourceKind.LNREADER) {
+			installingLnReaderPackageIds.update { it - item.id }
+			return
+		}
 		val packageName = item.packageName ?: return
 		if (batchUpdateState.shouldCancelCurrent(packageName)) {
 			cancelUpdateAll()
@@ -193,6 +220,15 @@ class UnifiedSourcesViewModel @Inject constructor(
 		val item = currentPackage(packageId) ?: return
 		val packageName = item.packageName ?: return
 		if (item.state == UnifiedSourcePackageState.INSTALLING) {
+			return
+		}
+
+		if (item.kind == UnifiedSourceKind.LNREADER) {
+			val sourceId = item.id.removePrefix("package:${UnifiedSourceKind.LNREADER.name}:")
+			launchLoadingJob(Dispatchers.IO) {
+				jsonSourceManager.deleteSource(sourceId)
+				emitMessage(appContext.getString(R.string.removal_completed))
+			}
 			return
 		}
 
@@ -349,7 +385,10 @@ class UnifiedSourcesViewModel @Inject constructor(
 						sourceTitle = repository.name,
 					)
 				}
-				UnifiedSourceKind.LNREADER -> emitMessage(appContext.getString(R.string.unified_sources_lnreader_repo_browser_managed))
+				UnifiedSourceKind.LNREADER -> {
+					refreshAvailableLnReaderPackages()
+					emitMessage(appContext.getString(R.string.unified_sources_repository_refreshed))
+				}
 				UnifiedSourceKind.MIHON,
 				UnifiedSourceKind.ANIYOMI,
 				UnifiedSourceKind.IREADER,
@@ -377,6 +416,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 				}
 				UnifiedSourceKind.LNREADER -> {
 					settings.lnReaderRepoUrls = settings.lnReaderRepoUrls - repository.url
+					refreshAvailableLnReaderPackages()
 					emitMessage(appContext.getString(R.string.unified_sources_repository_deleted))
 				}
 				UnifiedSourceKind.MIHON,
@@ -482,6 +522,33 @@ class UnifiedSourcesViewModel @Inject constructor(
 		}
 	}
 
+	private fun requestLnReaderInstall(item: UnifiedSourcePackageItem) {
+		val plugin = item.lnReaderPayload ?: return
+		if (item.state == UnifiedSourcePackageState.INSTALLED || item.id in installingLnReaderPackageIds.value) {
+			return
+		}
+		installingLnReaderPackageIds.update { it + item.id }
+		launchLoadingJob(Dispatchers.IO) {
+			try {
+				val jsContent = fetchRemoteText(plugin.url)
+				jsonSourceManager.importLNReaderPlugin(
+					jsContent = jsContent,
+					metadataOverride = LNReaderPluginMetadata(
+						id = plugin.id,
+						name = plugin.name,
+						site = plugin.site,
+						version = plugin.version,
+						lang = plugin.lang,
+						icon = plugin.iconUrl,
+					),
+				).getOrThrow()
+				emitMessage(appContext.getString(R.string.unified_sources_package_installed))
+			} finally {
+				installingLnReaderPackageIds.update { it - item.id }
+			}
+		}
+	}
+
 	private fun startUpdateAll() {
 		val updatePackages = currentUpdatePackages()
 		if (!batchUpdateState.start(updatePackages.mapNotNull { it.packageName })) {
@@ -556,6 +623,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 			return
 		}
 		settings.lnReaderRepoUrls = current + url
+		refreshAvailableLnReaderPackages()
 		emitMessage(appContext.getString(R.string.unified_sources_repository_added))
 	}
 
@@ -687,6 +755,22 @@ class UnifiedSourcesViewModel @Inject constructor(
 			}
 	}
 
+	private suspend fun refreshAvailableLnReaderPackages() {
+		val plugins = settings.lnReaderRepoUrls.flatMap { repoUrl ->
+			lnReaderRepository.fetchPluginIndex(repoUrl)
+				.getOrNull()
+				.orEmpty()
+				.map { plugin ->
+					LnReaderAvailablePlugin(
+						plugin = plugin,
+						repoUrl = repoUrl,
+						repoName = repositoryTitleForAction(repoUrl, fallback = "LNReader"),
+					)
+				}
+		}
+		availableLnReaderPlugins.value = plugins.distinctBy { it.repoUrl to it.plugin.id }
+	}
+
 	private fun UnifiedSourceCatalogState.withAvailableExternalPackages(
 		availableExtensions: List<RepoAvailableExtension>,
 		downloadStates: Map<String, ExtensionInstallDownloadState>,
@@ -711,6 +795,34 @@ class UnifiedSourcesViewModel @Inject constructor(
 		val installedWithoutCatalogMatch = packages.filterNot { item ->
 			item.kind.isExternalExtensionKind() &&
 				item.kind.toExternalExtensionType()?.normalizePackageNameForMatching(item.packageName.orEmpty()) in handledInstalledKeys
+		}
+		return copy(
+			packages = (installedWithoutCatalogMatch + availablePackages)
+				.sortedWith(compareBy({ it.kind.ordinal }, { it.state.sortOrder }, { it.name.lowercase() })),
+		)
+	}
+
+	private fun UnifiedSourceCatalogState.withAvailableLnReaderPackages(
+		availablePlugins: List<LnReaderAvailablePlugin>,
+		installingPackageIds: Set<String>,
+	): UnifiedSourceCatalogState {
+		val installedByPluginId = packages
+			.filter { it.kind == UnifiedSourceKind.LNREADER && !it.packageName.isNullOrBlank() }
+			.associateBy { it.packageName.orEmpty() }
+		val handledPluginIds = LinkedHashSet<String>()
+		val availablePackages = availablePlugins.map { available ->
+			val plugin = available.plugin
+			val installedPackage = installedByPluginId[plugin.id]
+			if (installedPackage != null) {
+				handledPluginIds += plugin.id
+			}
+			available.toUnifiedPackageItem(
+				installedPackage = installedPackage,
+				isInstalling = installingPackageIds.contains(available.packageId),
+			)
+		}
+		val installedWithoutCatalogMatch = packages.filterNot { item ->
+			item.kind == UnifiedSourceKind.LNREADER && item.packageName in handledPluginIds
 		}
 		return copy(
 			packages = (installedWithoutCatalogMatch + availablePackages)
@@ -755,6 +867,36 @@ class UnifiedSourcesViewModel @Inject constructor(
 			installedVersionName = installedPackage?.versionName,
 			installProgressPercent = downloadState?.progressPercent,
 			installPayload = this,
+		)
+	}
+
+	private fun LnReaderAvailablePlugin.toUnifiedPackageItem(
+		installedPackage: UnifiedSourcePackageItem?,
+		isInstalling: Boolean,
+	): UnifiedSourcePackageItem {
+		val state = when {
+			isInstalling -> UnifiedSourcePackageState.INSTALLING
+			installedPackage != null -> UnifiedSourcePackageState.INSTALLED
+			else -> UnifiedSourcePackageState.AVAILABLE
+		}
+		return UnifiedSourcePackageItem(
+			id = installedPackage?.id ?: packageId,
+			kind = UnifiedSourceKind.LNREADER,
+			name = plugin.name.ifBlank { plugin.id },
+			packageName = plugin.id,
+			repositoryId = repositoryIdForAction(UnifiedSourceKind.LNREADER, repoUrl),
+			repositoryName = repoName,
+			versionName = plugin.version.takeIf { it.isNotBlank() },
+			versionCode = null,
+			language = plugin.lang.normalizeLanguageCode(),
+			isInstalled = installedPackage != null,
+			isNsfw = false,
+			sourceCount = installedPackage?.sourceCount ?: 1,
+			sourceNames = installedPackage?.sourceNames ?: listOf(plugin.name.ifBlank { plugin.id }),
+			iconUrl = plugin.iconUrl.takeIf { it.isNotBlank() },
+			state = state,
+			installedVersionName = installedPackage?.versionName,
+			lnReaderPayload = plugin,
 		)
 	}
 
@@ -922,7 +1064,7 @@ private fun String?.matchesLanguageFilter(languages: Set<String>): Boolean {
 }
 
 private fun String.normalizeLanguageCode(): String {
-	return if (equals("all", ignoreCase = true)) "" else lowercase()
+	return normalizeExtensionLanguageCode()
 }
 
 private fun UnifiedSourceKind.toExternalExtensionType(): ExternalExtensionType? {
@@ -981,6 +1123,23 @@ private fun packageIdForAction(kind: UnifiedSourceKind, value: String): String {
 	return "package:${kind.name}:${value.trim()}"
 }
 
+private fun lnReaderPackageIdForAction(repoUrl: String, pluginId: String): String {
+	return packageIdForAction(UnifiedSourceKind.LNREADER, "${normalizeRepositoryUrlForAction(repoUrl)}:${pluginId.trim()}")
+}
+
+private data class LnReaderAvailablePlugin(
+	val plugin: LNReaderPluginInfo,
+	val repoUrl: String,
+	val repoName: String,
+) {
+	val packageId: String = lnReaderPackageIdForAction(repoUrl, plugin.id)
+}
+
+private data class LnReaderPackageSnapshot(
+	val plugins: List<LnReaderAvailablePlugin>,
+	val installingPackageIds: Set<String>,
+)
+
 private fun UnifiedSourceKind.displayNameForMessage(context: Context): String {
 	return when (this) {
 		UnifiedSourceKind.NATIVE -> context.getString(R.string.source_type_native)
@@ -1000,6 +1159,18 @@ private fun normalizeRepositoryUrlForAction(url: String): String {
 		.trimEnd('/')
 		.removeSuffix("/index.min.json")
 		.trimEnd('/')
+}
+
+private fun repositoryTitleForAction(url: String, fallback: String): String {
+	val uri = runCatching { Uri.parse(url) }.getOrNull()
+	val host = uri?.host?.trim().orEmpty()
+	val tail = uri?.lastPathSegment?.trim().orEmpty()
+	return when {
+		host.isNotBlank() && tail.isNotBlank() -> "$host / $tail"
+		host.isNotBlank() -> host
+		tail.isNotBlank() -> tail
+		else -> fallback
+	}
 }
 
 private fun resolveRepositoryLocationTypeForAction(locator: String): UnifiedRepositoryLocationType {

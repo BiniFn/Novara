@@ -700,13 +700,8 @@ class SettingsActivity :
 			openComposeDestination(composeDestination, shouldRestoreFragment = false)
 			return
 		}
-		if (!isMasterDetails) {
-			openComposeDestination(SettingsDestination.Root, shouldRestoreFragment = false)
-			return
-		}
-
-			val fragment = when (intent?.action) {
-				AppRouter.ACTION_SOURCES -> null
+		val fragment = when (intent?.action) {
+			AppRouter.ACTION_SOURCES -> null
 			AppRouter.ACTION_SOURCE -> SourceSettingsHostFragment.newInstance(
 				ContentSource(intent.getStringExtra(AppRouter.KEY_SOURCE)),
 			)
@@ -720,7 +715,7 @@ class SettingsActivity :
 			else -> null
 		}
 		if (fragment == null) {
-			openComposeDestination(SettingsDestination.AppearanceSettings, shouldRestoreFragment = false)
+			openComposeDestination(SettingsDestination.Root, shouldRestoreFragment = false)
 			return
 		}
 		supportFragmentManager.commit {

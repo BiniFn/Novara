@@ -125,6 +125,33 @@ class ExtensionsBrowserModelsTest : FunSpec({
 		"ALL".normalizeExtensionLanguageCode() shouldBe ""
 		"zh".normalizeExtensionLanguageCode() shouldBe "zh"
 	}
+
+	test("normalizeExtensionLanguageCode folds ireader and lnreader chinese aliases into zh") {
+		"cn".normalizeExtensionLanguageCode() shouldBe "zh"
+		"tw".normalizeExtensionLanguageCode() shouldBe "zh"
+		"zh-CN".normalizeExtensionLanguageCode() shouldBe "zh"
+		"zh_Hans".normalizeExtensionLanguageCode() shouldBe "zh"
+		"zh-Hant/en".normalizeExtensionLanguageCode() shouldBe "zh"
+		"cn,en".normalizeExtensionLanguageCode() shouldBe "zh"
+		"all,en".normalizeExtensionLanguageCode() shouldBe "en"
+		"jp".normalizeExtensionLanguageCode() shouldBe "ja"
+		"kr".normalizeExtensionLanguageCode() shouldBe "ko"
+	}
+
+	test("ireader available extension infers language from package when repo marks it as all") {
+		availableExtension(
+			packageName = "ireader-cn-yuedu",
+			name = "Yuedu",
+			type = ExternalExtensionType.IREADER,
+			lang = "all",
+		).normalizeExtensionLanguageCode() shouldBe "zh"
+	}
+
+	test("installed extension source languages prefer chinese over multi-language bucket") {
+		listOf("all", "cn", "en").selectExtensionLanguageCode() shouldBe "zh"
+		listOf("all", "en").selectExtensionLanguageCode() shouldBe "en"
+		listOf("ja", "en").selectExtensionLanguageCode() shouldBe ""
+	}
 })
 
 private fun installedEntry(
