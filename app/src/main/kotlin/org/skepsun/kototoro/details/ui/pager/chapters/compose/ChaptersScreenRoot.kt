@@ -29,6 +29,7 @@ import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.ReaderIntent
+import org.skepsun.kototoro.core.util.ext.findActivity
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.details.ui.model.ChapterListItem
@@ -241,7 +242,8 @@ fun ChaptersScreenRoot(
 				val manga = viewModel.getContentOrNull() ?: return@ChaptersScreen
 				val isVideo = manga.source.getContentType() == ContentType.VIDEO ||
 					manga.source.getContentType() == ContentType.HENTAI_VIDEO
-				val navigationCallback = context as? ReaderNavigationCallback
+				val navigationCallback = (context as? ReaderNavigationCallback)
+					?: (context.findActivity() as? ReaderNavigationCallback)
 				if (isVideo && navigationCallback?.onChapterSelected(item.chapter) == true) {
 					return@ChaptersScreen
 				}
