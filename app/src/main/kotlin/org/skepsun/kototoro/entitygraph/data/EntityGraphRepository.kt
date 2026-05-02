@@ -31,6 +31,7 @@ private const val MAX_VOICE_ACTORS = 10
 private const val RELATION_WEIGHT_DEFAULT = 1f
 private const val STALE_ENTITY_DAYS = 30L
 private const val STALE_ENTITY_ACCESS_THRESHOLD = 2
+private const val MAX_BINDING_QUERY_PARAMS = 500
 
 @Singleton
 class EntityGraphRepository @Inject constructor(
@@ -141,12 +142,14 @@ class EntityGraphRepository @Inject constructor(
 		}
 		val ids = localMangaIds.distinct()
 		buildMap {
-			db.getEntityGraphDao().findBindingsBySources(
-				sources = listOf("local_manga", "0"),
-				externalIds = ids.map(Long::toString),
-			).forEach { binding ->
-				binding.externalId.toLongOrNull()?.let { localMangaId ->
-					put(localMangaId, binding.entityId)
+			ids.map(Long::toString).chunked(MAX_BINDING_QUERY_PARAMS).forEach { chunk ->
+				db.getEntityGraphDao().findBindingsBySources(
+					sources = listOf("local_manga", "0"),
+					externalIds = chunk,
+				).forEach { binding ->
+					binding.externalId.toLongOrNull()?.let { localMangaId ->
+						put(localMangaId, binding.entityId)
+					}
 				}
 			}
 		}
