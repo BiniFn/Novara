@@ -471,6 +471,7 @@ fun AppNavGraph(
                     contentPadding = contentPadding,
                     onNavigateToDetails = navigateToDetailsWithContent,
                     registerFilterCallback = false,
+                    onTopBarOverrideChanged = onExploreSourceSelectionTopBarChanged,
                     viewModel = viewModel,
                 )
             }
@@ -565,7 +566,10 @@ fun AppNavGraph(
 
             androidx.compose.runtime.LaunchedEffect(viewModel.onError) {
                 val host = activity?.window?.decorView?.rootView ?: return@LaunchedEffect
-                val observer = org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver(host, null)
+                val resolver = (activity as? org.skepsun.kototoro.core.ui.BaseActivity<*>)?.exceptionResolver
+                val observer = org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver(host, null, resolver) { resolved ->
+                    if (resolved) viewModel.update()
+                }
                 viewModel.onError.collect { event: org.skepsun.kototoro.core.util.Event<Throwable>? ->
                     event?.consume(observer)
                 }
@@ -718,6 +722,10 @@ fun AppNavGraph(
                                 menuInflater.inflate(org.skepsun.kototoro.R.menu.opt_list, menu)
                             }
                             override fun onMenuItemSelected(menuItem: android.view.MenuItem): Boolean = when (menuItem.itemId) {
+                                org.skepsun.kototoro.R.id.action_refresh -> {
+                                    viewModel.onRefresh()
+                                    true
+                                }
                                 org.skepsun.kototoro.R.id.action_list_mode -> {
                                     appRouter.showListConfigSheet(org.skepsun.kototoro.list.ui.config.ListConfigSection.Updated)
                                     true

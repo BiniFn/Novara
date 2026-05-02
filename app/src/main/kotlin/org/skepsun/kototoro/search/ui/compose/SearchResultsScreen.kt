@@ -664,7 +664,7 @@ private fun SearchResultsSection(
                         enableScrollLinkedAnimation = false,
                     ) { animatedModifier ->
                         Box(
-                            modifier = animatedModifier.width(posterStyle.itemWidth + 20.dp),
+                            modifier = animatedModifier.width(posterStyle.itemWidth),
                         ) {
                             KototoroContentCard(
                                 model = item,

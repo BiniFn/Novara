@@ -368,13 +368,15 @@ configurations.all {
 
 // Tasks for CI/CD to get version info
 tasks.register('printVersionName') {
+	def versionName = android.defaultConfig.versionName
 	doLast {
-		println android.defaultConfig.versionName
+		println versionName
 	}
 }
 
 tasks.register('printVersionCode') {
+	def versionCode = android.defaultConfig.versionCode
 	doLast {
-		println android.defaultConfig.versionCode
+		println versionCode
 	}
 }

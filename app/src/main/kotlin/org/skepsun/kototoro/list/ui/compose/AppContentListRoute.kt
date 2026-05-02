@@ -13,6 +13,7 @@ import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 import org.skepsun.kototoro.list.ui.ContentListViewModel
 import org.skepsun.kototoro.main.ui.MainActivity
 import androidx.compose.runtime.saveable.rememberSaveable
+import org.skepsun.kototoro.core.ui.BaseActivity
 import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
 import org.skepsun.kototoro.alternatives.ui.AutoFixService
 import org.skepsun.kototoro.core.util.ShareHelper
@@ -61,6 +62,8 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     registerFilterCallback: Boolean = true,
     onRemoveSelection: ((Set<Long>) -> Unit)? = null,
     onShareSelection: ((Set<Long>) -> Unit)? = null,
+    onPinSelection: ((Set<Long>) -> Unit)? = null,
+    onMarkAsCompletedSelection: ((List<ContentListModel>) -> Unit)? = null,
     onEmptyActionClick: (() -> Unit)? = null,
     onLoadMore: () -> Unit = {},
     onNavigateToDetails: ((org.skepsun.kototoro.parsers.model.Content, String?) -> Unit)? = null,
@@ -96,6 +99,12 @@ fun <VM : ContentListViewModel> AppContentListRoute(
                 add(SelectionAction.SAVE)
                 if (showRemoveOption || onRemoveSelection != null) {
                     add(SelectionAction.REMOVE)
+                }
+                if (onPinSelection != null) {
+                    add(SelectionAction.PIN)
+                }
+                if (onMarkAsCompletedSelection != null) {
+                    add(SelectionAction.MARK_AS_COMPLETED)
                 }
             }
             onTopBarOverrideChanged(
@@ -151,6 +160,24 @@ fun <VM : ContentListViewModel> AppContentListRoute(
                                     }
                                 }.show()
                             }
+
+                            SelectionAction.PIN -> {
+                                onPinSelection?.invoke(composeSelectionIds)
+                                composeSelectionIds = emptySet()
+                            }
+
+                            SelectionAction.MARK_AS_COMPLETED -> {
+                                val itemsToMark = selectedModels
+                                buildAlertDialog(context, isCentered = true) {
+                                    setTitle(org.skepsun.kototoro.R.string.mark_as_completed)
+                                    setMessage(org.skepsun.kototoro.R.string.mark_as_completed_prompt)
+                                    setNegativeButton(android.R.string.cancel, null)
+                                    setPositiveButton(android.R.string.ok) { _, _ ->
+                                        onMarkAsCompletedSelection?.invoke(itemsToMark)
+                                    }
+                                }.show()
+                                composeSelectionIds = emptySet()
+                            }
                         }
                     },
                 ),
@@ -169,7 +196,10 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     // Error observation
     LaunchedEffect(viewModel.onError) {
         val host = activity?.window?.decorView?.rootView ?: return@LaunchedEffect
-        val observer = SnackbarErrorObserver(host, null)
+        val resolver = (activity as? BaseActivity<*>)?.exceptionResolver
+        val observer = SnackbarErrorObserver(host, null, resolver) { resolved ->
+            if (resolved) viewModel.onRetry()
+        }
         viewModel.onError.collect { event ->
             event?.consume(observer)
         }

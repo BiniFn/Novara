@@ -7,6 +7,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.favourites.ui.list.FavouritesListViewModel
 import org.skepsun.kototoro.list.ui.compose.AppContentListRoute
+import org.skepsun.kototoro.list.ui.model.ContentListModel
+import org.skepsun.kototoro.main.ui.compose.TopBarOverrideState
 import org.skepsun.kototoro.parsers.model.Content
 
 @Composable
@@ -16,6 +18,7 @@ fun KototoroFavoritesListScreen(
     contentPadding: PaddingValues,
     onNavigateToDetails: ((Content, String?) -> Unit)? = null,
     sharedTransitionEnabled: Boolean = true,
+    onTopBarOverrideChanged: (TopBarOverrideState?) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val viewModel = hiltViewModel<FavouritesListViewModel, FavouritesListViewModel.Factory>(
@@ -29,12 +32,19 @@ fun KototoroFavoritesListScreen(
         contentPadding = contentPadding,
         appRouter = appRouter,
         showRemoveOption = true,
+        onTopBarOverrideChanged = onTopBarOverrideChanged,
         sharedTransitionEnabled = sharedTransitionEnabled,
         registerFilterCallback = false, // Parent FavoritesHostScreen manages the centralized callback
         onLoadMore = { viewModel.requestMoreItems() },
         onNavigateToDetails = onNavigateToDetails,
         onRemoveSelection = { ids ->
             viewModel.removeFromFavourites(ids)
+        },
+        onPinSelection = { ids ->
+            viewModel.togglePinned(ids)
+        },
+        onMarkAsCompletedSelection = { items ->
+            viewModel.markAsRead(items.map { it.manga }.toSet())
         }
     )
 }

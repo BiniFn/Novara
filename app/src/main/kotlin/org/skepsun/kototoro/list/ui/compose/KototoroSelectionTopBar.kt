@@ -36,7 +36,9 @@ enum class SelectionAction {
     SAVE,
     EDIT_OVERRIDE,
     FIX,
-    REMOVE
+    REMOVE,
+    PIN,
+    MARK_AS_COMPLETED
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -81,7 +83,17 @@ fun KototoroSelectionTopBar(
                     Icon(Icons.Default.Share, contentDescription = "Share")
                 }
             }
-            
+            if (supportedActions == null || SelectionAction.PIN in supportedActions) {
+                IconButton(onClick = { onActionClick(SelectionAction.PIN) }) {
+                    Icon(painter = painterResource(id = R.drawable.ic_pin), contentDescription = "Pin/Unpin")
+                }
+            }
+            if (supportedActions == null || SelectionAction.MARK_AS_COMPLETED in supportedActions) {
+                IconButton(onClick = { onActionClick(SelectionAction.MARK_AS_COMPLETED) }) {
+                    Icon(painter = painterResource(id = R.drawable.ic_eye_check), contentDescription = "Mark as Completed")
+                }
+            }
+
             // Overflow menu
             Box {
                 IconButton(onClick = { showOverflowMenu = true }) {

@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
@@ -77,7 +79,8 @@ fun SourceSettingsScreen(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
-        LazyColumn(
+    val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
+        LazyColumn(state = listState,
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(
                 start = 16.dp,

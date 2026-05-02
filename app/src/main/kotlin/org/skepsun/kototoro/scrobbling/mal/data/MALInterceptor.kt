@@ -25,7 +25,7 @@ class MALInterceptor(
 		val request = sourceRequest.newBuilder()
 		request.header(CommonHeaders.CONTENT_TYPE, JSON)
 		request.header(CommonHeaders.ACCEPT, JSON)
-		val isAuthRequest = sourceRequest.url.pathSegments.contains("oauth")
+		val isAuthRequest = sourceRequest.url.pathSegments.contains("token")
 		if (!isAuthRequest) {
 			storage.accessToken?.let {
 				request.header(CommonHeaders.AUTHORIZATION, "Bearer $it")

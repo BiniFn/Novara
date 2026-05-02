@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
@@ -33,6 +34,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -74,7 +76,8 @@ fun SettingsRootScreen(
         modifier = modifier.fillMaxSize(),
         color = Color.Transparent,
     ) {
-        LazyColumn(
+    val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
+        LazyColumn(state = listState,
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(
                 start = 16.dp,

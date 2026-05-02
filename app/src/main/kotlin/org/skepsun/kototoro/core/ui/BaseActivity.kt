@@ -41,7 +41,7 @@ abstract class BaseActivity<B : ViewBinding> :
 	lateinit var viewBinding: B
 		private set
 
-	protected lateinit var exceptionResolver: ExceptionResolver
+	lateinit var exceptionResolver: ExceptionResolver
 		private set
 
 	@JvmField

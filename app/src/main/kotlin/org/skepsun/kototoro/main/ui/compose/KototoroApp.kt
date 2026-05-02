@@ -549,8 +549,9 @@ fun KototoroApp(
                             state = navStateFlow,
                             onItemSelected = { itemId ->
                                 val route = routeForBottomNavItem(itemId)
+                                val homeRoute = HomeRoute
                                 navController.navigate(route) {
-                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                    popUpTo(homeRoute) { inclusive = false; saveState = true }
                                     launchSingleTop = true
                                     restoreState = true
                                 }

@@ -33,7 +33,7 @@ abstract class Scrobbler(
 	private val mangaRepositoryFactory: ContentRepository.Factory,
 ) {
 
-	private val infoCache = HashMap<Pair<Long, Long>, ScrobblerContentInfo>()
+	private val infoCache = java.util.concurrent.ConcurrentHashMap<Pair<Long, Long>, ScrobblerContentInfo>()
 	protected val statuses = EnumMap<ScrobblingStatus, String>(ScrobblingStatus::class.java)
 
 	val user: Flow<ScrobblerUser> = flow {
@@ -149,7 +149,11 @@ abstract class Scrobbler(
 			it.printStackTraceDebug()
 		}.onSuccess {
 			infoCache[cacheKey] = it
-		}.getOrNull() ?: return null
+		}.getOrNull()
+		val title = mangaInfo?.name ?: "#$targetId"
+		val coverUrl = mangaInfo?.cover ?: ""
+		val description = mangaInfo?.descriptionHtml?.let { it.parseAsHtml().sanitize() } ?: ""
+		val externalUrl = mangaInfo?.url ?: ""
 		return ScrobblingInfo(
 			scrobbler = scrobblerService,
 			mangaId = mangaId,
@@ -158,10 +162,10 @@ abstract class Scrobbler(
 			chapter = chapter,
 			comment = comment,
 			rating = rating,
-			title = mangaInfo.name,
-			coverUrl = mangaInfo.cover,
-			description = mangaInfo.descriptionHtml.parseAsHtml().sanitize(),
-			externalUrl = mangaInfo.url,
+			title = title,
+			coverUrl = coverUrl,
+			description = description,
+			externalUrl = externalUrl,
 		)
 	}
 }

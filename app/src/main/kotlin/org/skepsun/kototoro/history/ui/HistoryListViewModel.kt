@@ -82,6 +82,8 @@ class HistoryListViewModel @Inject constructor(
 	private var groupedHistoryIds: Map<Long, Set<Long>> = emptyMap()
 
 	override val isFilterBarVisible = MutableStateFlow(true)
+		private val refreshTrigger = MutableStateFlow(Any())
+
 
 	override val currentGroupTab = globalFavoritesState.selectedGroupTab
 	override val currentSourceTags = globalFavoritesState.selectedSourceTags
@@ -131,6 +133,7 @@ class HistoryListViewModel @Inject constructor(
 		this.currentGroupTab,
 		this.currentSourceTags,
 		mangaListMapper.observeDisplayChanges().onStart { emit(Unit) },
+			refreshTrigger,
 		settings.observeAsFlow(AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID) { activeSourcePresetId }
 			.flatMapLatest { id ->
 				if (id == -1L) flowOf(null)
@@ -152,7 +155,9 @@ class HistoryListViewModel @Inject constructor(
 		emit(listOf(e.toErrorState(canRetry = false)))
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, listOf(LoadingState))
 
-	override fun onRefresh() = Unit
+	override fun onRefresh() {
+		refreshTrigger.value = Any()
+	}
 
 	override fun onRetry() = Unit
 
