@@ -440,8 +440,16 @@ class MALRepository @Inject constructor(
 
 		while (nextUrl != null) {
 			val request = Request.Builder().url(nextUrl).get().build()
-			val response = okHttp.newCall(request).await().parseJson()
-			val data = response.optJSONArray("data") ?: break
+			val callResponse = okHttp.newCall(request).await()
+			if (!callResponse.isSuccessful) {
+				android.util.Log.w("MALRepo", "syncLibrary($endpoint): HTTP ${callResponse.code} at $nextUrl")
+				break
+			}
+			val response = callResponse.parseJson()
+			val data = response.optJSONArray("data") ?: run {
+				android.util.Log.w("MALRepo", "syncLibrary($endpoint): missing data key at $nextUrl")
+				break
+			}
 
 			for (i in 0 until data.length()) {
 				val entry = data.optJSONObject(i) ?: continue
