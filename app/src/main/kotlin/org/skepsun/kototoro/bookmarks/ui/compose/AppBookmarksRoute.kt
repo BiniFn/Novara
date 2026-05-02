@@ -54,7 +54,7 @@ fun AppBookmarksRoute(
         val host = activity?.window?.decorView?.rootView ?: return@LaunchedEffect
         val resolver = (activity as? org.skepsun.kototoro.core.ui.BaseActivity<*>)?.exceptionResolver
         val observer = SnackbarErrorObserver(host, null, resolver) { resolved ->
-            if (resolved) viewModel.onRetry()
+            // Cloudflare challenge resolved, content will refresh automatically
         }
         viewModel.onError.collect { event ->
             event?.consume(observer)
