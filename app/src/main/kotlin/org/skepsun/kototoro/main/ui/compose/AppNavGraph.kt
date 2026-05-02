@@ -566,7 +566,10 @@ fun AppNavGraph(
 
             androidx.compose.runtime.LaunchedEffect(viewModel.onError) {
                 val host = activity?.window?.decorView?.rootView ?: return@LaunchedEffect
-                val observer = org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver(host, null)
+                val resolver = (activity as? org.skepsun.kototoro.core.ui.BaseActivity<*>)?.exceptionResolver
+                val observer = org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver(host, null, resolver) { resolved ->
+                    if (resolved) viewModel.onRetry()
+                }
                 viewModel.onError.collect { event: org.skepsun.kototoro.core.util.Event<Throwable>? ->
                     event?.consume(observer)
                 }
