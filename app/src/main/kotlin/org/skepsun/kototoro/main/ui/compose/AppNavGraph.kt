@@ -471,6 +471,7 @@ fun AppNavGraph(
                     contentPadding = contentPadding,
                     onNavigateToDetails = navigateToDetailsWithContent,
                     registerFilterCallback = false,
+                    onTopBarOverrideChanged = onExploreSourceSelectionTopBarChanged,
                     viewModel = viewModel,
                 )
             }

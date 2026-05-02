@@ -24,6 +24,7 @@ import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.main.ui.MainActivity
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
+import org.skepsun.kototoro.main.ui.compose.TopBarOverrideState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,6 +33,7 @@ fun KototoroFavoritesHostRoute(
     contentPadding: PaddingValues,
     onNavigateToDetails: ((Content, String?) -> Unit)? = null,
     registerFilterCallback: Boolean = true,
+    onTopBarOverrideChanged: (TopBarOverrideState?) -> Unit = {},
     viewModel: FavouritesContainerViewModel = hiltViewModel()
 ) {
     val categories by viewModel.categories.collectAsStateWithLifecycle(emptyList())
@@ -169,6 +171,7 @@ fun KototoroFavoritesHostRoute(
                     contentPadding = innerPadding,
                     onNavigateToDetails = onNavigateToDetails,
                     sharedTransitionEnabled = isSharedTransitionEnabled,
+                    onTopBarOverrideChanged = onTopBarOverrideChanged,
                 )
             }
         }
