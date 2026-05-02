@@ -276,6 +276,8 @@ abstract class ContentListFragment :
 				}.show()
 			}
 			SelectionAction.REMOVE -> Unit
+			SelectionAction.PIN -> Unit
+			SelectionAction.MARK_AS_COMPLETED -> Unit
 		}
 	}
 
