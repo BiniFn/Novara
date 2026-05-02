@@ -259,6 +259,10 @@ fun KototoroApp(
     }
 
     val navController = rememberNavController()
+    val mainNavItems by appSettings.observeAsState(AppSettings.KEY_NAV_MAIN) { mainNavItems }
+    val startDestination = remember(mainNavItems) {
+        mainNavItems.firstOrNull()?.let { routeForBottomNavItem(it.id) } ?: HomeRoute
+    }
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     val isSearchRoute = currentDestination?.hasRoute<SearchRoute>() == true
@@ -381,6 +385,7 @@ fun KototoroApp(
                     CompositionLocalProvider(LocalSharedTransitionScope provides this@SharedTransitionLayout) {
                         AppNavGraph(
                             navController = navController,
+                            startDestination = startDestination,
                             contentPadding = contentPadding,
                             pageSaveHelper = pageSaveHelper,
                             onExploreSourceSelectionTopBarChanged = { topBarOverrideState = it },

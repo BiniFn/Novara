@@ -57,6 +57,7 @@ import org.skepsun.kototoro.local.ui.compose.LocalContentTagFilterBar
 @Composable
 fun AppNavGraph(
     navController: NavHostController,
+    startDestination: Any = HomeRoute,
     contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp),
     pageSaveHelper: org.skepsun.kototoro.reader.ui.PageSaveHelper? = null,
     modifier: Modifier = Modifier,
@@ -82,7 +83,7 @@ fun AppNavGraph(
 
     NavHost(
         navController = navController,
-        startDestination = HomeRoute,
+        startDestination = startDestination,
         modifier = modifier
     ) {
         composable<HomeRoute> {
