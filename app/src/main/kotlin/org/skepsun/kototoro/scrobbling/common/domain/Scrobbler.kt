@@ -151,9 +151,9 @@ abstract class Scrobbler(
 			infoCache[cacheKey] = it
 		}.getOrNull()
 		val title = mangaInfo?.name ?: "#$targetId"
-		val coverUrl = mangaInfo?.cover.orEmpty()
-		val description = mangaInfo?.descriptionHtml?.let { it.parseAsHtml().sanitize() }.orEmpty()
-		val externalUrl = mangaInfo?.url.orEmpty()
+		val coverUrl = mangaInfo?.cover ?: ""
+		val description = mangaInfo?.descriptionHtml?.let { it.parseAsHtml().sanitize() } ?: ""
+		val externalUrl = mangaInfo?.url ?: ""
 		return ScrobblingInfo(
 			scrobbler = scrobblerService,
 			mangaId = mangaId,
