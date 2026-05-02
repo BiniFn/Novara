@@ -48,7 +48,7 @@ class MALRepository @Inject constructor(
 
 	private val clientId = context.getString(R.string.mal_clientId)
 	private val codeVerifier: String by lazy(::generateCodeVerifier)
-	private val contentTypeHints = LinkedHashMap<Long, String>()
+	private val contentTypeHints = java.util.concurrent.ConcurrentHashMap<Long, String>()
 
 	override val oauthUrl: String
 		get() = "$BASE_WEB_URL/v1/oauth2/authorize?" +
@@ -74,6 +74,11 @@ class MALRepository @Inject constructor(
 			body.add("code", code)
 			body.add("redirect_uri", REDIRECT_URI)
 			body.add("code_verifier", codeVerifier)
+		} else {
+			val refreshToken = storage.refreshToken ?: return
+			body.add("client_id", clientId)
+			body.add("grant_type", "refresh_token")
+			body.add("refresh_token", refreshToken)
 		}
 		val request = Request.Builder()
 			.post(body.build())

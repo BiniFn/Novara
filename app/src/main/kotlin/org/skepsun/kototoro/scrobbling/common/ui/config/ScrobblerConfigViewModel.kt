@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
@@ -63,9 +64,14 @@ class ScrobblerConfigViewModel @Inject constructor(
 	val user = MutableStateFlow<ScrobblerUser?>(null)
 	val onLoggedOut = MutableEventFlow<Unit>()
 
+	private var contentFirstEmitted = false
+
 	val content = scrobbler.observeAllScrobblingInfo()
 		.onStart { loadingCounter.increment() }
-		.onFirst { loadingCounter.decrement() }
+		.onFirst { contentFirstEmitted = true; loadingCounter.decrement() }
+		.onCompletion { cause ->
+			if (cause != null && !contentFirstEmitted) loadingCounter.decrement()
+		}
 		.withErrorHandling()
 		.map { buildContentList(it) }
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, emptyList())

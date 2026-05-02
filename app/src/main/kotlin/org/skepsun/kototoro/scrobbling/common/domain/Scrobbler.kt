@@ -33,7 +33,7 @@ abstract class Scrobbler(
 	private val mangaRepositoryFactory: ContentRepository.Factory,
 ) {
 
-	private val infoCache = HashMap<Pair<Long, Long>, ScrobblerContentInfo>()
+	private val infoCache = java.util.concurrent.ConcurrentHashMap<Pair<Long, Long>, ScrobblerContentInfo>()
 	protected val statuses = EnumMap<ScrobblingStatus, String>(ScrobblingStatus::class.java)
 
 	val user: Flow<ScrobblerUser> = flow {

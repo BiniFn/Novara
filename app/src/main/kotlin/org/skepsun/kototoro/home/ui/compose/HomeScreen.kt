@@ -81,6 +81,7 @@ import kotlin.math.absoluteValue
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.compose.HeroAutoAdvanceEffect
 import org.skepsun.kototoro.core.ui.compose.HeroPagerIndicator
+import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
@@ -682,7 +683,7 @@ private fun HomeHeroCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = content.source.getTitle(context),
+                    text = rememberResolvedSourceTitle(content.source),
                     style = sourceTextStyle,
                     color = Color.White.copy(alpha = 0.86f),
                     maxLines = 1,
