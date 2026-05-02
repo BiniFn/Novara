@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -30,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -58,7 +60,8 @@ fun NavConfigScreen(
 		modifier = modifier.fillMaxSize(),
 		color = MaterialTheme.colorScheme.background,
 	) {
-		LazyColumn(
+    val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
+		LazyColumn(state = listState,
 			modifier = Modifier.fillMaxSize(),
 			contentPadding = PaddingValues(
 				start = 16.dp,
@@ -102,7 +105,8 @@ fun NavConfigScreen(
 			onDismissRequest = { isAddDialogVisible = false },
 			title = { Text(text = stringResource(R.string.add)) },
 			text = {
-				LazyColumn(
+    val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
+				LazyColumn(state = listState,
 					modifier = Modifier
 						.fillMaxWidth()
 						.heightIn(max = 360.dp),

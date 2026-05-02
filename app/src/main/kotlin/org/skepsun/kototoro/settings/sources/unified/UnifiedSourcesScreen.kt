@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -1132,7 +1133,8 @@ private fun UnifiedSourceList(
 	onSourceEnabledChange: (String, Boolean) -> Unit,
 	onSourcePinnedChange: (String, Boolean) -> Unit,
 ) {
-	LazyColumn(
+    val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
+	LazyColumn(state = listState,
 		modifier = modifier,
 		contentPadding = PaddingValues(vertical = 4.dp),
 	) {
@@ -1270,7 +1272,8 @@ private fun UnifiedRepositoryList(
 	onRefreshRepository: (UnifiedSourceRepositoryItem) -> Unit,
 	onDeleteRepository: (UnifiedSourceRepositoryItem) -> Unit,
 ) {
-	LazyColumn(
+    val listState2 = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
+	LazyColumn(state = listState2,
 		modifier = modifier,
 		contentPadding = PaddingValues(vertical = 4.dp),
 	) {
@@ -1348,7 +1351,8 @@ private fun UnifiedPackageList(
 	onPackageCancelInstall: (String) -> Unit,
 	onImportLocalJar: () -> Unit,
 ) {
-	LazyColumn(
+    val listState3 = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
+	LazyColumn(state = listState3,
 		modifier = modifier,
 		contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
 		verticalArrangement = Arrangement.spacedBy(4.dp),
