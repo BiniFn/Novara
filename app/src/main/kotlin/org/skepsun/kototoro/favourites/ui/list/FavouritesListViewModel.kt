@@ -192,6 +192,14 @@ class FavouritesListViewModel @dagger.assisted.AssistedInject constructor(
 		}
 	}
 
+	fun togglePinned(ids: Set<Long>) {
+		launchJob(Dispatchers.Default) {
+			val currentlyPinned = repository.isPinned(ids.expandGroupedIds())
+			repository.setPinned(ids.expandGroupedIds(), !currentlyPinned)
+			onRefresh()
+		}
+	}
+
 	fun setSortOrder(order: ListSortOrder) {
 		if (categoryId == NO_ID) {
 			return

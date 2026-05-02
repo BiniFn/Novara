@@ -42,7 +42,7 @@ abstract class TrackLogsDao : MangaQueryBuilder.ConditionCallback {
 	@Query("DELETE FROM track_logs WHERE manga_id NOT IN (SELECT manga_id FROM tracks)")
 	abstract suspend fun gc()
 
-	@Query("DELETE FROM track_logs WHERE id IN (SELECT id FROM track_logs ORDER BY created_at DESC LIMIT 0 OFFSET :size)")
+	@Query("DELETE FROM track_logs WHERE id NOT IN (SELECT id FROM track_logs ORDER BY created_at DESC LIMIT :size)")
 	abstract suspend fun trim(size: Int)
 
 	@Query("SELECT COUNT(*) FROM track_logs")

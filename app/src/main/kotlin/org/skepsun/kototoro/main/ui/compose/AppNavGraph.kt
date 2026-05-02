@@ -718,6 +718,10 @@ fun AppNavGraph(
                                 menuInflater.inflate(org.skepsun.kototoro.R.menu.opt_list, menu)
                             }
                             override fun onMenuItemSelected(menuItem: android.view.MenuItem): Boolean = when (menuItem.itemId) {
+                                org.skepsun.kototoro.R.id.action_refresh -> {
+                                    viewModel.onRefresh()
+                                    true
+                                }
                                 org.skepsun.kototoro.R.id.action_list_mode -> {
                                     appRouter.showListConfigSheet(org.skepsun.kototoro.list.ui.config.ListConfigSection.Updated)
                                     true

@@ -75,8 +75,11 @@ class UpdatesViewModel @Inject constructor(
 		globalFavoritesState.setSelectedGroupTab(tab)
 	}
 
+	private val refreshTrigger = MutableStateFlow(Any())
 	override val content = combine(
-		quickFilter.appliedOptions.flatMapLatest { filterOptions ->
+		combine(quickFilter.appliedOptions, refreshTrigger) { filterOptions, _ ->
+			filterOptions
+		}.flatMapLatest { filterOptions ->
 			repository.observeUpdatedContent(
 				limit = 0,
 				filterOptions = filterOptions,
@@ -134,7 +137,9 @@ class UpdatesViewModel @Inject constructor(
 		}
 	}
 
-	override fun onRefresh() = Unit
+	override fun onRefresh() {
+		refreshTrigger.value = Any()
+	}
 
 	override fun onRetry() = Unit
 

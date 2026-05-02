@@ -867,7 +867,7 @@ class ContentSourcesRepository @Inject constructor(
 	suspend fun setIsPinned(sources: Collection<ContentSource>, isPinned: Boolean): ReversibleHandle {
 		setSourcesPinnedImpl(sources, isPinned)
 		return ReversibleHandle {
-			setSourcesEnabledImpl(sources, !isPinned)
+			setSourcesPinnedImpl(sources, !isPinned)
 		}
 	}
 

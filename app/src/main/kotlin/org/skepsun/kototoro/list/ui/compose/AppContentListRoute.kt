@@ -61,6 +61,8 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     registerFilterCallback: Boolean = true,
     onRemoveSelection: ((Set<Long>) -> Unit)? = null,
     onShareSelection: ((Set<Long>) -> Unit)? = null,
+    onPinSelection: ((Set<Long>) -> Unit)? = null,
+    onMarkAsCompletedSelection: ((List<ContentListModel>) -> Unit)? = null,
     onEmptyActionClick: (() -> Unit)? = null,
     onLoadMore: () -> Unit = {},
     onNavigateToDetails: ((org.skepsun.kototoro.parsers.model.Content, String?) -> Unit)? = null,
@@ -96,6 +98,12 @@ fun <VM : ContentListViewModel> AppContentListRoute(
                 add(SelectionAction.SAVE)
                 if (showRemoveOption || onRemoveSelection != null) {
                     add(SelectionAction.REMOVE)
+                }
+                if (onPinSelection != null) {
+                    add(SelectionAction.PIN)
+                }
+                if (onMarkAsCompletedSelection != null) {
+                    add(SelectionAction.MARK_AS_COMPLETED)
                 }
             }
             onTopBarOverrideChanged(
@@ -150,6 +158,24 @@ fun <VM : ContentListViewModel> AppContentListRoute(
                                         AutoFixService.start(context, composeSelectionIds)
                                     }
                                 }.show()
+                            }
+
+                            SelectionAction.PIN -> {
+                                onPinSelection?.invoke(composeSelectionIds)
+                                composeSelectionIds = emptySet()
+                            }
+
+                            SelectionAction.MARK_AS_COMPLETED -> {
+                                val itemsToMark = selectedModels
+                                buildAlertDialog(context, isCentered = true) {
+                                    setTitle(org.skepsun.kototoro.R.string.mark_as_completed)
+                                    setMessage(org.skepsun.kototoro.R.string.mark_as_completed_prompt)
+                                    setNegativeButton(android.R.string.cancel, null)
+                                    setPositiveButton(android.R.string.ok) { _, _ ->
+                                        onMarkAsCompletedSelection?.invoke(itemsToMark)
+                                    }
+                                }.show()
+                                composeSelectionIds = emptySet()
                             }
                         }
                     },

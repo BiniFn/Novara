@@ -7,6 +7,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.favourites.ui.list.FavouritesListViewModel
 import org.skepsun.kototoro.list.ui.compose.AppContentListRoute
+import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.parsers.model.Content
 
 @Composable
@@ -35,6 +36,12 @@ fun KototoroFavoritesListScreen(
         onNavigateToDetails = onNavigateToDetails,
         onRemoveSelection = { ids ->
             viewModel.removeFromFavourites(ids)
+        },
+        onPinSelection = { ids ->
+            viewModel.togglePinned(ids)
+        },
+        onMarkAsCompletedSelection = { items ->
+            viewModel.markAsRead(items.map { it.manga }.toSet())
         }
     )
 }
