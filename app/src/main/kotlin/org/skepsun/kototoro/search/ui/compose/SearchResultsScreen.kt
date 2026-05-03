@@ -707,3 +707,7 @@ private fun SearchSupplementaryItem(
     }
 }
 
+private fun <T> Set<T>.toggle(item: T): Set<T> {
+    return if (item in this) this - item else this + item
+}
+

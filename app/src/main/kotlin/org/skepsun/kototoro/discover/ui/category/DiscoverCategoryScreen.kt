@@ -127,7 +127,7 @@ private fun DiscoverCategoryCalendarBar(
 			verticalAlignment = Alignment.CenterVertically,
 			horizontalArrangement = Arrangement.spacedBy(8.dp),
 		) {
-			FilledTonalButton(
+			Button(
 				onClick = onDateClick,
 				modifier = Modifier
 					.weight(1f)
