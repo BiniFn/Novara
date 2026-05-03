@@ -141,7 +141,6 @@ fun KototoroSearchOverlay(
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val focusRequester = remember { FocusRequester() }
     var animatedVisible by remember { mutableStateOf(false) }
-    var showOptionsSheet by remember { mutableStateOf(false) }
     var searchKind by remember { mutableStateOf(initialSearchKind) }
     var selectedSourceTypes by remember(initialSourceTypes) { mutableStateOf(initialSourceTypes.ifEmpty { ALL_SOURCE_TYPES }) }
     var selectedContentKinds by remember(initialContentKinds) { mutableStateOf(initialContentKinds.ifEmpty { ALL_SEARCH_CONTENT_KINDS }) }
@@ -158,7 +157,6 @@ fun KototoroSearchOverlay(
             focusRequester.requestFocus()
             keyboardController?.show()
         } else {
-            showOptionsSheet = false
             keyboardController?.hide()
             delay(SearchOverlayAnimationDurationMillis.toLong())
             onExitFinished()
@@ -324,18 +322,6 @@ fun KototoroSearchOverlay(
                         },
                     ),
                 )
-                IconButton(onClick = { showOptionsSheet = true }) {
-                    Icon(
-                        painter = androidx.compose.ui.res.painterResource(R.drawable.ic_filter_menu),
-                        contentDescription = stringResource(R.string.display_options),
-                    )
-                }
-                IconButton(onClick = onVoiceInput) {
-                    Icon(
-                        painter = androidx.compose.ui.res.painterResource(R.drawable.ic_voice_input),
-                        contentDescription = stringResource(R.string.voice_search),
-                    )
-                }
             }
             HorizontalDivider()
             SuggestionList(
@@ -365,32 +351,8 @@ fun KototoroSearchOverlay(
         }
     }
 
-    if (showOptionsSheet && visible) {
-        SearchOptionsSheet(
-            searchKind = searchKind,
-            onSearchKindChange = { searchKind = it },
-            selectedSourceTypes = selectedSourceTypes,
-            onSourceTypeToggle = { type ->
-                selectedSourceTypes = selectedSourceTypes.toggleOrAll(type, ALL_SOURCE_TYPES)
-            },
-            selectedContentKinds = selectedContentKinds,
-            onContentKindToggle = { kind ->
-                selectedContentKinds = selectedContentKinds.toggleOrAll(kind, ALL_SEARCH_CONTENT_KINDS)
-            },
-            pinnedOnly = pinnedOnly,
-            onPinnedOnlyChange = { pinnedOnly = it },
-            hideEmpty = hideEmpty,
-            onHideEmptyChange = { hideEmpty = it },
-            advancedTitle = advancedTitle,
-            onAdvancedTitleChange = { advancedTitle = it },
-            advancedTags = advancedTags,
-            onAdvancedTagsChange = { advancedTags = it },
-            advancedAuthor = advancedAuthor,
-            onAdvancedAuthorChange = { advancedAuthor = it },
-            onDismissRequest = { showOptionsSheet = false },
-        )
-    }
 }
+
 
 @Composable
 private fun SearchInputField(
@@ -454,182 +416,6 @@ private fun SearchInputField(
             }
         },
     )
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
-@Composable
-private fun SearchOptionsSheet(
-    searchKind: SearchKind,
-    onSearchKindChange: (SearchKind) -> Unit,
-    selectedSourceTypes: Set<SourceType>,
-    onSourceTypeToggle: (SourceType) -> Unit,
-    selectedContentKinds: Set<SearchContentKind>,
-    onContentKindToggle: (SearchContentKind) -> Unit,
-    pinnedOnly: Boolean,
-    onPinnedOnlyChange: (Boolean) -> Unit,
-    hideEmpty: Boolean,
-    onHideEmptyChange: (Boolean) -> Unit,
-    advancedTitle: String,
-    onAdvancedTitleChange: (String) -> Unit,
-    advancedTags: String,
-    onAdvancedTagsChange: (String) -> Unit,
-    advancedAuthor: String,
-    onAdvancedAuthorChange: (String) -> Unit,
-    onDismissRequest: () -> Unit,
-) {
-    ModalBottomSheet(
-        onDismissRequest = onDismissRequest,
-    ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            item {
-                Text(
-                    text = stringResource(R.string.type),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
-            item {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    SearchKind.entries.forEach { kind ->
-                        FilterChip(
-                            selected = searchKind == kind,
-                            onClick = { onSearchKindChange(kind) },
-                            label = { Text(stringResource(kind.titleResId)) },
-                        )
-                    }
-                }
-            }
-            item {
-                Text(
-                    text = stringResource(R.string.source_type),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
-            item {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    SOURCE_TYPE_OPTIONS.forEach { option ->
-                        FilterChip(
-                            selected = option.type in selectedSourceTypes,
-                            onClick = { onSourceTypeToggle(option.type) },
-                            label = { Text(stringResource(option.titleRes)) },
-                        )
-                    }
-                }
-            }
-            item {
-                Text(
-                    text = stringResource(R.string.type),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
-            item {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    SEARCH_CONTENT_KIND_OPTIONS.forEach { option ->
-                        FilterChip(
-                            selected = option.kind in selectedContentKinds,
-                            onClick = { onContentKindToggle(option.kind) },
-                            label = { Text(stringResource(option.titleRes)) },
-                        )
-                    }
-                }
-            }
-            item {
-                SearchOptionSwitchRow(
-                    title = stringResource(R.string.pinned_sources_only),
-                    checked = pinnedOnly,
-                    onCheckedChange = onPinnedOnlyChange,
-                )
-            }
-            item {
-                SearchOptionSwitchRow(
-                    title = stringResource(R.string.hide_empty_sources),
-                    checked = hideEmpty,
-                    onCheckedChange = onHideEmptyChange,
-                )
-            }
-            if (searchKind == SearchKind.ADVANCED) {
-                item {
-                    Text(
-                        text = stringResource(R.string.advanced_search),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                }
-                item {
-                    TextField(
-                        value = advancedTitle,
-                        onValueChange = onAdvancedTitleChange,
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text(stringResource(R.string.name)) },
-                    )
-                }
-                item {
-                    TextField(
-                        value = advancedTags,
-                        onValueChange = onAdvancedTagsChange,
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text(stringResource(R.string.genres)) },
-                    )
-                }
-                item {
-                    TextField(
-                        value = advancedAuthor,
-                        onValueChange = onAdvancedAuthorChange,
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text(stringResource(R.string.author)) },
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SearchOptionSwitchRow(
-    title: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = title,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyLarge,
-        )
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-        )
-    }
-}
-
-private fun <T> Set<T>.toggleOrAll(item: T, allItems: Set<T>): Set<T> {
-    val updated = toMutableSet().apply {
-        if (!add(item)) {
-            remove(item)
-        }
-    }
-    return updated.ifEmpty { allItems }
 }
 
 private val SearchKind.titleResId: Int
