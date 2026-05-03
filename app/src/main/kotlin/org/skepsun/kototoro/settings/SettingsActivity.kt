@@ -193,6 +193,10 @@ class SettingsActivity :
 	private var isFoldUnfolded = false
 	private var composeDestination: SettingsDestination? = null
 	private val composeNavigationStack = ArrayDeque<SettingsDestination>()
+	private var composePageKey by mutableIntStateOf(0)
+	private var composePageIsRoot by mutableStateOf(true)
+	private var composeRootContent: (@Composable () -> Unit)? = null
+	private var composeSubpageContent: (@Composable () -> Unit)? = null
 	private var shouldRestoreFragmentOnComposeExit = false
 	private var composeDestinationToRestore: SettingsDestination? = null
 	private var ttsSettingsCoordinator: TtsSettingsCoordinator? = null
@@ -273,6 +277,13 @@ class SettingsActivity :
 		viewBinding.containerCompose.setViewCompositionStrategy(
 			ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed,
 		)
+		viewBinding.containerCompose.setContent {
+			KototoroTheme {
+				AnimatedContent(targetState = composePageIsRoot, label = "settings_page") { isRoot ->
+					if (isRoot) composeRootContent?.invoke() else composeSubpageContent?.invoke()
+				}
+			}
+		}
 		syncUrlFlow.value = syncSettings.syncUrl ?: ""
 		supportFragmentManager.setFragmentResultListener(SyncHostDialogFragment.REQUEST_KEY, this) { _, _ ->
 			syncUrlFlow.value = syncSettings.syncUrl ?: ""
@@ -534,11 +545,8 @@ class SettingsActivity :
 		content: @Composable () -> Unit,
 	) {
 		setLegacyTopBarVisible(showLegacyTopBar)
-		viewBinding.containerCompose.setContent {
-			KototoroTheme {
-				content()
-			}
-		}
+		if (composePageIsRoot) composeRootContent = content else composeSubpageContent = content
+		composePageKey++
 	}
 
 	private fun renderComposeSection(
@@ -547,6 +555,7 @@ class SettingsActivity :
 		content: @Composable () -> Unit,
 	) {
 		setTitle(title)
+		composePageIsRoot = false
 		renderComposeContent(showLegacyTopBar = false) {
 			SettingsSectionScaffold(
 				title = title,
@@ -605,6 +614,7 @@ class SettingsActivity :
 		viewModel.discardSearch()
 		composeDestinationToRestore = null
 		composeDestination = destination
+			composePageIsRoot = destination == SettingsDestination.Root
 		shouldRestoreFragmentOnComposeExit = false
 		viewBinding.containerCompose.isVisible = true
 		renderComposeDestination(destination)
@@ -764,6 +774,7 @@ class SettingsActivity :
 			}
 		}
 		composeDestination = destination
+			composePageIsRoot = destination == SettingsDestination.Root
 		shouldRestoreFragmentOnComposeExit = shouldRestoreFragment
 		viewBinding.containerCompose.isVisible = true
 		renderComposeDestination(destination)
@@ -807,6 +818,7 @@ class SettingsActivity :
 
 	private fun renderRootComposeDestination() {
 		setTitle(getString(R.string.settings))
+		composePageIsRoot = true
 		renderComposeContent(showLegacyTopBar = false) {
 			val enabledSourcesCount by rootSettingsViewModel.enabledSourcesCount.collectAsStateWithLifecycle()
 			val searchResults by viewModel.content.collectAsStateWithLifecycle()
@@ -1448,7 +1460,6 @@ class SettingsActivity :
 			ttsSettingsCoordinator?.stop()
 			ttsSettingsCoordinator = null
 		}
-		viewBinding.containerCompose.disposeComposition()
 		viewBinding.containerCompose.isVisible = false
 		setLegacyTopBarVisible(true)
 		setSectionToolbarActions(null)
