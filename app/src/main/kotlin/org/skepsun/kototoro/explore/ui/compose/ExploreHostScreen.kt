@@ -936,6 +936,17 @@ private fun SourceQuickAccessCard(
                             .offset(x = 2.dp, y = 2.dp),
                     )
                 }
+                if (source.source.isPinned) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_pin_small),
+                        contentDescription = stringResource(R.string.pin),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = 2.dp, y = (-2).dp)
+                            .size(10.dp),
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(

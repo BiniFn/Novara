@@ -94,18 +94,19 @@ fun <VM : ContentListViewModel> AppContentListRoute(
         if (composeSelectionIds.isNotEmpty()) {
             val supportedActions = buildSet {
                 add(SelectionAction.SELECT_ALL)
+                add(SelectionAction.PIN)
                 add(SelectionAction.SHARE)
-                add(SelectionAction.FAVOURITE)
                 add(SelectionAction.SAVE)
                 if (showRemoveOption || onRemoveSelection != null) {
                     add(SelectionAction.REMOVE)
                 }
-                if (onPinSelection != null) {
-                    add(SelectionAction.PIN)
+                if (onPinSelection == null) {
+                    remove(SelectionAction.PIN)
                 }
                 if (onMarkAsCompletedSelection != null) {
                     add(SelectionAction.MARK_AS_COMPLETED)
                 }
+                add(SelectionAction.FAVOURITE)
             }
             onTopBarOverrideChanged(
                 ContentSelectionTopBarOverrideState(

@@ -76,6 +76,14 @@ fun KototoroSelectionTopBar(
                     Icon(painter = painterResource(id = R.drawable.ic_select_all), contentDescription = "Select All")
                 }
             }
+            if (supportedActions == null || SelectionAction.PIN in inlineActions) {
+                IconButton(onClick = { onActionClick(SelectionAction.PIN) }) {
+                    Icon(
+                        painter = painterResource(id = if (allPinned) R.drawable.ic_unpin else R.drawable.ic_pin),
+                        contentDescription = if (allPinned) stringResource(R.string.unpin) else stringResource(R.string.pin),
+                    )
+                }
+            }
             if (showRemoveOption || (supportedActions != null && SelectionAction.REMOVE in inlineActions)) {
                 IconButton(onClick = { onActionClick(SelectionAction.REMOVE) }) {
                     Icon(Icons.Default.Delete, contentDescription = "Remove")
@@ -89,14 +97,6 @@ fun KototoroSelectionTopBar(
             if (supportedActions == null || SelectionAction.SHARE in inlineActions) {
                 IconButton(onClick = { onActionClick(SelectionAction.SHARE) }) {
                     Icon(Icons.Default.Share, contentDescription = "Share")
-                }
-            }
-            if (supportedActions == null || SelectionAction.PIN in inlineActions) {
-                IconButton(onClick = { onActionClick(SelectionAction.PIN) }) {
-                    Icon(
-                        painter = painterResource(id = if (allPinned) R.drawable.ic_unpin else R.drawable.ic_pin),
-                        contentDescription = if (allPinned) stringResource(R.string.unpin) else stringResource(R.string.pin),
-                    )
                 }
             }
             if (supportedActions == null || SelectionAction.MARK_AS_COMPLETED in inlineActions) {
