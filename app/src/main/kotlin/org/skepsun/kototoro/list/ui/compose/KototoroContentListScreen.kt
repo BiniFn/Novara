@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -113,7 +114,16 @@ fun KototoroContentListScreen(
     val isVerticalCardListAnimationEnabled = screenPrefs.isVerticalCardListAnimationEnabled
     val cardUiPrefs = screenPrefs.cardUiPrefs
 
-    Box(modifier = modifier.fillMaxSize()) {
+    val topBarInset = contentPadding.calculateTopPadding()
+    val innerPadding = remember(contentPadding, topBarInset) {
+        PaddingValues(
+            top = 0.dp,
+            bottom = contentPadding.calculateBottomPadding(),
+            start = contentPadding.calculateLeftPadding(LayoutDirection.Ltr),
+            end = contentPadding.calculateRightPadding(LayoutDirection.Ltr),
+        )
+    }
+    Box(modifier = modifier.fillMaxSize().padding(top = topBarInset)) {
         KototoroPullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = onRefresh,
@@ -132,7 +142,7 @@ fun KototoroContentListScreen(
                         val posterStyle = compactPosterCardStyle(gridScale)
                         LazyVerticalGrid(
                             columns = GridCells.Adaptive(minSize = posterStyle.itemWidth + 12.dp),
-                            contentPadding = contentPadding,
+                            contentPadding = innerPadding,
                             modifier = Modifier.fillMaxSize()
                         ) {
                             if (listHeader != null) {
@@ -198,7 +208,7 @@ fun KototoroContentListScreen(
                         }
                         LazyColumn(
                             state = listState,
-                            contentPadding = contentPadding,
+                            contentPadding = innerPadding,
                             modifier = Modifier.fillMaxSize()
                         ) {
                             if (listHeader != null) {
@@ -264,7 +274,7 @@ fun KototoroContentListScreen(
                         }
                         LazyColumn(
                             state = listState,
-                            contentPadding = contentPadding,
+                            contentPadding = innerPadding,
                             modifier = Modifier.fillMaxSize()
                         ) {
                             if (listHeader != null) {
