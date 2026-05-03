@@ -943,7 +943,12 @@ private fun SourceQuickAccessCard(
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .offset(x = 2.dp, y = (-2).dp)
+                            .offset(x = (-4).dp, y = 4.dp)
+                            .background(
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.85f),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                            )
+                            .padding(1.dp)
                             .size(10.dp),
                     )
                 }
