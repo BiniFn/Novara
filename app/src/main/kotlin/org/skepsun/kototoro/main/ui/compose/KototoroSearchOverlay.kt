@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -40,10 +38,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -51,9 +50,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -94,8 +91,6 @@ import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.search.domain.ALL_SEARCH_CONTENT_KINDS
 import org.skepsun.kototoro.search.domain.ALL_SOURCE_TYPES
 import org.skepsun.kototoro.search.domain.AdvancedSearchParams
-import org.skepsun.kototoro.search.domain.SEARCH_CONTENT_KIND_OPTIONS
-import org.skepsun.kototoro.search.domain.SOURCE_TYPE_OPTIONS
 import org.skepsun.kototoro.search.domain.SearchContentKind
 import org.skepsun.kototoro.search.domain.SearchKind
 import org.skepsun.kototoro.search.ui.suggestion.model.SearchSuggestionItem
@@ -105,7 +100,6 @@ private val SearchOverlayCollapsedHeight = 56.dp
 private val SearchOverlayCollapsedHorizontalPadding = 10.dp
 private val SearchOverlayCollapsedCornerRadius = 24.dp
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun KototoroSearchOverlay(
     visible: Boolean,
@@ -141,7 +135,7 @@ fun KototoroSearchOverlay(
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val focusRequester = remember { FocusRequester() }
     var animatedVisible by remember { mutableStateOf(false) }
-    var searchKind by remember { mutableStateOf(initialSearchKind) }
+    var showAdvanced by remember { mutableStateOf(initialSearchKind == SearchKind.ADVANCED) }
     var selectedSourceTypes by remember(initialSourceTypes) { mutableStateOf(initialSourceTypes.ifEmpty { ALL_SOURCE_TYPES }) }
     var selectedContentKinds by remember(initialContentKinds) { mutableStateOf(initialContentKinds.ifEmpty { ALL_SEARCH_CONTENT_KINDS }) }
     var pinnedOnly by remember { mutableStateOf(false) }
@@ -172,17 +166,18 @@ fun KototoroSearchOverlay(
     }
 
     fun submitSearch(searchQuery: String) {
+        val kind = if (showAdvanced) SearchKind.ADVANCED else SearchKind.SIMPLE
         val advancedQuery = AdvancedSearchParams(
             query = searchQuery.trim(),
             title = advancedTitle.trim(),
             tags = advancedTags.trim(),
             author = advancedAuthor.trim(),
         ).takeIf {
-            it.title.isNotBlank() || it.tags.isNotBlank() || it.author.isNotBlank()
+            showAdvanced && (it.title.isNotBlank() || it.tags.isNotBlank() || it.author.isNotBlank())
         }
         onSearchWithOptions(
             searchQuery,
-            searchKind,
+            kind,
             selectedSourceTypes,
             selectedContentKinds,
             advancedQuery,
@@ -264,64 +259,152 @@ fun KototoroSearchOverlay(
                 .clip(RoundedCornerShape(cornerRadius))
                 .background(MaterialTheme.colorScheme.surface),
         ) {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .statusBarsPadding(),
             ) {
-                IconButton(onClick = onDismissRequest) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = stringResource(R.string.back),
-                    )
-                }
-                SearchInputField(
-                    value = query,
-                    onValueChange = onQueryChanged,
+                Row(
                     modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 2.dp)
-                        .height(48.dp)
-                        .focusRequester(focusRequester),
-                    placeholder = {
-                        Text(
-                            text = stringResource(R.string.search_content),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                    leadingIcon = {
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = onDismissRequest) {
                         Icon(
-                            imageVector = Icons.Filled.Search,
-                            contentDescription = stringResource(R.string.search),
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.back),
                         )
-                    },
-                    trailingIcon = {
-                        if (query.isNotEmpty()) {
-                            IconButton(
-                                onClick = { onQueryChanged("") },
-                                modifier = Modifier.size(40.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Clear,
-                                    contentDescription = stringResource(R.string.clear),
-                                    modifier = Modifier.size(20.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(
-                        onSearch = {
-                            submitSearch(query)
+                    }
+                    SearchInputField(
+                        value = query,
+                        onValueChange = onQueryChanged,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 2.dp)
+                            .height(48.dp)
+                            .focusRequester(focusRequester),
+                        placeholder = {
+                            Text(
+                                text = stringResource(R.string.search_content),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         },
-                    ),
-                )
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.Search,
+                                contentDescription = stringResource(R.string.search),
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        },
+                        trailingIcon = {
+                            if (query.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { onQueryChanged("") },
+                                    modifier = Modifier.size(40.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Clear,
+                                        contentDescription = stringResource(R.string.clear),
+                                        modifier = Modifier.size(20.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(
+                            onSearch = {
+                                submitSearch(query)
+                            },
+                        ),
+                    )
+                    IconButton(
+                        onClick = { showAdvanced = !showAdvanced },
+                        modifier = Modifier.size(40.dp),
+                    ) {
+                        Icon(
+                            imageVector = if (showAdvanced)
+                                Icons.Filled.KeyboardArrowUp
+                            else
+                                Icons.Filled.KeyboardArrowDown,
+                            contentDescription = stringResource(
+                                if (showAdvanced) R.string.collapse else R.string.expand
+                            ),
+                            modifier = Modifier.size(20.dp),
+                            tint = if (showAdvanced) MaterialTheme.colorScheme.primary
+                                   else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                if (showAdvanced) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 2.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        TextField(
+                            value = advancedTitle,
+                            onValueChange = { advancedTitle = it },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            singleLine = true,
+                            placeholder = {
+                                Text(
+                                    text = stringResource(R.string.name),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
+                            textStyle = MaterialTheme.typography.bodyMedium,
+                        )
+                        TextField(
+                            value = advancedTags,
+                            onValueChange = { advancedTags = it },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            singleLine = true,
+                            placeholder = {
+                                Text(
+                                    text = stringResource(R.string.genres),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
+                            textStyle = MaterialTheme.typography.bodyMedium,
+                        )
+                        TextField(
+                            value = advancedAuthor,
+                            onValueChange = { advancedAuthor = it },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            singleLine = true,
+                            placeholder = {
+                                Text(
+                                    text = stringResource(R.string.author),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
+                            textStyle = MaterialTheme.typography.bodyMedium,
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            FilterChip(
+                                selected = pinnedOnly,
+                                onClick = { pinnedOnly = !pinnedOnly },
+                                label = { Text(stringResource(R.string.pinned_sources_only)) },
+                            )
+                            FilterChip(
+                                selected = hideEmpty,
+                                onClick = { hideEmpty = !hideEmpty },
+                                label = { Text(stringResource(R.string.hide_empty_sources)) },
+                            )
+                        }
+                    }
+                }
             }
             HorizontalDivider()
             SuggestionList(
@@ -417,15 +500,6 @@ private fun SearchInputField(
         },
     )
 }
-
-private val SearchKind.titleResId: Int
-    get() = when (this) {
-        SearchKind.SIMPLE -> R.string.simple
-        SearchKind.TITLE -> R.string.name
-        SearchKind.AUTHOR -> R.string.author
-        SearchKind.TAG -> R.string.genre
-        SearchKind.ADVANCED -> R.string.advanced_search
-    }
 
 @Composable
 private fun SuggestionList(
