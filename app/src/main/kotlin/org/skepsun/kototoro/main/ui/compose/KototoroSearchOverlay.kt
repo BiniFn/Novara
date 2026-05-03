@@ -82,6 +82,9 @@ import coil3.request.crossfade
 import kotlinx.coroutines.delay
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.jsonsource.SourceType
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
 import org.skepsun.kototoro.core.model.titleResId
 import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
@@ -744,12 +747,16 @@ private fun ContentSuggestionCard(
             .apply { mangaExtra(content) }
             .build()
     }
+    val gridScale = remember(context.applicationContext) {
+        AppSettings(context.applicationContext)
+    }.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize / 100f }.value
+    val posterStyle = compactPosterCardStyle(gridScale)
 
     Surface(
         modifier = Modifier
-            .width(112.dp)
+            .width(posterStyle.itemWidth)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(posterStyle.cornerRadius),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         border = BorderStroke(
             width = 1.dp,
@@ -762,19 +769,19 @@ private fun ContentSuggestionCard(
                 contentDescription = content.title,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(0.72f)
+                    .height(posterStyle.posterHeight)
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentScale = ContentScale.Crop,
             )
             Column(
-                modifier = Modifier.padding(8.dp),
+                modifier = Modifier.padding(6.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 Text(
                     text = content.title,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelSmall,
                 )
                 Text(
                     text = sourceTitle,
