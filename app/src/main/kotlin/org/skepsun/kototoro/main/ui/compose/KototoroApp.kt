@@ -25,6 +25,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
@@ -406,6 +407,7 @@ fun KototoroApp(
                                 .fillMaxSize()
                                 .padding(start = visibleStartInsetDp)
                                 .then(if (useRuntimeHaze) Modifier.haze(hazeState) else Modifier)
+                                .zIndex(2f)
                         )
                     }
                 }
