@@ -105,13 +105,9 @@ fun KototoroTopBar(
     var showDisplayOptionsSheet by rememberSaveable { mutableStateOf(false) }
 
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues()
-    val collapsedContainerAlpha by animateFloatAsState(
-        targetValue = if (isCollapsedFullyTransparent) 0f else 0.84f,
-        label = "top_bar_container_alpha",
-    )
-    val collapsedBorderAlpha by animateFloatAsState(
-        targetValue = if (isCollapsedFullyTransparent) 0f else 0.10f,
-        label = "top_bar_border_alpha",
+    val collapsedAlpha by animateFloatAsState(
+        targetValue = if (isCollapsedFullyTransparent) 0f else 1f,
+        label = "top_bar_alpha",
     )
     val showMoreActions = true
 
@@ -120,16 +116,15 @@ fun KototoroTopBar(
             .fillMaxWidth()
             .padding(top = statusBarPadding.calculateTopPadding())
     ) {
-        GlassSurface(
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp),
-            shape = RoundedCornerShape(24.dp),
-            style = GlassDefaults.prominentStyle().copy(
-                containerAlpha = collapsedContainerAlpha,
-                borderAlpha = collapsedBorderAlpha,
-                shadowElevation = 0.dp,
-            ),
+                .padding(horizontal = 12.dp)
+                .graphicsLayer { alpha = collapsedAlpha },
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 1.dp,
+            shadowElevation = 2.dp,
         ) {
             CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides CompactTopBarActionSize) {
                 Row(
@@ -146,11 +141,16 @@ fun KototoroTopBar(
                             .clickable(onClick = onSearchClick),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(
-                            Icons.Filled.Search,
-                            contentDescription = stringResource(R.string.search),
+                        Box(
                             modifier = Modifier.size(CompactTopBarIconSize),
-                        )
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                Icons.Filled.Search,
+                                contentDescription = stringResource(R.string.search),
+                                modifier = Modifier.size(CompactTopBarIconSize),
+                            )
+                        }
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             text = query.ifBlank { stringResource(R.string.search_content) },

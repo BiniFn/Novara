@@ -695,7 +695,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putStringSet(KEY_BADGES_TOP_LEFT, value) }
 
 	var badgesTopRight: Set<String>
-		get() = prefs.getStringSet(KEY_BADGES_TOP_RIGHT, setOf("score")) ?: setOf("score")
+		get() = prefs.getStringSet(KEY_BADGES_TOP_RIGHT, setOf("score", "pin")) ?: setOf("score", "pin")
 		set(value) = prefs.edit { putStringSet(KEY_BADGES_TOP_RIGHT, value) }
 
 	var badgesBottomLeft: Set<String>

@@ -756,6 +756,16 @@ fun ContentCardCornerBadges(
                         )
                     }
                 }
+                "pin" -> {
+                    if (item.isPinned) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_pin),
+                            contentDescription = stringResource(R.string.pin),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(metrics.iconSize),
+                        )
+                    }
+                }
             }
         }
     }

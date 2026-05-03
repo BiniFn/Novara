@@ -49,11 +49,19 @@ fun KototoroSelectionTopBar(
     isSingleSelection: Boolean,
     showRemoveOption: Boolean = false,
     supportedActions: Set<SelectionAction>? = null,
+    allPinned: Boolean = false,
     onClearSelection: () -> Unit,
     onActionClick: (SelectionAction) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showOverflowMenu by remember { mutableStateOf(false) }
+
+    val allActions = supportedActions
+    val inlineActions = allActions?.take(4).orEmpty()
+    val overflowActions = allActions?.drop(4).orEmpty().toMutableSet()
+    if (isAllNonLocal) overflowActions += SelectionAction.FIX
+    if (isSingleSelection) overflowActions += SelectionAction.EDIT_OVERRIDE
+    overflowActions += SelectionAction.FAVOURITE
 
     TopAppBar(
         title = { Text(text = selectedCount.toString()) },
@@ -63,74 +71,90 @@ fun KototoroSelectionTopBar(
             }
         },
         actions = {
-            if (supportedActions == null || SelectionAction.SELECT_ALL in supportedActions) {
+            if (supportedActions == null || SelectionAction.SELECT_ALL in inlineActions) {
                 IconButton(onClick = { onActionClick(SelectionAction.SELECT_ALL) }) {
                     Icon(painter = painterResource(id = R.drawable.ic_select_all), contentDescription = "Select All")
                 }
             }
-            if (showRemoveOption || (supportedActions != null && SelectionAction.REMOVE in supportedActions)) {
+            if (showRemoveOption || (supportedActions != null && SelectionAction.REMOVE in inlineActions)) {
                 IconButton(onClick = { onActionClick(SelectionAction.REMOVE) }) {
                     Icon(Icons.Default.Delete, contentDescription = "Remove")
                 }
             }
-            if (isAllNonLocal || (supportedActions != null && SelectionAction.SAVE in supportedActions)) {
+            if (isAllNonLocal || (supportedActions != null && SelectionAction.SAVE in inlineActions)) {
                 IconButton(onClick = { onActionClick(SelectionAction.SAVE) }) {
                     Icon(painter = painterResource(id = R.drawable.ic_download), contentDescription = "Download/Save")
                 }
             }
-            if (supportedActions == null || SelectionAction.SHARE in supportedActions) {
+            if (supportedActions == null || SelectionAction.SHARE in inlineActions) {
                 IconButton(onClick = { onActionClick(SelectionAction.SHARE) }) {
                     Icon(Icons.Default.Share, contentDescription = "Share")
                 }
             }
-            if (supportedActions == null || SelectionAction.PIN in supportedActions) {
+            if (supportedActions == null || SelectionAction.PIN in inlineActions) {
                 IconButton(onClick = { onActionClick(SelectionAction.PIN) }) {
-                    Icon(painter = painterResource(id = R.drawable.ic_pin), contentDescription = "Pin/Unpin")
+                    Icon(
+                        painter = painterResource(id = if (allPinned) R.drawable.ic_unpin else R.drawable.ic_pin),
+                        contentDescription = if (allPinned) stringResource(R.string.unpin) else stringResource(R.string.pin),
+                    )
                 }
             }
-            if (supportedActions == null || SelectionAction.MARK_AS_COMPLETED in supportedActions) {
+            if (supportedActions == null || SelectionAction.MARK_AS_COMPLETED in inlineActions) {
                 IconButton(onClick = { onActionClick(SelectionAction.MARK_AS_COMPLETED) }) {
                     Icon(painter = painterResource(id = R.drawable.ic_eye_check), contentDescription = "Mark as Completed")
                 }
             }
 
-            // Overflow menu
-            Box {
-                IconButton(onClick = { showOverflowMenu = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "More")
-                }
-                DropdownMenu(
-                    expanded = showOverflowMenu,
-                    onDismissRequest = { showOverflowMenu = false },
-                    shape = MaterialTheme.shapes.extraSmall,
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 0.dp,
-                )
- {
-                    DropdownMenuItem(
-                        text = { Text("Favourite") },
-                        onClick = {
-                            showOverflowMenu = false
-                            onActionClick(SelectionAction.FAVOURITE)
-                        }
-                    )
-                    if (isSingleSelection) {
-                        DropdownMenuItem(
-                            text = { Text("Edit Override") },
-                            onClick = {
-                                showOverflowMenu = false
-                                onActionClick(SelectionAction.EDIT_OVERRIDE)
-                            }
-                        )
+            // Overflow menu - shows actions beyond the first 4 inline, plus FIX/EDIT_OVERRIDE/FAVOURITE
+            val hasOverflow = (isAllNonLocal && !isSingleSelection) ||
+                isSingleSelection ||
+                overflowActions.any { it != SelectionAction.FIX && it != SelectionAction.EDIT_OVERRIDE && it != SelectionAction.FAVOURITE }
+            if (hasOverflow) {
+                Box {
+                    IconButton(onClick = { showOverflowMenu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "More")
                     }
-                    if (isAllNonLocal) {
+                    DropdownMenu(
+                        expanded = showOverflowMenu,
+                        onDismissRequest = { showOverflowMenu = false },
+                        shape = MaterialTheme.shapes.extraSmall,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 0.dp,
+                    ) {
+                        if (SelectionAction.SHARE in overflowActions) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.share)) },
+                                onClick = { showOverflowMenu = false; onActionClick(SelectionAction.SHARE) }
+                            )
+                        }
+                        if (SelectionAction.PIN in overflowActions) {
+                            DropdownMenuItem(
+                                text = { Text(if (allPinned) stringResource(R.string.unpin) else stringResource(R.string.pin)) },
+                                onClick = { showOverflowMenu = false; onActionClick(SelectionAction.PIN) }
+                            )
+                        }
+                        if (SelectionAction.MARK_AS_COMPLETED in overflowActions) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.mark_as_completed)) },
+                                onClick = { showOverflowMenu = false; onActionClick(SelectionAction.MARK_AS_COMPLETED) }
+                            )
+                        }
                         DropdownMenuItem(
-                            text = { Text("Fix") },
-                            onClick = {
-                                showOverflowMenu = false
-                                onActionClick(SelectionAction.FIX)
-                            }
+                            text = { Text(stringResource(R.string.categories)) },
+                            onClick = { showOverflowMenu = false; onActionClick(SelectionAction.FAVOURITE) }
                         )
+                        if (isSingleSelection) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.edit)) },
+                                onClick = { showOverflowMenu = false; onActionClick(SelectionAction.EDIT_OVERRIDE) }
+                            )
+                        }
+                        if (isAllNonLocal) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.fix)) },
+                                onClick = { showOverflowMenu = false; onActionClick(SelectionAction.FIX) }
+                            )
+                        }
                     }
                 }
             }

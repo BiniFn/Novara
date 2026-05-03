@@ -114,6 +114,7 @@ fun <VM : ContentListViewModel> AppContentListRoute(
                     isSingleSelection = composeSelectionIds.size == 1,
                     showRemoveOption = showRemoveOption,
                     supportedActions = supportedActions,
+                    allPinned = selectedModels.all { it.isPinned },
                     onClearSelection = { composeSelectionIds = emptySet() },
                     onActionClick = { action ->
                         when (action) {

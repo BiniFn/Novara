@@ -373,6 +373,7 @@
 		<item>@string/badge_score</item>
 		<item>@string/badge_favorite</item>
 		<item>@string/badge_saved</item>
+		<item>@string/badge_pin</item>
 		<item>@string/badge_source_icon</item>
 		<item>@string/badge_language</item>
 	</string-array>
@@ -381,6 +382,7 @@
 		<item>score</item>
 		<item>favorite</item>
 		<item>saved</item>
+		<item>pin</item>
 		<item>source</item>
 		<item>language</item>
 	</string-array>

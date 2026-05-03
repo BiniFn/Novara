@@ -322,6 +322,7 @@
     <string name="badge_language">语言</string>
     <string name="badge_favorite">收藏</string>
     <string name="badge_saved">已保存内容</string>
+    <string name="badge_pin">已置顶</string>
     <string name="sync">同步</string>
     <string name="sync_title">开始同步网络数据</string>
     <string name="email_enter_hint">输入邮箱地址以继续</string>

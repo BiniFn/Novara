@@ -451,6 +451,7 @@ fun KototoroApp(
                                     isSingleSelection = overrideState.isSingleSelection,
                                     showRemoveOption = overrideState.showRemoveOption,
                                     supportedActions = overrideState.supportedActions,
+                                    allPinned = overrideState.allPinned,
                                     onClearSelection = overrideState.onClearSelection,
                                     onActionClick = overrideState.onActionClick,
                                     modifier = Modifier
