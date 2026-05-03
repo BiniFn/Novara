@@ -101,7 +101,7 @@ import org.skepsun.kototoro.search.domain.SearchKind
 import org.skepsun.kototoro.search.ui.suggestion.model.SearchSuggestionItem
 
 private const val SearchOverlayAnimationDurationMillis = 260
-private val SearchOverlayCollapsedHeight = 64.dp
+private val SearchOverlayCollapsedHeight = 56.dp
 private val SearchOverlayCollapsedHorizontalPadding = 10.dp
 private val SearchOverlayCollapsedCornerRadius = 24.dp
 
@@ -267,7 +267,7 @@ fun KototoroSearchOverlay(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onDismissRequest) {
@@ -276,64 +276,51 @@ fun KototoroSearchOverlay(
                         contentDescription = stringResource(R.string.back),
                     )
                 }
-                Surface(
+                SearchInputField(
+                    value = query,
+                    onValueChange = onQueryChanged,
                     modifier = Modifier
                         .weight(1f)
-                        .padding(horizontal = 2.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.52f),
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.24f),
-                    ),
-                    tonalElevation = 0.dp,
-                    shadowElevation = 0.dp,
-                ) {
-                    SearchInputField(
-                        value = query,
-                        onValueChange = onQueryChanged,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .focusRequester(focusRequester),
-                        placeholder = {
-                            Text(
-                                text = stringResource(R.string.search_content),
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Filled.Search,
-                                contentDescription = stringResource(R.string.search),
-                                modifier = Modifier.size(20.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        },
-                        trailingIcon = {
-                            if (query.isNotEmpty()) {
-                                IconButton(
-                                    onClick = { onQueryChanged("") },
-                                    modifier = Modifier.size(40.dp),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Clear,
-                                        contentDescription = stringResource(R.string.clear),
-                                        modifier = Modifier.size(20.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
+                        .padding(horizontal = 2.dp)
+                        .height(48.dp)
+                        .focusRequester(focusRequester),
+                    placeholder = {
+                        Text(
+                            text = stringResource(R.string.search_content),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = stringResource(R.string.search),
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    trailingIcon = {
+                        if (query.isNotEmpty()) {
+                            IconButton(
+                                onClick = { onQueryChanged("") },
+                                modifier = Modifier.size(40.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Clear,
+                                    contentDescription = stringResource(R.string.clear),
+                                    modifier = Modifier.size(20.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(
+                        onSearch = {
+                            submitSearch(query)
                         },
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(
-                            onSearch = {
-                                submitSearch(query)
-                            },
-                        ),
-                    )
-                }
+                    ),
+                )
                 IconButton(onClick = { showOptionsSheet = true }) {
                     Icon(
                         painter = androidx.compose.ui.res.painterResource(R.drawable.ic_filter_menu),
