@@ -18,9 +18,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
@@ -196,12 +195,8 @@ class SettingsActivity :
 	private val trackerSettingsViewModel: TrackerSettingsViewModel by viewModels()
 
 	private var isFoldUnfolded = false
-	private var composeDestination: SettingsDestination? = null
+	private var composeDestination: SettingsDestination? by mutableStateOf(null)
 	private val composeNavigationStack = ArrayDeque<SettingsDestination>()
-	private var composePageKey by mutableIntStateOf(0)
-	private var composePageIsRoot by mutableStateOf(true)
-	private var composeRootContent: (@Composable () -> Unit)? = null
-	private var composeSubpageContent: (@Composable () -> Unit)? = null
 	private var shouldRestoreFragmentOnComposeExit = false
 	private var composeDestinationToRestore: SettingsDestination? = null
 	private var ttsSettingsCoordinator: TtsSettingsCoordinator? = null
@@ -284,8 +279,13 @@ class SettingsActivity :
 		)
 		viewBinding.containerCompose.setContent {
 			KototoroTheme {
-				AnimatedContent(targetState = composePageIsRoot, label = "settings_page") { isRoot ->
-					if (isRoot) composeRootContent?.invoke() else composeSubpageContent?.invoke()
+				val saveableStateHolder = rememberSaveableStateHolder()
+				AnimatedContent(targetState = composeDestination, label = "settings_page") { destination ->
+					if (destination != null) {
+						saveableStateHolder.SaveableStateProvider(composeDestinationStateKey(destination)) {
+							RenderComposeDestination(destination)
+						}
+					}
 				}
 			}
 		}
@@ -547,28 +547,24 @@ class SettingsActivity :
 
 	private fun renderComposeContent(
 		showLegacyTopBar: Boolean,
-		content: @Composable () -> Unit,
+		destination: SettingsDestination,
 	) {
 		setLegacyTopBarVisible(showLegacyTopBar)
-		if (composePageIsRoot) composeRootContent = content else composeSubpageContent = content
-		composePageKey++
+		setTitle(composeDestinationTitle(destination))
 	}
 
-	private fun renderComposeSection(
+	@Composable
+	private fun RenderComposeSection(
 		title: String,
 		actions: (@Composable BoxScope.() -> Unit)? = null,
 		content: @Composable () -> Unit,
 	) {
-		setTitle(title)
-		composePageIsRoot = false
-		renderComposeContent(showLegacyTopBar = false) {
-			SettingsSectionScaffold(
-				title = title,
-				onNavigateUp = ::handleComposeNavigateUp,
-				actions = actions,
-				content = content,
-			)
-		}
+		SettingsSectionScaffold(
+			title = title,
+			onNavigateUp = ::handleComposeNavigateUp,
+			actions = actions,
+			content = content,
+		)
 	}
 
 	fun openFragment(fragmentClass: Class<out Fragment>, args: Bundle?, isFromRoot: Boolean) {
@@ -619,10 +615,10 @@ class SettingsActivity :
 		viewModel.discardSearch()
 		composeDestinationToRestore = null
 		composeDestination = destination
-			composePageIsRoot = destination == SettingsDestination.Root
 		shouldRestoreFragmentOnComposeExit = false
 		viewBinding.containerCompose.isVisible = true
-		renderComposeDestination(destination)
+		prepareComposeDestination(destination)
+		renderComposeContent(showLegacyTopBar = false, destination = destination)
 		composeBackCallback.isEnabled = true
 	}
 
@@ -779,188 +775,469 @@ class SettingsActivity :
 			}
 		}
 		composeDestination = destination
-			composePageIsRoot = destination == SettingsDestination.Root
 		shouldRestoreFragmentOnComposeExit = shouldRestoreFragment
 		viewBinding.containerCompose.isVisible = true
-		renderComposeDestination(destination)
+		prepareComposeDestination(destination)
+		renderComposeContent(showLegacyTopBar = false, destination = destination)
 		composeBackCallback.isEnabled = true
 	}
 
-		private fun renderComposeDestination(destination: SettingsDestination) {
-			when (destination) {
-				SettingsDestination.Root -> renderRootComposeDestination()
-				SettingsDestination.AppearanceSettings -> renderAppearanceSettingsComposeDestination()
-				SettingsDestination.UsersSettings -> renderUsersSettingsComposeDestination()
-				SettingsDestination.AISettings -> renderAiSettingsComposeDestination()
-				SettingsDestination.OcrModelsSettings -> renderOcrModelsComposeDestination()
-				SettingsDestination.AiImageEnhancementSettings -> renderAiImageEnhancementComposeDestination()
-				SettingsDestination.AiVideoEnhancementSettings -> renderAiVideoEnhancementComposeDestination()
-				SettingsDestination.TtsSettings -> renderTtsComposeDestination()
-				SettingsDestination.PlaybackSettings -> renderPlaybackSettingsComposeDestination()
-				SettingsDestination.ReaderSettings -> renderReaderSettingsComposeDestination()
-				SettingsDestination.SourcesSettings -> renderSourcesSettingsComposeDestination()
-				SettingsDestination.SuggestionsSettings -> renderSuggestionsComposeDestination()
-				SettingsDestination.BackupsSettings -> renderBackupsComposeDestination()
-				SettingsDestination.SyncSettings -> renderSyncComposeDestination()
-				SettingsDestination.TranslationSettings -> renderTranslationComposeDestination()
-				SettingsDestination.TranslationApiSettings -> renderTranslationApiComposeDestination()
-				SettingsDestination.TranslationE2EApiSettings -> renderTranslationE2EApiComposeDestination()
-				SettingsDestination.StorageAndNetworkSettings -> renderStorageAndNetworkComposeDestination()
-				SettingsDestination.DataCleanupSettings -> renderDataCleanupComposeDestination()
-				SettingsDestination.DownloadsSettings -> renderDownloadsComposeDestination()
-				SettingsDestination.TrackerSettings -> renderTrackerComposeDestination()
-				SettingsDestination.NotificationSettings -> renderNotificationComposeDestination()
-				SettingsDestination.ServicesSettings -> renderServicesComposeDestination()
-				SettingsDestination.DiscordSettings -> renderDiscordComposeDestination()
-				SettingsDestination.ProxySettings -> renderProxyComposeDestination()
-				SettingsDestination.NavConfigSettings -> renderNavConfigComposeDestination()
-				SettingsDestination.ChangelogSettings -> renderChangelogComposeDestination()
-				SettingsDestination.AboutSettings -> renderAboutComposeDestination()
-				is SettingsDestination.UnifiedSources -> Unit
-				is SettingsDestination.FragmentDestination -> Unit
+	private fun prepareComposeDestination(destination: SettingsDestination) {
+		when (destination) {
+			SettingsDestination.UsersSettings -> {
+				usersResumeTick.update { it + 1 }
 			}
+			SettingsDestination.TtsSettings -> {
+				if (ttsSettingsCoordinator == null) {
+					ttsSettingsCoordinator = TtsSettingsCoordinator(this, kototoroAppSettings).also { it.start() }
+				}
+			}
+			SettingsDestination.SourcesSettings -> {
+				sourcesSettingsViewModel.refreshLinksEnabled()
+			}
+			SettingsDestination.SuggestionsSettings -> {
+				refreshSuggestionsTags()
+			}
+			SettingsDestination.BackupsSettings -> {
+				periodicalBackupSettingsViewModel.updateSummaryData()
+			}
+			SettingsDestination.SyncSettings -> {
+				syncUrlFlow.value = syncSettings.syncUrl ?: ""
+			}
+			SettingsDestination.DataCleanupSettings -> {
+				bindDataCleanupObservers()
+			}
+			SettingsDestination.DownloadsSettings -> {
+				downloadsStorageTick.update { it + 1 }
+				downloadsDozeTick.update { it + 1 }
+			}
+			SettingsDestination.TrackerSettings -> {
+				trackerDozeTick.update { it + 1 }
+				trackerNotificationTick.update { it + 1 }
+			}
+			else -> Unit
 		}
+	}
 
-	private fun renderRootComposeDestination() {
-		setTitle(getString(R.string.settings))
-		composePageIsRoot = true
-		renderComposeContent(showLegacyTopBar = false) {
-			val enabledSourcesCount by rootSettingsViewModel.enabledSourcesCount.collectAsStateWithLifecycle()
-			val searchResults by viewModel.content.collectAsStateWithLifecycle()
-			val searchQuery by viewModel.queryText.collectAsStateWithLifecycle()
-			SettingsRootScreen(
-				sections = buildSettingsRootSections(
-					context = this,
-					enabledSourcesCount = enabledSourcesCount,
-					totalSourcesCount = rootSettingsViewModel.totalSourcesCount,
-					classLoader = classLoader,
-					onOpenFragment = { fragmentClass ->
-						openFragment(fragmentClass, null, true)
+	private fun composeDestinationStateKey(destination: SettingsDestination): String {
+		return when (destination) {
+			SettingsDestination.Root -> COMPOSE_DESTINATION_ROOT
+			SettingsDestination.AppearanceSettings -> COMPOSE_DESTINATION_APPEARANCE_SETTINGS
+			SettingsDestination.UsersSettings -> COMPOSE_DESTINATION_USERS_SETTINGS
+			SettingsDestination.AISettings -> COMPOSE_DESTINATION_AI_SETTINGS
+			SettingsDestination.OcrModelsSettings -> COMPOSE_DESTINATION_OCR_MODELS_SETTINGS
+			SettingsDestination.AiImageEnhancementSettings -> COMPOSE_DESTINATION_AI_IMAGE_ENHANCEMENT_SETTINGS
+			SettingsDestination.AiVideoEnhancementSettings -> COMPOSE_DESTINATION_AI_VIDEO_ENHANCEMENT_SETTINGS
+			SettingsDestination.TtsSettings -> COMPOSE_DESTINATION_TTS_SETTINGS
+			SettingsDestination.PlaybackSettings -> COMPOSE_DESTINATION_PLAYBACK_SETTINGS
+			SettingsDestination.ReaderSettings -> COMPOSE_DESTINATION_READER_SETTINGS
+			SettingsDestination.SourcesSettings -> COMPOSE_DESTINATION_SOURCES_SETTINGS
+			SettingsDestination.SuggestionsSettings -> COMPOSE_DESTINATION_SUGGESTIONS_SETTINGS
+			SettingsDestination.BackupsSettings -> COMPOSE_DESTINATION_BACKUPS_SETTINGS
+			SettingsDestination.SyncSettings -> COMPOSE_DESTINATION_SYNC_SETTINGS
+			SettingsDestination.TranslationSettings -> COMPOSE_DESTINATION_TRANSLATION_SETTINGS
+			SettingsDestination.TranslationApiSettings -> COMPOSE_DESTINATION_TRANSLATION_API_SETTINGS
+			SettingsDestination.TranslationE2EApiSettings -> COMPOSE_DESTINATION_TRANSLATION_E2E_API_SETTINGS
+			SettingsDestination.StorageAndNetworkSettings -> COMPOSE_DESTINATION_STORAGE_AND_NETWORK_SETTINGS
+			SettingsDestination.DataCleanupSettings -> COMPOSE_DESTINATION_DATA_CLEANUP_SETTINGS
+			SettingsDestination.DownloadsSettings -> COMPOSE_DESTINATION_DOWNLOADS_SETTINGS
+			SettingsDestination.TrackerSettings -> COMPOSE_DESTINATION_TRACKER_SETTINGS
+			SettingsDestination.NotificationSettings -> COMPOSE_DESTINATION_NOTIFICATION_SETTINGS
+			SettingsDestination.ServicesSettings -> COMPOSE_DESTINATION_SERVICES_SETTINGS
+			SettingsDestination.DiscordSettings -> COMPOSE_DESTINATION_DISCORD_SETTINGS
+			SettingsDestination.ProxySettings -> COMPOSE_DESTINATION_PROXY_SETTINGS
+			SettingsDestination.NavConfigSettings -> COMPOSE_DESTINATION_NAV_CONFIG_SETTINGS
+			SettingsDestination.ChangelogSettings -> COMPOSE_DESTINATION_CHANGELOG_SETTINGS
+			SettingsDestination.AboutSettings -> COMPOSE_DESTINATION_ABOUT_SETTINGS
+			is SettingsDestination.FragmentDestination -> "fragment:${destination.fragmentClass.name}"
+			is SettingsDestination.UnifiedSources -> "unified:${destination.initialRepositoryKind}:${destination.initialRepositoryUrl}"
+		}
+	}
+
+	private fun composeDestinationTitle(destination: SettingsDestination): String {
+		return when (destination) {
+			SettingsDestination.Root -> getString(R.string.settings)
+			SettingsDestination.AppearanceSettings -> getString(R.string.appearance)
+			SettingsDestination.UsersSettings -> getString(R.string.users)
+			SettingsDestination.AISettings -> getString(R.string.ai_settings)
+			SettingsDestination.OcrModelsSettings -> getString(R.string.reader_translation_ocr_models_title)
+			SettingsDestination.AiImageEnhancementSettings -> getString(R.string.ai_image_enhancement_settings)
+			SettingsDestination.AiVideoEnhancementSettings -> getString(R.string.ai_video_enhancement_settings)
+			SettingsDestination.TtsSettings -> getString(R.string.tts_settings_title)
+			SettingsDestination.PlaybackSettings -> getString(R.string.playback_settings)
+			SettingsDestination.ReaderSettings -> getString(R.string.reader_settings)
+			SettingsDestination.SourcesSettings -> getString(R.string.remote_sources)
+			SettingsDestination.SuggestionsSettings -> getString(R.string.suggestions)
+			SettingsDestination.BackupsSettings -> getString(R.string.sync_settings)
+			SettingsDestination.SyncSettings -> getString(R.string.sync_settings)
+			SettingsDestination.TranslationSettings -> getString(R.string.translation_settings)
+			SettingsDestination.TranslationApiSettings -> getString(R.string.ai_api_settings)
+			SettingsDestination.TranslationE2EApiSettings -> getString(R.string.reader_translation_e2e_api_settings_title)
+			SettingsDestination.StorageAndNetworkSettings -> getString(R.string.storage_and_network)
+			SettingsDestination.DataCleanupSettings -> getString(R.string.data_removal)
+			SettingsDestination.DownloadsSettings -> getString(R.string.downloads)
+			SettingsDestination.TrackerSettings -> getString(R.string.check_for_new_chapters)
+			SettingsDestination.NotificationSettings -> getString(R.string.notifications)
+			SettingsDestination.ServicesSettings -> getString(R.string.services)
+			SettingsDestination.DiscordSettings -> getString(R.string.discord)
+			SettingsDestination.ProxySettings -> getString(R.string.proxy)
+			SettingsDestination.NavConfigSettings -> getString(R.string.main_screen_sections)
+			SettingsDestination.ChangelogSettings -> getString(R.string.changelog)
+			SettingsDestination.AboutSettings -> getString(R.string.about)
+			is SettingsDestination.FragmentDestination,
+			is SettingsDestination.UnifiedSources -> getString(R.string.settings)
+		}
+	}
+
+	@Composable
+	private fun RenderComposeDestination(destination: SettingsDestination) {
+		when (destination) {
+			SettingsDestination.Root -> {
+				val enabledSourcesCount by rootSettingsViewModel.enabledSourcesCount.collectAsStateWithLifecycle()
+				val searchResults by viewModel.content.collectAsStateWithLifecycle()
+				val searchQuery by viewModel.queryText.collectAsStateWithLifecycle()
+				SettingsRootScreen(
+					sections = buildSettingsRootSections(
+						context = this,
+						enabledSourcesCount = enabledSourcesCount,
+						totalSourcesCount = rootSettingsViewModel.totalSourcesCount,
+						classLoader = classLoader,
+						onOpenFragment = { fragmentClass ->
+							openFragment(fragmentClass, null, true)
+						},
+						onOpenDestination = { composeDestination ->
+							openDestination(composeDestination, null, true)
+						},
+					),
+					title = getString(R.string.settings),
+					subtitle = getString(R.string.app_version, org.skepsun.kototoro.BuildConfig.VERSION_NAME),
+					searchQuery = searchQuery,
+					searchResults = searchResults,
+					onSearchQueryChange = viewModel::setSearchQuery,
+					onSearchResultClick = { item -> navigateToPreference(item) },
+					modifier = Modifier.fillMaxSize(),
+				)
+			}
+			SettingsDestination.AppearanceSettings -> RenderComposeSection(title = getString(R.string.appearance)) {
+				AppearanceSettingsRoute(
+					settings = kototoroAppSettings,
+					activityRecreationHandle = activityRecreationHandle,
+					appShortcutManager = appShortcutManager,
+					sourcePresetsRepository = sourcePresetsRepository,
+					onOpenNavConfig = {
+						openDestination(SettingsDestination.NavConfigSettings, null, false)
 					},
-					onOpenDestination = { composeDestination ->
-						openDestination(composeDestination, null, true)
+					onOpenProtectSetup = {
+						startActivity(Intent(this, ProtectSetupActivity::class.java))
 					},
-				),
-				title = getString(R.string.settings),
-				subtitle = getString(R.string.app_version, org.skepsun.kototoro.BuildConfig.VERSION_NAME),
-				searchQuery = searchQuery,
-				searchResults = searchResults,
-				onSearchQueryChange = viewModel::setSearchQuery,
-				onSearchResultClick = { item -> navigateToPreference(item) },
-				modifier = Modifier.fillMaxSize(),
-			)
-		}
-	}
-
-	private fun renderAppearanceSettingsComposeDestination() {
-		renderComposeSection(title = getString(R.string.appearance)) {
-			AppearanceSettingsRoute(
-				settings = kototoroAppSettings,
-				activityRecreationHandle = activityRecreationHandle,
-				appShortcutManager = appShortcutManager,
-				sourcePresetsRepository = sourcePresetsRepository,
-				onOpenNavConfig = {
-					openDestination(SettingsDestination.NavConfigSettings, null, false)
-				},
-				onOpenProtectSetup = {
-					startActivity(Intent(this, ProtectSetupActivity::class.java))
-				},
-			)
-		}
-	}
-
-	private fun renderUsersSettingsComposeDestination() {
-		usersResumeTick.update { it + 1 }
-		renderComposeSection(title = getString(R.string.users)) {
-			val refreshKey by usersResumeTick.collectAsStateWithLifecycle()
-			UsersSettingsRoute(
-				settings = kototoroAppSettings,
-				scrobblerAuthHelper = scrobblerAuthHelper,
-				trackingUserAccountSummaryProvider = trackingUserAccountSummaryProvider,
-				trackingDiscoveryService = trackingDiscoveryService,
-				refreshKey = refreshKey,
-				onSyncSettingsClick = {
-					openDestination(SettingsDestination.BackupsSettings, null, false)
-				},
-				onOpenScrobblerSettings = { service ->
-					router.openScrobblerSettings(service)
-				},
-			)
-		}
-	}
-
-	private fun renderAiSettingsComposeDestination() {
-		renderComposeSection(title = getString(R.string.ai_settings)) {
-			AISettingsRoute(
-				onOpenOcrModels = { openDestination(SettingsDestination.OcrModelsSettings, null, false) },
-				onOpenApiSettings = { openDestination(SettingsDestination.TranslationApiSettings, null, false) },
-				onOpenE2eApiSettings = { openDestination(SettingsDestination.TranslationE2EApiSettings, null, false) },
-				onOpenTranslationSettings = { openDestination(SettingsDestination.TranslationSettings, null, false) },
-				onOpenImageEnhancementSettings = {
-					openDestination(SettingsDestination.AiImageEnhancementSettings, null, false)
-				},
-				onOpenTtsSettings = { openDestination(SettingsDestination.TtsSettings, null, false) },
-				onOpenVideoEnhancementSettings = {
-					openDestination(SettingsDestination.AiVideoEnhancementSettings, null, false)
-				},
-			)
-		}
-	}
-
-	private fun renderOcrModelsComposeDestination() {
-		renderComposeSection(title = getString(R.string.reader_translation_ocr_models_title)) {
-			OcrModelsRoute(
-				onnxModelManager = onnxModelManager,
-				modifier = Modifier.fillMaxSize(),
-			)
-		}
-	}
-
-	private fun renderAiImageEnhancementComposeDestination() {
-		renderComposeSection(title = getString(R.string.ai_image_enhancement_settings)) {
-			AIImageEnhancementSettingsRoute(
-				settings = kototoroAppSettings,
-				onnxModelManager = onnxModelManager,
-				onClearCacheClick = ::clearSuperResolutionCache,
-				modifier = Modifier.fillMaxSize(),
-			)
-		}
-	}
-
-	private fun renderAiVideoEnhancementComposeDestination() {
-		renderComposeSection(title = getString(R.string.ai_video_enhancement_settings)) {
-			AIVideoEnhancementSettingsRoute(
-				settings = kototoroAppSettings,
-				onAdvancedSettingsClick = ::showVideoSuperResolutionAdvancedSheet,
-			)
-		}
-	}
-
-	private fun renderTtsComposeDestination() {
-		val coordinator = ttsSettingsCoordinator ?: TtsSettingsCoordinator(this, kototoroAppSettings).also {
-			it.start()
-			ttsSettingsCoordinator = it
-		}
-		renderComposeSection(title = getString(R.string.tts_settings_title)) {
-			TtsSettingsRoute(
-				settings = kototoroAppSettings,
-				coordinator = coordinator,
-				modifier = Modifier.fillMaxSize(),
-			)
-		}
-	}
-
-	private fun renderPlaybackSettingsComposeDestination() {
-		renderComposeSection(title = getString(R.string.playback_settings)) {
-			PlaybackSettingsRoute(
-				settings = kototoroAppSettings,
-				onMpvConfClick = {
-					org.skepsun.kototoro.video.player.MpvConfigManager.showMpvConfigDialog(this, viewBinding.containerCompose)
-				},
-				onAiSettingsClick = {
-					openDestination(SettingsDestination.AISettings, null, false)
-				},
-			)
+				)
+			}
+			SettingsDestination.UsersSettings -> RenderComposeSection(title = getString(R.string.users)) {
+				val refreshKey by usersResumeTick.collectAsStateWithLifecycle()
+				UsersSettingsRoute(
+					settings = kototoroAppSettings,
+					scrobblerAuthHelper = scrobblerAuthHelper,
+					trackingUserAccountSummaryProvider = trackingUserAccountSummaryProvider,
+					trackingDiscoveryService = trackingDiscoveryService,
+					refreshKey = refreshKey,
+					onSyncSettingsClick = {
+						openDestination(SettingsDestination.BackupsSettings, null, false)
+					},
+					onOpenScrobblerSettings = { service ->
+						router.openScrobblerSettings(service)
+					},
+				)
+			}
+			SettingsDestination.AISettings -> RenderComposeSection(title = getString(R.string.ai_settings)) {
+				AISettingsRoute(
+					onOpenOcrModels = { openDestination(SettingsDestination.OcrModelsSettings, null, false) },
+					onOpenApiSettings = { openDestination(SettingsDestination.TranslationApiSettings, null, false) },
+					onOpenE2eApiSettings = { openDestination(SettingsDestination.TranslationE2EApiSettings, null, false) },
+					onOpenTranslationSettings = { openDestination(SettingsDestination.TranslationSettings, null, false) },
+					onOpenImageEnhancementSettings = {
+						openDestination(SettingsDestination.AiImageEnhancementSettings, null, false)
+					},
+					onOpenTtsSettings = { openDestination(SettingsDestination.TtsSettings, null, false) },
+					onOpenVideoEnhancementSettings = {
+						openDestination(SettingsDestination.AiVideoEnhancementSettings, null, false)
+					},
+				)
+			}
+			SettingsDestination.OcrModelsSettings -> RenderComposeSection(
+				title = getString(R.string.reader_translation_ocr_models_title),
+			) {
+				OcrModelsRoute(
+					onnxModelManager = onnxModelManager,
+					modifier = Modifier.fillMaxSize(),
+				)
+			}
+			SettingsDestination.AiImageEnhancementSettings -> RenderComposeSection(
+				title = getString(R.string.ai_image_enhancement_settings),
+			) {
+				AIImageEnhancementSettingsRoute(
+					settings = kototoroAppSettings,
+					onnxModelManager = onnxModelManager,
+					onClearCacheClick = ::clearSuperResolutionCache,
+					modifier = Modifier.fillMaxSize(),
+				)
+			}
+			SettingsDestination.AiVideoEnhancementSettings -> RenderComposeSection(
+				title = getString(R.string.ai_video_enhancement_settings),
+			) {
+				AIVideoEnhancementSettingsRoute(
+					settings = kototoroAppSettings,
+					onAdvancedSettingsClick = ::showVideoSuperResolutionAdvancedSheet,
+				)
+			}
+			SettingsDestination.TtsSettings -> RenderComposeSection(title = getString(R.string.tts_settings_title)) {
+				TtsSettingsRoute(
+					settings = kototoroAppSettings,
+					coordinator = requireNotNull(ttsSettingsCoordinator),
+					modifier = Modifier.fillMaxSize(),
+				)
+			}
+			SettingsDestination.PlaybackSettings -> RenderComposeSection(title = getString(R.string.playback_settings)) {
+				PlaybackSettingsRoute(
+					settings = kototoroAppSettings,
+					onMpvConfClick = {
+						org.skepsun.kototoro.video.player.MpvConfigManager.showMpvConfigDialog(this, viewBinding.containerCompose)
+					},
+					onAiSettingsClick = {
+						openDestination(SettingsDestination.AISettings, null, false)
+					},
+				)
+			}
+			SettingsDestination.ReaderSettings -> RenderComposeSection(title = getString(R.string.reader_settings)) {
+				ReaderSettingsRoute(
+					settings = kototoroAppSettings,
+					onReaderTapActionsClick = {
+						startActivity(Intent(this, org.skepsun.kototoro.settings.reader.ReaderTapGridConfigActivity::class.java))
+					},
+					onReaderAiSettingsEntryClick = {
+						openDestination(SettingsDestination.AISettings, null, false)
+					},
+				)
+			}
+			SettingsDestination.StorageAndNetworkSettings -> RenderComposeSection(
+				title = getString(R.string.storage_and_network),
+			) {
+				StorageAndNetworkSettingsRoute(
+					settings = kototoroAppSettings,
+					viewModel = storageAndNetworkSettingsViewModel,
+					onOpenProxySettings = {
+						openDestination(SettingsDestination.ProxySettings, null, false)
+					},
+					onOpenDataCleanupSettings = {
+						openDestination(SettingsDestination.DataCleanupSettings, null, false)
+					},
+				)
+			}
+			SettingsDestination.DataCleanupSettings -> RenderComposeSection(title = getString(R.string.data_removal)) {
+				DataCleanupSettingsRoute(
+					settings = kototoroAppSettings,
+					viewModel = dataCleanupSettingsViewModel,
+					onClearSearchHistory = ::confirmClearSearchHistory,
+					onClearCookies = ::confirmClearCookies,
+					onDeleteReadChapters = ::confirmCleanupChapters,
+					modifier = Modifier.fillMaxSize(),
+				)
+			}
+			SettingsDestination.SuggestionsSettings -> RenderComposeSection(title = getString(R.string.suggestions)) {
+				SuggestionsSettingsRoute(
+					settings = kototoroAppSettings,
+					suggestionsScheduler = suggestionsScheduler,
+					excludeTagsFlow = suggestionsExcludeTagsFlow,
+					preferredTagsFlow = suggestionsPreferredTagsFlow,
+				)
+			}
+			SettingsDestination.BackupsSettings -> RenderComposeSection(title = getString(R.string.sync_settings)) {
+				BackupsSettingsRoute(
+					settings = kototoroAppSettings,
+					viewModel = periodicalBackupSettingsViewModel,
+					onBackupOutputClick = {
+						if (!backupOutputSelectCall.tryLaunch(null)) {
+							Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_SHORT).show()
+						}
+					},
+					onCreateBackupClick = {
+						if (!backupCreateCall.tryLaunch(BackupUtils.generateFileName(this))) {
+							Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_SHORT).show()
+						}
+					},
+					onRestoreBackupClick = {
+						if (!backupSelectCall.tryLaunch(arrayOf("*/*"))) {
+							Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_SHORT).show()
+						}
+					},
+				)
+			}
+			SettingsDestination.SyncSettings -> RenderComposeSection(title = getString(R.string.sync_settings)) {
+				SyncSettingsRoute(
+					settings = kototoroAppSettings,
+					syncUrlFlow = syncUrlFlow,
+					onSyncUrlClick = {
+						SyncHostDialogFragment.show(supportFragmentManager, syncSettings.syncUrl)
+					},
+					modifier = Modifier.fillMaxSize(),
+				)
+			}
+			SettingsDestination.TranslationSettings -> RenderComposeSection(
+				title = getString(R.string.translation_settings),
+			) {
+				TranslationSettingsRoute(
+					settings = kototoroAppSettings,
+					onnxModelManager = onnxModelManager,
+					onOpenOcrModels = { openDestination(SettingsDestination.OcrModelsSettings, null, false) },
+					onOpenApiSettings = { openDestination(SettingsDestination.TranslationApiSettings, null, false) },
+					onOpenE2eApiSettings = { openDestination(SettingsDestination.TranslationE2EApiSettings, null, false) },
+				)
+			}
+			SettingsDestination.TranslationApiSettings -> RenderComposeSection(
+				title = getString(R.string.ai_api_settings),
+			) {
+				TranslationApiSettingsRoute(
+					settings = kototoroAppSettings,
+					onFetchModelsClick = ::fetchAndPickTranslationApiModel,
+					modifier = Modifier.fillMaxSize(),
+				)
+			}
+			SettingsDestination.TranslationE2EApiSettings -> RenderComposeSection(
+				title = getString(R.string.reader_translation_e2e_api_settings_title),
+			) {
+				TranslationE2EApiSettingsRoute(
+					settings = kototoroAppSettings,
+					onFetchModelsClick = ::fetchAndPickTranslationE2EApiModel,
+				)
+			}
+			SettingsDestination.DownloadsSettings -> RenderComposeSection(title = getString(R.string.downloads)) {
+				val storageRefreshKey by downloadsStorageTick.collectAsStateWithLifecycle()
+				val dozeRefreshKey by downloadsDozeTick.collectAsStateWithLifecycle()
+				DownloadsSettingsRoute(
+					settings = kototoroAppSettings,
+					storageManager = storageManager,
+					storageRefreshKey = storageRefreshKey,
+					dozeRefreshKey = dozeRefreshKey,
+					onOpenMangaDirectories = { router.openDirectoriesSettings() },
+					onOpenMangaStorage = { router.showDirectorySelectDialog() },
+					onOpenNovelStorage = {
+						router.showDirectorySelectDialog(
+							org.skepsun.kototoro.settings.storage.ContentDirectorySelectDialog.CONTENT_TYPE_NOVEL,
+						)
+					},
+					onOpenVideoStorage = {
+						router.showDirectorySelectDialog(
+							org.skepsun.kototoro.settings.storage.ContentDirectorySelectDialog.CONTENT_TYPE_VIDEO,
+						)
+					},
+					onAllowMeteredNetworkChange = { option ->
+						kototoroAppSettings.allowDownloadOnMeteredNetwork = option
+						updateDownloadsConstraints()
+					},
+					onRequestIgnoreDoze = ::startDownloadsIgnoreDozeActivity,
+					onPickPagesDirectory = { initialUri ->
+						pickDownloadsPagesDirectory.tryLaunch(initialUri)
+					},
+				)
+			}
+			SettingsDestination.TrackerSettings -> RenderComposeSection(
+				title = getString(R.string.check_for_new_chapters),
+			) {
+				val dozeRefreshKey by trackerDozeTick.collectAsStateWithLifecycle()
+				val notificationRefreshKey by trackerNotificationTick.collectAsStateWithLifecycle()
+				TrackerSettingsRoute(
+					settings = kototoroAppSettings,
+					notificationHelper = trackerNotificationHelper,
+					viewModel = trackerSettingsViewModel,
+					dozeRefreshKey = dozeRefreshKey,
+					notificationRefreshKey = notificationRefreshKey,
+					onTrackCategoriesClick = { router.showTrackerCategoriesConfigSheet() },
+					onOpenNotificationsSettings = ::openTrackerNotificationsSettings,
+					onOpenTrackerDebug = {
+						startActivity(Intent(this, TrackerDebugActivity::class.java))
+					},
+					onRequestIgnoreDoze = ::startTrackerIgnoreDozeActivity,
+					onOpenTrackerWarning = ::openTrackerWarning,
+				)
+			}
+			SettingsDestination.NotificationSettings -> RenderComposeSection(title = getString(R.string.notifications)) {
+				NotificationSettingsRoute(
+					settings = kototoroAppSettings,
+					onNotificationSoundClick = {
+						ringtonePickContract.launch(kototoroAppSettings.notificationSound)
+					},
+				)
+			}
+			SettingsDestination.ServicesSettings -> RenderComposeSection(title = getString(R.string.services)) {
+				ServicesSettingsRoute(
+					settings = kototoroAppSettings,
+					animeOfflineRepository = animeOfflineRepository,
+					onAnimeOfflineUpdate = {
+						org.skepsun.kototoro.tracking.animeoffline.work.AnimeOfflineUpdateWorker.enqueue(
+							applicationContext,
+							force = true,
+						)
+					},
+					onSuggestionsClick = {
+						openDestination(SettingsDestination.SuggestionsSettings, null, false)
+					},
+					onStatsClick = { router.openStatistic() },
+					onDiscordSettingsClick = {
+						openDestination(SettingsDestination.DiscordSettings, null, false)
+					},
+				)
+			}
+			SettingsDestination.DiscordSettings -> RenderComposeSection(title = getString(R.string.discord)) {
+				DiscordSettingsRoute(
+					settings = kototoroAppSettings,
+					viewModel = discordSettingsViewModel,
+					onTokenClick = ::openDiscordSignIn,
+					onLogoutClick = ::logoutDiscord,
+				)
+			}
+			SettingsDestination.ProxySettings -> RenderComposeSection(title = getString(R.string.proxy)) {
+				ProxySettingsRoute(
+					settings = kototoroAppSettings,
+					testSummaryFlow = proxyTestSummaryFlow,
+					isTestRunningFlow = proxyIsTestRunningFlow,
+					onTestConnection = ::testProxyConnection,
+				)
+			}
+			SettingsDestination.NavConfigSettings -> RenderComposeSection(
+				title = getString(R.string.main_screen_sections),
+			) {
+				NavConfigRoute(
+					viewModel = navConfigViewModel,
+					modifier = Modifier.fillMaxSize(),
+				)
+			}
+			SettingsDestination.ChangelogSettings -> RenderComposeSection(title = getString(R.string.changelog)) {
+				ChangelogRoute(
+					viewModel = changelogViewModel,
+					modifier = Modifier.fillMaxSize(),
+				)
+			}
+			SettingsDestination.AboutSettings -> RenderComposeSection(title = getString(R.string.about)) {
+				AboutSettingsRoute(
+					settings = kototoroAppSettings,
+					viewModel = aboutSettingsViewModel,
+					onChangelogClick = {
+						openDestination(SettingsDestination.ChangelogSettings, null, false)
+					},
+					onLinkClick = { key -> openAboutLink(key) },
+					onCrashLogsClick = {
+						startActivity(org.skepsun.kototoro.settings.about.crashlog.CrashLogActivity.newIntent(this))
+					},
+				)
+			}
+			SettingsDestination.SourcesSettings -> RenderComposeSection(title = getString(R.string.remote_sources)) {
+				SourcesSettingsRoute(
+					settings = kototoroAppSettings,
+					viewModel = sourcesSettingsViewModel,
+					onSetupWizardClick = { router.showWelcomeSheet() },
+				)
+			}
+			is SettingsDestination.UnifiedSources,
+			is SettingsDestination.FragmentDestination -> Unit
 		}
 	}
 
@@ -993,200 +1270,6 @@ class SettingsActivity :
 					modifier = Modifier.fillMaxSize(),
 				)
 			}
-		}
-	}
-
-	private fun renderReaderSettingsComposeDestination() {
-		renderComposeSection(title = getString(R.string.reader_settings)) {
-			ReaderSettingsRoute(
-				settings = kototoroAppSettings,
-				onReaderTapActionsClick = {
-					startActivity(Intent(this, org.skepsun.kototoro.settings.reader.ReaderTapGridConfigActivity::class.java))
-				},
-				onReaderAiSettingsEntryClick = {
-					openDestination(SettingsDestination.AISettings, null, false)
-				},
-			)
-		}
-	}
-
-	private fun renderStorageAndNetworkComposeDestination() {
-		renderComposeSection(title = getString(R.string.storage_and_network)) {
-			StorageAndNetworkSettingsRoute(
-				settings = kototoroAppSettings,
-				viewModel = storageAndNetworkSettingsViewModel,
-				onOpenProxySettings = {
-					openDestination(SettingsDestination.ProxySettings, null, false)
-				},
-				onOpenDataCleanupSettings = {
-					openDestination(SettingsDestination.DataCleanupSettings, null, false)
-				},
-			)
-		}
-	}
-
-	private fun renderDataCleanupComposeDestination() {
-		bindDataCleanupObservers()
-		renderComposeSection(title = getString(R.string.data_removal)) {
-			DataCleanupSettingsRoute(
-				settings = kototoroAppSettings,
-				viewModel = dataCleanupSettingsViewModel,
-				onClearSearchHistory = ::confirmClearSearchHistory,
-				onClearCookies = ::confirmClearCookies,
-				onDeleteReadChapters = ::confirmCleanupChapters,
-				modifier = Modifier.fillMaxSize(),
-			)
-		}
-	}
-
-	private fun renderSuggestionsComposeDestination() {
-		refreshSuggestionsTags()
-		renderComposeSection(title = getString(R.string.suggestions)) {
-			SuggestionsSettingsRoute(
-				settings = kototoroAppSettings,
-				suggestionsScheduler = suggestionsScheduler,
-				excludeTagsFlow = suggestionsExcludeTagsFlow,
-				preferredTagsFlow = suggestionsPreferredTagsFlow,
-			)
-		}
-	}
-
-	private fun renderBackupsComposeDestination() {
-		periodicalBackupSettingsViewModel.updateSummaryData()
-		renderComposeSection(title = getString(R.string.sync_settings)) {
-			BackupsSettingsRoute(
-				settings = kototoroAppSettings,
-				viewModel = periodicalBackupSettingsViewModel,
-				onBackupOutputClick = {
-					if (!backupOutputSelectCall.tryLaunch(null)) {
-						Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_SHORT).show()
-					}
-				},
-				onCreateBackupClick = {
-					if (!backupCreateCall.tryLaunch(BackupUtils.generateFileName(this))) {
-						Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_SHORT).show()
-					}
-				},
-				onRestoreBackupClick = {
-					if (!backupSelectCall.tryLaunch(arrayOf("*/*"))) {
-						Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_SHORT).show()
-					}
-				},
-			)
-		}
-	}
-
-	private fun renderSyncComposeDestination() {
-		syncUrlFlow.value = syncSettings.syncUrl ?: ""
-		renderComposeSection(title = getString(R.string.sync_settings)) {
-			SyncSettingsRoute(
-				settings = kototoroAppSettings,
-				syncUrlFlow = syncUrlFlow,
-				onSyncUrlClick = {
-					SyncHostDialogFragment.show(supportFragmentManager, syncSettings.syncUrl)
-				},
-				modifier = Modifier.fillMaxSize(),
-			)
-		}
-	}
-
-	private fun renderTranslationComposeDestination() {
-		renderComposeSection(title = getString(R.string.translation_settings)) {
-			TranslationSettingsRoute(
-				settings = kototoroAppSettings,
-				onnxModelManager = onnxModelManager,
-				onOpenOcrModels = { openDestination(SettingsDestination.OcrModelsSettings, null, false) },
-				onOpenApiSettings = { openDestination(SettingsDestination.TranslationApiSettings, null, false) },
-				onOpenE2eApiSettings = { openDestination(SettingsDestination.TranslationE2EApiSettings, null, false) },
-			)
-		}
-	}
-
-	private fun renderTranslationApiComposeDestination() {
-		renderComposeSection(title = getString(R.string.ai_api_settings)) {
-			TranslationApiSettingsRoute(
-				settings = kototoroAppSettings,
-				onFetchModelsClick = ::fetchAndPickTranslationApiModel,
-				modifier = Modifier.fillMaxSize(),
-			)
-		}
-	}
-
-	private fun renderTranslationE2EApiComposeDestination() {
-		renderComposeSection(title = getString(R.string.reader_translation_e2e_api_settings_title)) {
-			TranslationE2EApiSettingsRoute(
-				settings = kototoroAppSettings,
-				onFetchModelsClick = ::fetchAndPickTranslationE2EApiModel,
-			)
-		}
-	}
-
-	private fun renderDownloadsComposeDestination() {
-		downloadsStorageTick.update { it + 1 }
-		downloadsDozeTick.update { it + 1 }
-		renderComposeSection(title = getString(R.string.downloads)) {
-			val storageRefreshKey by downloadsStorageTick.collectAsStateWithLifecycle()
-			val dozeRefreshKey by downloadsDozeTick.collectAsStateWithLifecycle()
-			DownloadsSettingsRoute(
-				settings = kototoroAppSettings,
-				storageManager = storageManager,
-				storageRefreshKey = storageRefreshKey,
-				dozeRefreshKey = dozeRefreshKey,
-				onOpenMangaDirectories = { router.openDirectoriesSettings() },
-				onOpenMangaStorage = { router.showDirectorySelectDialog() },
-				onOpenNovelStorage = {
-					router.showDirectorySelectDialog(
-						org.skepsun.kototoro.settings.storage.ContentDirectorySelectDialog.CONTENT_TYPE_NOVEL,
-					)
-				},
-				onOpenVideoStorage = {
-					router.showDirectorySelectDialog(
-						org.skepsun.kototoro.settings.storage.ContentDirectorySelectDialog.CONTENT_TYPE_VIDEO,
-					)
-				},
-				onAllowMeteredNetworkChange = { option ->
-					kototoroAppSettings.allowDownloadOnMeteredNetwork = option
-					updateDownloadsConstraints()
-				},
-				onRequestIgnoreDoze = ::startDownloadsIgnoreDozeActivity,
-				onPickPagesDirectory = { initialUri ->
-					pickDownloadsPagesDirectory.tryLaunch(initialUri)
-				},
-			)
-		}
-	}
-
-	private fun renderTrackerComposeDestination() {
-		trackerDozeTick.update { it + 1 }
-		trackerNotificationTick.update { it + 1 }
-		renderComposeSection(title = getString(R.string.check_for_new_chapters)) {
-			val dozeRefreshKey by trackerDozeTick.collectAsStateWithLifecycle()
-			val notificationRefreshKey by trackerNotificationTick.collectAsStateWithLifecycle()
-			TrackerSettingsRoute(
-				settings = kototoroAppSettings,
-				notificationHelper = trackerNotificationHelper,
-				viewModel = trackerSettingsViewModel,
-				dozeRefreshKey = dozeRefreshKey,
-				notificationRefreshKey = notificationRefreshKey,
-				onTrackCategoriesClick = { router.showTrackerCategoriesConfigSheet() },
-				onOpenNotificationsSettings = ::openTrackerNotificationsSettings,
-				onOpenTrackerDebug = {
-					startActivity(Intent(this, TrackerDebugActivity::class.java))
-				},
-				onRequestIgnoreDoze = ::startTrackerIgnoreDozeActivity,
-				onOpenTrackerWarning = ::openTrackerWarning,
-			)
-		}
-	}
-
-	private fun renderNotificationComposeDestination() {
-		renderComposeSection(title = getString(R.string.notifications)) {
-			NotificationSettingsRoute(
-				settings = kototoroAppSettings,
-				onNotificationSoundClick = {
-					ringtonePickContract.launch(kototoroAppSettings.notificationSound)
-				},
-			)
 		}
 	}
 
@@ -1342,95 +1425,6 @@ class SettingsActivity :
 					Toast.makeText(this@SettingsActivity, R.string.reader_translation_api_models_fetch_failed, Toast.LENGTH_SHORT).show()
 				}
 			}
-		}
-	}
-
-	private fun renderServicesComposeDestination() {
-		renderComposeSection(title = getString(R.string.services)) {
-			ServicesSettingsRoute(
-				settings = kototoroAppSettings,
-				animeOfflineRepository = animeOfflineRepository,
-				onAnimeOfflineUpdate = {
-					org.skepsun.kototoro.tracking.animeoffline.work.AnimeOfflineUpdateWorker.enqueue(
-						applicationContext,
-						force = true,
-					)
-				},
-				onSuggestionsClick = {
-					openDestination(SettingsDestination.SuggestionsSettings, null, false)
-				},
-				onStatsClick = { router.openStatistic() },
-				onDiscordSettingsClick = {
-					openDestination(SettingsDestination.DiscordSettings, null, false)
-				},
-			)
-		}
-	}
-
-	private fun renderDiscordComposeDestination() {
-		renderComposeSection(title = getString(R.string.discord)) {
-			DiscordSettingsRoute(
-				settings = kototoroAppSettings,
-				viewModel = discordSettingsViewModel,
-				onTokenClick = ::openDiscordSignIn,
-				onLogoutClick = ::logoutDiscord,
-			)
-		}
-	}
-
-	private fun renderProxyComposeDestination() {
-		renderComposeSection(title = getString(R.string.proxy)) {
-			ProxySettingsRoute(
-				settings = kototoroAppSettings,
-				testSummaryFlow = proxyTestSummaryFlow,
-				isTestRunningFlow = proxyIsTestRunningFlow,
-				onTestConnection = ::testProxyConnection,
-			)
-		}
-	}
-
-	private fun renderNavConfigComposeDestination() {
-		renderComposeSection(title = getString(R.string.main_screen_sections)) {
-			NavConfigRoute(
-				viewModel = navConfigViewModel,
-				modifier = Modifier.fillMaxSize(),
-			)
-		}
-	}
-
-	private fun renderChangelogComposeDestination() {
-		renderComposeSection(title = getString(R.string.changelog)) {
-			ChangelogRoute(
-				viewModel = changelogViewModel,
-				modifier = Modifier.fillMaxSize(),
-			)
-		}
-	}
-
-	private fun renderAboutComposeDestination() {
-		renderComposeSection(title = getString(R.string.about)) {
-			AboutSettingsRoute(
-				settings = kototoroAppSettings,
-				viewModel = aboutSettingsViewModel,
-				onChangelogClick = {
-					openDestination(SettingsDestination.ChangelogSettings, null, false)
-				},
-				onLinkClick = { key -> openAboutLink(key) },
-				onCrashLogsClick = {
-					startActivity(org.skepsun.kototoro.settings.about.crashlog.CrashLogActivity.newIntent(this))
-				},
-			)
-		}
-	}
-
-	private fun renderSourcesSettingsComposeDestination() {
-		sourcesSettingsViewModel.refreshLinksEnabled()
-		renderComposeSection(title = getString(R.string.remote_sources)) {
-			SourcesSettingsRoute(
-				settings = kototoroAppSettings,
-				viewModel = sourcesSettingsViewModel,
-				onSetupWizardClick = { router.showWelcomeSheet() },
-			)
 		}
 	}
 
