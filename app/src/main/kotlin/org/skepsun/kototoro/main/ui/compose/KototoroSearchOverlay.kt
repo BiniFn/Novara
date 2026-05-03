@@ -193,7 +193,10 @@ fun KototoroSearchOverlay(
         )
     }
 
-    BackHandler(enabled = visible) {
+    // Always intercept back when this overlay is mounted (not just when visible),
+    // otherwise disabling the handler on dismiss propagates the same back event
+    // to the NavHost and pops the underlying screen.
+    BackHandler {
         onDismissRequest()
     }
 
