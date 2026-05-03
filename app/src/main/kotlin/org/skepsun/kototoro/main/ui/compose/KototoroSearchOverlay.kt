@@ -70,6 +70,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -135,6 +136,7 @@ fun KototoroSearchOverlay(
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val focusRequester = remember { FocusRequester() }
     var animatedVisible by remember { mutableStateOf(false) }
+    var showFilterSheet by remember { mutableStateOf(false) }
     var showAdvanced by remember { mutableStateOf(initialSearchKind == SearchKind.ADVANCED) }
     var selectedSourceTypes by remember(initialSourceTypes) { mutableStateOf(initialSourceTypes.ifEmpty { ALL_SOURCE_TYPES }) }
     var selectedContentKinds by remember(initialContentKinds) { mutableStateOf(initialContentKinds.ifEmpty { ALL_SEARCH_CONTENT_KINDS }) }
@@ -338,6 +340,21 @@ fun KototoroSearchOverlay(
                                    else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    IconButton(
+                        onClick = { showFilterSheet = true },
+                        modifier = Modifier.size(40.dp),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_filter_menu),
+                            contentDescription = stringResource(R.string.display_options),
+                            modifier = Modifier.size(20.dp),
+                            tint = if (selectedSourceTypes.size < ALL_SOURCE_TYPES.size ||
+                                      selectedContentKinds.size < ALL_SEARCH_CONTENT_KINDS.size ||
+                                      pinnedOnly || hideEmpty)
+                                MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 if (showAdvanced) {
                     Column(
@@ -388,21 +405,6 @@ fun KototoroSearchOverlay(
                             },
                             textStyle = MaterialTheme.typography.bodyMedium,
                         )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            FilterChip(
-                                selected = pinnedOnly,
-                                onClick = { pinnedOnly = !pinnedOnly },
-                                label = { Text(stringResource(R.string.pinned_sources_only)) },
-                            )
-                            FilterChip(
-                                selected = hideEmpty,
-                                onClick = { hideEmpty = !hideEmpty },
-                                label = { Text(stringResource(R.string.hide_empty_sources)) },
-                            )
-                        }
                     }
                 }
             }
@@ -432,6 +434,26 @@ fun KototoroSearchOverlay(
                 onDeleteQuery = onDeleteQuery,
             )
         }
+    }
+
+    if (showFilterSheet) {
+        SearchFilterSheet(
+            searchKind = if (showAdvanced) SearchKind.ADVANCED else SearchKind.SIMPLE,
+            sourceTypes = selectedSourceTypes,
+            contentKinds = selectedContentKinds,
+            pinnedOnly = pinnedOnly,
+            hideEmpty = hideEmpty,
+            onSearchKindChange = { },
+            onSourceTypeToggle = { type ->
+                selectedSourceTypes = selectedSourceTypes.toggleOrAll(type, ALL_SOURCE_TYPES)
+            },
+            onContentKindToggle = { kind ->
+                selectedContentKinds = selectedContentKinds.toggleOrAll(kind, ALL_SEARCH_CONTENT_KINDS)
+            },
+            onPinnedOnlyChange = { pinnedOnly = it },
+            onHideEmptyChange = { hideEmpty = it },
+            onDismissRequest = { showFilterSheet = false },
+        )
     }
 
 }

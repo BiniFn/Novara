@@ -29,6 +29,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -92,6 +94,8 @@ import org.skepsun.kototoro.search.domain.SEARCH_CONTENT_KIND_OPTIONS
 import org.skepsun.kototoro.search.domain.SOURCE_TYPE_OPTIONS
 import org.skepsun.kototoro.search.domain.SearchContentKind
 import org.skepsun.kototoro.search.domain.SearchKind
+import org.skepsun.kototoro.main.ui.compose.SearchFilterSheet
+import org.skepsun.kototoro.main.ui.compose.toggleOrAll
 import org.skepsun.kototoro.search.ui.multi.SearchResultsListModel
 import org.skepsun.kototoro.search.ui.multi.SearchViewModel
 
@@ -349,30 +353,27 @@ fun SearchResultsRoute(
     }
 
     if (showOptionsSheet) {
-        SearchResultsOptionsSheet(
+        SearchFilterSheet(
             searchKind = searchKind,
+            sourceTypes = selectedSourceTypes,
+            contentKinds = selectedContentKinds,
+            pinnedOnly = pinnedOnly,
+            hideEmpty = hideEmpty,
             onSearchKindChange = {
                 searchKind = it
-                if (it == SearchKind.ADVANCED) {
-                    isAdvancedExpanded = true
-                }
             },
-            selectedSourceTypes = selectedSourceTypes,
             onSourceTypeToggle = { type ->
                 selectedSourceTypes = selectedSourceTypes.toggleOrAll(type, ALL_SOURCE_TYPES)
                 viewModel.setSourceTypes(selectedSourceTypes)
             },
-            selectedContentKinds = selectedContentKinds,
             onContentKindToggle = { kind ->
                 selectedContentKinds = selectedContentKinds.toggleOrAll(kind, ALL_SEARCH_CONTENT_KINDS)
                 viewModel.setContentKinds(selectedContentKinds)
             },
-            pinnedOnly = pinnedOnly,
             onPinnedOnlyChange = {
                 pinnedOnly = it
                 viewModel.setPinnedOnly(it)
             },
-            hideEmpty = hideEmpty,
             onHideEmptyChange = {
                 hideEmpty = it
                 viewModel.setHideEmpty(it)
@@ -431,12 +432,6 @@ private fun SearchResultsTopBar(
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.weight(1f),
                 )
-                IconButton(onClick = onOptionsClick) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_filter_menu),
-                        contentDescription = stringResource(R.string.display_options),
-                    )
-                }
             }
 
             OutlinedTextField(
@@ -467,23 +462,39 @@ private fun SearchResultsTopBar(
                                 contentDescription = stringResource(R.string.search),
                             )
                         }
+                        IconButton(
+                            onClick = { onAdvancedExpandedChange(!isAdvancedExpanded) },
+                            modifier = Modifier.size(40.dp),
+                        ) {
+                            Icon(
+                                imageVector = if (isAdvancedExpanded)
+                                    Icons.Filled.KeyboardArrowUp
+                                else
+                                    Icons.Filled.KeyboardArrowDown,
+                                contentDescription = stringResource(
+                                    if (isAdvancedExpanded) R.string.collapse else R.string.expand
+                                ),
+                                modifier = Modifier.size(20.dp),
+                                tint = if (isAdvancedExpanded) MaterialTheme.colorScheme.primary
+                                       else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        IconButton(onClick = onOptionsClick, modifier = Modifier.size(40.dp)) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_filter_menu),
+                                contentDescription = stringResource(R.string.display_options),
+                                modifier = Modifier.size(20.dp),
+                                tint = if (selectedSourceTypes.size < ALL_SOURCE_TYPES.size ||
+                                          selectedContentKinds.size < ALL_SEARCH_CONTENT_KINDS.size ||
+                                          pinnedOnly || hideEmpty)
+                                    MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { onSearchClick() }),
-            )
-
-            SearchSummaryRow(
-                searchKind = searchKind,
-                selectedSourceTypes = selectedSourceTypes,
-                selectedContentKinds = selectedContentKinds,
-                pinnedOnly = pinnedOnly,
-                hideEmpty = hideEmpty,
-                isAdvancedExpanded = isAdvancedExpanded,
-                onAdvancedExpandedChange = onAdvancedExpandedChange,
-                onSearchKindCycle = onSearchKindCycle,
-                onSourceTypesClick = onSourceTypesClick,
-                onContentKindsClick = onContentKindsClick,
             )
 
             if (shouldShowTvBoxLabel) {
@@ -529,74 +540,6 @@ private fun SearchResultsTopBar(
                 }
             }
         }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun SearchSummaryRow(
-    searchKind: SearchKind,
-    selectedSourceTypes: Set<SourceType>,
-    selectedContentKinds: Set<SearchContentKind>,
-    pinnedOnly: Boolean,
-    hideEmpty: Boolean,
-    isAdvancedExpanded: Boolean,
-    onAdvancedExpandedChange: (Boolean) -> Unit,
-    onSearchKindCycle: () -> Unit = {},
-    onSourceTypesClick: () -> Unit = {},
-    onContentKindsClick: () -> Unit = {},
-) {
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        FilterChip(
-            selected = searchKind != SearchKind.SIMPLE,
-            onClick = onSearchKindCycle,
-            label = { Text(stringResource(searchKind.titleResId)) },
-        )
-        FilterChip(
-            selected = selectedSourceTypes.size < ALL_SOURCE_TYPES.size,
-            onClick = onSourceTypesClick,
-            label = {
-                Text(
-                    text = stringResource(R.string.source_type) + " ${selectedSourceTypes.size}",
-                )
-            },
-        )
-        FilterChip(
-            selected = selectedContentKinds.size < ALL_SEARCH_CONTENT_KINDS.size,
-            onClick = onContentKindsClick,
-            label = {
-                Text(
-                    text = stringResource(R.string.type) + " ${selectedContentKinds.size}",
-                )
-            },
-        )
-        if (pinnedOnly) {
-            AssistChip(
-                onClick = {},
-                label = { Text(stringResource(R.string.pinned_sources_only)) },
-            )
-        }
-        if (hideEmpty) {
-            AssistChip(
-                onClick = {},
-                label = { Text(stringResource(R.string.hide_empty_sources)) },
-            )
-        }
-        AssistChip(
-            onClick = { onAdvancedExpandedChange(!isAdvancedExpanded) },
-            label = {
-                Text(
-                    if (isAdvancedExpanded) {
-                        "${stringResource(R.string.hide)} ${stringResource(R.string.advanced_search)}"
-                    } else {
-                        stringResource(R.string.advanced_search)
-                    },
-                )
-            },
-        )
     }
 }
 
@@ -764,150 +707,3 @@ private fun SearchSupplementaryItem(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
-@Composable
-private fun SearchResultsOptionsSheet(
-    searchKind: SearchKind,
-    onSearchKindChange: (SearchKind) -> Unit,
-    selectedSourceTypes: Set<SourceType>,
-    onSourceTypeToggle: (SourceType) -> Unit,
-    selectedContentKinds: Set<SearchContentKind>,
-    onContentKindToggle: (SearchContentKind) -> Unit,
-    pinnedOnly: Boolean,
-    onPinnedOnlyChange: (Boolean) -> Unit,
-    hideEmpty: Boolean,
-    onHideEmptyChange: (Boolean) -> Unit,
-    onDismissRequest: () -> Unit,
-) {
-    ModalBottomSheet(
-        onDismissRequest = onDismissRequest,
-    ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            item {
-                Text(
-                    text = stringResource(R.string.type),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
-            item {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    SearchKind.entries.forEach { kind ->
-                        FilterChip(
-                            selected = searchKind == kind,
-                            onClick = { onSearchKindChange(kind) },
-                            label = { Text(stringResource(kind.titleResId)) },
-                        )
-                    }
-                }
-            }
-            item {
-                Text(
-                    text = stringResource(R.string.source_type),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
-            item {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    SOURCE_TYPE_OPTIONS.forEach { option ->
-                        FilterChip(
-                            selected = option.type in selectedSourceTypes,
-                            onClick = { onSourceTypeToggle(option.type) },
-                            label = { Text(stringResource(option.titleRes)) },
-                        )
-                    }
-                }
-            }
-            item {
-                Text(
-                    text = stringResource(R.string.type),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
-            item {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    SEARCH_CONTENT_KIND_OPTIONS.forEach { option ->
-                        FilterChip(
-                            selected = option.kind in selectedContentKinds,
-                            onClick = { onContentKindToggle(option.kind) },
-                            label = { Text(stringResource(option.titleRes)) },
-                        )
-                    }
-                }
-            }
-            item {
-                SearchOptionSwitchRow(
-                    title = stringResource(R.string.pinned_sources_only),
-                    checked = pinnedOnly,
-                    onCheckedChange = onPinnedOnlyChange,
-                )
-            }
-            item {
-                SearchOptionSwitchRow(
-                    title = stringResource(R.string.hide_empty_sources),
-                    checked = hideEmpty,
-                    onCheckedChange = onHideEmptyChange,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SearchOptionSwitchRow(
-    title: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = title,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyLarge,
-        )
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-        )
-    }
-}
-
-private fun Set<Long>.toggle(id: Long): Set<Long> {
-    return if (id in this) this - id else this + id
-}
-
-private fun <T> Set<T>.toggleOrAll(item: T, allItems: Set<T>): Set<T> {
-    val updated = toMutableSet().apply {
-        if (!add(item)) {
-            remove(item)
-        }
-    }
-    return updated.ifEmpty { allItems }
-}
-
-private val SearchKind.titleResId: Int
-    get() = when (this) {
-        SearchKind.SIMPLE -> R.string.simple
-        SearchKind.TITLE -> R.string.name
-        SearchKind.AUTHOR -> R.string.author
-        SearchKind.TAG -> R.string.genre
-        SearchKind.ADVANCED -> R.string.advanced_search
-    }
