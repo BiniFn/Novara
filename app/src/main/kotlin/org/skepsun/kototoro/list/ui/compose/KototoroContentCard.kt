@@ -633,10 +633,11 @@ fun ContentCardCornerBadges(
     val showLanguage = "language" in badges && !langText.isNullOrBlank()
     val showCounter = "counter" in badges && item.counter > 0
     val showScore = "score" in badges && !item.scoreText.isNullOrBlank()
+    val showPin = "pin" in badges && item.isPinned
     val showNsfw = "nsfw" in badges && item.manga.isNsfw()
-    val showOnlyNsfw = showNsfw && !showTracker && !showFavorite && !showSaved && !showSource && !showLanguage && !showCounter && !showScore
+    val showOnlyNsfw = showNsfw && !showTracker && !showFavorite && !showSaved && !showSource && !showLanguage && !showCounter && !showScore && !showPin
 
-    if (!showTracker && !showFavorite && !showSaved && !showSource && !showLanguage && !showCounter && !showScore && !showNsfw) {
+    if (!showTracker && !showFavorite && !showSaved && !showSource && !showLanguage && !showCounter && !showScore && !showNsfw && !showPin) {
         return
     }
 

@@ -10,7 +10,9 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -114,8 +116,22 @@ fun KototoroPullToRefreshBox(
     contentAlignment: Alignment = Alignment.TopStart,
     content: @Composable BoxScope.() -> Unit,
 ) {
+    // Defer isRefreshing activation to avoid race condition where PullToRefreshModifierNode
+    // tries to read CompositionLocal before it is fully attached.
+    var deferredRefreshing by remember { mutableStateOf(false) }
+    LaunchedEffect(isRefreshing) {
+        if (isRefreshing) {
+            kotlinx.coroutines.delay(50)
+        }
+        deferredRefreshing = isRefreshing
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            deferredRefreshing = false
+        }
+    }
     PullToRefreshBox(
-        isRefreshing = isRefreshing,
+        isRefreshing = deferredRefreshing,
         onRefresh = onRefresh,
         modifier = modifier,
         state = state,
