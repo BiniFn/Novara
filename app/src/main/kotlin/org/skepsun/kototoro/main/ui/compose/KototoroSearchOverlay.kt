@@ -279,6 +279,7 @@ fun KototoroSearchOverlay(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.back),
+                            tint = MaterialTheme.colorScheme.onSurface,
                         )
                     }
                     SearchInputField(

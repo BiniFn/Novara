@@ -128,7 +128,8 @@ fun KototoroContentListScreen(
         KototoroPullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = onRefresh,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            indicatorTopInset = innerPadding,
         ) {
             if (items.isEmpty() && !isRefreshing) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

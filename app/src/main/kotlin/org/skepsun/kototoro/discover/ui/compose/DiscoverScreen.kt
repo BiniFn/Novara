@@ -155,7 +155,8 @@ fun DiscoverScreen(
 	KototoroPullToRefreshBox(
 		isRefreshing = isRefreshing,
 		onRefresh = onRefresh,
-		modifier = modifier.fillMaxSize()
+		modifier = modifier.fillMaxSize(),
+		indicatorTopInset = contentPadding,
 	) {
 		val preparedItems = remember(items) { prepareDiscoverItems(items) }
 		val carouselRows = preparedItems.carouselRows

@@ -701,6 +701,7 @@ fun DetailsScreen(
                         isRefreshing = isLoading,
                         onRefresh = { viewModel.reload() },
                         modifier = Modifier.fillMaxSize(),
+                        indicatorTopInset = paddingValues,
                     ) {
                         DetailsScrollableContent(
                             modifier = Modifier.fillMaxSize(),
@@ -842,6 +843,7 @@ fun DetailsScreen(
                         onRefresh = { viewModel.reload() },
                         modifier = Modifier
                             .fillMaxSize(),
+                        indicatorTopInset = paddingValues,
                     ) {
                         if (compactSheetExpansionProgress < 0.995f) {
                             DetailsScrollableContent(

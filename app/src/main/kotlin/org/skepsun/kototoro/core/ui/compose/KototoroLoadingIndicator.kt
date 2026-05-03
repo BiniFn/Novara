@@ -2,10 +2,13 @@ package org.skepsun.kototoro.core.ui.compose
 
 import android.view.ContextThemeWrapper
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
@@ -22,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.google.android.material.progressindicator.CircularProgressIndicator
 import com.google.android.material.progressindicator.LinearProgressIndicator
@@ -113,6 +117,7 @@ fun KototoroPullToRefreshBox(
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
     state: PullToRefreshState = rememberPullToRefreshState(),
+    indicatorTopInset: PaddingValues = PaddingValues(0.dp),
     contentAlignment: Alignment = Alignment.TopStart,
     content: @Composable BoxScope.() -> Unit,
 ) {
@@ -136,6 +141,15 @@ fun KototoroPullToRefreshBox(
         modifier = modifier,
         state = state,
         contentAlignment = contentAlignment,
+        indicator = {
+            PullToRefreshDefaults.Indicator(
+                state = state,
+                isRefreshing = deferredRefreshing,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = indicatorTopInset.calculateTopPadding()),
+            )
+        },
         content = content,
     )
 }

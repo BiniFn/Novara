@@ -90,7 +90,8 @@ fun FeedScreen(
 	KototoroPullToRefreshBox(
 		isRefreshing = isRefreshing,
 		onRefresh = onRefresh,
-		modifier = modifier.fillMaxSize()
+		modifier = modifier.fillMaxSize(),
+		indicatorTopInset = contentPadding,
 	) {
 		LazyColumn(
 			state = listState,

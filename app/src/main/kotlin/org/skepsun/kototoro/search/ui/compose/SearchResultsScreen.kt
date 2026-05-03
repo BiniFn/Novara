@@ -20,10 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -55,6 +52,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -69,10 +67,7 @@ import org.skepsun.kototoro.core.model.UnknownContentSource
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
-import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
-import org.skepsun.kototoro.core.ui.compose.rememberRailAnimationFactor
 import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
-import org.skepsun.kototoro.core.ui.compose.rememberHorizontalRailScrollIntensity
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 
 import org.skepsun.kototoro.list.ui.compose.ContentCardUiPrefs
@@ -126,6 +121,18 @@ private fun prepareSearchItems(items: List<ListModel>): SearchPreparedItems {
     )
 }
 
+@Composable
+private fun rememberSearchGridSpanCount(gridScale: Float): Int {
+    val configuration = LocalConfiguration.current
+    val posterStyle = remember(gridScale) { compactPosterCardStyle(gridScale) }
+    return remember(configuration.screenWidthDp, posterStyle.itemWidth) {
+        val availableWidth = configuration.screenWidthDp.dp - 32.dp
+        (availableWidth / (posterStyle.itemWidth + 12.dp))
+            .toInt()
+            .coerceAtLeast(2)
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchResultsRoute(
@@ -172,6 +179,7 @@ fun SearchResultsRoute(
     }
     val gridScale = screenPrefs.gridScale
     val cardUiPrefs = screenPrefs.cardUiPrefs
+    val gridSpanCount = rememberSearchGridSpanCount(gridScale)
 
     var query by rememberSaveable { mutableStateOf(viewModel.query) }
     var searchKind by rememberSaveable { mutableStateOf(viewModel.kind) }
@@ -316,6 +324,7 @@ fun SearchResultsRoute(
             ) { section ->
                 SearchResultsSection(
                     section = section,
+                    gridSpanCount = gridSpanCount,
                     gridScale = gridScale,
                     cardUiPrefs = cardUiPrefs,
                     selectedItemsIds = selectedItemsIds,
@@ -546,6 +555,7 @@ private fun SearchResultsTopBar(
 @Composable
 private fun SearchResultsSection(
     section: SearchResultsListModel,
+    gridSpanCount: Int,
     gridScale: Float,
     cardUiPrefs: org.skepsun.kototoro.list.ui.compose.ContentCardUiPrefs,
     selectedItemsIds: Set<Long>,
@@ -556,8 +566,6 @@ private fun SearchResultsSection(
 ) {
     val context = LocalContext.current
     val posterStyle = compactPosterCardStyle(gridScale)
-    val rowState = rememberLazyListState()
-    val scrollIntensity = rememberHorizontalRailScrollIntensity(rowState)
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -587,38 +595,26 @@ private fun SearchResultsSection(
         }
 
         if (section.list.isNotEmpty()) {
-            val railAnimationFactor = rememberRailAnimationFactor()
-            LazyRow(
-                state = rowState,
-                contentPadding = PaddingValues(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            FlowRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                maxItemsInEachRow = gridSpanCount,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                itemsIndexed(
-                    items = section.list,
-                    key = { _, item -> item.id },
-                    contentType = { _, _ -> "search_result_card" },
-                ) { index, item ->
-                    HorizontalRailAnimatedVisibility(
-                        animationKey = "search_${section.source.name}_${item.id}",
-                        index = index,
-                        listState = rowState,
-                        scrollIntensity = scrollIntensity,
-                        animationFactor = railAnimationFactor,
-                        enableScrollLinkedAnimation = false,
-                    ) { animatedModifier ->
-                        Box(
-                            modifier = animatedModifier.width(posterStyle.itemWidth),
-                        ) {
-                            KototoroContentCard(
-                                model = item,
-                                isSelected = item.id in selectedItemsIds,
-                                selectionModeActive = selectionEnabled,
-                                sharedTransitionEnabled = false,
-                                uiPrefs = cardUiPrefs,
-                                onClick = { onItemClick(item) },
-                                onLongClick = { onItemLongClick(item) },
-                            )
-                        }
+                section.list.forEach { item ->
+                    Box(modifier = Modifier.width(posterStyle.itemWidth)) {
+                        KototoroContentCard(
+                            model = item,
+                            isSelected = item.id in selectedItemsIds,
+                            selectionModeActive = selectionEnabled,
+                            sharedTransitionEnabled = false,
+                            cardStyle = posterStyle,
+                            uiPrefs = cardUiPrefs,
+                            onClick = { onItemClick(item) },
+                            onLongClick = { onItemLongClick(item) },
+                        )
                     }
                 }
             }

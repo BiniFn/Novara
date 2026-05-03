@@ -271,6 +271,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
                 },
                 pendingSearchNavigation = searchNavigationRequest,
                 onSearchNavigationHandled = {
+                    clearSearchQuery()
                     searchNavigationRequest = null
                 },
                 isLanguagePresetFilterVisible = isLanguagePresetFilterVisible,
@@ -342,22 +343,23 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
     }
 
     private fun submitSearch(query: String, kind: SearchKind = SearchKind.SIMPLE) {
-        if (query.isEmpty()) {
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.isEmpty()) {
             return
         }
-        updateSearchQuery(query)
-        if (kind == SearchKind.SIMPLE && ContentLinkResolver.isValidLink(query)) {
-            this.router.openDetails(query.toUri())
+        if (kind == SearchKind.SIMPLE && ContentLinkResolver.isValidLink(trimmedQuery)) {
+            clearSearchQuery()
+            this.router.openDetails(trimmedQuery.toUri())
             return
         }
         openSearchInMain(
-            query = query,
+            query = trimmedQuery,
             kind = kind,
             sourceTypes = searchSuggestionViewModel.getSourceTypes(),
             contentKinds = searchSuggestionViewModel.getContentKinds(),
         )
         if (kind != SearchKind.TAG) {
-            searchSuggestionViewModel.saveQuery(query)
+            searchSuggestionViewModel.saveQuery(trimmedQuery)
         }
     }
 
@@ -383,7 +385,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
         if (trimmedQuery.isEmpty() && advancedQuery == null) {
             return
         }
-        updateSearchQuery(trimmedQuery)
         openSearchInMain(
             query = trimmedQuery,
             kind = resolvedKind,
@@ -441,6 +442,10 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
             searchQuery = query
         }
         searchSuggestionViewModel.onQueryChanged(query)
+    }
+
+    private fun clearSearchQuery() {
+        updateSearchQuery("")
     }
 
     private fun clearActiveFilters() {

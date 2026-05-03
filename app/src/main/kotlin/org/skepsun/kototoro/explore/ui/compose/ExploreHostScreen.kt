@@ -393,6 +393,7 @@ fun KototoroExploreHostRoute(
         isRefreshing = isDiscoverLoading && !isLoadingOnly,
         onRefresh = { discoverViewModel.refresh() },
         modifier = Modifier.fillMaxSize(),
+        indicatorTopInset = contentPadding,
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             // ===== 内容流 =====

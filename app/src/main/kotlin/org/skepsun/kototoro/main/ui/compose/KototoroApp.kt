@@ -291,7 +291,6 @@ fun KototoroApp(
         animationSpec = tween(if (isChromeVisible) 200 else 150),
         label = "chrome_alpha",
     )
-    val isBrowseRoute = currentDestination?.hasRoute<ExploreRoute>() == true
     val showBrowseSourceSettingsEntry = currentDestination?.let {
         it.hasRoute<ExploreRoute>() || it.hasRoute<DiscoverRoute>()
     } == true
@@ -511,7 +510,6 @@ fun KototoroApp(
                             gridSize = gridSize,
                             onGridSizeChange = { appSettings.gridSize = it },
                             showSourceSettingsEntry = showBrowseSourceSettingsEntry,
-                            isCollapsedFullyTransparent = isBrowseRoute,
                             modifier = Modifier
                                 .align(if (isLandscapeNavigation) Alignment.TopStart else Alignment.TopCenter)
                                 .then(if (isLandscapeNavigation) Modifier.fillMaxWidth() else Modifier)
