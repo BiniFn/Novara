@@ -3,6 +3,7 @@ package org.skepsun.kototoro.search.ui.compose
 import android.app.Activity
 import android.content.res.Configuration
 import androidx.core.text.HtmlCompat
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -93,12 +94,16 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.titleResId
+import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.ui.model.titleRes
+import org.skepsun.kototoro.core.util.ShareHelper
+import org.skepsun.kototoro.list.ui.compose.KototoroSelectionTopBar
+import org.skepsun.kototoro.list.ui.compose.SelectionAction
 
 import org.skepsun.kototoro.filter.ui.model.UiTagGroup
 import org.skepsun.kototoro.list.domain.ListFilterOption
@@ -188,7 +193,20 @@ fun AppSearchContentListRoute(
     var showFilterPanel by rememberSaveable(isWideAdaptiveLayout) { mutableStateOf(isWideAdaptiveLayout) }
     var sidePaneMode by rememberSaveable(isWideAdaptiveLayout) { mutableStateOf(SearchSidePaneMode.Filter) }
     var previewContent by remember { mutableStateOf<Content?>(null) }
+    var selectedItemsIds by rememberSaveable { mutableStateOf<Set<Long>>(emptySet()) }
     val focusRequester = remember { FocusRequester() }
+    val selectedItems: Set<Content> = remember(selectedItemsIds, contentListItems) {
+        contentListItems
+            .asSequence()
+            .filter { it.id in selectedItemsIds }
+            .map { it.manga }
+            .toSet()
+    }
+    val isAllNonLocal = selectedItems.none { it.isLocal }
+
+    BackHandler(enabled = selectedItemsIds.isNotEmpty()) {
+        selectedItemsIds = emptySet()
+    }
 
     LaunchedEffect(filterSnapshot.listFilter.query, searchMode) {
         if (!searchMode) {
@@ -223,11 +241,22 @@ fun AppSearchContentListRoute(
         }
     }
 
+    LaunchedEffect(contentListItems) {
+        if (selectedItemsIds.isNotEmpty()) {
+            val availableIds = contentListItems.asSequence().map { it.id }.toSet()
+            val filteredSelection = selectedItemsIds.filterTo(mutableSetOf()) { it in availableIds }
+            if (filteredSelection != selectedItemsIds) {
+                selectedItemsIds = filteredSelection
+            }
+        }
+    }
+
     val topActionsHeightPx = with(androidx.compose.ui.platform.LocalDensity.current) {
         SearchTopActionsHeight.toPx()
     }
     val maxCollapsePx = topActionsHeightPx
     val isWideSplitLayout = isWideAdaptiveLayout && showFilterPanel
+    val showSelectionTopBar = selectedItemsIds.isNotEmpty()
     val nestedScrollConnection = remember(maxCollapsePx) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -243,56 +272,89 @@ fun AppSearchContentListRoute(
     }
 
     val topBarContent: @Composable () -> Unit = {
-        SearchContentTopBar(
-            searchMode = searchMode,
-            searchQuery = searchQuery,
-            onSearchQueryChange = { searchQuery = it },
-            onSearchOpen = { searchMode = true },
-            onSearchClose = { searchMode = false },
-            onSearchSubmit = {
-                viewModel.filterCoordinator.setQuery(searchQuery.takeIf { it.isNotBlank() })
-                searchMode = false
-            },
-            focusRequester = focusRequester,
-            sourceTitle = resolvedSourceTitle,
-            activeQuery = filterSnapshot.listFilter.query,
-            currentSortLabel = stringResource(filterSnapshot.sortOrder.titleRes),
-            isFilterApplied = viewModel.filterCoordinator.isFilterApplied,
-            quickFilter = quickFilter,
-            contentItems = contentListItems,
-            selectedTags = filterSnapshot.listFilter.tags,
-            availableTags = tagsProperty.availableItems.flatMap { it.tags },
-            listMode = listMode,
-            gridSize = gridSize,
-            topActionsHeight = SearchTopActionsHeight,
-            collapseOffsetPx = collapseOffsetPx,
-            isRandomLoading = isRandomLoading,
-            onBackClick = { (context as? Activity)?.finish() },
-            onRandomClick = viewModel::openRandom,
-            onFilterClick = {
-                if (isWideAdaptiveLayout) {
-                    when {
-                        sidePaneMode == SearchSidePaneMode.Preview -> {
-                            sidePaneMode = SearchSidePaneMode.Filter
-                            showFilterPanel = true
+        if (showSelectionTopBar) {
+            KototoroSelectionTopBar(
+                selectedCount = selectedItemsIds.size,
+                isAllNonLocal = isAllNonLocal,
+                isSingleSelection = selectedItemsIds.size == 1,
+                supportedActions = buildSet {
+                    add(SelectionAction.SHARE)
+                    add(SelectionAction.FAVOURITE)
+                    if (isAllNonLocal) add(SelectionAction.SAVE)
+                },
+                onClearSelection = { selectedItemsIds = emptySet() },
+                onActionClick = { action ->
+                    when (action) {
+                        SelectionAction.SHARE -> {
+                            ShareHelper(context).shareContentLinks(selectedItems)
+                            selectedItemsIds = emptySet()
                         }
-                        else -> showFilterPanel = !showFilterPanel
+                        SelectionAction.FAVOURITE -> {
+                            appRouter.showFavoriteDialog(selectedItems)
+                            selectedItemsIds = emptySet()
+                        }
+                        SelectionAction.SAVE -> {
+                            if (isAllNonLocal) {
+                                appRouter.showDownloadDialog(selectedItems, rootView)
+                                selectedItemsIds = emptySet()
+                            }
+                        }
+                        else -> Unit
                     }
-                } else {
-                    showFilterPanel = !showFilterPanel
-                }
-            },
-            onResetFilterClick = viewModel.filterCoordinator::reset,
-            onSettingsClick = { appRouter.openSourceSettings(viewModel.source) },
-            onListModeChange = { settings.listMode = it },
-            onGridSizeChange = { delta ->
-                settings.gridSize = (settings.gridSize + delta).coerceIn(50, 150)
-            },
-            onQuickFilterOptionClick = { option ->
-                (viewModel as? org.skepsun.kototoro.list.domain.QuickFilterListener)?.toggleFilterOption(option)
-            },
-            onToggleTag = { tag, selected -> viewModel.filterCoordinator.toggleTag(tag, selected) },
-        )
+                },
+            )
+        } else {
+            SearchContentTopBar(
+                searchMode = searchMode,
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                onSearchOpen = { searchMode = true },
+                onSearchClose = { searchMode = false },
+                onSearchSubmit = {
+                    viewModel.filterCoordinator.setQuery(searchQuery.takeIf { it.isNotBlank() })
+                    searchMode = false
+                },
+                focusRequester = focusRequester,
+                sourceTitle = resolvedSourceTitle,
+                activeQuery = filterSnapshot.listFilter.query,
+                currentSortLabel = stringResource(filterSnapshot.sortOrder.titleRes),
+                isFilterApplied = viewModel.filterCoordinator.isFilterApplied,
+                quickFilter = quickFilter,
+                contentItems = contentListItems,
+                selectedTags = filterSnapshot.listFilter.tags,
+                availableTags = tagsProperty.availableItems.flatMap { it.tags },
+                listMode = listMode,
+                gridSize = gridSize,
+                topActionsHeight = SearchTopActionsHeight,
+                collapseOffsetPx = collapseOffsetPx,
+                isRandomLoading = isRandomLoading,
+                onBackClick = { (context as? Activity)?.finish() },
+                onRandomClick = viewModel::openRandom,
+                onFilterClick = {
+                    if (isWideAdaptiveLayout) {
+                        when {
+                            sidePaneMode == SearchSidePaneMode.Preview -> {
+                                sidePaneMode = SearchSidePaneMode.Filter
+                                showFilterPanel = true
+                            }
+                            else -> showFilterPanel = !showFilterPanel
+                        }
+                    } else {
+                        showFilterPanel = !showFilterPanel
+                    }
+                },
+                onResetFilterClick = viewModel.filterCoordinator::reset,
+                onSettingsClick = { appRouter.openSourceSettings(viewModel.source) },
+                onListModeChange = { settings.listMode = it },
+                onGridSizeChange = { delta ->
+                    settings.gridSize = (settings.gridSize + delta).coerceIn(50, 150)
+                },
+                onQuickFilterOptionClick = { option ->
+                    (viewModel as? org.skepsun.kototoro.list.domain.QuickFilterListener)?.toggleFilterOption(option)
+                },
+                onToggleTag = { tag, selected -> viewModel.filterCoordinator.toggleTag(tag, selected) },
+            )
+        }
     }
 
     Scaffold(
@@ -326,15 +388,48 @@ fun AppSearchContentListRoute(
                             .nestedScroll(nestedScrollConnection),
                         onPrepareItemTransition = { _, _ -> },
                         onItemClick = { item ->
-                            previewContent = item.toContentWithOverride()
-                            sidePaneMode = SearchSidePaneMode.Preview
+                            if (selectedItemsIds.isNotEmpty()) {
+                                selectedItemsIds = if (item.id in selectedItemsIds) selectedItemsIds - item.id else selectedItemsIds + item.id
+                            } else {
+                                previewContent = item.toContentWithOverride()
+                                sidePaneMode = SearchSidePaneMode.Preview
+                            }
                         },
-                        onItemLongClick = { },
+                        onItemLongClick = { item ->
+                            selectedItemsIds = if (item.id in selectedItemsIds) selectedItemsIds - item.id else selectedItemsIds + item.id
+                        },
                         onLoadMore = { viewModel.loadNextPage() },
                         onRefresh = { viewModel.onRefresh() },
-                        onClearSelection = { },
-                        onSelectionAction = { false },
-                        selectedItemsIds = emptySet(),
+                        onClearSelection = { selectedItemsIds = emptySet() },
+                        onSelectionAction = { action ->
+                            when (action) {
+                                SelectionAction.SHARE -> {
+                                    ShareHelper(context).shareContentLinks(selectedItems)
+                                    selectedItemsIds = emptySet()
+                                    true
+                                }
+
+                                SelectionAction.FAVOURITE -> {
+                                    appRouter.showFavoriteDialog(selectedItems)
+                                    selectedItemsIds = emptySet()
+                                    true
+                                }
+
+                                SelectionAction.SAVE -> {
+                                    if (isAllNonLocal) {
+                                        appRouter.showDownloadDialog(selectedItems, rootView)
+                                        selectedItemsIds = emptySet()
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
+
+                                else -> false
+                            }
+                        },
+                        selectedItemsIds = selectedItemsIds,
+                        showInlineSelectionTopBar = false,
                         onRetry = viewModel::onRetry,
                     )
                 }
@@ -389,13 +484,48 @@ fun AppSearchContentListRoute(
                 contentPadding = paddingValues,
                 modifier = Modifier.nestedScroll(nestedScrollConnection),
                 onPrepareItemTransition = { _, _ -> },
-                onItemClick = { item -> appRouter.openDetails(item.manga, rootView) },
-                onItemLongClick = { },
+                onItemClick = { item ->
+                    if (selectedItemsIds.isNotEmpty()) {
+                        selectedItemsIds = if (item.id in selectedItemsIds) selectedItemsIds - item.id else selectedItemsIds + item.id
+                    } else {
+                        appRouter.openDetails(item.manga, rootView)
+                    }
+                },
+                onItemLongClick = { item ->
+                    selectedItemsIds = if (item.id in selectedItemsIds) selectedItemsIds - item.id else selectedItemsIds + item.id
+                },
                 onLoadMore = { viewModel.loadNextPage() },
                 onRefresh = { viewModel.onRefresh() },
-                onClearSelection = { },
-                onSelectionAction = { false },
-                selectedItemsIds = emptySet(),
+                onClearSelection = { selectedItemsIds = emptySet() },
+                onSelectionAction = { action ->
+                    when (action) {
+                        SelectionAction.SHARE -> {
+                            ShareHelper(context).shareContentLinks(selectedItems)
+                            selectedItemsIds = emptySet()
+                            true
+                        }
+
+                        SelectionAction.FAVOURITE -> {
+                            appRouter.showFavoriteDialog(selectedItems)
+                            selectedItemsIds = emptySet()
+                            true
+                        }
+
+                        SelectionAction.SAVE -> {
+                            if (isAllNonLocal) {
+                                appRouter.showDownloadDialog(selectedItems, rootView)
+                                selectedItemsIds = emptySet()
+                                true
+                            } else {
+                                false
+                            }
+                        }
+
+                        else -> false
+                    }
+                },
+                selectedItemsIds = selectedItemsIds,
+                showInlineSelectionTopBar = false,
                 onRetry = viewModel::onRetry,
             )
         }

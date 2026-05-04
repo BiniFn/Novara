@@ -61,7 +61,9 @@ fun KototoroSelectionTopBar(
     val overflowActions = allActions?.drop(4).orEmpty().toMutableSet()
     if (isAllNonLocal) overflowActions += SelectionAction.FIX
     if (isSingleSelection) overflowActions += SelectionAction.EDIT_OVERRIDE
-    overflowActions += SelectionAction.FAVOURITE
+    if (SelectionAction.FAVOURITE !in inlineActions) {
+        overflowActions += SelectionAction.FAVOURITE
+    }
 
     TopAppBar(
         title = { Text(text = selectedCount.toString()) },
@@ -94,6 +96,14 @@ fun KototoroSelectionTopBar(
                     Icon(painter = painterResource(id = R.drawable.ic_download), contentDescription = "Download/Save")
                 }
             }
+            if (supportedActions == null || SelectionAction.FAVOURITE in inlineActions) {
+                IconButton(onClick = { onActionClick(SelectionAction.FAVOURITE) }) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_heart_outline),
+                        contentDescription = stringResource(R.string.categories),
+                    )
+                }
+            }
             if (supportedActions == null || SelectionAction.SHARE in inlineActions) {
                 IconButton(onClick = { onActionClick(SelectionAction.SHARE) }) {
                     Icon(Icons.Default.Share, contentDescription = "Share")
@@ -106,9 +116,7 @@ fun KototoroSelectionTopBar(
             }
 
             // Overflow menu - shows actions beyond the first 4 inline, plus FIX/EDIT_OVERRIDE/FAVOURITE
-            val hasOverflow = (isAllNonLocal && !isSingleSelection) ||
-                isSingleSelection ||
-                overflowActions.any { it != SelectionAction.FIX && it != SelectionAction.EDIT_OVERRIDE && it != SelectionAction.FAVOURITE }
+            val hasOverflow = overflowActions.isNotEmpty()
             if (hasOverflow) {
                 Box {
                     IconButton(onClick = { showOverflowMenu = true }) {
