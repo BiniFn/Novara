@@ -192,21 +192,25 @@ private fun AlternativeItem(
 						)
 					},
 				)
-				Spacer(modifier = Modifier.height(4.dp))
+				Spacer(modifier = Modifier.height(2.dp))
 				Row(
 					modifier = Modifier.fillMaxWidth(),
 					horizontalArrangement = Arrangement.End,
 				) {
 					FilledTonalButton(
 						onClick = onMigrateClick,
+						contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
 					) {
 						Icon(
 							painter = painterResource(R.drawable.ic_replace),
 							contentDescription = null,
-							modifier = Modifier.size(18.dp),
+							modifier = Modifier.size(14.dp),
 						)
-						Spacer(modifier = Modifier.width(8.dp))
-						Text(stringResource(R.string.migrate))
+						Spacer(modifier = Modifier.width(4.dp))
+						Text(
+							text = stringResource(R.string.migrate),
+							style = MaterialTheme.typography.labelSmall,
+						)
 					}
 				}
 			}
