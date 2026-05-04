@@ -102,6 +102,9 @@ class BackupsSettingsFragment : Fragment() {
                             showOperationNotSupported()
                         }
                     },
+                    onImportExternalBackupClick = {
+                        showOperationNotSupported()
+                    },
                 )
             }
         }
@@ -109,7 +112,7 @@ class BackupsSettingsFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.sync_settings))
+        (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.backup_restore))
     }
 
     private fun showOperationNotSupported() {
@@ -125,6 +128,7 @@ fun BackupsSettingsRoute(
     onBackupOutputClick: () -> Unit,
     onCreateBackupClick: () -> Unit,
     onRestoreBackupClick: () -> Unit,
+    onImportExternalBackupClick: () -> Unit,
 ) {
     val context = LocalContext.current
     val lastBackupDate = viewModel.lastBackupDate.collectAsStateWithLifecycle().value
@@ -233,5 +237,6 @@ fun BackupsSettingsRoute(
         onWebDavKeepLocalCopyChange = { settings.isBackupWebDavKeepLocalCopyEnabled = it },
         onCreateBackupClick = onCreateBackupClick,
         onRestoreBackupClick = onRestoreBackupClick,
+        onImportExternalBackupClick = onImportExternalBackupClick,
     )
 }

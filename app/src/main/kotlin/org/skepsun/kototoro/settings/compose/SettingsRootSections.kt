@@ -77,8 +77,22 @@ fun buildSettingsRootSections(
 				key = "tracking_accounts",
 				iconRes = R.drawable.ic_user,
 				title = context.getString(R.string.tracking_accounts),
-				summary = context.summaryOf(R.string.tracking, R.string.preferred_tracking_site, R.string.sync_settings),
+				summary = context.summaryOf(R.string.tracking, R.string.preferred_tracking_site),
 				onClick = { onOpenDestination(SettingsDestination.UsersSettings) },
+			),
+			settingsRootItem(
+				key = "sync_settings",
+				iconRes = R.drawable.ic_sync,
+				title = context.getString(R.string.sync_settings),
+				summary = context.getString(R.string.sync_settings_summary),
+				onClick = { onOpenDestination(SettingsDestination.SyncSettings) },
+			),
+			settingsRootItem(
+				key = "backups_settings",
+				iconRes = R.drawable.ic_backup_restore,
+				title = context.getString(R.string.backup_restore),
+				summary = context.summaryOf(R.string.create_backup, R.string.restore_backup, R.string.webdav_integration),
+				onClick = { onOpenDestination(SettingsDestination.BackupsSettings) },
 			),
 		),
 	)

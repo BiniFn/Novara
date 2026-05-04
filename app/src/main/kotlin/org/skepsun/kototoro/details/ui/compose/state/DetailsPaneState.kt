@@ -256,12 +256,13 @@ class DetailsPaneState internal constructor(
     internal fun topBarMode(
         selectedTabId: Int,
         chaptersTabId: Int,
+        isCompactLayout: Boolean,
     ): DetailsPaneTopBarMode {
         return when {
             chapterSelectionState != null && selectedTabId == chaptersTabId -> DetailsPaneTopBarMode.ChapterSelection
             isGridSizeControlsVisible && selectedTabId != chaptersTabId -> DetailsPaneTopBarMode.GridSizeControls
-            anchor == CompactDetailsPaneAnchor.Full && selectedTabId == chaptersTabId -> DetailsPaneTopBarMode.ExpandedChapterTools
-            anchor == CompactDetailsPaneAnchor.Full -> DetailsPaneTopBarMode.ExpandedGridTools
+            selectedTabId == chaptersTabId && (anchor == CompactDetailsPaneAnchor.Full || !isCompactLayout) -> DetailsPaneTopBarMode.ExpandedChapterTools
+            anchor == CompactDetailsPaneAnchor.Full || !isCompactLayout -> DetailsPaneTopBarMode.ExpandedGridTools
             else -> DetailsPaneTopBarMode.CollapsedReadDock
         }
     }

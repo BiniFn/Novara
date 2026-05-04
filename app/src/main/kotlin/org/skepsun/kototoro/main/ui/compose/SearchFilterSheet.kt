@@ -27,19 +27,14 @@ import org.skepsun.kototoro.search.domain.ALL_SOURCE_TYPES
 import org.skepsun.kototoro.search.domain.SEARCH_CONTENT_KIND_OPTIONS
 import org.skepsun.kototoro.search.domain.SOURCE_TYPE_OPTIONS
 import org.skepsun.kototoro.search.domain.SearchContentKind
-import org.skepsun.kototoro.search.domain.SearchKind
-
-private val searchKindOptions = SearchKind.entries.filter { it != SearchKind.ADVANCED }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SearchFilterSheet(
-    searchKind: SearchKind,
     sourceTypes: Set<SourceType>,
     contentKinds: Set<SearchContentKind>,
     pinnedOnly: Boolean,
     hideEmpty: Boolean,
-    onSearchKindChange: (SearchKind) -> Unit,
     onSourceTypeToggle: (SourceType) -> Unit,
     onContentKindToggle: (SearchContentKind) -> Unit,
     onPinnedOnlyChange: (Boolean) -> Unit,
@@ -52,26 +47,6 @@ fun SearchFilterSheet(
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item {
-                Text(
-                    text = stringResource(R.string.type),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
-            item {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    searchKindOptions.forEach { kind ->
-                        FilterChip(
-                            selected = searchKind == kind,
-                            onClick = { onSearchKindChange(kind) },
-                            label = { Text(stringResource(kind.titleResId)) },
-                        )
-                    }
-                }
-            }
             item {
                 Text(
                     text = stringResource(R.string.source_type),
@@ -163,12 +138,3 @@ internal fun <T> Set<T>.toggleOrAll(item: T, allItems: Set<T>): Set<T> {
     }
     return updated.ifEmpty { allItems }
 }
-
-private val SearchKind.titleResId: Int
-    get() = when (this) {
-        SearchKind.SIMPLE -> R.string.simple
-        SearchKind.TITLE -> R.string.name
-        SearchKind.AUTHOR -> R.string.author
-        SearchKind.TAG -> R.string.genre
-        SearchKind.ADVANCED -> R.string.advanced_search
-    }

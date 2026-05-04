@@ -476,6 +476,10 @@
     <string name="no_thanks">不了谢谢</string>
     <string name="sync_settings">同步设定</string>
     <string name="sync_settings_summary">配置 WebDAV 多设备同步、备份与恢复</string>
+    <string name="import_backup_from_other_apps">从其他应用导入备份</string>
+    <string name="import_backup_from_other_apps_summary">预留从 Mihon、Aniyomi、Komikku、Dantotsu 备份文件导入的入口。</string>
+    <string name="supported_apps">支持的应用</string>
+    <string name="import_backup_supported_apps_summary">Mihon、Aniyomi、Komikku、Dantotsu</string>
     <string name="sync_webdav_enable">启用 WebDAV 同步</string>
     <string name="sync_webdav_enable_summary">通过 WebDAV 在多设备间同步阅读数据</string>
     <string name="server_address">服务器地址</string>

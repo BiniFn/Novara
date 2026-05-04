@@ -341,7 +341,7 @@ class SettingsSearchHelper @Inject constructor(
 			)
 		}
 
-		val backupsBreadcrumbs = listOf(context.getString(R.string.services), context.getString(R.string.backup_restore))
+		val backupsBreadcrumbs = listOf(context.getString(R.string.users), context.getString(R.string.backup_restore))
 		val backupsKeys = listOf(
 			"backup_periodic_webdav" to R.string.webdav_integration,
 			"backup_periodic_webdav_enabled" to R.string.sync_webdav_enable,
@@ -602,7 +602,7 @@ class SettingsSearchHelper @Inject constructor(
 			)
 		}
 
-		val syncBreadcrumbs = listOf(context.getString(R.string.services), context.getString(R.string.sync_settings))
+		val syncBreadcrumbs = listOf(context.getString(R.string.users), context.getString(R.string.sync_settings))
 		val syncKeys = listOf(
 			"host" to R.string.server_address
 		)

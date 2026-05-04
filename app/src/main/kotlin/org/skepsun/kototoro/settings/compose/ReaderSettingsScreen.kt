@@ -102,7 +102,15 @@ fun ReaderSettingsScreen(
 
             SettingsSliderPreference(
                 title = stringResource(R.string.default_webtoon_zoom_out),
-                value = settings.observeAsState(AppSettings.KEY_WEBTOON_ZOOM_OUT) { prefs.getInt(AppSettings.KEY_WEBTOON_ZOOM_OUT, 0) }.value,
+                value = settings.observeAsState(AppSettings.KEY_WEBTOON_ZOOM_OUT) {
+                    try {
+                        prefs.getInt(AppSettings.KEY_WEBTOON_ZOOM_OUT, 0)
+                    } catch (_: ClassCastException) {
+                        prefs.getLong(AppSettings.KEY_WEBTOON_ZOOM_OUT, 0L).toInt().also {
+                            prefs.edit { putInt(AppSettings.KEY_WEBTOON_ZOOM_OUT, it) }
+                        }
+                    }
+                }.value,
                 valueRange = 0..50,
                 step = 10,
                 valueText = { it.toString() },
@@ -277,7 +285,7 @@ fun ReaderSettingsScreen(
             SettingsSliderPreference(
                 title = stringResource(R.string.download_threads),
                 summary = stringResource(R.string.download_threads_summary),
-                value = settings.observeAsState(AppSettings.KEY_READER_THREADS) { prefs.getInt(AppSettings.KEY_READER_THREADS, 1) }.value,
+                value = settings.observeAsState(AppSettings.KEY_READER_THREADS) { readerThreads }.value,
                 valueRange = 1..10,
                 step = 1,
                 valueText = { it.toString() },
@@ -287,7 +295,7 @@ fun ReaderSettingsScreen(
             SettingsSliderPreference(
                 title = stringResource(R.string.prefetch_limit),
                 summary = stringResource(R.string.prefetch_limit_summary),
-                value = settings.observeAsState(AppSettings.KEY_READER_PREFETCH_LIMIT) { prefs.getInt(AppSettings.KEY_READER_PREFETCH_LIMIT, 1) }.value,
+                value = settings.observeAsState(AppSettings.KEY_READER_PREFETCH_LIMIT) { readerPrefetchLimit }.value,
                 valueRange = 1..20,
                 step = 1,
                 valueText = { it.toString() },

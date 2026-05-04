@@ -65,7 +65,6 @@ fun UsersSettingsScreen(
     onDismissAuthPrompt: () -> Unit,
     onConfirmAuthPrompt: (ScrobblerService) -> Unit,
     onPreferredTrackingSiteChange: (ScrobblerService) -> Unit,
-    onSyncSettingsClick: () -> Unit,
     onTrackingServiceClick: (ScrobblerService) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -96,15 +95,6 @@ fun UsersSettingsScreen(
                         options = state.preferredTrackingSiteOptions,
                         summary = stringResource(R.string.preferred_tracking_site_summary),
                         onValueChange = onPreferredTrackingSiteChange,
-                    )
-                }
-            }
-            item(key = "sync_settings") {
-                SettingsPreferenceSection(title = stringResource(R.string.sync_settings)) {
-                    SettingsActionPreference(
-                        title = stringResource(R.string.sync_settings),
-                        summary = stringResource(R.string.sync_settings_summary),
-                        onClick = onSyncSettingsClick,
                     )
                 }
             }

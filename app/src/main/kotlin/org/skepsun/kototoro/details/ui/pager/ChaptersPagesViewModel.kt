@@ -278,18 +278,18 @@ abstract class ChaptersPagesViewModel(
 	}
 
 	fun probeAndDownload(snapshot: Set<Long>) {
-		launchLoadingJob(Dispatchers.Default) {
-			val manga = mangaDetails.value?.toContent() ?: return@launchLoadingJob
-			if (manga.source.getContentType() != ContentType.VIDEO) return@launchLoadingJob
-			
-			val chapterId = snapshot.firstOrNull() ?: return@launchLoadingJob
-			val chapter = chapters.value.find { it.chapter.id == chapterId }?.chapter ?: return@launchLoadingJob
-			val repo = mangaRepositoryFactory.create(manga.source) as? org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository ?: return@launchLoadingJob
-			
+		launchJob(Dispatchers.Default) {
+			val manga = mangaDetails.value?.toContent() ?: return@launchJob
+			if (manga.source.getContentType() != ContentType.VIDEO) return@launchJob
+
+			val chapterId = snapshot.firstOrNull() ?: return@launchJob
+			val chapter = chapters.value.find { it.chapter.id == chapterId }?.chapter ?: return@launchJob
+			val repo = mangaRepositoryFactory.create(manga.source) as? org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository ?: return@launchJob
+
 			val qualities = runCatchingCancellable {
 				repo.getVideoListForChapter(chapter).map { it.videoTitle }.distinct()
 			}.getOrNull()
-			
+
 			if (!qualities.isNullOrEmpty()) {
 				onShowVideoQualityDialog.call(QualityProbeResult(snapshot, qualities))
 			} else {
@@ -303,11 +303,10 @@ abstract class ChaptersPagesViewModel(
 		val manga = mangaDetails.value?.toContent() ?: return
 		val items = chapters.value.filter { it.chapter.id in snapshot }
 
-		val isSilent = snapshot.size == 1
 		val task = DownloadTask(
 			mangaId = manga.id,
 			isPaused = false,
-			isSilent = isSilent,
+			isSilent = false,
 			chaptersIds = items.map { it.chapter.id }.toLongArray(),
 			destination = null,
 			format = null,

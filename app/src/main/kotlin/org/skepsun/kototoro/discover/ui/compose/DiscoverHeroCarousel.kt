@@ -424,6 +424,7 @@ fun DiscoverHeroCarousel(
                                 Icon(
                                     imageVector = Icons.Filled.DateRange,
                                     contentDescription = stringResource(R.string.open_daily_schedule),
+                                    tint = MaterialTheme.colorScheme.onSurface,
                                 )
                             }
                         }

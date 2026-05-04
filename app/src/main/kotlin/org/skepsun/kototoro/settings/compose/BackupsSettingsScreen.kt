@@ -63,6 +63,7 @@ fun BackupsSettingsScreen(
     onWebDavKeepLocalCopyChange: (Boolean) -> Unit,
     onCreateBackupClick: () -> Unit,
     onRestoreBackupClick: () -> Unit,
+    onImportExternalBackupClick: () -> Unit,
 ) {
     Scaffold(
         snackbarHost = {
@@ -238,6 +239,21 @@ fun BackupsSettingsScreen(
                         title = stringResource(R.string.restore_backup),
                         summary = stringResource(R.string.restore_summary),
                         onClick = onRestoreBackupClick,
+                    )
+                }
+            }
+            item(key = "external_backup_import") {
+                SettingsPreferenceSection(title = stringResource(R.string.import_backup_from_other_apps)) {
+                    SettingsActionPreference(
+                        title = stringResource(R.string.import_backup_from_other_apps),
+                        summary = stringResource(R.string.import_backup_from_other_apps_summary),
+                        onClick = onImportExternalBackupClick,
+                    )
+                    SettingsSectionDivider()
+                    SettingsInfoPreference(
+                        title = stringResource(R.string.supported_apps),
+                        summary = stringResource(R.string.import_backup_supported_apps_summary),
+                        iconRes = R.drawable.ic_info_outline,
                     )
                 }
             }

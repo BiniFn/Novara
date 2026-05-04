@@ -79,9 +79,6 @@ class UsersSettingsFragment : Fragment() {
                     trackingUserAccountSummaryProvider = trackingUserAccountSummaryProvider,
                     trackingDiscoveryService = trackingDiscoveryService,
                     refreshKey = resumeTick.collectAsStateWithLifecycle().value,
-                    onSyncSettingsClick = {
-                        (activity as? SettingsActivity)?.openDestination(SettingsDestination.BackupsSettings, null, false)
-                    },
                     onOpenScrobblerSettings = { service ->
                         requireActivity().router.openScrobblerSettings(service)
                     },
@@ -92,7 +89,7 @@ class UsersSettingsFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.users))
+        (activity as? SettingsActivity)?.setSectionTitle(getString(R.string.tracking_accounts))
         resumeTick.update { it + 1 }
     }
 }
@@ -104,7 +101,6 @@ fun UsersSettingsRoute(
     trackingUserAccountSummaryProvider: TrackingUserAccountSummaryProvider,
     trackingDiscoveryService: TrackingSiteDiscoveryService,
     refreshKey: Int,
-    onSyncSettingsClick: () -> Unit,
     onOpenScrobblerSettings: (ScrobblerService) -> Unit,
 ) {
     val context = LocalContext.current
@@ -150,7 +146,6 @@ fun UsersSettingsRoute(
         onPreferredTrackingSiteChange = { service ->
             settings.preferredTrackingSite = service
         },
-        onSyncSettingsClick = onSyncSettingsClick,
         onTrackingServiceClick = { service ->
             if (scrobblerAuthHelper.isAuthorized(service)) {
                 onOpenScrobblerSettings(service)

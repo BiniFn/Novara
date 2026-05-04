@@ -868,7 +868,7 @@ class SettingsActivity :
 			SettingsDestination.ReaderSettings -> getString(R.string.reader_settings)
 			SettingsDestination.SourcesSettings -> getString(R.string.remote_sources)
 			SettingsDestination.SuggestionsSettings -> getString(R.string.suggestions)
-			SettingsDestination.BackupsSettings -> getString(R.string.sync_settings)
+			SettingsDestination.BackupsSettings -> getString(R.string.backup_restore)
 			SettingsDestination.SyncSettings -> getString(R.string.sync_settings)
 			SettingsDestination.TranslationSettings -> getString(R.string.translation_settings)
 			SettingsDestination.TranslationApiSettings -> getString(R.string.ai_api_settings)
@@ -940,9 +940,6 @@ class SettingsActivity :
 					trackingUserAccountSummaryProvider = trackingUserAccountSummaryProvider,
 					trackingDiscoveryService = trackingDiscoveryService,
 					refreshKey = refreshKey,
-					onSyncSettingsClick = {
-						openDestination(SettingsDestination.BackupsSettings, null, false)
-					},
 					onOpenScrobblerSettings = { service ->
 						router.openScrobblerSettings(service)
 					},
@@ -1053,7 +1050,7 @@ class SettingsActivity :
 					preferredTagsFlow = suggestionsPreferredTagsFlow,
 				)
 			}
-			SettingsDestination.BackupsSettings -> RenderComposeSection(title = getString(R.string.sync_settings)) {
+			SettingsDestination.BackupsSettings -> RenderComposeSection(title = getString(R.string.backup_restore)) {
 				BackupsSettingsRoute(
 					settings = kototoroAppSettings,
 					viewModel = periodicalBackupSettingsViewModel,
@@ -1071,6 +1068,9 @@ class SettingsActivity :
 						if (!backupSelectCall.tryLaunch(arrayOf("*/*"))) {
 							Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_SHORT).show()
 						}
+					},
+					onImportExternalBackupClick = {
+						Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_SHORT).show()
 					},
 				)
 			}

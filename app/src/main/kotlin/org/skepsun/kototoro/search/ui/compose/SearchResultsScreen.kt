@@ -188,7 +188,6 @@ fun SearchResultsRoute(
     val gridSpanCount = rememberSearchGridSpanCount(gridScale)
 
     var query by rememberSaveable { mutableStateOf(viewModel.query) }
-    var searchKind by rememberSaveable { mutableStateOf(viewModel.kind) }
     var advancedTitle by rememberSaveable { mutableStateOf(viewModel.advancedQuery?.title.orEmpty()) }
     var advancedTags by rememberSaveable { mutableStateOf(viewModel.advancedQuery?.tags.orEmpty()) }
     var advancedAuthor by rememberSaveable { mutableStateOf(viewModel.advancedQuery?.author.orEmpty()) }
@@ -228,10 +227,9 @@ fun SearchResultsRoute(
         if (query.isBlank() && advancedQuery == null) {
             return
         }
-        val resolvedKind = if (advancedQuery != null) SearchKind.ADVANCED else searchKind
         onSubmitSearch(
             query.trim(),
-            resolvedKind,
+            if (advancedQuery != null) SearchKind.ADVANCED else viewModel.kind,
             selectedSourceTypes,
             selectedContentKinds,
             advancedQuery,
@@ -250,7 +248,6 @@ fun SearchResultsRoute(
                     onBackClick = onBackClick,
                     onSearchClick = ::submitSearch,
                     onOptionsClick = { showOptionsSheet = true },
-                    searchKind = searchKind,
                     selectedSourceTypes = selectedSourceTypes,
                     selectedContentKinds = selectedContentKinds,
                     pinnedOnly = pinnedOnly,
@@ -265,12 +262,6 @@ fun SearchResultsRoute(
                     onAdvancedAuthorChange = { advancedAuthor = it },
                     shouldShowTvBoxLabel = shouldShowTvBoxLabel,
                     activeTvBoxRepositoryTitle = activeTvBoxRepositoryTitle,
-                    onSearchKindCycle = {
-                        searchKind = SearchKind.entries[(searchKind.ordinal + 1) % SearchKind.entries.size]
-                        if (searchKind == SearchKind.ADVANCED) {
-                            isAdvancedExpanded = true
-                        }
-                    },
                     onSourceTypesClick = { showOptionsSheet = true },
                     onContentKindsClick = { showOptionsSheet = true },
                 )
@@ -369,14 +360,10 @@ fun SearchResultsRoute(
 
     if (showOptionsSheet) {
         SearchFilterSheet(
-            searchKind = searchKind,
             sourceTypes = selectedSourceTypes,
             contentKinds = selectedContentKinds,
             pinnedOnly = pinnedOnly,
             hideEmpty = hideEmpty,
-            onSearchKindChange = {
-                searchKind = it
-            },
             onSourceTypeToggle = { type ->
                 selectedSourceTypes = selectedSourceTypes.toggleOrAll(type, ALL_SOURCE_TYPES)
                 viewModel.setSourceTypes(selectedSourceTypes)
@@ -405,7 +392,6 @@ private fun SearchResultsTopBar(
     onBackClick: () -> Unit,
     onSearchClick: () -> Unit,
     onOptionsClick: () -> Unit,
-    searchKind: SearchKind,
     selectedSourceTypes: Set<SourceType>,
     selectedContentKinds: Set<SearchContentKind>,
     pinnedOnly: Boolean,
@@ -420,7 +406,6 @@ private fun SearchResultsTopBar(
     onAdvancedAuthorChange: (String) -> Unit,
     shouldShowTvBoxLabel: Boolean,
     activeTvBoxRepositoryTitle: String?,
-    onSearchKindCycle: () -> Unit,
     onSourceTypesClick: () -> Unit,
     onContentKindsClick: () -> Unit,
 ) {

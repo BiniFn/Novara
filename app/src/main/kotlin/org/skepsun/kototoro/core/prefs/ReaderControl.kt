@@ -9,7 +9,7 @@ enum class ReaderControl {
 	companion object {
 
 		val DEFAULT: Set<ReaderControl> = EnumSet.of(
-			PREV_CHAPTER, NEXT_CHAPTER, SLIDER, PAGES_SHEET, TRANSLATE,
+			PREV_CHAPTER, NEXT_CHAPTER, SLIDER, PAGES_SHEET,
 		)
 	}
 }

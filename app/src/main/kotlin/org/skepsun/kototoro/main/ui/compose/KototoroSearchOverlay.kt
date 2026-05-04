@@ -442,12 +442,10 @@ fun KototoroSearchOverlay(
 
     if (showFilterSheet) {
         SearchFilterSheet(
-            searchKind = if (showAdvanced) SearchKind.ADVANCED else SearchKind.SIMPLE,
             sourceTypes = selectedSourceTypes,
             contentKinds = selectedContentKinds,
             pinnedOnly = pinnedOnly,
             hideEmpty = hideEmpty,
-            onSearchKindChange = { },
             onSourceTypeToggle = { type ->
                 selectedSourceTypes = selectedSourceTypes.toggleOrAll(type, ALL_SOURCE_TYPES)
             },

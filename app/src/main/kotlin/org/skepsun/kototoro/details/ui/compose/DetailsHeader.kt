@@ -1130,7 +1130,6 @@ fun ReadingSourceSheet(
                                     section = section,
                                     hasSearched = hasSearched,
                                     onItemClick = { item ->
-                                        onDismissRequest()
                                         onTemporaryOpenResult(item)
                                     },
                                     onMigrateClick = { item ->

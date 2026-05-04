@@ -74,6 +74,7 @@ import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -81,6 +82,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -108,6 +110,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 
 import androidx.compose.ui.text.style.TextOverflow
@@ -117,6 +120,7 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
@@ -134,12 +138,15 @@ import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
+import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.core.ui.glass.GlassStyle
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
 import org.skepsun.kototoro.core.ui.glass.LocalHazeState
+import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.util.ext.isHttpUrl
 import org.skepsun.kototoro.core.util.ext.mangaExtra
+import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.details.ui.DetailsViewModel
 import org.skepsun.kototoro.details.ui.model.ActiveLocalSourceOption
 import org.skepsun.kototoro.details.ui.model.ContentBranch
@@ -160,6 +167,7 @@ import org.skepsun.kototoro.details.ui.pager.chapters.compose.ChapterSelectionUi
 import org.skepsun.kototoro.details.ui.pager.pages.PagesViewModel
 import org.skepsun.kototoro.download.ui.dialog.DownloadDialogViewModel
 import org.skepsun.kototoro.download.ui.compose.DownloadDialog
+import org.skepsun.kototoro.download.ui.worker.DownloadStartedObserver
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.ContentType
@@ -253,6 +261,8 @@ fun DetailsScreen(
     val readingSearchState = readingSearchUiState.state
 
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val rootView = LocalView.current
     val panoramaPrefs = rememberPanoramaBackdropPrefs(settings)
     val downloadDialogViewModel: DownloadDialogViewModel = hiltViewModel()
     val content = mangaDetails?.toContent()
@@ -287,8 +297,8 @@ fun DetailsScreen(
     var showCommentsDialog by remember { mutableStateOf(false) }
     var showReviewsDialog by remember { mutableStateOf(false) }
     var selectedSupplementalRelationItem by remember { mutableStateOf<EntityRelationItem?>(null) }
-    var showMetadataSourceDialog by remember { mutableStateOf(false) }
-    var showReadingSourceDialog by remember { mutableStateOf(false) }
+    var showMetadataSourceDialog by rememberSaveable { mutableStateOf(false) }
+    var showReadingSourceDialog by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(showMetadataSourceDialog) {
         if (showMetadataSourceDialog && !metadataSearchHasSearched && !metadataSearchLoading) {
             viewModel.searchMetadataBindings()
@@ -352,6 +362,12 @@ fun DetailsScreen(
         if (isWideAdaptiveLayout) {
             landscapeLeftScrollState.scrollTo(0)
         }
+    }
+    DisposableEffect(lifecycleOwner, rootView, viewModel) {
+        viewModel.onError.observeEvent(lifecycleOwner, SnackbarErrorObserver(rootView, null))
+        viewModel.onActionDone.observeEvent(lifecycleOwner, ReversibleActionObserver(rootView))
+        viewModel.onDownloadStarted.observeEvent(lifecycleOwner, DownloadStartedObserver(rootView))
+        onDispose { }
     }
     val compactCollapseProgressProvider = remember(
         scrollState,
@@ -1131,12 +1147,11 @@ fun DetailsScreen(
                     onSearchQueryChange = viewModel::updateReadingSearchQuery,
                     onSearch = viewModel::searchReadingBindings,
                     onTemporaryOpenResult = { candidate ->
-                        showReadingSourceDialog = false
                         appRouter.openTemporaryDetails(candidate)
                     },
                     onMigrateResult = { candidate ->
                         viewModel.bindReadingCandidateToTracking(candidate) {
-                            appRouter.openTemporaryDetails(candidate)
+                            appRouter.openDetails(candidate)
                         }
                     },
                     onDismissRequest = { showReadingSourceDialog = false },
@@ -2103,6 +2118,7 @@ private fun DetailsPaneActionsRow(
     val topBarMode = detailsPaneState.topBarMode(
         selectedTabId = selectedTabId,
         chaptersTabId = DETAILS_TAB_CHAPTERS,
+        isCompactLayout = showCollapsedHandle,
     )
 
     Column(
@@ -2194,20 +2210,56 @@ private fun DetailsPaneActionsRow(
                 Spacer(modifier = Modifier.width(4.dp))
                 when (topBarMode) {
                     DetailsPaneTopBarMode.ExpandedChapterTools -> {
-                        ExpandedPaneUtilityDock(
-                            modifier = Modifier.weight(1f),
-                            sheetExpansionProgress = paneOpacityProgress,
-                            isSearchEnabled = isChapterSearchAvailable,
-                            isSearchActive = isChapterSearchVisible,
-                            isChaptersReversed = isChaptersReversed,
-                            isChaptersInGridView = isChaptersInGridView,
-                            isDownloadedOnly = isDownloadedOnly,
-                            isDownloadedFilterVisible = isDownloadedFilterVisible,
-                            onSearchClick = onChapterSearchToggle,
-                            onToggleChaptersReversed = onToggleChaptersReversed,
-                            onToggleChaptersGrid = onToggleChaptersGrid,
-                            onToggleDownloadedOnly = onToggleDownloadedOnly,
-                        )
+                        if (showCollapsedHandle) {
+                            ExpandedPaneUtilityDock(
+                                modifier = Modifier.weight(1f),
+                                sheetExpansionProgress = paneOpacityProgress,
+                                isSearchEnabled = isChapterSearchAvailable,
+                                isSearchActive = isChapterSearchVisible,
+                                isChaptersReversed = isChaptersReversed,
+                                isChaptersInGridView = isChaptersInGridView,
+                                isDownloadedOnly = isDownloadedOnly,
+                                isDownloadedFilterVisible = isDownloadedFilterVisible,
+                                onSearchClick = onChapterSearchToggle,
+                                onToggleChaptersReversed = onToggleChaptersReversed,
+                                onToggleChaptersGrid = onToggleChaptersGrid,
+                                onToggleDownloadedOnly = onToggleDownloadedOnly,
+                            )
+                        } else {
+                            ReadDock(
+                                modifier = Modifier.weight(0.64f),
+                                sheetExpansionProgress = paneOpacityProgress,
+                                readLabel = resolveReadActionLabel(
+                                    contentType = contentType,
+                                    historyInfo = historyInfo,
+                                    isLoading = isLoading,
+                                ),
+                                branches = branches,
+                                historyInfo = historyInfo,
+                                isDownloadAvailable = historyInfo.canDownload,
+                                isEnabled = !isLoading && historyInfo.isValid,
+                                onReadClick = { onActionClick(DetailsAction.Resume) },
+                                onIncognitoClick = { onActionClick(DetailsAction.ResumeIncognito) },
+                                onForgetClick = { onActionClick(DetailsAction.ForgetHistory) },
+                                onDownloadClick = { onActionClick(DetailsAction.Download) },
+                                onBranchSelected = { onActionClick(DetailsAction.SelectBranch(it)) },
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            ExpandedPaneUtilityDock(
+                                modifier = Modifier.weight(0.36f),
+                                sheetExpansionProgress = paneOpacityProgress,
+                                isSearchEnabled = isChapterSearchAvailable,
+                                isSearchActive = isChapterSearchVisible,
+                                isChaptersReversed = isChaptersReversed,
+                                isChaptersInGridView = isChaptersInGridView,
+                                isDownloadedOnly = isDownloadedOnly,
+                                isDownloadedFilterVisible = isDownloadedFilterVisible,
+                                onSearchClick = onChapterSearchToggle,
+                                onToggleChaptersReversed = onToggleChaptersReversed,
+                                onToggleChaptersGrid = onToggleChaptersGrid,
+                                onToggleDownloadedOnly = onToggleDownloadedOnly,
+                            )
+                        }
                     }
 
                     DetailsPaneTopBarMode.ExpandedGridTools -> {
@@ -2401,56 +2453,58 @@ private fun ExpandedPaneUtilityDock(
                     tint = if (isSearchActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 )
             }
-            IconButton(
-                onClick = { expanded = true },
-                modifier = Modifier
-                    .width(42.dp)
-                    .height(42.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = stringResource(R.string.options),
-                    tint = MaterialTheme.colorScheme.onSurface,
+            Box {
+                IconButton(
+                    onClick = { expanded = true },
+                    modifier = Modifier
+                        .width(42.dp)
+                        .height(42.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = stringResource(R.string.options),
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                    shape = MaterialTheme.shapes.extraSmall,
                 )
-            }
-        }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            shape = MaterialTheme.shapes.extraSmall,
-        )
  {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.reverse)) },
-                leadingIcon = {
-                    MenuSelectionIndicator(selected = isChaptersReversed)
-                },
-                onClick = {
-                    expanded = false
-                    onToggleChaptersReversed()
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.chapters_grid_view)) },
-                leadingIcon = {
-                    MenuSelectionIndicator(selected = isChaptersInGridView)
-                },
-                onClick = {
-                    expanded = false
-                    onToggleChaptersGrid()
-                },
-            )
-            if (isDownloadedFilterVisible) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.downloaded)) },
-                    leadingIcon = {
-                        MenuSelectionIndicator(selected = isDownloadedOnly)
-                    },
-                    onClick = {
-                        expanded = false
-                        onToggleDownloadedOnly()
-                    },
-                )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.reverse)) },
+                        leadingIcon = {
+                            MenuSelectionIndicator(selected = isChaptersReversed)
+                        },
+                        onClick = {
+                            expanded = false
+                            onToggleChaptersReversed()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.chapters_grid_view)) },
+                        leadingIcon = {
+                            MenuSelectionIndicator(selected = isChaptersInGridView)
+                        },
+                        onClick = {
+                            expanded = false
+                            onToggleChaptersGrid()
+                        },
+                    )
+                    if (isDownloadedFilterVisible) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.downloaded)) },
+                            leadingIcon = {
+                                MenuSelectionIndicator(selected = isDownloadedOnly)
+                            },
+                            onClick = {
+                                expanded = false
+                                onToggleDownloadedOnly()
+                            },
+                        )
+                    }
+                }
             }
         }
     }

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.FlowRow
@@ -1447,22 +1448,31 @@ private fun SearchFilterPanel(
             }
         }
 
-        tagGroups.take(6).forEach { group ->
+        tagGroups.forEach { group ->
             val orderedTags = remember(group) {
                 (group.selected.toList() + group.tags.filterNot { it in group.selected }.sortedBy { it.title })
                     .distinctBy { it.key }
-                    .take(24)
             }
             if (orderedTags.isNotEmpty()) {
+                var expanded by rememberSaveable(group.title) { mutableStateOf(false) }
+                val visibleTags = remember(orderedTags, expanded) {
+                    if (expanded) orderedTags else orderedTags.take(24)
+                }
+                val canExpand = orderedTags.size > 24
                 FilterSection(title = group.title) {
                     FilterChipFlow {
-                        orderedTags.forEach { tag ->
+                        visibleTags.forEach { tag ->
                             val isSelected = tag in group.selected
                             SearchPanelChip(
                                 selected = isSelected,
                                 onClick = { onToggleTag(tag, !isSelected) },
                                 label = { Text(tag.title) },
                             )
+                        }
+                    }
+                    if (canExpand) {
+                        TextButton(onClick = { expanded = !expanded }) {
+                            Text(if (expanded) stringResource(R.string.show_less) else stringResource(R.string.show_more))
                         }
                     }
                 }
@@ -1484,8 +1494,8 @@ private fun FilterSection(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
                 text = title,
@@ -1504,8 +1514,8 @@ private fun FilterChipFlow(
     content: @Composable () -> Unit,
 ) {
     FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         content()
     }
@@ -1521,14 +1531,18 @@ private fun SearchPanelChip(
     FilterChip(
         selected = selected,
         onClick = onClick,
-        modifier = modifier,
-        label = label,
+        modifier = modifier.heightIn(min = 30.dp),
+        label = {
+            androidx.compose.material3.ProvideTextStyle(MaterialTheme.typography.labelSmall) {
+                label()
+            }
+        },
         leadingIcon = if (selected) {
             {
                 Icon(
                     imageVector = Icons.Default.Check,
                     contentDescription = null,
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(14.dp),
                 )
             }
         } else {

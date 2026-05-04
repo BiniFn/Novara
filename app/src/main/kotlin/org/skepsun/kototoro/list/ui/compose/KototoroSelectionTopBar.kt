@@ -61,9 +61,6 @@ fun KototoroSelectionTopBar(
     val overflowActions = allActions?.drop(4).orEmpty().toMutableSet()
     if (isAllNonLocal) overflowActions += SelectionAction.FIX
     if (isSingleSelection) overflowActions += SelectionAction.EDIT_OVERRIDE
-    if (SelectionAction.FAVOURITE !in inlineActions) {
-        overflowActions += SelectionAction.FAVOURITE
-    }
 
     TopAppBar(
         title = { Text(text = selectedCount.toString()) },
@@ -96,7 +93,7 @@ fun KototoroSelectionTopBar(
                     Icon(painter = painterResource(id = R.drawable.ic_download), contentDescription = "Download/Save")
                 }
             }
-            if (supportedActions == null || SelectionAction.FAVOURITE in inlineActions) {
+            if (supportedActions == null || SelectionAction.FAVOURITE in allActions.orEmpty()) {
                 IconButton(onClick = { onActionClick(SelectionAction.FAVOURITE) }) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_heart_outline),
@@ -147,10 +144,6 @@ fun KototoroSelectionTopBar(
                                 onClick = { showOverflowMenu = false; onActionClick(SelectionAction.MARK_AS_COMPLETED) }
                             )
                         }
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.categories)) },
-                            onClick = { showOverflowMenu = false; onActionClick(SelectionAction.FAVOURITE) }
-                        )
                         if (isSingleSelection) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.edit)) },
