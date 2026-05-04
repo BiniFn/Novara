@@ -2543,11 +2543,16 @@ class DetailsViewModel @Inject constructor(
 					async {
 						val section = runCatchingCancellable {
 							withTimeout(SOURCE_SEARCH_TIMEOUT_MS) {
-								mangaRepositoryFactory.create(sourceInfo.mangaSource).getList(
+								val repository = mangaRepositoryFactory.create(sourceInfo.mangaSource)
+								repository.getList(
 									offset = 0,
 									order = SortOrder.RELEVANCE,
 									filter = ContentListFilter(query = query),
-								).take(20)
+								).take(20).map { content ->
+									runCatchingCancellable {
+										repository.getDetails(content)
+									}.getOrDefault(content)
+								}
 							}
 						}.fold(
 							onSuccess = { items ->
