@@ -333,10 +333,12 @@ class PageViewModel(
 				boundsCache[key]
 			} else {
 				val b = loader.getTrimmedBounds(uri)
-				boundsCache[key] = b
-				if (boundsCache.size > 64) {
-					val eldest = boundsCache.entries.iterator().next().key
-					boundsCache.remove(eldest)
+				if (b != null) {
+					boundsCache[key] = b
+					if (boundsCache.size > 64) {
+						val eldest = boundsCache.entries.iterator().next().key
+						boundsCache.remove(eldest)
+					}
 				}
 				b
 			}

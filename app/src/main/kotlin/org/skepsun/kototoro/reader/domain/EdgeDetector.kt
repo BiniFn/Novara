@@ -32,9 +32,9 @@ class EdgeDetector(private val context: Context) {
 
 	suspend fun getBounds(imageSource: ImageSource): Rect? {
 		cache[imageSource]?.let { rect ->
-			return if (rect.isEmpty) null else rect
+			return rect
 		}
-		return mutex.withLock {
+		val bounds = mutex.withLock {
 			withContext(Dispatchers.IO) {
 				val decoder = SkiaPooledImageRegionDecoder(Bitmap.Config.RGB_565)
 				try {
@@ -78,9 +78,11 @@ class EdgeDetector(private val context: Context) {
 					decoder.recycle()
 				}
 			}
-		}.also {
-			cache.put(imageSource, it ?: EMPTY_RECT)
 		}
+		if (bounds != null) {
+			cache.put(imageSource, bounds)
+		}
+		return bounds
 	}
 
 	private fun detectLeftRightEdge(bitmap: Bitmap, size: Point, sampleSize: Int, isLeft: Boolean): Int {
@@ -202,8 +204,6 @@ class EdgeDetector(private val context: Context) {
 		private const val BLOCK_SIZE = 100
 		private const val COLOR_TOLERANCE = 16
 		private const val CACHE_SIZE = 24
-		private val EMPTY_RECT = Rect(0, 0, 0, 0)
-
 		fun isColorTheSame(@ColorInt a: Int, @ColorInt b: Int, tolerance: Int): Boolean {
 			return abs(a.red - b.red) <= tolerance &&
 				abs(a.green - b.green) <= tolerance &&
