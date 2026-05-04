@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.settings.compose
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -8,7 +9,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -18,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.backups.external.ExternalBackupApp
 
 data class BackupsSettingsUiState(
     val backupOutputSummary: String,
@@ -26,6 +32,7 @@ data class BackupsSettingsUiState(
     val isPeriodicalTrimEnabled: Boolean,
     val periodicalBackupCount: Int,
     val lastBackupSummary: String?,
+    val isExternalImportDialogVisible: Boolean,
 )
 
 @Composable
@@ -41,6 +48,8 @@ fun BackupsSettingsScreen(
     onCreateBackupClick: () -> Unit,
     onRestoreBackupClick: () -> Unit,
     onImportExternalBackupClick: () -> Unit,
+    onDismissExternalImportDialog: () -> Unit,
+    onImportExternalBackupAppClick: (ExternalBackupApp) -> Unit,
 ) {
     Scaffold(
         snackbarHost = {
@@ -48,8 +57,9 @@ fun BackupsSettingsScreen(
         },
         containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
-    val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
-        LazyColumn(state = listState,
+        val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
+        LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(
                 start = 16.dp,
@@ -136,5 +146,42 @@ fun BackupsSettingsScreen(
                 }
             }
         }
+        if (state.isExternalImportDialogVisible) {
+            AlertDialog(
+                onDismissRequest = onDismissExternalImportDialog,
+                title = { Text(text = stringResource(R.string.import_backup_choose_source_app)) },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(text = stringResource(R.string.import_backup_supported_apps_summary))
+                        HorizontalDivider()
+                        ExternalBackupApp.entries.forEach { app ->
+                            TextButton(
+                                onClick = { onImportExternalBackupAppClick(app) },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(text = app.displayName())
+                            }
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = onDismissExternalImportDialog) {
+                        Text(text = stringResource(android.R.string.cancel))
+                    }
+                },
+            )
+        }
     }
+}
+
+private fun ExternalBackupApp.displayName(): String = when (this) {
+    ExternalBackupApp.MIHON -> "Mihon"
+    ExternalBackupApp.KOMIKKU -> "Komikku"
+    ExternalBackupApp.ANIYOMI -> "Aniyomi"
+    ExternalBackupApp.ANIKKU -> "Anikku"
+    ExternalBackupApp.ANIMIRU -> "Animiru"
 }

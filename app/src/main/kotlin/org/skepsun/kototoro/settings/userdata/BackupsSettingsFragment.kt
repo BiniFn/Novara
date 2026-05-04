@@ -10,7 +10,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
@@ -21,6 +25,7 @@ import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.backups.domain.BackupUtils
+import org.skepsun.kototoro.backups.external.ExternalBackupApp
 import org.skepsun.kototoro.backups.ui.backup.BackupService
 import org.skepsun.kototoro.backups.ui.periodical.PeriodicalBackupSettingsViewModel
 import org.skepsun.kototoro.backups.ui.restore.ExternalBackupImportService
@@ -57,13 +62,17 @@ class BackupsSettingsFragment : Fragment() {
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri != null) {
-            if (ExternalBackupImportService.start(requireContext(), uri)) {
+            val app = pendingExternalBackupApp ?: return@registerForActivityResult
+            if (ExternalBackupImportService.start(requireContext(), uri, app)) {
                 Snackbar.make(requireView(), R.string.import_backup_started_background, Snackbar.LENGTH_SHORT).show()
             } else {
                 showOperationNotSupported()
             }
         }
+        pendingExternalBackupApp = null
     }
+
+    private var pendingExternalBackupApp: ExternalBackupApp? = null
 
     private val backupCreateCall = registerForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip"),
@@ -115,8 +124,10 @@ class BackupsSettingsFragment : Fragment() {
                             showOperationNotSupported()
                         }
                     },
-                    onImportExternalBackupClick = {
+                    onImportExternalBackupFilePick = { app ->
+                        pendingExternalBackupApp = app
                         if (!externalBackupSelectCall.tryLaunch(arrayOf("*/*"))) {
+                            pendingExternalBackupApp = null
                             showOperationNotSupported()
                         }
                     },
@@ -143,7 +154,7 @@ fun BackupsSettingsRoute(
     onBackupOutputClick: () -> Unit,
     onCreateBackupClick: () -> Unit,
     onRestoreBackupClick: () -> Unit,
-    onImportExternalBackupClick: () -> Unit,
+    onImportExternalBackupFilePick: (ExternalBackupApp) -> Unit,
 ) {
     val context = LocalContext.current
     val lastBackupDate = viewModel.lastBackupDate.collectAsStateWithLifecycle().value
@@ -160,6 +171,7 @@ fun BackupsSettingsRoute(
     val backupFrequencyOptions = backupFrequencyLabels.zip(backupFrequencyValues).mapNotNull { (label, value) ->
         value.toFloatOrNull()?.let { SettingsChoiceOption(it, label) }
     }
+    var isExternalImportDialogVisible by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(viewModel.onError, context, snackbarHostState) {
         viewModel.onError.collect { event ->
@@ -194,6 +206,7 @@ fun BackupsSettingsRoute(
         isPeriodicalTrimEnabled = isPeriodicalTrimEnabled,
         periodicalBackupCount = periodicalBackupCount,
         lastBackupSummary = lastBackupSummary,
+        isExternalImportDialogVisible = isExternalImportDialogVisible,
     )
 
     BackupsSettingsScreen(
@@ -207,6 +220,11 @@ fun BackupsSettingsRoute(
         onPeriodicalBackupCountChange = { settings.periodicalBackupCount = it },
         onCreateBackupClick = onCreateBackupClick,
         onRestoreBackupClick = onRestoreBackupClick,
-        onImportExternalBackupClick = onImportExternalBackupClick,
+        onImportExternalBackupClick = { isExternalImportDialogVisible = true },
+        onDismissExternalImportDialog = { isExternalImportDialogVisible = false },
+        onImportExternalBackupAppClick = { app ->
+            isExternalImportDialogVisible = false
+            onImportExternalBackupFilePick(app)
+        },
     )
 }

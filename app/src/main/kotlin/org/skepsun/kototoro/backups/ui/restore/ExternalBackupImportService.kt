@@ -14,6 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.backups.external.ExternalBackupDecoder
+import org.skepsun.kototoro.backups.external.ExternalBackupApp
 import org.skepsun.kototoro.backups.external.ExternalBackupRepository
 import org.skepsun.kototoro.backups.ui.BaseBackupRestoreService
 import org.skepsun.kototoro.core.nav.AppRouter
@@ -48,9 +49,12 @@ class ExternalBackupImportService : BaseBackupRestoreService() {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
         )
         val source = intent.getStringExtra(AppRouter.KEY_DATA)?.toUriOrNull() ?: throw FileNotFoundException()
+        val app = intent.getStringExtra(EXTRA_APP)
+            ?.let(ExternalBackupApp::valueOf)
+            ?: throw IllegalArgumentException("Missing external backup app")
         powerManager.withPartialWakeLock(TAG) {
             val result = runCatching {
-                val records = withContext(Dispatchers.IO) { decoder.decode(source) }
+                val records = withContext(Dispatchers.IO) { decoder.decode(source, app) }
                 repository.import(records)
             }
             result.fold(
@@ -86,11 +90,13 @@ class ExternalBackupImportService : BaseBackupRestoreService() {
     companion object {
         private const val TAG = "EXTERNAL_BACKUP_IMPORT"
         private const val FOREGROUND_NOTIFICATION_ID = 40
+        private const val EXTRA_APP = "external_backup_app"
 
         @CheckResult
-        fun start(context: Context, uri: Uri): Boolean = try {
+        fun start(context: Context, uri: Uri, app: ExternalBackupApp): Boolean = try {
             val intent = Intent(context, ExternalBackupImportService::class.java)
             intent.putExtra(AppRouter.KEY_DATA, uri.toString())
+            intent.putExtra(EXTRA_APP, app.name)
             intent.setData(uri)
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             ContextCompat.startForegroundService(context, intent)
