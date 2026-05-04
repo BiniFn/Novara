@@ -40,6 +40,7 @@ class FilterFieldLayout @JvmOverloads constructor(
 		context.withStyledAttributes(attrs, R.styleable.FilterFieldLayout, defStyleAttr) {
 			binding.textViewTitle.text = getString(R.styleable.FilterFieldLayout_title)
 			binding.buttonMore.isInvisible = !getBoolean(R.styleable.FilterFieldLayout_showMoreButton, false)
+			binding.textViewValue.isVisible = binding.buttonMore.isVisible
 		}
 	}
 
@@ -65,9 +66,7 @@ class FilterFieldLayout @JvmOverloads constructor(
 	}
 
 	fun setValueText(valueText: String?) {
-		if (!binding.buttonMore.isVisible) {
-			binding.textViewValue.textAndVisible = valueText
-		}
+		binding.textViewValue.textAndVisible = valueText
 	}
 
 	fun setTitle(@StringRes titleResId: Int) {
