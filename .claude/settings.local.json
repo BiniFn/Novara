@@ -59,7 +59,23 @@
       "Bash(rm -f __TRACKED_VAR__/.claude/skills/claude-to-im/package-lock.json)",
       "Bash(node -e 'process.chdir\\('\\\\''__TRACKED_VAR__/.claude/skills/claude-to-im'\\\\''\\); require\\('\\\\''child_process'\\\\''\\).execSync\\('\\\\''npm install'\\\\'', {stdio: '\\\\''inherit'\\\\'', cwd: '\\\\''__TRACKED_VAR__/.claude/skills/claude-to-im'\\\\''}\\)')",
       "PowerShell(Set-Location *)",
-      "PowerShell(Remove-Item *)"
+      "PowerShell(Remove-Item *)",
+      "Bash(yes)",
+      "Bash(/home/hujie/Android/Sdk/cmdline-tools/latest/bin/sdkmanager --install \"ndk;27.0.12077973\" --proxy=http --proxy_host=127.0.0.1 --proxy_port=7890)",
+      "Bash(java -version)",
+      "Read(//usr/lib/jvm/**)",
+      "Bash(update-alternatives --list java)",
+      "Bash(JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 yes)",
+      "Bash(/usr/lib/jvm/java-17-openjdk-amd64/bin/java *)",
+      "Bash(JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 ./gradlew :app:compileDebugKotlin --no-daemon)",
+      "Bash(https_proxy=http://127.0.0.1:7890 curl -L --connect-timeout 30 -o /tmp/android-ndk-r27-linux.zip \"https://dl.google.com/android/repository/android-ndk-r27-linux.zip\")",
+      "Bash(https_proxy=http://127.0.0.1:7890 curl -L --connect-timeout 30 -o /tmp/android-ndk-r27-linux.zip \"https://mirrors.aliyun.com/android/repository/android-ndk-r27-linux.zip\")",
+      "Bash(unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY)",
+      "Bash(http_proxy=http://127.0.0.1:7890 wget *)",
+      "Bash(dpkg-deb --fsys-tarfile /tmp/ndk-r27-installer.deb)",
+      "Bash(tar xO ./usr/share/google-android-ndk-r27-installer/Makefile)",
+      "Bash(rm /home/hujie/Android/Sdk/ndk/27.3.13750724)",
+      "Bash(mv /home/hujie/Android/Sdk/ndk/android-ndk-r27 /home/hujie/Android/Sdk/ndk/27.0.12077973)"
     ]
   }
 }
