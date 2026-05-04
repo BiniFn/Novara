@@ -816,12 +816,13 @@ class AppRouter private constructor(
         false
     }
 
-    fun showTagsCatalogSheet(excludeMode: Boolean) {
+    fun showTagsCatalogSheet(excludeMode: Boolean, groupTitle: String? = null) {
         if (!isFilterSupported()) {
             return
         }
-        TagsCatalogSheet().withArgs(1) {
+        TagsCatalogSheet().withArgs(2) {
             putBoolean(KEY_EXCLUDE, excludeMode)
+            putString(KEY_GROUP_TITLE, groupTitle)
         }.showDistinct()
     }
 
@@ -1236,6 +1237,7 @@ class AppRouter private constructor(
         const val KEY_CONTENT_KINDS = "content_kinds"
         const val KEY_HIDE_EMPTY = "hide_empty"
         const val KEY_GROUP_TAB = "group_tab"
+        const val KEY_GROUP_TITLE = "group_title"
         const val KEY_TAB = "tab"
         const val KEY_TITLE = "title"
         const val KEY_URL = "url"

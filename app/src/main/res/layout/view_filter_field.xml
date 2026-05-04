@@ -13,7 +13,10 @@
 		android:layout_alignParentTop="true"
 		android:layout_toStartOf="@id/button_more"
 		android:gravity="center_vertical|start"
-		android:padding="@dimen/grid_spacing"
+		android:paddingStart="@dimen/margin_small"
+		android:paddingTop="6dp"
+		android:paddingEnd="@dimen/margin_small"
+		android:paddingBottom="2dp"
 		android:singleLine="true"
 		android:textAppearance="?textAppearanceTitleSmall"
 		tools:text="@string/genres" />

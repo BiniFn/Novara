@@ -38,6 +38,7 @@ class TagsCatalogSheet : BaseAdaptiveSheet<SheetTagsBinding>(),
 				factory.create(
 					filter = FilterCoordinator.require(this),
 					isExcludeTag = requireArguments().getBoolean(AppRouter.KEY_EXCLUDE),
+					groupTitle = requireArguments().getString(AppRouter.KEY_GROUP_TITLE),
 				)
 			}
 		},
@@ -49,6 +50,9 @@ class TagsCatalogSheet : BaseAdaptiveSheet<SheetTagsBinding>(),
 
 	override fun onViewBindingCreated(binding: SheetTagsBinding, savedInstanceState: Bundle?) {
 		super.onViewBindingCreated(binding, savedInstanceState)
+		viewModel.sheetTitle?.let { title ->
+			binding.headerBar.title = title
+		}
 		val adapter = TagsCatalogAdapter(this)
 		binding.recyclerView.adapter = adapter
 		binding.recyclerView.setHasFixedSize(true)

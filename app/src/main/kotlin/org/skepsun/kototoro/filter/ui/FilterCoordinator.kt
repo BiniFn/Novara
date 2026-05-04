@@ -368,22 +368,28 @@ class FilterCoordinator @Inject constructor(
             val remaining = currentlySelected - id
             selectedSavedFilterIds.value = remaining
             if (remaining.isEmpty()) {
-                // Last one deselected �?clear the filter entirely
+                // Last one deselected: clear the filter entirely.
                 currentListFilter.value = ContentListFilter.EMPTY
             } else {
                 currentListFilter.update { current ->
-                    current.copy(tags = current.tags - preset.filter.tags)
+                    current.copy(
+                        tags = current.tags - preset.filter.tags,
+                        tagsExclude = current.tagsExclude - preset.filter.tagsExclude,
+                    )
                 }
             }
         } else if (currentlySelected.isEmpty()) {
-            // First saved filter selected: replace the entire filter
+            // First saved filter selected: replace the entire filter.
             selectedSavedFilterIds.value = setOf(id)
             setAdjusted(preset.filter)
         } else {
-            // Additional saved filter: merge its tags into current filter
+            // Additional saved filter: merge both include and exclude tags.
             selectedSavedFilterIds.update { it + id }
             currentListFilter.update { current ->
-                current.copy(tags = current.tags + preset.filter.tags)
+                current.copy(
+                    tags = (current.tags + preset.filter.tags) - preset.filter.tagsExclude,
+                    tagsExclude = (current.tagsExclude + preset.filter.tagsExclude) - preset.filter.tags,
+                )
             }
         }
     }
@@ -698,4 +704,4 @@ class FilterCoordinator @Inject constructor(
     }
 }
 
-// 当前 parser 模型不再暴露 tag group 的独占元信息，过�?UI 统一回退为非独占�?
+// 当前 parser 模型不再暴露 tag group 的独占元信息，过�?UI 统一回退为非独占�?
