@@ -464,7 +464,6 @@ class SettingsSearchHelper @Inject constructor(
 
 		val servicesBreadcrumbs = listOf(context.getString(R.string.services))
 		val servicesKeys = listOf(
-			"services_sync_settings" to R.string.sync_settings,
 			"suggestions" to R.string.suggestions,
 			"related_manga" to R.string.related_manga,
 			"stats_on" to R.string.reading_stats,
@@ -598,21 +597,6 @@ class SettingsSearchHelper @Inject constructor(
 					title = context.getString(titleRes),
 					breadcrumbs = extensionBreadcrumbs,
 					destination = SettingsDestination.UnifiedSources(),
-				),
-			)
-		}
-
-		val syncBreadcrumbs = listOf(context.getString(R.string.users), context.getString(R.string.sync_settings))
-		val syncKeys = listOf(
-			"host" to R.string.server_address
-		)
-		syncKeys.forEach { (key, titleRes) ->
-			result.add(
-				SettingsItem(
-					key = key,
-					title = context.getString(titleRes),
-					breadcrumbs = syncBreadcrumbs,
-					destination = SettingsDestination.SyncSettings,
 				),
 			)
 		}

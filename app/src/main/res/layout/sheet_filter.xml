@@ -43,14 +43,14 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginHorizontal="@dimen/margin_small"
-                    android:layout_marginTop="@dimen/margin_small">
+                    android:layout_marginTop="4dp"
+                    android:visibility="gone">
 
-                    <Spinner
-                        android:id="@+id/spinner_order"
+                    <LinearLayout
+                        android:id="@+id/layout_order_options"
                         android:layout_width="match_parent"
-                        android:layout_height="@dimen/spinner_height"
-                        android:minHeight="?listPreferredItemHeightSmall"
-                        android:paddingHorizontal="8dp" />
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
 
                 </com.google.android.material.card.MaterialCardView>
 
@@ -68,7 +68,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginHorizontal="@dimen/margin_small"
-                    android:layout_marginTop="@dimen/margin_small"
+                    android:layout_marginTop="4dp"
                     app:chipStyle="@style/Widget.Kototoro.Chip.Filter" />
 
             </org.skepsun.kototoro.filter.ui.FilterFieldLayout>
@@ -140,7 +140,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginHorizontal="@dimen/margin_small"
-                    android:layout_marginTop="@dimen/margin_small"
+                    android:layout_marginTop="4dp"
                     app:chipStyle="@style/Widget.Kototoro.Chip.Filter" />
 
             </org.skepsun.kototoro.filter.ui.FilterFieldLayout>
@@ -158,7 +158,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginHorizontal="@dimen/margin_small"
-                    android:layout_marginTop="@dimen/margin_small"
+                    android:layout_marginTop="4dp"
                     app:chipStyle="@style/Widget.Kototoro.Chip.Filter" />
 
             </org.skepsun.kototoro.filter.ui.FilterFieldLayout>
@@ -176,7 +176,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginHorizontal="@dimen/margin_small"
-                    android:layout_marginTop="@dimen/margin_small"
+                    android:layout_marginTop="4dp"
                     app:chipStyle="@style/Widget.Kototoro.Chip.Filter" />
 
             </org.skepsun.kototoro.filter.ui.FilterFieldLayout>
@@ -193,7 +193,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginHorizontal="@dimen/margin_small"
-                    android:layout_marginTop="@dimen/margin_small"
+                    android:layout_marginTop="4dp"
                     app:chipStyle="@style/Widget.Kototoro.Chip.Filter" />
 
             </org.skepsun.kototoro.filter.ui.FilterFieldLayout>
@@ -210,7 +210,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginHorizontal="@dimen/margin_small"
-                    android:layout_marginTop="@dimen/margin_small"
+                    android:layout_marginTop="4dp"
                     app:chipStyle="@style/Widget.Kototoro.Chip.Filter" />
 
             </org.skepsun.kototoro.filter.ui.FilterFieldLayout>
@@ -227,7 +227,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginHorizontal="@dimen/margin_small"
-                    android:layout_marginTop="@dimen/margin_small"
+                    android:layout_marginTop="4dp"
                     app:chipStyle="@style/Widget.Kototoro.Chip.Filter" />
 
             </org.skepsun.kototoro.filter.ui.FilterFieldLayout>
@@ -244,7 +244,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginHorizontal="@dimen/margin_small"
-                    android:layout_marginTop="@dimen/margin_small"
+                    android:layout_marginTop="4dp"
                     app:chipStyle="@style/Widget.Kototoro.Chip.Filter" />
 
             </org.skepsun.kototoro.filter.ui.FilterFieldLayout>

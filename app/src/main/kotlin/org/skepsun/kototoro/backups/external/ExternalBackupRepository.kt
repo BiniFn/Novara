@@ -11,6 +11,7 @@ import org.skepsun.kototoro.core.db.entity.TagEntity
 import org.skepsun.kototoro.favourites.data.FavouriteCategoryEntity
 import org.skepsun.kototoro.favourites.data.FavouriteEntity
 import org.skepsun.kototoro.history.data.HistoryEntity
+import org.skepsun.kototoro.list.domain.ReadingProgress.Companion.PROGRESS_NONE
 import org.skepsun.kototoro.parsers.model.ContentType
 import javax.inject.Inject
 
@@ -27,28 +28,27 @@ class ExternalBackupRepository @Inject constructor(
             var favoritesImported = 0
             var historyImported = 0
             for (record in records) {
-                val mangaId = generateContentId(record.sourceName, record.url)
+                val mangaId = generateContentId(record)
                 upsertContent(mangaId, record)
-                if (record.favoriteTimestamp != null) {
+                if (record.isFavorite) {
+                    val favoriteTimestamp = record.favoriteTimestamp ?: record.historyTimestamp ?: System.currentTimeMillis()
                     database.getFavouritesDao().mergeWithTimestamp(
                         FavouriteEntity(
                             mangaId = mangaId,
                             categoryId = defaultCategoryId.toLong(),
                             sortKey = 0,
                             isPinned = false,
-                            createdAt = record.favoriteTimestamp,
+                            createdAt = favoriteTimestamp,
                             deletedAt = 0L,
-                            updatedAt = record.favoriteTimestamp,
+                            updatedAt = favoriteTimestamp,
                         ),
                     )
                     favoritesImported++
                 }
                 if (record.historyTimestamp != null && !record.historyChapterUrl.isNullOrBlank()) {
-                    val chapterId = generateChapterId(
-                        sourceName = record.sourceName,
-                        chapterUrl = record.historyChapterUrl,
-                        isVideo = record.contentType == ContentType.VIDEO,
-                    )
+                    val chapterId = generateChapterId(record, record.historyChapterUrl)
+                    val chaptersCount = record.chaptersCount.coerceAtLeast(0)
+                    val percent = record.progressPercent?.coerceIn(PROGRESS_NONE, 1f) ?: PROGRESS_NONE
                     database.getHistoryDao().upsert(
                         HistoryEntity(
                             mangaId = mangaId,
@@ -57,9 +57,9 @@ class ExternalBackupRepository @Inject constructor(
                             chapterId = chapterId,
                             page = 0,
                             scroll = 0f,
-                            percent = 0f,
+                            percent = percent,
                             deletedAt = 0L,
-                            chaptersCount = 0,
+                            chaptersCount = chaptersCount,
                             parentChapterId = null,
                         ),
                     )
@@ -126,12 +126,15 @@ class ExternalBackupRepository @Inject constructor(
         return insertedId.toInt()
     }
 
-    private fun generateContentId(sourceName: String, url: String): Long {
-        return "$sourceName|manga|$url".hashCode().toLong() and Long.MAX_VALUE
+    private fun generateContentId(record: ExternalBackupContentRecord): Long {
+        return "${record.sourceName}|manga|${record.url}".hashCode().toLong() and Long.MAX_VALUE
     }
 
-    private fun generateChapterId(sourceName: String, chapterUrl: String, isVideo: Boolean): Long {
-        val type = if (isVideo) "episode" else "chapter"
-        return "$sourceName|$type|$chapterUrl".hashCode().toLong() and Long.MAX_VALUE
+    private fun generateChapterId(record: ExternalBackupContentRecord, chapterUrl: String): Long {
+        val type = when (record.app.family) {
+            ExternalBackupFamily.MANGA -> "chapter"
+            ExternalBackupFamily.ANIME -> if (record.contentType == ContentType.VIDEO) "episode" else "chapter"
+        }
+        return "${record.sourceName}|$type|$chapterUrl".hashCode().toLong() and Long.MAX_VALUE
     }
 }

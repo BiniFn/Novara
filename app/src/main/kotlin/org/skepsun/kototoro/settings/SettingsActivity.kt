@@ -56,6 +56,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.backups.domain.BackupUtils
+import org.skepsun.kototoro.backups.external.ExternalBackupApp
 import org.skepsun.kototoro.backups.ui.backup.BackupService
 import org.skepsun.kototoro.backups.ui.periodical.PeriodicalBackupSettingsViewModel
 import org.skepsun.kototoro.backups.ui.restore.ExternalBackupImportService
@@ -118,8 +119,6 @@ import org.skepsun.kototoro.settings.userdata.BackupsSettingsRoute
 import org.skepsun.kototoro.settings.utils.RingtonePickContract
 import org.skepsun.kototoro.suggestions.ui.SuggestionsWorker
 import org.skepsun.kototoro.settings.users.TrackingUserAccountSummaryProvider
-import org.skepsun.kototoro.sync.data.SyncSettings
-import org.skepsun.kototoro.sync.ui.SyncHostDialogFragment
 import org.skepsun.kototoro.tracker.ui.debug.TrackerDebugActivity
 import org.skepsun.kototoro.tracker.work.TrackerNotificationHelper
 import org.skepsun.kototoro.tracking.animeoffline.data.AnimeOfflineRepository
@@ -173,9 +172,6 @@ class SettingsActivity :
 	@Inject
 	lateinit var onnxModelManager: OnnxModelManager
 
-	@Inject
-	lateinit var syncSettings: SyncSettings
-
 	private val isMasterDetails
 		get() = viewBinding.containerMaster != null && if (kototoroAppSettings.tabletUiMode == org.skepsun.kototoro.core.prefs.TabletUiMode.STRICT) {
 			resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
@@ -214,7 +210,7 @@ class SettingsActivity :
 	private val proxyIsTestRunningFlow = MutableStateFlow(false)
 	private val suggestionsExcludeTagsFlow = MutableStateFlow("")
 	private val suggestionsPreferredTagsFlow = MutableStateFlow("")
-	private val syncUrlFlow = MutableStateFlow("")
+	private var pendingExternalBackupApp: ExternalBackupApp? = null
 
 	private val composeBackCallback = object : OnBackPressedCallback(false) {
 		override fun handleOnBackPressed() {
@@ -251,12 +247,14 @@ class SettingsActivity :
 		ActivityResultContracts.OpenDocument(),
 	) { uri ->
 		if (uri != null) {
-			if (ExternalBackupImportService.start(this, uri)) {
+			val app = pendingExternalBackupApp ?: return@registerForActivityResult
+			if (ExternalBackupImportService.start(this, uri, app)) {
 				Toast.makeText(this, R.string.import_backup_started_background, Toast.LENGTH_SHORT).show()
 			} else {
 				Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_SHORT).show()
 			}
 		}
+		pendingExternalBackupApp = null
 	}
 
 	private val backupCreateCall = registerForActivityResult(
@@ -301,10 +299,6 @@ class SettingsActivity :
 					}
 				}
 			}
-		}
-		syncUrlFlow.value = syncSettings.syncUrl ?: ""
-		supportFragmentManager.setFragmentResultListener(SyncHostDialogFragment.REQUEST_KEY, this) { _, _ ->
-			syncUrlFlow.value = syncSettings.syncUrl ?: ""
 		}
 		masterContainerComposeView()?.setViewCompositionStrategy(
 			ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed,
@@ -451,10 +445,6 @@ class SettingsActivity :
 				}
 				SettingsDestination.BackupsSettings -> {
 					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_BACKUPS_SETTINGS)
-					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
-				}
-				SettingsDestination.SyncSettings -> {
-					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_SYNC_SETTINGS)
 					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
 				}
 				SettingsDestination.TranslationSettings -> {
@@ -654,7 +644,6 @@ class SettingsActivity :
 				SettingsDestination.SourcesSettings,
 				SettingsDestination.SuggestionsSettings,
 				SettingsDestination.BackupsSettings,
-				SettingsDestination.SyncSettings,
 				SettingsDestination.TranslationSettings,
 				SettingsDestination.TranslationApiSettings,
 				SettingsDestination.TranslationE2EApiSettings -> openComposeDestination(
@@ -710,12 +699,11 @@ class SettingsActivity :
 				AppRouter.ACTION_PROXY -> SettingsDestination.ProxySettings
 				AppRouter.ACTION_READER -> SettingsDestination.ReaderSettings
 				AppRouter.ACTION_SOURCES -> SettingsDestination.SourcesSettings
-				AppRouter.ACTION_MANAGE_DOWNLOADS -> SettingsDestination.DownloadsSettings
-				AppRouter.ACTION_MANAGE_SOURCES -> null
-				Intent.ACTION_VIEW -> when (intent.data?.host) {
+			AppRouter.ACTION_MANAGE_DOWNLOADS -> SettingsDestination.DownloadsSettings
+			AppRouter.ACTION_MANAGE_SOURCES -> null
+			Intent.ACTION_VIEW -> when (intent.data?.host) {
 				"add-repo" -> null
 				HOST_ABOUT -> SettingsDestination.AboutSettings
-				HOST_SYNC_SETTINGS -> SettingsDestination.SyncSettings
 				else -> null
 			}
 			else -> null
@@ -732,7 +720,6 @@ class SettingsActivity :
 			Intent.ACTION_VIEW -> {
 				when (intent.data?.host) {
 					HOST_ABOUT -> null
-					HOST_SYNC_SETTINGS -> null
 					else -> null
 				}
 			}
@@ -814,9 +801,6 @@ class SettingsActivity :
 			SettingsDestination.BackupsSettings -> {
 				periodicalBackupSettingsViewModel.updateSummaryData()
 			}
-			SettingsDestination.SyncSettings -> {
-				syncUrlFlow.value = syncSettings.syncUrl ?: ""
-			}
 			SettingsDestination.DataCleanupSettings -> {
 				bindDataCleanupObservers()
 			}
@@ -847,7 +831,6 @@ class SettingsActivity :
 			SettingsDestination.SourcesSettings -> COMPOSE_DESTINATION_SOURCES_SETTINGS
 			SettingsDestination.SuggestionsSettings -> COMPOSE_DESTINATION_SUGGESTIONS_SETTINGS
 			SettingsDestination.BackupsSettings -> COMPOSE_DESTINATION_BACKUPS_SETTINGS
-			SettingsDestination.SyncSettings -> COMPOSE_DESTINATION_SYNC_SETTINGS
 			SettingsDestination.TranslationSettings -> COMPOSE_DESTINATION_TRANSLATION_SETTINGS
 			SettingsDestination.TranslationApiSettings -> COMPOSE_DESTINATION_TRANSLATION_API_SETTINGS
 			SettingsDestination.TranslationE2EApiSettings -> COMPOSE_DESTINATION_TRANSLATION_E2E_API_SETTINGS
@@ -882,7 +865,6 @@ class SettingsActivity :
 			SettingsDestination.SourcesSettings -> getString(R.string.remote_sources)
 			SettingsDestination.SuggestionsSettings -> getString(R.string.suggestions)
 			SettingsDestination.BackupsSettings -> getString(R.string.backup_restore)
-			SettingsDestination.SyncSettings -> getString(R.string.sync_settings)
 			SettingsDestination.TranslationSettings -> getString(R.string.translation_settings)
 			SettingsDestination.TranslationApiSettings -> getString(R.string.ai_api_settings)
 			SettingsDestination.TranslationE2EApiSettings -> getString(R.string.reader_translation_e2e_api_settings_title)
@@ -1082,22 +1064,13 @@ class SettingsActivity :
 							Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_SHORT).show()
 						}
 					},
-					onImportExternalBackupClick = {
+					onImportExternalBackupFilePick = { app ->
+						pendingExternalBackupApp = app
 						if (!externalBackupSelectCall.tryLaunch(arrayOf("*/*"))) {
+							pendingExternalBackupApp = null
 							Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_SHORT).show()
 						}
 					},
-				)
-			}
-			SettingsDestination.SyncSettings -> RenderComposeSection(title = getString(R.string.sync_settings)) {
-				SyncSettingsRoute(
-					settings = kototoroAppSettings,
-					backupSettingsViewModel = periodicalBackupSettingsViewModel,
-					syncUrlFlow = syncUrlFlow,
-					onSyncUrlClick = {
-						SyncHostDialogFragment.show(supportFragmentManager, syncSettings.syncUrl)
-					},
-					modifier = Modifier.fillMaxSize(),
 				)
 			}
 			SettingsDestination.TranslationSettings -> RenderComposeSection(
@@ -1756,7 +1729,6 @@ class SettingsActivity :
 	companion object {
 
 		private const val HOST_ABOUT = "about"
-		private const val HOST_SYNC_SETTINGS = "sync-settings"
 		private const val DISCORD_ORIGIN = "https://discord.com"
 		private const val DISCORD_WWW_ORIGIN = "https://www.discord.com"
 		const val ARG_PREF_KEY = "pref_key"
@@ -1777,7 +1749,6 @@ class SettingsActivity :
 		private const val COMPOSE_DESTINATION_SOURCES_SETTINGS = "sources_settings"
 		private const val COMPOSE_DESTINATION_SUGGESTIONS_SETTINGS = "suggestions_settings"
 		private const val COMPOSE_DESTINATION_BACKUPS_SETTINGS = "backups_settings"
-		private const val COMPOSE_DESTINATION_SYNC_SETTINGS = "sync_settings"
 		private const val COMPOSE_DESTINATION_TRANSLATION_SETTINGS = "translation_settings"
 		private const val COMPOSE_DESTINATION_TRANSLATION_API_SETTINGS = "translation_api_settings"
 		private const val COMPOSE_DESTINATION_TRANSLATION_E2E_API_SETTINGS = "translation_e2e_api_settings"
@@ -1809,7 +1780,6 @@ class SettingsActivity :
 			COMPOSE_DESTINATION_SOURCES_SETTINGS -> SettingsDestination.SourcesSettings
 			COMPOSE_DESTINATION_SUGGESTIONS_SETTINGS -> SettingsDestination.SuggestionsSettings
 			COMPOSE_DESTINATION_BACKUPS_SETTINGS -> SettingsDestination.BackupsSettings
-			COMPOSE_DESTINATION_SYNC_SETTINGS -> SettingsDestination.SyncSettings
 			COMPOSE_DESTINATION_TRANSLATION_SETTINGS -> SettingsDestination.TranslationSettings
 			COMPOSE_DESTINATION_TRANSLATION_API_SETTINGS -> SettingsDestination.TranslationApiSettings
 			COMPOSE_DESTINATION_TRANSLATION_E2E_API_SETTINGS -> SettingsDestination.TranslationE2EApiSettings

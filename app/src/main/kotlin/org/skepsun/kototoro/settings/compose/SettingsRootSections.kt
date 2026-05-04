@@ -81,13 +81,6 @@ fun buildSettingsRootSections(
 				onClick = { onOpenDestination(SettingsDestination.UsersSettings) },
 			),
 			settingsRootItem(
-				key = "sync_settings",
-				iconRes = R.drawable.ic_sync,
-				title = context.getString(R.string.sync_settings),
-				summary = context.getString(R.string.sync_settings_summary),
-				onClick = { onOpenDestination(SettingsDestination.SyncSettings) },
-			),
-			settingsRootItem(
 				key = "backups_settings",
 				iconRes = R.drawable.ic_backup_restore,
 				title = context.getString(R.string.backup_restore),

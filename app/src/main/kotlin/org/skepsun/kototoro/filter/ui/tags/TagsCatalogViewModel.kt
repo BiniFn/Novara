@@ -33,6 +33,7 @@ import org.skepsun.kototoro.list.ui.model.ListHeader
 class TagsCatalogViewModel @AssistedInject constructor(
 	@Assisted private val filter: FilterCoordinator,
 	@Assisted private val isExcluded: Boolean,
+	@Assisted private val groupTitle: String?,
 	private val mangaDataRepository: ContentDataRepository,
 ) : BaseViewModel() {
 
@@ -40,6 +41,9 @@ class TagsCatalogViewModel @AssistedInject constructor(
 
 	private val filterProperty: StateFlow<FilterProperty<UiTagGroup>>
 		get() = if (isExcluded) filter.tagsExcluded else filter.tags
+
+	val sheetTitle: String?
+		get() = groupTitle
 
 	@Suppress("RemoveExplicitTypeArguments")
 	private val tags: StateFlow<List<ListModel>> = combine(
@@ -72,10 +76,15 @@ class TagsCatalogViewModel @AssistedInject constructor(
 		val comparator = TagTitleComparator(locale)
 		val result = ArrayList<ListModel>()
 
-		available.getOrNull()?.forEach { group ->
+		available.getOrNull()
+			.orEmpty()
+			.filter { groupTitle.isNullOrBlank() || it.title == groupTitle }
+			.forEach { group ->
 			val tags = group.tags.sortedWith(comparator)
 			if (tags.isEmpty()) return@forEach
-			result.add(ListHeader(group.title))
+			if (groupTitle.isNullOrBlank()) {
+				result.add(ListHeader(group.title))
+			}
 			tags.forEach { tag ->
 				result.add(
 					TagCatalogItem(
@@ -88,7 +97,7 @@ class TagsCatalogViewModel @AssistedInject constructor(
 
 		if (result.isEmpty()) {
 			val extra = cached.sortedWith(comparator)
-			if (extra.isNotEmpty()) {
+			if (groupTitle.isNullOrBlank() && extra.isNotEmpty()) {
 				result.add(ListHeader(R.string.other_tags))
 				extra.forEach { tag ->
 					result.add(TagCatalogItem(tag, tag in selected))
@@ -138,7 +147,7 @@ class TagsCatalogViewModel @AssistedInject constructor(
 
 	@AssistedFactory
 	interface Factory {
-		fun create(filter: FilterCoordinator, isExcludeTag: Boolean): TagsCatalogViewModel
+		fun create(filter: FilterCoordinator, isExcludeTag: Boolean, groupTitle: String?): TagsCatalogViewModel
 	}
 
 }
