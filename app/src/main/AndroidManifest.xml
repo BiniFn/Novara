@@ -449,6 +449,10 @@
 			android:foregroundServiceType="dataSync"
 			android:label="@string/restoring_backup" />
 		<service
+			android:name="org.skepsun.kototoro.backups.ui.restore.ExternalBackupImportService"
+			android:foregroundServiceType="dataSync"
+			android:label="@string/import_backup_from_other_apps" />
+		<service
 			android:name="org.skepsun.kototoro.local.ui.ImportService"
 			android:foregroundServiceType="dataSync"
 			android:label="@string/importing_manga" />

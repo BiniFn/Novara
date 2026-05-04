@@ -58,6 +58,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.backups.domain.BackupUtils
 import org.skepsun.kototoro.backups.ui.backup.BackupService
 import org.skepsun.kototoro.backups.ui.periodical.PeriodicalBackupSettingsViewModel
+import org.skepsun.kototoro.backups.ui.restore.ExternalBackupImportService
 import org.skepsun.kototoro.core.github.AppVersion
 import org.skepsun.kototoro.core.model.ContentSource
 import org.skepsun.kototoro.core.nav.AppRouter
@@ -243,6 +244,18 @@ class SettingsActivity :
 	) { uri ->
 		if (uri != null) {
 			router.showBackupRestoreDialog(uri)
+		}
+	}
+
+	private val externalBackupSelectCall = registerForActivityResult(
+		ActivityResultContracts.OpenDocument(),
+	) { uri ->
+		if (uri != null) {
+			if (ExternalBackupImportService.start(this, uri)) {
+				Toast.makeText(this, R.string.import_backup_started_background, Toast.LENGTH_SHORT).show()
+			} else {
+				Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_SHORT).show()
+			}
 		}
 	}
 
@@ -1070,13 +1083,16 @@ class SettingsActivity :
 						}
 					},
 					onImportExternalBackupClick = {
-						Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_SHORT).show()
+						if (!externalBackupSelectCall.tryLaunch(arrayOf("*/*"))) {
+							Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_SHORT).show()
+						}
 					},
 				)
 			}
 			SettingsDestination.SyncSettings -> RenderComposeSection(title = getString(R.string.sync_settings)) {
 				SyncSettingsRoute(
 					settings = kototoroAppSettings,
+					backupSettingsViewModel = periodicalBackupSettingsViewModel,
 					syncUrlFlow = syncUrlFlow,
 					onSyncUrlClick = {
 						SyncHostDialogFragment.show(supportFragmentManager, syncSettings.syncUrl)
