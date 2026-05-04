@@ -32,30 +32,42 @@ class StorageUsagePreference @JvmOverloads constructor(
 	override fun onBindViewHolder(holder: PreferenceViewHolder) {
 		super.onBindViewHolder(holder)
 		val binding = PreferenceMemoryUsageBinding.bind(holder.itemView)
+		val savedContent = usage.sumOf(
+			StorageUsageCategory.LOCAL_MANGA,
+			StorageUsageCategory.LOCAL_NOVELS,
+			StorageUsageCategory.LOCAL_VIDEOS,
+		)
+		val pagesCache = usage.find(StorageUsageCategory.PAGES_CACHE)
+		val aiModels = usage.find(StorageUsageCategory.AI_MODELS)
+		val available = usage.find(StorageUsageCategory.AVAILABLE)
+		val otherCache = usage.aggregateCacheExcluding(
+			StorageUsageCategory.PAGES_CACHE,
+			StorageUsageCategory.AVAILABLE,
+		)
 		val storageSegment = SegmentedBarView.Segment(
-			usage?.savedContent?.percent ?: 0f,
+			savedContent?.percent ?: 0f,
 			KototoroColors.segmentColorRandom(context, 210), // Blue-ish
 		)
 		val pagesSegment = SegmentedBarView.Segment(
-			usage?.pagesCache?.percent ?: 0f,
+			pagesCache?.percent ?: 0f,
 			KototoroColors.segmentColorRandom(context, 120), // Green
 		)
 		val aiModelsSegment = SegmentedBarView.Segment(
-			usage?.aiModels?.percent ?: 0f,
+			aiModels?.percent ?: 0f,
 			KototoroColors.segmentColorRandom(context, 300), // Magenta/Purple
 		)
 		val otherSegment = SegmentedBarView.Segment(
-			usage?.otherCache?.percent ?: 0f,
+			otherCache?.percent ?: 0f,
 			KototoroColors.segmentColorRandom(context, 30), // Orange/Brown 
 		)
 
 		with(binding) {
 			bar.animateSegments(listOf(storageSegment, aiModelsSegment, pagesSegment, otherSegment).filter { it.percent > 0f })
-			labelStorage.text = formatLabel(usage?.savedContent, R.string.saved_manga)
-			labelAiModels.text = formatLabel(usage?.aiModels, R.string.ai_local_models)
-			labelPagesCache.text = formatLabel(usage?.pagesCache, R.string.pages_cache)
-			labelOtherCache.text = formatLabel(usage?.otherCache, R.string.other_cache)
-			labelAvailable.text = formatLabel(usage?.available, R.string.available, R.string.available)
+			labelStorage.text = formatLabel(savedContent, R.string.saved_manga)
+			labelAiModels.text = formatLabel(aiModels, R.string.ai_local_models)
+			labelPagesCache.text = formatLabel(pagesCache, R.string.pages_cache)
+			labelOtherCache.text = formatLabel(otherCache, R.string.other_cache)
+			labelAvailable.text = formatLabel(available, R.string.available, R.string.available)
 
 			TextViewCompat.setCompoundDrawableTintList(labelStorage, ColorStateList.valueOf(storageSegment.color))
 			TextViewCompat.setCompoundDrawableTintList(labelAiModels, ColorStateList.valueOf(aiModelsSegment.color))
@@ -82,5 +94,34 @@ class StorageUsagePreference @JvmOverloads constructor(
 		} else {
 			context.getString(emptyResId)
 		}
+	}
+
+	private fun StorageUsage?.find(category: StorageUsageCategory): StorageUsage.Item? {
+		return this?.find(category)
+	}
+
+	private fun StorageUsage?.sumOf(vararg categories: StorageUsageCategory): StorageUsage.Item? {
+		val items = this?.items.orEmpty()
+		if (items.isEmpty()) return null
+		val matched = items.filter { it.category in categories.toSet() }
+		if (matched.isEmpty()) return null
+		return StorageUsage.Item(
+			category = categories.first(),
+			bytes = matched.sumOf { it.bytes },
+			percent = matched.sumOf { it.percent.toDouble() }.toFloat(),
+		)
+	}
+
+	private fun StorageUsage?.aggregateCacheExcluding(vararg categories: StorageUsageCategory): StorageUsage.Item? {
+		val excluded = categories.toSet()
+		val matched = this?.items.orEmpty().filter {
+			it.category.name.endsWith("_CACHE") && it.category !in excluded
+		}
+		if (matched.isEmpty()) return null
+		return StorageUsage.Item(
+			category = StorageUsageCategory.OTHER_CACHE,
+			bytes = matched.sumOf { it.bytes },
+			percent = matched.sumOf { it.percent.toDouble() }.toFloat(),
+		)
 	}
 }

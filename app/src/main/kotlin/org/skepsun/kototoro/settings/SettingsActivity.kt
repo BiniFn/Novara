@@ -977,7 +977,6 @@ class SettingsActivity :
 				AIImageEnhancementSettingsRoute(
 					settings = kototoroAppSettings,
 					onnxModelManager = onnxModelManager,
-					onClearCacheClick = ::clearSuperResolutionCache,
 					modifier = Modifier.fillMaxSize(),
 				)
 			}
