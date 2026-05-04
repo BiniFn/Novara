@@ -93,7 +93,15 @@
     <string name="_continue_play">Continue playing</string>
     <string name="error">Error</string>
     <string name="clear_video_cache">Clear video cache</string>
+    <string name="clear_video_proxy_cache">Clear video proxy cache</string>
+    <string name="clear_danmaku_cache">Clear danmaku cache</string>
     <string name="clear_thumbs_cache">Clear thumbnails cache</string>
+    <string name="clear_favicons_cache">Clear favicons cache</string>
+    <string name="clear_novel_cache">Clear novel cache</string>
+    <string name="clear_tts_audio_cache">Clear TTS audio cache</string>
+    <string name="clear_local_manga_storage">Clear local manga</string>
+    <string name="clear_local_novel_storage">Clear local novels</string>
+    <string name="clear_local_video_storage">Clear local videos</string>
     <string name="clear_search_history">Clear search history</string>
     <string name="search_history_cleared">Cleared</string>
     <string name="internal_storage">Internal storage</string>
@@ -218,6 +226,9 @@
     <string name="confirm">Confirm</string>
     <string name="password_length_hint">The password must be 4 characters or more</string>
     <string name="text_clear_search_history_prompt">Remove all recent search queries permanently?</string>
+    <string name="clear_local_manga_storage_prompt">Delete all locally saved and imported manga files? This cannot be undone.</string>
+    <string name="clear_local_novel_storage_prompt">Delete all locally saved and imported novel files? This cannot be undone.</string>
+    <string name="clear_local_video_storage_prompt">Delete all locally saved and imported video files? This cannot be undone.</string>
     <string name="welcome">Welcome</string>
     <string name="welcome_jar_install_success">Kototoro: Successfully fetched and mounted %1$d latest parser engines from cloud network!</string>
     <string name="welcome_jar_install_up_to_date">Kototoro: Cloud verification complete, local parsers are up to date! (Loaded %1$d sources in total)</string>
@@ -631,9 +642,26 @@
     <string name="exit_confirmation">Exit confirmation</string>
     <string name="saved_manga">Saved media</string>
     <string name="ai_local_models">AI models</string>
+    <string name="local_manga_storage">Local manga</string>
+    <string name="local_novel_storage">Local novels</string>
+    <string name="local_video_storage">Local videos</string>
+    <string name="thumbnails_cache">Thumbnails cache</string>
+    <string name="favicons_cache">Favicons cache</string>
     <string name="pages_cache">Pages cache</string>
+    <string name="novel_reader_cache">Novel cache</string>
+    <string name="video_playback_cache">Video playback cache</string>
+    <string name="video_proxy_cache">Video proxy cache</string>
+    <string name="danmaku_cache">Danmaku cache</string>
+    <string name="tts_audio_cache">TTS audio cache</string>
+    <string name="reader_super_resolution_cache">SR image cache</string>
+    <string name="network_cache">Network cache</string>
     <string name="other_cache">Other cache</string>
     <string name="storage_usage">Storage usage</string>
+    <string name="cache_limits">Cache limits</string>
+    <string name="cache_limit_applies_on_restart">Takes full effect after app restart</string>
+    <string name="image_caches">Image and reader caches</string>
+    <string name="video_caches">Video caches</string>
+    <string name="cache">Cache</string>
     <string name="available">Available</string>
     <string name="memory_usage_pattern" translatable="false">%1$s - %2$s</string>
     <string name="removed_from_favourites">Removed from favorites</string>
@@ -877,6 +905,8 @@
     <string name="reader_super_resolution_clear_cache">Clear SR Cache</string>
     <string name="reader_super_resolution_clear_cache_summary">Manually clear all upscaled images from local storage</string>
     <string name="reader_super_resolution_cache_cleared">Cleared SR image cache</string>
+    <string name="no_local_content_deleted">No local content deleted</string>
+    <string name="local_content_deleted_pattern">%1$s cleared: %2$s, freed %3$s</string>
 
     <string name="action_apply">应用</string>
     <string name="order_added">Added</string>
@@ -919,6 +949,15 @@
     <string name="video_background">Playback background</string>
     <string name="video_cache_size">Cache size (MB)</string>
     <string name="video_cache_size_summary">%1$d MB</string>
+    <string name="thumbnails_cache_limit">Thumbnails cache limit</string>
+    <string name="favicons_cache_limit">Favicons cache limit</string>
+    <string name="pages_cache_limit">Pages cache limit</string>
+    <string name="novel_cache_limit">Novel cache limit</string>
+    <string name="tts_audio_cache_limit">TTS audio cache limit</string>
+    <string name="video_playback_cache_limit">Video playback cache limit</string>
+    <string name="video_proxy_cache_limit">Video proxy cache limit</string>
+    <string name="danmaku_cache_limit">Danmaku cache limit</string>
+    <string name="network_cache_limit">Network cache limit</string>
     <string name="video_controls_alpha">Controls opacity (%)</string>
     <string name="video_gradient_alpha">Video gradient opacity (%)</string>
     <string name="state_abandoned">Dropped</string>

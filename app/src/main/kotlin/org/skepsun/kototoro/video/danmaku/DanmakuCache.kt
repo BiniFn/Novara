@@ -10,10 +10,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import org.skepsun.kototoro.core.prefs.AppSettings
 
 @Singleton
 class DanmakuCache @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val settings: AppSettings,
 ) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val cacheDir by lazy { File(context.cacheDir, "danmaku_cache") }
@@ -82,6 +84,7 @@ class DanmakuCache @Inject constructor(
                     arr.put(obj)
                 }
                 file.writeText(arr.toString())
+                trimCache()
                 Log.d("Danmaku", "Cache saved: key=$cacheKey episode=$episode size=${items.size}")
             }.onFailure {
                 Log.w("Danmaku", "Cache save failed: key=$cacheKey episode=$episode", it)
@@ -104,6 +107,21 @@ class DanmakuCache @Inject constructor(
     private fun parseType(raw: String): DanmakuType = runCatching {
         DanmakuType.valueOf(raw)
     }.getOrDefault(DanmakuType.SCROLL)
+
+    private fun trimCache() {
+        val limitBytes = settings.videoDanmakuCacheSizeMb * 1024L * 1024L
+        if (limitBytes <= 0L || !cacheDir.exists()) return
+        val files = cacheDir.listFiles().orEmpty().sortedBy { it.lastModified() }
+        var currentSize = files.sumOf { it.length() }
+        if (currentSize <= limitBytes) return
+        files.forEach { file ->
+            if (currentSize <= limitBytes) return
+            val removed = file.length()
+            if (file.delete()) {
+                currentSize -= removed
+            }
+        }
+    }
 
     private companion object {
         private const val PREFS_NAME = "video_danmaku_cache"

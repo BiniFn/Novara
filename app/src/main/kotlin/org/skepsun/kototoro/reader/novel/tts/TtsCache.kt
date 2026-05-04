@@ -5,6 +5,7 @@ import androidx.core.net.toUri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okio.source
+import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.util.ext.MimeType
 import org.skepsun.kototoro.local.data.CacheDir
 import org.skepsun.kototoro.local.data.LocalStorageCache
@@ -14,12 +15,13 @@ import java.io.File
 import java.security.MessageDigest
 
 class TtsCache(context: Context) {
+    private val settings = AppSettings(context)
 
     // 复用 Kototoro 的 LocalStorageCache，享受 DiskLruCache 和 自动大小管理
     private val localCache = LocalStorageCache(
         context = context,
         dir = CacheDir.TtsAudio, // Ensure you add this enum value in CacheDir if it doesn't exist
-        defaultSize = 100L * 1024 * 1024, // 100MB 默认缓存容量
+        defaultSize = settings.ttsCacheSizeMb * 1024L * 1024L,
         minSize = 10L * 1024 * 1024 // 最少保留 10MB
     )
 

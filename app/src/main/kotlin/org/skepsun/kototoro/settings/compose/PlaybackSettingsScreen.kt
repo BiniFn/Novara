@@ -28,7 +28,6 @@ fun PlaybackSettingsScreen(
     val decoderMode by settings.observeAsState(AppSettings.KEY_VIDEO_DECODER_MODE) { videoDecoderMode }
     val rendererMode by settings.observeAsState(AppSettings.KEY_VIDEO_RENDERER_MODE) { videoRendererMode }
     val background by settings.observeAsState(AppSettings.KEY_VIDEO_BACKGROUND) { videoBackground }
-    val cacheMb by settings.observeAsState(AppSettings.KEY_VIDEO_CACHE_MB) { videoCacheSizeMb }
     val controlsAlpha by settings.observeAsState(AppSettings.KEY_VIDEO_CONTROLS_ALPHA) { videoControlsAlpha }
     val gradientAlpha by settings.observeAsState(AppSettings.KEY_VIDEO_GRADIENT_ALPHA) { videoGradientAlpha }
 
@@ -91,16 +90,6 @@ fun PlaybackSettingsScreen(
                     title = stringResource(R.string.ai_settings),
                     summary = stringResource(R.string.ai_settings_entry_summary),
                     onClick = onAiSettingsClick,
-                )
-
-                SettingsSliderPreference(
-                    title = stringResource(R.string.video_cache_size),
-                    summary = stringResource(R.string.video_cache_size_summary, cacheMb),
-                    value = cacheMb,
-                    valueRange = 256..4096,
-                    step = 128,
-                    valueText = { "$it MB" },
-                    onValueChange = { settings.videoCacheSizeMb = it },
                 )
 
                 SettingsSliderPreference(

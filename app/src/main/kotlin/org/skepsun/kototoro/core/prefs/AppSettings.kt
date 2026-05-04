@@ -581,6 +581,38 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getSafeInt(KEY_VIDEO_CACHE_MB, 1024)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_CACHE_MB, value) }
 
+	var thumbsCacheSizeMb: Int
+		get() = prefs.getSafeInt(KEY_THUMBS_CACHE_MB, 256)
+		set(value) = prefs.edit { putInt(KEY_THUMBS_CACHE_MB, value.coerceIn(32, 2048)) }
+
+	var faviconCacheSizeMb: Int
+		get() = prefs.getSafeInt(KEY_FAVICON_CACHE_MB, 8)
+		set(value) = prefs.edit { putInt(KEY_FAVICON_CACHE_MB, value.coerceIn(4, 128)) }
+
+	var pagesCacheSizeMb: Int
+		get() = prefs.getSafeInt(KEY_PAGES_CACHE_MB, 200)
+		set(value) = prefs.edit { putInt(KEY_PAGES_CACHE_MB, value.coerceIn(64, 4096)) }
+
+	var novelCacheSizeMb: Int
+		get() = prefs.getSafeInt(KEY_NOVEL_CACHE_MB, 100)
+		set(value) = prefs.edit { putInt(KEY_NOVEL_CACHE_MB, value.coerceIn(32, 2048)) }
+
+	var httpCacheSizeMb: Int
+		get() = prefs.getSafeInt(KEY_HTTP_CACHE_MB_LIMIT, 250)
+		set(value) = prefs.edit { putInt(KEY_HTTP_CACHE_MB_LIMIT, value.coerceIn(32, 2048)) }
+
+	var videoProxyCacheSizeMb: Int
+		get() = prefs.getSafeInt(KEY_VIDEO_PROXY_CACHE_MB, 1024)
+		set(value) = prefs.edit { putInt(KEY_VIDEO_PROXY_CACHE_MB, value.coerceIn(128, 4096)) }
+
+	var videoDanmakuCacheSizeMb: Int
+		get() = prefs.getSafeInt(KEY_VIDEO_DANMAKU_CACHE_MB, 64)
+		set(value) = prefs.edit { putInt(KEY_VIDEO_DANMAKU_CACHE_MB, value.coerceIn(16, 1024)) }
+
+	var ttsCacheSizeMb: Int
+		get() = prefs.getSafeInt(KEY_TTS_CACHE_MB, 100)
+		set(value) = prefs.edit { putInt(KEY_TTS_CACHE_MB, value.coerceIn(32, 2048)) }
+
 	var videoAspectRatio: Int
 		get() = prefs.getSafeInt(KEY_VIDEO_ASPECT_RATIO, 0)
 		set(value) = prefs.edit { putInt(KEY_VIDEO_ASPECT_RATIO, value) }
@@ -1730,12 +1762,21 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_TABLET_UI_MODE = "tablet_ui_mode"
 		const val KEY_OFFLINE_DISABLED = "no_offline"
 		const val KEY_PAGES_CACHE_CLEAR = "pages_cache_clear"
+		const val KEY_NOVEL_CACHE_CLEAR = "novel_cache_clear"
 		const val KEY_VIDEO_CACHE_CLEAR = "video_cache_clear"
+		const val KEY_VIDEO_PROXY_CACHE_CLEAR = "video_proxy_cache_clear"
+		const val KEY_VIDEO_DANMAKU_CACHE_CLEAR = "video_danmaku_cache_clear"
 		const val KEY_HTTP_CACHE_CLEAR = "http_cache_clear"
+		const val KEY_FAVICONS_CACHE_CLEAR = "favicons_cache_clear"
+		const val KEY_TTS_CACHE_CLEAR = "tts_cache_clear"
+		const val KEY_SR_CACHE_CLEAR = "sr_cache_clear"
 		const val KEY_COOKIES_CLEAR = "cookies_clear"
 		const val KEY_CHAPTERS_CLEAR = "chapters_clear"
 		const val KEY_CHAPTERS_CLEAR_AUTO = "chapters_clear_auto"
 		const val KEY_THUMBS_CACHE_CLEAR = "thumbs_cache_clear"
+		const val KEY_LOCAL_MANGA_CLEAR = "local_manga_clear"
+		const val KEY_LOCAL_NOVELS_CLEAR = "local_novels_clear"
+		const val KEY_LOCAL_VIDEOS_CLEAR = "local_videos_clear"
 		const val KEY_SEARCH_HISTORY_CLEAR = "search_history_clear"
 		const val KEY_UPDATES_FEED_CLEAR = "updates_feed_clear"
 		const val KEY_GRID_SIZE = "grid_size"
@@ -1915,6 +1956,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_VIDEO_DANMAKU_SOURCE_DANDAN = "video_danmaku_source_dandan"
 		const val KEY_VIDEO_DANMAKU_SOURCE_BILIBILI = "video_danmaku_source_bilibili"
 		const val KEY_VIDEO_DANMAKU_SOURCE_QQ = "video_danmaku_source_qq"
+		const val KEY_VIDEO_DANMAKU_CACHE_MB = "video_danmaku_cache_mb"
 		const val KEY_VIDEO_PLAYBACK_SPEED = "video_playback_speed"
 		const val KEY_VIDEO_DEFAULT_SPEED = "video_default_speed"
 		const val KEY_VIDEO_SEEK_FORWARD_MS = "video_seek_forward_ms"
@@ -1933,6 +1975,13 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_VIDEO_AUTO_NEXT = "video_auto_next"
 		const val KEY_VIDEO_LANDSCAPE_SENSOR = "video_landscape_sensor"
 		const val KEY_VIDEO_CACHE_MB = "video_cache_mb"
+		const val KEY_VIDEO_PROXY_CACHE_MB = "video_proxy_cache_mb"
+		const val KEY_THUMBS_CACHE_MB = "thumbs_cache_mb"
+		const val KEY_FAVICON_CACHE_MB = "favicon_cache_mb"
+		const val KEY_PAGES_CACHE_MB = "pages_cache_mb"
+		const val KEY_NOVEL_CACHE_MB = "novel_cache_mb"
+		const val KEY_HTTP_CACHE_MB_LIMIT = "http_cache_mb_limit"
+		const val KEY_TTS_CACHE_MB = "tts_cache_mb"
 		const val KEY_VIDEO_ASPECT_RATIO = "video_aspect_ratio"
 		const val KEY_VIDEO_DOUBLE_TAP_SEEK_ENABLED = "video_double_tap_seek_enabled"
 		const val KEY_VIDEO_CONTROLS_ALPHA = "video_controls_alpha"

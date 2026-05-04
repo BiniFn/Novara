@@ -74,7 +74,6 @@ class SettingsSearchHelper @Inject constructor(
 			"video_background" to R.string.video_background,
 			"video_mpv_conf_trigger" to R.string.video_mpv_conf,
 			"playback_ai_video_settings_entry" to R.string.ai_settings,
-			"video_cache_mb" to R.string.video_cache_size,
 			"video_controls_alpha" to R.string.video_controls_alpha,
 			"video_gradient_alpha" to R.string.video_gradient_alpha
 		)
@@ -114,7 +113,6 @@ class SettingsSearchHelper @Inject constructor(
 			"reader_super_resolution_enabled" to R.string.reader_super_resolution,
 			"reader_super_resolution_engine" to R.string.reader_super_resolution_engine,
 			"reader_super_resolution_model" to R.string.reader_super_resolution_model,
-			"reader_super_resolution_clear_cache" to R.string.reader_super_resolution_clear_cache,
 		)
 		aiImageKeys.forEach { (key, titleRes) ->
 			result.add(
@@ -377,11 +375,30 @@ class SettingsSearchHelper @Inject constructor(
 
 		val dataCleanupBreadcrumbs = listOf(context.getString(R.string.storage_and_network))
 		val dataCleanupKeys = listOf(
+			"video_cache_mb" to R.string.video_playback_cache_limit,
+			"video_proxy_cache_mb" to R.string.video_proxy_cache_limit,
+			"video_danmaku_cache_mb" to R.string.danmaku_cache_limit,
+			"thumbs_cache_mb" to R.string.thumbnails_cache_limit,
+			"favicon_cache_mb" to R.string.favicons_cache_limit,
+			"pages_cache_mb" to R.string.pages_cache_limit,
+			"novel_cache_mb" to R.string.novel_cache_limit,
+			"http_cache_mb_limit" to R.string.network_cache_limit,
+			"tts_cache_mb" to R.string.tts_audio_cache_limit,
+			"reader_super_resolution_cache_limit" to R.string.reader_super_resolution_cache_limit,
+			"local_manga_clear" to R.string.clear_local_manga_storage,
+			"local_novels_clear" to R.string.clear_local_novel_storage,
+			"local_videos_clear" to R.string.clear_local_video_storage,
 			"search_history_clear" to R.string.clear_search_history,
 			"updates_feed_clear" to R.string.clear_updates_feed,
 			"thumbs_cache_clear" to R.string.clear_thumbs_cache,
+			"favicons_cache_clear" to R.string.clear_favicons_cache,
 			"pages_cache_clear" to R.string.clear_pages_cache,
+			"novel_cache_clear" to R.string.clear_novel_cache,
 			"video_cache_clear" to R.string.clear_video_cache,
+			"video_proxy_cache_clear" to R.string.clear_video_proxy_cache,
+			"video_danmaku_cache_clear" to R.string.clear_danmaku_cache,
+			"tts_cache_clear" to R.string.clear_tts_audio_cache,
+			"sr_cache_clear" to R.string.reader_super_resolution_clear_cache,
 			"http_cache_clear" to R.string.clear_network_cache,
 			"manga_data_clear" to R.string.clear_database,
 			"cookies_clear" to R.string.clear_cookies,
@@ -395,7 +412,7 @@ class SettingsSearchHelper @Inject constructor(
 					key = key,
 					title = context.getString(titleRes),
 					breadcrumbs = dataCleanupBreadcrumbs,
-					destination = SettingsDestination.DataCleanupSettings,
+					destination = SettingsDestination.StorageAndNetworkSettings,
 				),
 			)
 		}

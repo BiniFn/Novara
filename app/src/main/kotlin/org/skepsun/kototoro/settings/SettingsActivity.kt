@@ -1024,12 +1024,16 @@ class SettingsActivity :
 				StorageAndNetworkSettingsRoute(
 					settings = kototoroAppSettings,
 					viewModel = storageAndNetworkSettingsViewModel,
+					dataCleanupViewModel = dataCleanupSettingsViewModel,
 					onOpenProxySettings = {
 						openDestination(SettingsDestination.ProxySettings, null, false)
 					},
-					onOpenDataCleanupSettings = {
-						openDestination(SettingsDestination.DataCleanupSettings, null, false)
-					},
+					onConfirmClearSearchHistory = ::confirmClearSearchHistory,
+					onConfirmClearCookies = ::confirmClearCookies,
+					onConfirmCleanupChapters = ::confirmCleanupChapters,
+					onConfirmClearLocalManga = ::confirmClearLocalManga,
+					onConfirmClearLocalNovels = ::confirmClearLocalNovels,
+					onConfirmClearLocalVideos = ::confirmClearLocalVideos,
 				)
 			}
 			SettingsDestination.DataCleanupSettings -> RenderComposeSection(title = getString(R.string.data_removal)) {
@@ -1279,6 +1283,10 @@ class SettingsActivity :
 		dataCleanupSettingsViewModel.onError.observeEvent(this, SnackbarErrorObserver(viewBinding.root, null))
 		dataCleanupSettingsViewModel.onActionDone.observeEvent(this, ReversibleActionObserver(viewBinding.root))
 		dataCleanupSettingsViewModel.onChaptersCleanedUp.observeEvent(this, ::onDataCleanupChaptersCleanedUp)
+		dataCleanupSettingsViewModel.onStorageChanged.observeEvent(this) {
+			storageAndNetworkSettingsViewModel.refreshStorageUsage()
+		}
+		dataCleanupSettingsViewModel.onLocalContentCleanedUp.observeEvent(this, ::onLocalContentCleanedUp)
 	}
 
 	private fun onDataCleanupChaptersCleanedUp(result: Pair<Int, Long>) {
@@ -1323,6 +1331,58 @@ class SettingsActivity :
 			.setNegativeButton(android.R.string.cancel, null)
 			.setPositiveButton(R.string.delete) { _, _ ->
 				dataCleanupSettingsViewModel.cleanupChapters()
+			}
+			.show()
+	}
+
+	private fun onLocalContentCleanedUp(result: DataCleanupSettingsViewModel.LocalContentCleanupResult) {
+		val labelRes = when (result.kind) {
+			org.skepsun.kototoro.local.data.StorageContentKind.MANGA -> R.string.local_manga_storage
+			org.skepsun.kototoro.local.data.StorageContentKind.NOVEL -> R.string.local_novel_storage
+			org.skepsun.kototoro.local.data.StorageContentKind.VIDEO -> R.string.local_video_storage
+		}
+		val text = if (result.removedCount == 0 && result.bytesFreed == 0L) {
+			getString(R.string.no_local_content_deleted)
+		} else {
+			getString(
+				R.string.local_content_deleted_pattern,
+				getString(labelRes),
+				resources.getQuantityStringSafe(R.plurals.items, result.removedCount, result.removedCount),
+				FileSize.BYTES.format(this, result.bytesFreed),
+			)
+		}
+		Snackbar.make(viewBinding.root, text, Snackbar.LENGTH_SHORT).show()
+	}
+
+	private fun confirmClearLocalManga() {
+		MaterialAlertDialogBuilder(this)
+			.setTitle(R.string.clear_local_manga_storage)
+			.setMessage(R.string.clear_local_manga_storage_prompt)
+			.setNegativeButton(android.R.string.cancel, null)
+			.setPositiveButton(R.string.clear) { _, _ ->
+				dataCleanupSettingsViewModel.clearLocalMangaContent()
+			}
+			.show()
+	}
+
+	private fun confirmClearLocalNovels() {
+		MaterialAlertDialogBuilder(this)
+			.setTitle(R.string.clear_local_novel_storage)
+			.setMessage(R.string.clear_local_novel_storage_prompt)
+			.setNegativeButton(android.R.string.cancel, null)
+			.setPositiveButton(R.string.clear) { _, _ ->
+				dataCleanupSettingsViewModel.clearLocalNovelContent()
+			}
+			.show()
+	}
+
+	private fun confirmClearLocalVideos() {
+		MaterialAlertDialogBuilder(this)
+			.setTitle(R.string.clear_local_video_storage)
+			.setMessage(R.string.clear_local_video_storage_prompt)
+			.setNegativeButton(android.R.string.cancel, null)
+			.setPositiveButton(R.string.clear) { _, _ ->
+				dataCleanupSettingsViewModel.clearLocalVideoContent()
 			}
 			.show()
 	}

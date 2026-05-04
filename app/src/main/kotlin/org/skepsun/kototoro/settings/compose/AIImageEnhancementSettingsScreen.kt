@@ -22,14 +22,12 @@ import org.skepsun.kototoro.core.prefs.observeAsState
 fun AIImageEnhancementSettingsScreen(
     settings: AppSettings,
     ncnnModels: List<SettingsChoiceOption<String>>,
-    onClearCacheClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val prefs = settings.prefs
 
     val engineNames = stringArrayResource(R.array.values_reader_super_resolution_engines).toList()
     val anime4kNames = stringArrayResource(R.array.values_reader_super_resolution_anime4k_modes).toList()
-    val cacheLimits = stringArrayResource(R.array.values_reader_super_resolution_cache_limits).toList()
 
     val isEnabled = settings.observeAsState(AppSettings.KEY_READER_SUPER_RESOLUTION_ENABLED) { settings.isReaderSuperResolutionEnabled }.value
     val engine = settings.observeAsState(AppSettings.KEY_READER_SUPER_RESOLUTION_ENGINE) { settings.readerSuperResolutionEngine }.value
@@ -91,25 +89,6 @@ fun AIImageEnhancementSettingsScreen(
                             onValueChange = { settings.prefs.edit { putString(AppSettings.KEY_READER_SUPER_RESOLUTION_MODEL, it) } },
                         )
                     }
-
-                    SettingsSectionDivider()
-                    SettingsChoicePreference(
-                        title = stringResource(R.string.reader_super_resolution_cache_limit),
-                        options = stringArrayResource(R.array.reader_super_resolution_cache_limits).mapIndexed { index, label ->
-                            SettingsChoiceOption(cacheLimits[index], label)
-                        },
-                        value = settings.observeAsState(AppSettings.KEY_READER_SUPER_RESOLUTION_CACHE_LIMIT) {
-                            prefs.getString(AppSettings.KEY_READER_SUPER_RESOLUTION_CACHE_LIMIT, "512") ?: "512"
-                        }.value,
-                        onValueChange = { settings.prefs.edit { putString(AppSettings.KEY_READER_SUPER_RESOLUTION_CACHE_LIMIT, it) } },
-                    )
-
-                    SettingsSectionDivider()
-                    SettingsActionPreference(
-                        title = stringResource(R.string.reader_super_resolution_clear_cache),
-                        summary = stringResource(R.string.reader_super_resolution_clear_cache_summary),
-                        onClick = onClearCacheClick,
-                    )
                 }
             }
         }

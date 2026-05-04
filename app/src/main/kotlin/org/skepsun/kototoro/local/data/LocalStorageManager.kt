@@ -39,6 +39,12 @@ private const val CACHE_DISK_PERCENTAGE = 0.02
 private const val CACHE_SIZE_MIN: Long = 10 * 1024 * 1024 // 10MB
 private const val CACHE_SIZE_MAX: Long = 250 * 1024 * 1024 // 250MB
 
+enum class StorageContentKind {
+	MANGA,
+	NOVEL,
+	VIDEO,
+}
+
 @Reusable
 class LocalStorageManager @Inject constructor(
     @LocalizedAppContext private val context: Context,
@@ -52,12 +58,16 @@ class LocalStorageManager @Inject constructor(
 	fun createHttpCache(): Cache {
 		val directory = File(context.externalCacheDir ?: context.cacheDir, "http")
 		directory.mkdirs()
-		val maxSize = calculateDiskCacheSize(directory)
+		val maxSize = settings.httpCacheSizeMb * 1024L * 1024L
 		return Cache(directory, maxSize)
 	}
 
 	suspend fun computeCacheSize(cache: CacheDir) = withContext(Dispatchers.IO) {
 		getCacheDirsFor(cache).sumOf { it.computeSize() }
+	}
+
+	suspend fun computeStorageSize(kind: StorageContentKind) = withContext(Dispatchers.IO) {
+		getReadableDirs(kind).toSet().sumOf { it.computeSize() }
 	}
 
 	suspend fun computeCacheSize() = withContext(Dispatchers.IO) {
@@ -84,7 +94,13 @@ class LocalStorageManager @Inject constructor(
 	}
 
 	suspend fun computeAvailableSize() = runInterruptible(Dispatchers.IO) {
-		getConfiguredStorageDirs().mapToSet { it.freeSpace }.sum()
+		(
+			getConfiguredStorageDirs() +
+				getConfiguredNovelStorageDirs() +
+				getConfiguredVideoStorageDirs()
+			)
+			.mapToSet { it.freeSpace }
+			.sum()
 	}
 
 	suspend fun clearCache(cache: CacheDir) = runInterruptible(Dispatchers.IO) {
@@ -107,22 +123,22 @@ class LocalStorageManager @Inject constructor(
 	}
 
 	suspend fun getAllReadableDirs(): List<File> = runInterruptible(Dispatchers.IO) {
-		(getConfiguredStorageDirs() + getAvailableNovelStorageDirs() + getAvailableVideoStorageDirs())
+		(getConfiguredStorageDirs() + getConfiguredNovelStorageDirs() + getConfiguredVideoStorageDirs())
 			.filter { it.isReadable() }
 	}
 
 	suspend fun getAllWriteableDirs(): List<File> = runInterruptible(Dispatchers.IO) {
-		(getConfiguredStorageDirs() + getAvailableNovelStorageDirs() + getAvailableVideoStorageDirs())
+		(getConfiguredStorageDirs() + getConfiguredNovelStorageDirs() + getConfiguredVideoStorageDirs())
 			.filter { it.isWriteable() }
 	}
 
 	suspend fun getNovelReadableDirs(): List<File> = runInterruptible(Dispatchers.IO) {
-		getAvailableNovelStorageDirs()
+		getConfiguredNovelStorageDirs()
 			.filter { it.isReadable() }
 	}
 
 	suspend fun getNovelWriteableDirs(): List<File> = runInterruptible(Dispatchers.IO) {
-		getAvailableNovelStorageDirs()
+		getConfiguredNovelStorageDirs()
 			.filter { it.isWriteable() }
 	}
 
@@ -138,6 +154,14 @@ class LocalStorageManager @Inject constructor(
 
 	suspend fun getApplicationStorageDirs(): Set<File> = runInterruptible(Dispatchers.IO) {
 		getAvailableStorageDirs()
+	}
+
+	suspend fun getReadableDirs(kind: StorageContentKind): List<File> = runInterruptible(Dispatchers.IO) {
+		when (kind) {
+			StorageContentKind.MANGA -> getConfiguredStorageDirs()
+			StorageContentKind.NOVEL -> getConfiguredNovelStorageDirs()
+			StorageContentKind.VIDEO -> getConfiguredVideoStorageDirs()
+		}.filter { it.isReadable() }
 	}
 
 	suspend fun resolveUri(uri: Uri): File = runInterruptible(Dispatchers.IO) {
@@ -211,6 +235,13 @@ class LocalStorageManager @Inject constructor(
 	}
 
 	@WorkerThread
+	private fun getConfiguredNovelStorageDirs(): MutableSet<File> {
+		val result = getAvailableNovelStorageDirs()
+		settings.novelStorageDir?.let(result::add)
+		return result
+	}
+
+	@WorkerThread
 	private fun getAvailableVideoStorageDirs(): MutableSet<File> {
 		val result = LinkedHashSet<File>()
 		result += File(context.filesDir, DIR_NAME_VIDEO)
@@ -275,17 +306,31 @@ class LocalStorageManager @Inject constructor(
 	@WorkerThread
 	private fun getCacheDirsFor(cache: CacheDir): MutableSet<File> {
 		val result = LinkedHashSet<File>()
-		if (cache == CacheDir.VIDEO) {
-			result += File(context.filesDir, "mpv_cache")
-			context.getExternalFilesDirs("mpv_cache").filterNotNullTo(result)
-			result += File(context.filesDir, "video_cache")
-			context.getExternalFilesDirs("video_cache").filterNotNullTo(result)
-			return result
-		}
-		val subDir = cache.dir
-		result += File(context.cacheDir, subDir)
-		context.externalCacheDirs.mapNotNullTo(result) {
-			File(it ?: return@mapNotNullTo null, subDir)
+		when (cache) {
+			CacheDir.VIDEO -> {
+				result += File(context.filesDir, "mpv_cache")
+				context.getExternalFilesDirs("mpv_cache").filterNotNullTo(result)
+				result += File(context.filesDir, "video_cache")
+				context.getExternalFilesDirs("video_cache").filterNotNullTo(result)
+			}
+			CacheDir.VIDEO_PROXY -> {
+				result += File(context.filesDir, cache.dir)
+				context.getExternalFilesDirs(cache.dir).filterNotNullTo(result)
+			}
+			CacheDir.DANMAKU,
+			CacheDir.HTTP,
+			CacheDir.SUPER_RESOLUTION,
+			CacheDir.THUMBS,
+			CacheDir.FAVICONS,
+			CacheDir.PAGES,
+			CacheDir.NOVELS,
+			CacheDir.TtsAudio -> {
+				val subDir = cache.dir
+				result += File(context.cacheDir, subDir)
+				context.externalCacheDirs.mapNotNullTo(result) {
+					File(it ?: return@mapNotNullTo null, subDir)
+				}
+			}
 		}
 		return result
 	}

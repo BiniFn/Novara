@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.util.FileSize
 import org.skepsun.kototoro.settings.userdata.storage.StorageUsage
+import org.skepsun.kototoro.settings.userdata.storage.StorageUsageCategory
 
 private data class StorageUsageUiItem(
     val label: String,
@@ -34,8 +35,11 @@ private data class StorageUsageUiItem(
 @Composable
 fun StorageAndNetworkSettingsScreen(
     storageTitle: String,
+    cacheLimitsTitle: String,
+    dataRemovalTitle: String,
     networkTitle: String,
     storageUsage: StorageUsage?,
+    cacheLimits: @Composable () -> Unit,
     prefetchContent: @Composable () -> Unit,
     preloadPages: @Composable () -> Unit,
     proxy: @Composable () -> Unit,
@@ -57,21 +61,32 @@ fun StorageAndNetworkSettingsScreen(
         },
         containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
-    val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
-        LazyColumn(state = listState,
+        val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
+        LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(
                 start = 16.dp,
                 end = 16.dp,
                 top = innerPadding.calculateTopPadding() + 20.dp,
-                bottom = innerPadding.calculateBottomPadding() + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp,
+                bottom = innerPadding.calculateBottomPadding() +
+                    WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
+                    24.dp,
             ),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item(key = "storage") {
+            item(key = "storage_usage") {
                 SettingsPreferenceSection(title = storageTitle) {
                     StorageUsageBlock(storageUsage = storageUsage)
-                    SettingsSectionDivider()
+                }
+            }
+            item(key = "cache_limits") {
+                SettingsPreferenceSection(title = cacheLimitsTitle) {
+                    cacheLimits()
+                }
+            }
+            item(key = "data_removal") {
+                SettingsPreferenceSection(title = dataRemovalTitle) {
                     dataRemoval()
                 }
             }
@@ -109,16 +124,17 @@ private fun StorageUsageBlock(
     storageUsage: StorageUsage?,
 ) {
     val context = LocalContext.current
-    val items = remember(storageUsage) {
-        storageUsage?.let {
-            listOf(
-                StorageUsageUiItem(context.getString(R.string.saved_manga), it.savedContent.bytes, it.savedContent.percent),
-                StorageUsageUiItem(context.getString(R.string.ai_local_models), it.aiModels.bytes, it.aiModels.percent),
-                StorageUsageUiItem(context.getString(R.string.pages_cache), it.pagesCache.bytes, it.pagesCache.percent),
-                StorageUsageUiItem(context.getString(R.string.other_cache), it.otherCache.bytes, it.otherCache.percent),
-                StorageUsageUiItem(context.getString(R.string.available), it.available.bytes, it.available.percent),
-            )
-        }.orEmpty()
+    val items = remember(storageUsage, context) {
+        storageUsage?.items
+            ?.filter { it.bytes > 0L || it.category == StorageUsageCategory.AVAILABLE }
+            ?.map {
+                StorageUsageUiItem(
+                    label = storageCategoryLabel(context, it.category),
+                    bytes = it.bytes,
+                    progress = it.percent,
+                )
+            }
+            .orEmpty()
     }
 
     if (items.isEmpty()) {
@@ -150,4 +166,26 @@ private fun StorageUsageBlock(
             SettingsSectionDivider()
         }
     }
+}
+
+private fun storageCategoryLabel(
+    context: android.content.Context,
+    category: StorageUsageCategory,
+): String = when (category) {
+    StorageUsageCategory.LOCAL_MANGA -> context.getString(R.string.local_manga_storage)
+    StorageUsageCategory.LOCAL_NOVELS -> context.getString(R.string.local_novel_storage)
+    StorageUsageCategory.LOCAL_VIDEOS -> context.getString(R.string.local_video_storage)
+    StorageUsageCategory.THUMBS_CACHE -> context.getString(R.string.thumbnails_cache)
+    StorageUsageCategory.FAVICONS_CACHE -> context.getString(R.string.favicons_cache)
+    StorageUsageCategory.PAGES_CACHE -> context.getString(R.string.pages_cache)
+    StorageUsageCategory.NOVELS_CACHE -> context.getString(R.string.novel_reader_cache)
+    StorageUsageCategory.VIDEO_CACHE -> context.getString(R.string.video_playback_cache)
+    StorageUsageCategory.VIDEO_PROXY_CACHE -> context.getString(R.string.video_proxy_cache)
+    StorageUsageCategory.DANMAKU_CACHE -> context.getString(R.string.danmaku_cache)
+    StorageUsageCategory.TTS_CACHE -> context.getString(R.string.tts_audio_cache)
+    StorageUsageCategory.SUPER_RESOLUTION_CACHE -> context.getString(R.string.reader_super_resolution_cache)
+    StorageUsageCategory.HTTP_CACHE -> context.getString(R.string.network_cache)
+    StorageUsageCategory.AI_MODELS -> context.getString(R.string.ai_local_models)
+    StorageUsageCategory.OTHER_CACHE -> context.getString(R.string.other_cache)
+    StorageUsageCategory.AVAILABLE -> context.getString(R.string.available)
 }

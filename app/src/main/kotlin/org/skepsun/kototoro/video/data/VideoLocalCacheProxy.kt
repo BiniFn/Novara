@@ -6,6 +6,7 @@ import fi.iki.elonen.NanoHTTPD
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.skepsun.kototoro.core.network.ContentHttpClient
+import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.video.dlna.NetworkUtils
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -25,6 +26,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 class VideoLocalCacheProxy @Inject constructor(
     @ApplicationContext context: Context,
     @ContentHttpClient private val okHttpClient: OkHttpClient,
+    private val settings: AppSettings,
 ) {
     fun interface DynamicSourceHandler {
         fun handle(request: DynamicRequest): DynamicResponse
@@ -224,6 +226,54 @@ class VideoLocalCacheProxy @Inject constructor(
 
     private fun getLock(key: String): Any = fileLocks.computeIfAbsent(key) { Any() }
 
+    private fun maxCacheBytes(): Long = settings.videoProxyCacheSizeMb * 1024L * 1024L
+
+    private fun touchCacheFiles(vararg files: File) {
+        val timestamp = System.currentTimeMillis()
+        files.forEach { file ->
+            if (file.exists()) {
+                file.setLastModified(timestamp)
+            }
+        }
+    }
+
+    private fun trimCache() {
+        val limitBytes = maxCacheBytes()
+        if (limitBytes <= 0L || !cacheRoot.exists()) return
+        data class CacheEntry(
+            val dataFile: File,
+            val metaFile: File?,
+            val lastModified: Long,
+            val totalSize: Long,
+        )
+
+        val entries = cacheRoot.listFiles()
+            .orEmpty()
+            .filter { it.extension == "bin" }
+            .map { dataFile ->
+                val metaFile = File(cacheRoot, "${dataFile.nameWithoutExtension}.meta").takeIf { it.exists() }
+                CacheEntry(
+                    dataFile = dataFile,
+                    metaFile = metaFile,
+                    lastModified = maxOf(dataFile.lastModified(), metaFile?.lastModified() ?: 0L),
+                    totalSize = dataFile.length() + (metaFile?.length() ?: 0L),
+                )
+            }
+            .sortedBy { it.lastModified }
+            .toMutableList()
+
+        var currentSize = entries.sumOf { it.totalSize }
+        if (currentSize <= limitBytes) return
+
+        entries.forEach { entry ->
+            if (currentSize <= limitBytes) return
+            val removedSize = entry.totalSize
+            entry.dataFile.delete()
+            entry.metaFile?.delete()
+            currentSize -= removedSize
+        }
+    }
+
     private fun resolveAbsoluteUrl(baseUrl: String, rawUri: String): String {
         return runCatching { URI(baseUrl).resolve(rawUri).toString() }.getOrDefault(rawUri)
     }
@@ -321,6 +371,7 @@ class VideoLocalCacheProxy @Inject constructor(
             }
             if (canServeFromCache) {
                 sessionCacheHitCount.incrementAndGet()
+                touchCacheFiles(cacheFile, metaFile)
                 Log.d(TAG, "cache hit key=$key range=${requestRange?.start}-${requestRange?.end ?: "end"}")
                 return buildCachedResponse(
                     cacheFile = cacheFile,
@@ -424,6 +475,8 @@ class VideoLocalCacheProxy @Inject constructor(
                     if (bytesWritten > 0) {
                         sessionCacheWriteCount.incrementAndGet()
                         sessionCacheWriteBytes.addAndGet(bytesWritten)
+                        touchCacheFiles(cacheFile, metaFile)
+                        trimCache()
                     }
                     Log.d(TAG, "cache write key=$key bytes=$bytesWritten start=$writeStart")
                     upstreamResponse.close()

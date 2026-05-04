@@ -52,7 +52,6 @@ class AIImageEnhancementSettingsFragment : Fragment() {
                 AIImageEnhancementSettingsRoute(
                     settings = settings,
                     onnxModelManager = onnxModelManager,
-                    onClearCacheClick = ::clearSrCache,
                 )
             }
         }
@@ -87,7 +86,6 @@ class AIImageEnhancementSettingsFragment : Fragment() {
 fun AIImageEnhancementSettingsRoute(
     settings: AppSettings,
     onnxModelManager: OnnxModelManager,
-    onClearCacheClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -109,7 +107,6 @@ fun AIImageEnhancementSettingsRoute(
     AIImageEnhancementSettingsScreen(
         settings = settings,
         ncnnModels = ncnnModels,
-        onClearCacheClick = onClearCacheClick,
         modifier = modifier,
     )
 }

@@ -35,14 +35,31 @@ class VideoCache @Inject constructor(
 			return mb * 1024L * 1024L
 		}
 
-	val cache: Cache by lazy {
-		// 优先使用getExternalFilesDir，不容易被系统清理
+	@Volatile
+	private var activeCache: SimpleCache? = null
+
+	@Volatile
+	private var activeCacheLimitBytes: Long = -1L
+
+	val cache: Cache
+		get() = getOrCreateCache()
+
+	@Synchronized
+	private fun getOrCreateCache(): Cache {
+		val desiredLimit = cacheSizeBytes
+		val current = activeCache
+		if (current != null && activeCacheLimitBytes == desiredLimit) {
+			return current
+		}
+		current?.release()
 		val cacheDir = context.getExternalFilesDir("video_cache")
-			?: File(context.filesDir, "video_cache") // 降级到内部存储
+			?: File(context.filesDir, "video_cache")
 		val databaseProvider = StandaloneDatabaseProvider(context)
-		val evictor = LeastRecentlyUsedCacheEvictor(cacheSizeBytes)
-		
-		SimpleCache(cacheDir, evictor, databaseProvider)
+		val evictor = LeastRecentlyUsedCacheEvictor(desiredLimit)
+		return SimpleCache(cacheDir, evictor, databaseProvider).also {
+			activeCache = it
+			activeCacheLimitBytes = desiredLimit
+		}
 	}
 
 	fun clear() {

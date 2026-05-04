@@ -136,11 +136,13 @@ interface AppModule {
 			coverRestoreInterceptor: CoverRestoreInterceptor,
 			networkStateProvider: Provider<NetworkState>,
 			captchaHandler: CaptchaHandler,
+			settings: AppSettings,
 		): ImageLoader {
 			val diskCacheFactory = {
 				val rootDir = context.externalCacheDir ?: context.cacheDir
 				DiskCache.Builder()
 					.directory(rootDir.resolve(CacheDir.THUMBS.dir))
+					.maxSizeBytes(FileSize.MEGABYTES.convert(settings.thumbsCacheSizeMb.toLong(), FileSize.BYTES))
 					.build()
 			}
 			val okHttpClientLazy = lazy {
@@ -245,10 +247,11 @@ interface AppModule {
 		@PageCache
 		fun providePageCache(
 			@ApplicationContext context: Context,
+			settings: AppSettings,
 		) = LocalStorageCache(
 			context = context,
 			dir = CacheDir.PAGES,
-			defaultSize = FileSize.MEGABYTES.convert(200, FileSize.BYTES),
+			defaultSize = FileSize.MEGABYTES.convert(settings.pagesCacheSizeMb.toLong(), FileSize.BYTES),
 			minSize = FileSize.MEGABYTES.convert(20, FileSize.BYTES),
 		)
 
@@ -257,10 +260,11 @@ interface AppModule {
 		@FaviconCache
 		fun provideFaviconCache(
 			@ApplicationContext context: Context,
+			settings: AppSettings,
 		) = LocalStorageCache(
 			context = context,
 			dir = CacheDir.FAVICONS,
-			defaultSize = FileSize.MEGABYTES.convert(8, FileSize.BYTES),
+			defaultSize = FileSize.MEGABYTES.convert(settings.faviconCacheSizeMb.toLong(), FileSize.BYTES),
 			minSize = FileSize.MEGABYTES.convert(2, FileSize.BYTES),
 		)
 
@@ -269,10 +273,11 @@ interface AppModule {
 		@NovelCache
 		fun provideNovelCache(
 			@ApplicationContext context: Context,
+			settings: AppSettings,
 		) = LocalStorageCache(
 			context = context,
 			dir = CacheDir.NOVELS,
-			defaultSize = FileSize.MEGABYTES.convert(100, FileSize.BYTES),
+			defaultSize = FileSize.MEGABYTES.convert(settings.novelCacheSizeMb.toLong(), FileSize.BYTES),
 			minSize = FileSize.MEGABYTES.convert(10, FileSize.BYTES),
 		)
 	}
