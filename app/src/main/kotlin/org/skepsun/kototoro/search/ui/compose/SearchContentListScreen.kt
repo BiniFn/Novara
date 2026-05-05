@@ -53,6 +53,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -62,6 +63,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -1683,7 +1685,7 @@ private fun TagGroupsSection(
     if (visibleGroups.isEmpty()) return
     FilterSection(title = title) {
         Column(
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             visibleGroups.forEach { group ->
                 TagGroupContent(
@@ -1720,7 +1722,7 @@ private fun TagGroupContent(
     val canExpand = orderedTags.size > visibleTags.size
 
     Column(
-        verticalArrangement = Arrangement.spacedBy(1.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
         if (group.title.isNotBlank()) {
             Row(
@@ -1734,15 +1736,17 @@ private fun TagGroupContent(
                     fontWeight = FontWeight.SemiBold,
                 )
                 if (canExpand) {
-                    IconButton(
-                        onClick = { onOpenTagCatalog(group.title, excludeMode) },
-                        modifier = Modifier.size(18.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = stringResource(R.string.show_more),
-                            modifier = Modifier.size(14.dp),
-                        )
+                    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 18.dp) {
+                        IconButton(
+                            onClick = { onOpenTagCatalog(group.title, excludeMode) },
+                            modifier = Modifier.size(18.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = stringResource(R.string.show_more),
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -1832,41 +1836,43 @@ private fun SearchPanelChip(
     label: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        modifier = modifier.heightIn(min = 26.dp),
-        label = {
-            androidx.compose.material3.ProvideTextStyle(MaterialTheme.typography.labelSmall) {
-                label()
-            }
-        },
-        leadingIcon = if (selected) {
-            {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = null,
-                    modifier = Modifier.size(14.dp),
-                )
-            }
-        } else {
-            null
-        },
-        colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-            selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
-            selectedLeadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        ),
-        border = FilterChipDefaults.filterChipBorder(
-            enabled = true,
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 24.dp) {
+        FilterChip(
             selected = selected,
-            borderColor = if (selected) {
-                MaterialTheme.colorScheme.secondary.copy(alpha = 0.45f)
-            } else {
-                MaterialTheme.colorScheme.outlineVariant
+            onClick = onClick,
+            modifier = modifier.heightIn(min = 24.dp),
+            label = {
+                androidx.compose.material3.ProvideTextStyle(MaterialTheme.typography.labelSmall) {
+                    label()
+                }
             },
-        ),
-    )
+            leadingIcon = if (selected) {
+                {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(12.dp),
+                    )
+                }
+            } else {
+                null
+            },
+            colors = FilterChipDefaults.filterChipColors(
+                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                selectedLeadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            ),
+            border = FilterChipDefaults.filterChipBorder(
+                enabled = true,
+                selected = selected,
+                borderColor = if (selected) {
+                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.45f)
+                } else {
+                    MaterialTheme.colorScheme.outlineVariant
+                },
+            ),
+        )
+    }
 }
 
 private fun ListMode.iconRes(): Int = when (this) {

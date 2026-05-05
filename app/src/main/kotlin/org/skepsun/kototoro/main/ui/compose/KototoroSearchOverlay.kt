@@ -715,12 +715,13 @@ private fun SourceSuggestionRow(
                 .padding(start = 12.dp),
             verticalArrangement = Arrangement.Center,
         ) {
-            Text(
-                text = sourceTitle,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.labelMedium,
-            )
+                Text(
+                    text = sourceTitle,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
             Text(
                 text = stringResource(source.contentType.titleResId),
                 maxLines = 1,
@@ -787,7 +788,7 @@ private fun ContentSuggestionCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
         }
