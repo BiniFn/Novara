@@ -33,7 +33,7 @@ class ExternalBackupRepository @Inject constructor(
                 val mangaId = generateContentId(record)
                 upsertContent(mangaId, record)
                 if (record.isFavorite) {
-                    val favoriteTimestamp = record.favoriteTimestamp ?: record.historyTimestamp ?: System.currentTimeMillis()
+                    val favoriteTimestamp = record.favoriteTimestamp ?: System.currentTimeMillis()
                     val targetCategoryIds = record.favoriteCategoryOrders
                         .mapNotNull(externalCategories::get)
                         .ifEmpty { listOf(defaultCategoryId.toLong()) }
@@ -137,7 +137,7 @@ class ExternalBackupRepository @Inject constructor(
                         deletedAt = 0L,
                     ),
                 )
-            importedIds[category.order] = localCategoryId
+            importedIds[category.id] = localCategoryId
         }
         return importedIds
     }

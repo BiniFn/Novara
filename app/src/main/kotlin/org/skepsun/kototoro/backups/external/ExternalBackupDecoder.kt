@@ -64,6 +64,25 @@ class ExternalBackupDecoder @Inject constructor(
         }.getOrNull()?.toPayload(app)
     }
 
+    private fun normalizeTimestamp(ts: Long): Long {
+        if (ts <= 0L) return 0L
+        // timestamps before 2000-01-01 in milliseconds are likely in seconds
+        return if (ts < 946684800000L) ts * 1000L else ts
+    }
+
+    private fun resolveFavoriteTimestamp(
+        favoriteModifiedAt: Long?,
+        dateAdded: Long,
+        lastModifiedAt: Long,
+    ): Long? {
+        val candidates = listOfNotNull(
+            dateAdded.takeIf { it > 0L },
+            favoriteModifiedAt?.takeIf { it > 0L },
+            lastModifiedAt.takeIf { it > 0L },
+        )
+        return candidates.firstOrNull()?.let { normalizeTimestamp(it) }
+    }
+
     private fun calculateProgressPercent(
         totalCount: Int,
         completedCount: Int,
@@ -95,6 +114,7 @@ class ExternalBackupDecoder @Inject constructor(
         @ProtoNumber(16) val chapters: List<MihonBackupChapter> = emptyList(),
         @ProtoNumber(17) val categories: List<Long> = emptyList(),
         @ProtoNumber(104) val history: List<MihonBackupHistory> = emptyList(),
+        @ProtoNumber(106) val lastModifiedAt: Long = 0,
         @ProtoNumber(107) val favoriteModifiedAt: Long? = null,
     )
 
@@ -102,6 +122,8 @@ class ExternalBackupDecoder @Inject constructor(
     private data class MihonBackupCategory(
         @ProtoNumber(1) val name: String,
         @ProtoNumber(2) val order: Long = 0,
+        @ProtoNumber(3) val id: Long = 0,
+        @ProtoNumber(100) val flags: Long = 0,
     )
 
     @Serializable
@@ -121,7 +143,7 @@ class ExternalBackupDecoder @Inject constructor(
     private data class AniyomiBackup(
         @ProtoNumber(1) val backupManga: List<AniyomiBackupManga> = emptyList(),
         @ProtoNumber(2) val backupCategories: List<MihonBackupCategory> = emptyList(),
-        @ProtoNumber(3) val backupAnime: List<AniyomiBackupAnime> = emptyList(),
+        @ProtoNumber(501) val backupAnime: List<AniyomiBackupAnime> = emptyList(),
     )
 
     @Serializable
@@ -140,6 +162,7 @@ class ExternalBackupDecoder @Inject constructor(
         @ProtoNumber(16) val chapters: List<MihonBackupChapter> = emptyList(),
         @ProtoNumber(17) val categories: List<Long> = emptyList(),
         @ProtoNumber(104) val history: List<MihonBackupHistory> = emptyList(),
+        @ProtoNumber(106) val lastModifiedAt: Long = 0,
         @ProtoNumber(107) val favoriteModifiedAt: Long? = null,
     )
 
@@ -157,7 +180,9 @@ class ExternalBackupDecoder @Inject constructor(
         @ProtoNumber(13) val dateAdded: Long = 0,
         @ProtoNumber(100) val favorite: Boolean = true,
         @ProtoNumber(16) val episodes: List<AniyomiBackupEpisode> = emptyList(),
+        @ProtoNumber(17) val categories: List<Long> = emptyList(),
         @ProtoNumber(104) val history: List<AniyomiBackupHistory> = emptyList(),
+        @ProtoNumber(106) val lastModifiedAt: Long = 0,
         @ProtoNumber(107) val favoriteModifiedAt: Long? = null,
     )
 
@@ -206,7 +231,7 @@ class ExternalBackupDecoder @Inject constructor(
             )
         }
         val animeRecords = backupAnime.mapNotNull { anime ->
-            val favoriteTimestamp = anime.favoriteModifiedAt ?: anime.dateAdded.takeIf { it > 0L }
+            val favoriteTimestamp = resolveFavoriteTimestamp(anime.favoriteModifiedAt, anime.dateAdded, anime.lastModifiedAt)
             val history = anime.history.maxByOrNull { it.lastRead }
             val progressPercent = calculateProgressPercent(
                 totalCount = anime.episodes.size,
@@ -232,7 +257,7 @@ class ExternalBackupDecoder @Inject constructor(
                     state = anime.status.toString(),
                     isFavorite = anime.favorite,
                     favoriteTimestamp = favoriteTimestamp,
-                    favoriteCategoryOrders = emptyList(),
+                    favoriteCategoryOrders = anime.categories,
                     chaptersCount = anime.episodes.size,
                     readEntriesCount = anime.episodes.count { it.seen },
                     progressPercent = progressPercent,
@@ -254,7 +279,7 @@ class ExternalBackupDecoder @Inject constructor(
         totalCount: Int,
         completedCount: Int,
     ): ExternalBackupContentRecord? {
-        val favoriteTimestamp = favoriteModifiedAt ?: dateAdded.takeIf { it > 0L }
+        val favoriteTimestamp = resolveFavoriteTimestamp(favoriteModifiedAt, dateAdded, lastModifiedAt)
         val history = history.maxByOrNull { it.lastRead }
         val progressPercent = calculateProgressPercent(
             totalCount = totalCount,
@@ -296,7 +321,7 @@ class ExternalBackupDecoder @Inject constructor(
         totalCount: Int,
         completedCount: Int,
     ): ExternalBackupContentRecord? {
-        val favoriteTimestamp = favoriteModifiedAt ?: dateAdded.takeIf { it > 0L }
+        val favoriteTimestamp = resolveFavoriteTimestamp(favoriteModifiedAt, dateAdded, lastModifiedAt)
         val history = history.maxByOrNull { it.lastRead }
         val progressPercent = calculateProgressPercent(
             totalCount = totalCount,
@@ -305,6 +330,7 @@ class ExternalBackupDecoder @Inject constructor(
         if (!favorite && history == null) {
             return null
         }
+        android.util.Log.d("KototoroBackup", "AniyomiManga ts: favModAt=$favoriteModifiedAt dateAdd=$dateAdded lastMod=$lastModifiedAt resolved=$favoriteTimestamp title=$title")
         return ExternalBackupContentRecord(
             app = app,
             sourceName = sourceName,
@@ -335,6 +361,6 @@ class ExternalBackupDecoder @Inject constructor(
         return filter { it.name.isNotBlank() }
             .distinctBy { it.name }
             .sortedBy { it.order }
-            .map { ExternalBackupFavoriteCategoryRecord(name = it.name, order = it.order) }
+            .map { ExternalBackupFavoriteCategoryRecord(name = it.name, order = it.order, id = it.id, flags = it.flags) }
     }
 }

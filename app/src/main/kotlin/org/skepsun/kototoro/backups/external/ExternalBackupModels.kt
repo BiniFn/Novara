@@ -10,6 +10,8 @@ data class ExternalBackupPayload(
 data class ExternalBackupFavoriteCategoryRecord(
     val name: String,
     val order: Long,
+    val id: Long,
+    val flags: Long = 0,
 )
 
 data class ExternalBackupContentRecord(
