@@ -2,683 +2,122 @@ package org.skepsun.kototoro.filter.ui.sheet
 
 import android.os.Bundle
 import android.text.InputFilter
-import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
-import android.widget.ImageView
-import android.widget.CheckedTextView
-import android.widget.LinearLayout
-import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.widget.PopupMenu
-import androidx.appcompat.R as appcompatR
-import androidx.core.content.ContextCompat
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RangeSlider
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.isGone
-import androidx.core.view.isVisible
-import androidx.core.view.setPadding
-import androidx.core.view.updateLayoutParams
-import androidx.core.view.updateMarginsRelative
-import androidx.core.view.updatePadding
-import androidx.core.widget.TextViewCompat
-import com.google.android.material.chip.Chip
-import com.google.android.material.slider.RangeSlider
-import com.google.android.material.slider.Slider
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.titleResId
-import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
 import org.skepsun.kototoro.core.ui.dialog.setEditText
 import org.skepsun.kototoro.core.ui.model.titleRes
+import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.ui.sheet.BaseAdaptiveSheet
-import org.skepsun.kototoro.core.ui.widgets.ChipsView
+import org.skepsun.kototoro.core.ui.theme.KototoroTheme
 import org.skepsun.kototoro.core.util.AlphanumComparator
-import org.skepsun.kototoro.core.util.ext.consume
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 import org.skepsun.kototoro.core.util.ext.getDisplayName
-import org.skepsun.kototoro.core.util.ext.getThemeColorStateList
-import org.skepsun.kototoro.core.util.ext.observe
-import org.skepsun.kototoro.core.util.ext.parentView
-import org.skepsun.kototoro.core.util.ext.setValueRounded
-import org.skepsun.kototoro.core.util.ext.setValuesRounded
-import org.skepsun.kototoro.databinding.SheetFilterBinding
 import org.skepsun.kototoro.filter.data.PersistableFilter
 import org.skepsun.kototoro.filter.data.PersistableFilter.Companion.MAX_TITLE_LENGTH
 import org.skepsun.kototoro.filter.ui.FilterCoordinator
 import org.skepsun.kototoro.filter.ui.model.FilterProperty
+import org.skepsun.kototoro.filter.ui.model.UiTagGroup
 import org.skepsun.kototoro.parsers.model.ContentRating
+import org.skepsun.kototoro.parsers.model.ContentState
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.Demographic
-import org.skepsun.kototoro.parsers.model.ContentState
-import org.skepsun.kototoro.filter.ui.model.UiTagGroup
 import org.skepsun.kototoro.parsers.model.SortOrder
+import org.skepsun.kototoro.parsers.model.YEAR_MIN
 import org.skepsun.kototoro.parsers.model.YEAR_UNKNOWN
 import org.skepsun.kototoro.parsers.util.mapToSet
-import org.skepsun.kototoro.parsers.util.toIntUp
 import java.util.Locale
 import java.util.TreeSet
-import com.google.android.material.R as materialR
 
-class FilterSheetFragment : BaseAdaptiveSheet<SheetFilterBinding>(),
-    AdapterView.OnItemSelectedListener,
-    View.OnClickListener,
-    ChipsView.OnChipClickListener,
-    ChipsView.OnChipLongClickListener,
-    ChipsView.OnChipCloseClickListener {
+@AndroidEntryPoint
+class FilterSheetFragment : BaseAdaptiveSheet<FilterSheetComposeBinding>() {
 
-    private var lastIncludeGroups: List<UiTagGroup> = emptyList()
-    private var lastIncludeSelected: Set<org.skepsun.kototoro.parsers.model.ContentTag> = emptySet()
-    private var lastExcludeGroups: List<UiTagGroup> = emptyList()
-    private var lastExcludeSelected: Set<org.skepsun.kototoro.parsers.model.ContentTag> = emptySet()
-    private var sortExpanded = false
-
-    override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): SheetFilterBinding {
-        return SheetFilterBinding.inflate(inflater, container, false)
+    override fun onCreateViewBinding(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+    ): FilterSheetComposeBinding {
+        return FilterSheetComposeBinding.inflate(requireContext())
     }
 
-    override fun onViewBindingCreated(binding: SheetFilterBinding, savedInstanceState: Bundle?) {
+    override fun onViewBindingCreated(binding: FilterSheetComposeBinding, savedInstanceState: Bundle?) {
         super.onViewBindingCreated(binding, savedInstanceState)
-        if (dialog == null) {
-            binding.adjustForEmbeddedLayout()
-        }
-        val filter = FilterCoordinator.require(this)
-        filter.sortOrder.observe(viewLifecycleOwner, this::onSortOrderChanged)
-        filter.locale.observe(viewLifecycleOwner, this::onLocaleChanged)
-        filter.originalLocale.observe(viewLifecycleOwner, this::onOriginalLocaleChanged)
-        filter.tags.observe(viewLifecycleOwner, this::onTagsChanged)
-        filter.tagsExcluded.observe(viewLifecycleOwner, this::onTagsExcludedChanged)
-        filter.authors.observe(viewLifecycleOwner, this::onAuthorsChanged)
-        filter.states.observe(viewLifecycleOwner, this::onStateChanged)
-        filter.contentTypes.observe(viewLifecycleOwner, this::onContentTypesChanged)
-        filter.contentRating.observe(viewLifecycleOwner, this::onContentRatingChanged)
-        filter.demographics.observe(viewLifecycleOwner, this::onDemographicsChanged)
-        filter.year.observe(viewLifecycleOwner, this::onYearChanged)
-        filter.yearRange.observe(viewLifecycleOwner, this::onYearRangeChanged)
-        filter.savedFilters.observe(viewLifecycleOwner, ::onSavedPresetsChanged)
-
-        binding.layoutGenres.setTitle(
-            if (filter.capabilities.isMultipleTagsSupported) {
-                R.string.genres
-            } else {
-                R.string.genre
-            },
+        disableFitToContents()
+        binding.composeView.setViewCompositionStrategy(
+            ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed,
         )
-        binding.spinnerLocale.onItemSelectedListener = this
-        binding.spinnerOriginalLocale.onItemSelectedListener = this
-        binding.chipsSavedFilters.onChipClickListener = this
-        binding.chipsState.onChipClickListener = this
-        binding.chipsTypes.onChipClickListener = this
-        binding.chipsContentRating.onChipClickListener = this
-        binding.chipsDemographics.onChipClickListener = this
-        binding.chipsGenres.onChipClickListener = this
-        binding.chipsGenresExclude.onChipClickListener = this
-        binding.chipsAuthor.onChipClickListener = this
-        binding.chipsSavedFilters.onChipLongClickListener = this
-        binding.chipsSavedFilters.onChipCloseClickListener = this
-        binding.sliderYear.addOnChangeListener(this::onSliderValueChange)
-        binding.sliderYearsRange.addOnChangeListener(this::onRangeSliderValueChange)
-        binding.layoutOrder.setOnMoreButtonClickListener {
-            sortExpanded = !sortExpanded
-            renderSortExpansion(binding)
-        }
-        combine(
-            filter.observe().map { it.listFilter.isNotEmpty() }.distinctUntilChanged(),
-            filter.savedFilters.map { it.selectedItems.isEmpty() }.distinctUntilChanged(),
-            Boolean::and,
-        ).flowOn(Dispatchers.Default)
-            .observe(viewLifecycleOwner) {
-                binding.buttonSave.isEnabled = it
-            }
-        binding.buttonSave.setOnClickListener(this)
-        binding.buttonReset.setOnClickListener(this)
-        binding.buttonDone.setOnClickListener(this)
-        renderSortExpansion(binding)
-    }
-
-    private fun SheetFilterBinding.adjustForEmbeddedLayout() {
-        layoutBody.updatePadding(top = layoutBody.paddingBottom)
-        scrollView.scrollIndicators = 0
-        buttonDone.isVisible = false
-        this.root.layoutParams?.height = ViewGroup.LayoutParams.MATCH_PARENT
-        buttonSave.updateLayoutParams<LinearLayout.LayoutParams> {
-            weight = 0f
-            width = LinearLayout.LayoutParams.WRAP_CONTENT
-            gravity = Gravity.END or Gravity.CENTER_VERTICAL
-        }
-    }
-
-    override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
-        val typeMask = WindowInsetsCompat.Type.systemBars()
-        viewBinding?.layoutBottom?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-            bottomMargin = insets.getInsets(typeMask).bottom
-        }
-        return insets.consume(v, typeMask, bottom = true)
-    }
-
-    override fun onClick(v: View) {
-        when (v.id) {
-            R.id.button_done -> dismiss()
-            R.id.button_save -> onSaveFilterClick("")
-            R.id.button_reset -> FilterCoordinator.require(this).reset()
-        }
-    }
-
-    override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
-        val filter = FilterCoordinator.require(this)
-        when (parent.id) {
-            R.id.spinner_locale -> filter.setLocale(filter.locale.value.availableItems[position])
-            R.id.spinner_original_locale -> filter.setOriginalLocale(filter.originalLocale.value.availableItems[position])
-        }
-    }
-
-    override fun onNothingSelected(parent: AdapterView<*>?) = Unit
-
-    private fun onSliderValueChange(slider: Slider, value: Float, fromUser: Boolean) {
-        if (!fromUser) {
-            return
-        }
-        val intValue = value.toInt()
-        val filter = FilterCoordinator.require(this)
-        when (slider.id) {
-            R.id.slider_year -> filter.setYear(
-                if (intValue <= slider.valueFrom.toIntUp()) {
-                    YEAR_UNKNOWN
-                } else {
-                    intValue
-                },
-            )
-        }
-    }
-
-    private fun onRangeSliderValueChange(slider: RangeSlider, value: Float, fromUser: Boolean) {
-        if (!fromUser) {
-            return
-        }
-        val filter = FilterCoordinator.require(this)
-        when (slider.id) {
-            R.id.slider_yearsRange -> filter.setYearRange(
-                valueFrom = slider.values.firstOrNull()?.let {
-                    if (it <= slider.valueFrom) YEAR_UNKNOWN else it.toInt()
-                } ?: YEAR_UNKNOWN,
-                valueTo = slider.values.lastOrNull()?.let {
-                    if (it >= slider.valueTo) YEAR_UNKNOWN else it.toInt()
-                } ?: YEAR_UNKNOWN,
-            )
-        }
-    }
-
-    override fun onChipClick(chip: Chip, data: Any?) {
-        val filter = FilterCoordinator.require(this)
-        when (data) {
-            is ContentState -> filter.toggleState(data, !chip.isChecked)
-            is UiTagGroup -> {} // groups are not directly toggled
-            is org.skepsun.kototoro.parsers.model.ContentTag -> {
-                // Check if this is a text input tag (Mihon Filter.Text)
-                if (filter.isTextInputTag(data)) {
-                    showTextInputDialog(filter, data)
-                } else {
-                    val parentTag = (chip.parentView?.parent as? View)?.tag
-                    val isExclude = parentTag == GROUP_TAG_VIEW_EXCLUDE || chip.parentView?.id == R.id.chips_genresExclude
-                    if (isExclude) filter.toggleTagExclude(data, !chip.isChecked) else filter.toggleTag(data, !chip.isChecked)
-                }
-            }
-
-            is ContentType -> filter.toggleContentType(data, !chip.isChecked)
-            is ContentRating -> filter.toggleContentRating(data, !chip.isChecked)
-            is Demographic -> filter.toggleDemographic(data, !chip.isChecked)
-            is PersistableFilter -> filter.toggleSavedFilter(data)
-            is String -> if (chip.isChecked) {
-                filter.setAuthor(null)
-            } else {
-                filter.setAuthor(data)
-            }
-            null -> router.showTagsCatalogSheet(
-                excludeMode = chip.parentView?.id == R.id.chips_genresExclude,
-                groupTitle = null,
-            )
-        }
-    }
-    
-    private fun showTextInputDialog(filter: FilterCoordinator, tag: org.skepsun.kototoro.parsers.model.ContentTag) {
-        val currentValue = filter.getTextInputValue(tag) ?: ""
-        val label = filter.getTextInputLabel(tag)
-        
-        buildAlertDialog(context ?: return) {
-            val input = setEditText(
-                inputType = EditorInfo.TYPE_CLASS_TEXT,
-                singleLine = true,
-            )
-            input.hint = label
-            input.setText(currentValue)
-            setTitle(label)
-            setPositiveButton(android.R.string.ok) { _, _ ->
-                val value = input.text?.toString()?.trim() ?: ""
-                filter.setTextInputValue(tag, value)
-            }
-            setNegativeButton(android.R.string.cancel, null)
-            setNeutralButton(R.string.clear) { _, _ ->
-                filter.setTextInputValue(tag, "")
-            }
-        }.show()
-    }
-
-    override fun onChipLongClick(chip: Chip, data: Any?): Boolean {
-        return when (data) {
-            is PersistableFilter -> {
-                showSavedFilterMenu(chip, data)
-                true
-            }
-
-            else -> false
-        }
-    }
-
-    override fun onChipCloseClick(chip: Chip, data: Any?) {
-        when (data) {
-            is PersistableFilter -> {
-                showSavedFilterMenu(chip, data)
-            }
-        }
-    }
-
-    companion object {
-        private const val GROUP_TAG_VIEW = "filter_tag_group"
-        private const val GROUP_TAG_VIEW_INCLUDE = "filter_tag_group_include"
-        private const val GROUP_TAG_VIEW_EXCLUDE = "filter_tag_group_exclude"
-        private const val TAGS_PREVIEW_LIMIT = 10
-    }
-
-    private fun onSortOrderChanged(value: FilterProperty<SortOrder>) {
-        val b = viewBinding ?: return
-        b.layoutOrder.isGone = value.isEmpty()
-        if (value.isEmpty()) {
-            return
-        }
-        val filter = FilterCoordinator.require(this)
-        val selected = value.selectedItems.single()
-        b.layoutOrder.setValueText(resolveSortOrderLabel(filter.mangaSource.name, selected))
-        renderSortOptions(
-            container = b.layoutOrderOptions,
-            sourceName = filter.mangaSource.name,
-            items = value.availableItems,
-            selected = selected,
-        )
-        renderSortExpansion(b)
-    }
-
-    private fun renderSortExpansion(binding: SheetFilterBinding) {
-        binding.cardOrder.isVisible = sortExpanded && binding.layoutOrder.isVisible
-    }
-
-    private fun renderSortOptions(
-        container: LinearLayout,
-        sourceName: String,
-        items: List<SortOrder>,
-        selected: SortOrder,
-    ) {
-        container.removeAllViews()
-        val filter = FilterCoordinator.require(this)
-        items.forEach { order ->
-            val optionView = layoutInflater.inflate(
-                R.layout.item_category_checkable_single,
-                container,
-                false,
-            ) as CheckedTextView
-            optionView.text = resolveSortOrderLabel(sourceName, order)
-            optionView.isChecked = order == selected
-            optionView.setOnClickListener {
-                filter.setSortOrder(order)
-                sortExpanded = false
-                renderSortExpansion(viewBinding ?: return@setOnClickListener)
-            }
-            container.addView(optionView)
-        }
-    }
-
-    private fun resolveSortOrderLabel(sourceName: String, order: SortOrder): String {
-        if (sourceName.startsWith("TRACKING_BANGUMI_")) {
-            return when (order) {
-                SortOrder.RATING -> getString(R.string.sort_by_ranking)
-                SortOrder.POPULARITY -> getString(R.string.sort_by_popularity_label)
-                SortOrder.ADDED -> getString(R.string.sort_by_collection)
-                SortOrder.NEWEST -> getString(R.string.sort_by_date_label)
-                SortOrder.ALPHABETICAL -> getString(R.string.sort_by_name_label)
-                else -> getString(order.titleRes)
-            }
-        }
-        return getString(order.titleRes)
-    }
-
-    private fun onLocaleChanged(value: FilterProperty<Locale?>) {
-        val b = viewBinding ?: return
-        b.layoutLocale.isGone = value.isEmpty()
-        if (value.isEmpty()) {
-            return
-        }
-        val selected = value.selectedItems.singleOrNull()
-        b.spinnerLocale.adapter = ArrayAdapter(
-            b.spinnerLocale.context,
-            android.R.layout.simple_spinner_dropdown_item,
-            android.R.id.text1,
-            value.availableItems.map { it.getDisplayName(b.spinnerLocale.context) },
-        )
-        val selectedIndex = value.availableItems.indexOf(selected)
-        if (selectedIndex >= 0) {
-            b.spinnerLocale.setSelection(selectedIndex, false)
-        }
-    }
-
-    private fun onOriginalLocaleChanged(value: FilterProperty<Locale?>) {
-        val b = viewBinding ?: return
-        b.layoutOriginalLocale.isGone = value.isEmpty()
-        if (value.isEmpty()) {
-            return
-        }
-        val selected = value.selectedItems.singleOrNull()
-        b.spinnerOriginalLocale.adapter = ArrayAdapter(
-            b.spinnerOriginalLocale.context,
-            android.R.layout.simple_spinner_dropdown_item,
-            android.R.id.text1,
-            value.availableItems.map { it.getDisplayName(b.spinnerOriginalLocale.context) },
-        )
-        val selectedIndex = value.availableItems.indexOf(selected)
-        if (selectedIndex >= 0) {
-            b.spinnerOriginalLocale.setSelection(selectedIndex, false)
-        }
-    }
-
-    private fun onTagsChanged(value: FilterProperty<UiTagGroup>) {
-        val b = viewBinding ?: return
-        b.layoutGenres.setError(value.error?.getDisplayMessage(resources))
-        lastIncludeGroups = value.availableItems
-        lastIncludeSelected = value.selectedItems.flatMap { it.selected }.toSet()
-        renderGroupedTags(
-            container = b.layoutGenres,
-            placeholderChips = b.chipsGenres,
-            groups = lastIncludeGroups,
-            selected = lastIncludeSelected,
-            excludeMode = false,
-        )
-    }
-
-    private fun onTagsExcludedChanged(value: FilterProperty<UiTagGroup>) {
-        val b = viewBinding ?: return
-        b.layoutGenresExclude.setError(value.error?.getDisplayMessage(resources))
-        lastExcludeGroups = value.availableItems
-        lastExcludeSelected = value.selectedItems.flatMap { it.selected }.toSet()
-        renderGroupedTags(
-            container = b.layoutGenresExclude,
-            placeholderChips = b.chipsGenresExclude,
-            groups = lastExcludeGroups,
-            selected = lastExcludeSelected,
-            excludeMode = true,
-        )
-    }
-
-    private fun renderGroupedTags(
-        container: ViewGroup,
-        placeholderChips: ChipsView,
-        groups: List<UiTagGroup>,
-        selected: Set<org.skepsun.kototoro.parsers.model.ContentTag>,
-        excludeMode: Boolean,
-    ) {
-        val limit = TAGS_PREVIEW_LIMIT
-        for (i in container.childCount - 1 downTo 0) {
-            val child = container.getChildAt(i)
-            val tag = child.tag
-            if (tag == GROUP_TAG_VIEW || tag == GROUP_TAG_VIEW_INCLUDE || tag == GROUP_TAG_VIEW_EXCLUDE) {
-                container.removeViewAt(i)
-            }
-        }
-        if (groups.all { it.tags.isEmpty() }) {
-            container.isGone = true
-            return
-        } else {
-            container.isGone = false
-        }
-        val flatGroup = groups.singleOrNull()
-        val useFlat = flatGroup != null && flatGroup.title.equals("Tags", ignoreCase = true)
-        if (useFlat) {
-            val shown = flatGroup.tags.take(limit)
-            placeholderChips.isGone = shown.isEmpty()
-            placeholderChips.setChips(
-                shown.map { tag ->
-                    ChipsView.ChipModel(
-                        title = tag.title,
-                        isChecked = tag in selected,
-                        data = tag,
-                    )
-                },
-            )
-            placeholderChips.onChipClickListener = this
-            placeholderChips.onChipLongClickListener = this
-            placeholderChips.onChipCloseClickListener = this
-            (container as? org.skepsun.kototoro.filter.ui.FilterFieldLayout)?.setOnMoreButtonClickListener {
-                router.showTagsCatalogSheet(excludeMode = excludeMode, groupTitle = flatGroup.title)
-            }
-            return
-        } else {
-            placeholderChips.isGone = true
-            (container as? org.skepsun.kototoro.filter.ui.FilterFieldLayout)?.setOnMoreButtonClickListener(null)
-        }
-        val marginH = resources.getDimensionPixelOffset(R.dimen.margin_small)
-        val marginTop = resources.getDimensionPixelOffset(R.dimen.margin_small) / 2
-        val titleColor = ContextCompat.getColor(container.context, android.R.color.secondary_text_dark)
-        groups.forEach { group ->
-            if (group.tags.isEmpty()) return@forEach
-            val tags = group.tags.take(limit)
-            if (tags.isEmpty()) return@forEach
-            val titleRow = LinearLayout(container.context).apply {
-                tag = GROUP_TAG_VIEW
-                id = View.generateViewId()
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(marginH, marginTop, marginH, 0)
-            }
-            val title = TextView(container.context).apply {
-                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                text = group.title
-                TextViewCompat.setTextAppearance(this, materialR.style.TextAppearance_Material3_LabelLarge)
-                setTextColor(titleColor)
-            }
-            val moreIcon = ImageView(container.context).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
+        binding.composeView.setContent {
+            KototoroTheme {
+                FilterSheetRoute(
+                    fragment = this,
+                    isEmbedded = dialog == null,
+                    onDismiss = ::dismiss,
                 )
-                setImageResource(R.drawable.ic_expand_more)
-                imageTintList = context.getThemeColorStateList(appcompatR.attr.colorControlNormal)
-                contentDescription = context.getString(R.string.more)
-                isVisible = group.tags.size > limit
-                setOnClickListener {
-                    router.showTagsCatalogSheet(excludeMode = excludeMode, groupTitle = group.title)
-                }
             }
-            titleRow.addView(title)
-            titleRow.addView(moreIcon)
-            val chipsView = ChipsView(container.context).apply {
-                tag = if (excludeMode) GROUP_TAG_VIEW_EXCLUDE else GROUP_TAG_VIEW_INCLUDE
-                id = View.generateViewId()
-                layoutParams = ViewGroup.MarginLayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                ).apply {
-                    updateMarginsRelative(marginH, marginTop / 2, marginH, 0)
-                }
-                setChips(
-                    tags.map { tag ->
-                        ChipsView.ChipModel(
-                            title = tag.title,
-                            isChecked = tag in selected,
-                            data = tag,
-                        )
-                    },
-                )
-                onChipClickListener = this@FilterSheetFragment
-            }
-            container.addView(titleRow)
-            container.addView(chipsView)
         }
     }
 
-    private fun onAuthorsChanged(value: FilterProperty<String>) {
-        val b = viewBinding ?: return
-        b.layoutAuthor.isGone = value.isEmpty()
-        if (value.isEmpty()) {
-            return
-        }
-        val chips = value.availableItems.map { author ->
-            ChipsView.ChipModel(
-                title = author,
-                isChecked = author in value.selectedItems,
-                data = author,
-            )
-        }
-        b.chipsAuthor.setChips(chips)
-    }
-
-    private fun onStateChanged(value: FilterProperty<ContentState>) {
-        val b = viewBinding ?: return
-        b.layoutState.isGone = value.isEmpty()
-        if (value.isEmpty()) {
-            return
-        }
-        val chips = value.availableItems.map { state ->
-            ChipsView.ChipModel(
-                title = getString(state.titleResId),
-                isChecked = state in value.selectedItems,
-                data = state,
-            )
-        }
-        b.chipsState.setChips(chips)
-    }
-
-    private fun onContentTypesChanged(value: FilterProperty<ContentType>) {
-        val b = viewBinding ?: return
-        b.layoutTypes.isGone = value.isEmpty()
-        if (value.isEmpty()) {
-            return
-        }
-        val chips = value.availableItems.map { type ->
-            ChipsView.ChipModel(
-                title = getString(type.titleResId),
-                isChecked = type in value.selectedItems,
-                data = type,
-            )
-        }
-        b.chipsTypes.setChips(chips)
-    }
-
-    private fun onContentRatingChanged(value: FilterProperty<ContentRating>) {
-        val b = viewBinding ?: return
-        b.layoutContentRating.isGone = value.isEmpty()
-        if (value.isEmpty()) {
-            return
-        }
-        val chips = value.availableItems.map { contentRating ->
-            ChipsView.ChipModel(
-                title = getString(contentRating.titleResId),
-                isChecked = contentRating in value.selectedItems,
-                data = contentRating,
-            )
-        }
-        b.chipsContentRating.setChips(chips)
-    }
-
-    private fun onDemographicsChanged(value: FilterProperty<Demographic>) {
-        val b = viewBinding ?: return
-        b.layoutDemographics.isGone = value.isEmpty()
-        if (value.isEmpty()) {
-            return
-        }
-        val chips = value.availableItems.map { demographic ->
-            ChipsView.ChipModel(
-                title = getString(demographic.titleResId),
-                isChecked = demographic in value.selectedItems,
-                data = demographic,
-            )
-        }
-        b.chipsDemographics.setChips(chips)
-    }
-
-    private fun onYearChanged(value: FilterProperty<Int>) {
-        val b = viewBinding ?: return
-        b.layoutYear.isGone = value.isEmpty()
-        if (value.isEmpty()) {
-            return
-        }
-        val currentValue = value.selectedItems.singleOrNull() ?: YEAR_UNKNOWN
-        b.layoutYear.setValueText(
-            if (currentValue == YEAR_UNKNOWN) {
-                getString(R.string.any)
-            } else {
-                currentValue.toString()
-            },
-        )
-        b.sliderYear.valueFrom = value.availableItems.first().toFloat()
-        b.sliderYear.valueTo = value.availableItems.last().toFloat()
-        b.sliderYear.setValueRounded(currentValue.toFloat())
-    }
-
-    private fun onYearRangeChanged(value: FilterProperty<Int>) {
-        val b = viewBinding ?: return
-        b.layoutYearsRange.isGone = value.isEmpty()
-        if (value.isEmpty()) {
-            return
-        }
-        b.sliderYearsRange.valueFrom = value.availableItems.first().toFloat()
-        b.sliderYearsRange.valueTo = value.availableItems.last().toFloat()
-        val currentValueFrom = value.selectedItems.firstOrNull()?.toFloat() ?: b.sliderYearsRange.valueFrom
-        val currentValueTo = value.selectedItems.lastOrNull()?.toFloat() ?: b.sliderYearsRange.valueTo
-        b.layoutYearsRange.setValueText(
-            getString(
-                R.string.memory_usage_pattern,
-                currentValueFrom.toInt().toString(),
-                currentValueTo.toInt().toString(),
-            ),
-        )
-        b.sliderYearsRange.setValuesRounded(currentValueFrom, currentValueTo)
-    }
-
-    private fun onSavedPresetsChanged(value: FilterProperty<PersistableFilter>) {
-        val b = viewBinding ?: return
-        b.layoutSavedFilters.isGone = value.isEmpty()
-        if (value.isEmpty()) {
-            return
-        }
-        val chips = value.availableItems.map { f ->
-            ChipsView.ChipModel(
-                title = f.name,
-                isChecked = f in value.selectedItems,
-                data = f,
-                isDropdown = true,
-            )
-        }
-        b.chipsSavedFilters.setChips(chips)
-    }
-
-    private fun showSavedFilterMenu(anchor: View, preset: PersistableFilter) {
-        val menu = PopupMenu(context ?: return, anchor)
-        val filter = FilterCoordinator.require(this)
-        menu.inflate(R.menu.popup_saved_filter)
-        menu.setOnMenuItemClickListener { menuItem ->
-            when (menuItem.itemId) {
-                R.id.action_delete -> filter.deleteSavedFilter(preset.id)
-                R.id.action_rename -> onRenameFilterClick(preset)
-            }
-            true
-        }
-        menu.show()
-    }
+    override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat = insets
 
     private fun onSaveFilterClick(name: String) {
         val filter = FilterCoordinator.require(this)
@@ -745,4 +184,971 @@ class FilterSheetFragment : BaseAdaptiveSheet<SheetFilterBinding>(),
             }
         }.show()
     }
+
+    private fun showTextInputDialog(filter: FilterCoordinator, tag: ContentTag) {
+        val currentValue = filter.getTextInputValue(tag) ?: ""
+        val label = filter.getTextInputLabel(tag)
+        buildAlertDialog(context ?: return) {
+            val input = setEditText(
+                inputType = EditorInfo.TYPE_CLASS_TEXT,
+                singleLine = true,
+            )
+            input.hint = label
+            input.setText(currentValue)
+            setTitle(label)
+            setPositiveButton(android.R.string.ok) { _, _ ->
+                val value = input.text?.toString()?.trim() ?: ""
+                filter.setTextInputValue(tag, value)
+            }
+            setNegativeButton(android.R.string.cancel, null)
+            setNeutralButton(R.string.clear) { _, _ ->
+                filter.setTextInputValue(tag, "")
+            }
+        }.show()
+    }
+
+    private fun resolveSortOrderLabel(sourceName: String, order: SortOrder): String {
+        if (sourceName.startsWith("TRACKING_BANGUMI_")) {
+            return when (order) {
+                SortOrder.RATING -> getString(R.string.sort_by_ranking)
+                SortOrder.POPULARITY -> getString(R.string.sort_by_popularity_label)
+                SortOrder.ADDED -> getString(R.string.sort_by_collection)
+                SortOrder.NEWEST -> getString(R.string.sort_by_date_label)
+                SortOrder.ALPHABETICAL -> getString(R.string.sort_by_name_label)
+                else -> getString(order.titleRes)
+            }
+        }
+        return getString(order.titleRes)
+    }
+
+    @Composable
+    private fun FilterSheetRoute(
+        fragment: FilterSheetFragment,
+        isEmbedded: Boolean,
+        onDismiss: () -> Unit,
+    ) {
+        val filter = remember(fragment) { FilterCoordinator.require(fragment) }
+        val snapshot by filter.observe().collectAsStateWithLifecycle(initialValue = filter.snapshot())
+        val sortOrderProperty by filter.sortOrder.collectAsStateWithLifecycle()
+        val savedFiltersProperty by filter.savedFilters.collectAsStateWithLifecycle()
+        val localeProperty by filter.locale.collectAsStateWithLifecycle()
+        val originalLocaleProperty by filter.originalLocale.collectAsStateWithLifecycle()
+        val tagsProperty by filter.tags.collectAsStateWithLifecycle()
+        val tagsExcludedProperty by filter.tagsExcluded.collectAsStateWithLifecycle()
+        val authorsProperty by filter.authors.collectAsStateWithLifecycle()
+        val statesProperty by filter.states.collectAsStateWithLifecycle()
+        val contentTypesProperty by filter.contentTypes.collectAsStateWithLifecycle()
+        val contentRatingProperty by filter.contentRating.collectAsStateWithLifecycle()
+        val demographicsProperty by filter.demographics.collectAsStateWithLifecycle()
+        val yearProperty by filter.year.collectAsStateWithLifecycle()
+        val yearRangeProperty by filter.yearRange.collectAsStateWithLifecycle()
+
+        FilterSheetContent(
+            sourceName = filter.mangaSource.name,
+            sortOrderProperty = sortOrderProperty,
+            savedFiltersProperty = savedFiltersProperty,
+            localeProperty = localeProperty,
+            originalLocaleProperty = originalLocaleProperty,
+            tagsProperty = tagsProperty,
+            tagsExcludedProperty = tagsExcludedProperty,
+            authorsProperty = authorsProperty,
+            statesProperty = statesProperty,
+            contentTypesProperty = contentTypesProperty,
+            contentRatingProperty = contentRatingProperty,
+            demographicsProperty = demographicsProperty,
+            yearProperty = yearProperty,
+            yearRangeProperty = yearRangeProperty,
+            isSaveEnabled = snapshot.listFilter.isNotEmpty() && savedFiltersProperty.selectedItems.isEmpty(),
+            isEmbedded = isEmbedded,
+            onDismiss = onDismiss,
+            onReset = filter::reset,
+            onSave = { onSaveFilterClick("") },
+            onSortOrderChange = filter::setSortOrder,
+            onLocaleChange = filter::setLocale,
+            onOriginalLocaleChange = filter::setOriginalLocale,
+            onAuthorChange = filter::setAuthor,
+            onToggleState = filter::toggleState,
+            onToggleContentType = filter::toggleContentType,
+            onToggleContentRating = filter::toggleContentRating,
+            onToggleDemographic = filter::toggleDemographic,
+            onToggleTag = { tag, selected, excludeMode ->
+                if (filter.isTextInputTag(tag)) {
+                    showTextInputDialog(filter, tag)
+                } else if (excludeMode) {
+                    filter.toggleTagExclude(tag, selected)
+                } else {
+                    filter.toggleTag(tag, selected)
+                }
+            },
+            onSetYear = filter::setYear,
+            onSetYearRange = filter::setYearRange,
+            onToggleSavedFilter = filter::toggleSavedFilter,
+            onRenameSavedFilter = ::onRenameFilterClick,
+            onDeleteSavedFilter = { filter.deleteSavedFilter(it.id) },
+            onTextInputTagClick = { showTextInputDialog(filter, it) },
+            onOpenTagCatalog = { groupTitle, excludeMode ->
+                fragment.router.showTagsCatalogSheet(
+                    excludeMode = excludeMode,
+                    groupTitle = groupTitle,
+                )
+            },
+            resolveSortOrderLabel = ::resolveSortOrderLabel,
+            resolveErrorMessage = { error -> error?.getDisplayMessage(resources) },
+            resolveLocaleLabel = { locale -> locale.getDisplayName(requireContext()) },
+            textInputValue = filter::getTextInputValue,
+            textInputLabel = filter::getTextInputLabel,
+        )
+    }
+}
+
+@Composable
+private fun FilterSheetContent(
+    sourceName: String,
+    sortOrderProperty: FilterProperty<SortOrder>,
+    savedFiltersProperty: FilterProperty<PersistableFilter>,
+    localeProperty: FilterProperty<Locale?>,
+    originalLocaleProperty: FilterProperty<Locale?>,
+    tagsProperty: FilterProperty<UiTagGroup>,
+    tagsExcludedProperty: FilterProperty<UiTagGroup>,
+    authorsProperty: FilterProperty<String>,
+    statesProperty: FilterProperty<ContentState>,
+    contentTypesProperty: FilterProperty<ContentType>,
+    contentRatingProperty: FilterProperty<ContentRating>,
+    demographicsProperty: FilterProperty<Demographic>,
+    yearProperty: FilterProperty<Int>,
+    yearRangeProperty: FilterProperty<Int>,
+    isSaveEnabled: Boolean,
+    isEmbedded: Boolean,
+    onDismiss: () -> Unit,
+    onReset: () -> Unit,
+    onSave: () -> Unit,
+    onSortOrderChange: (SortOrder) -> Unit,
+    onLocaleChange: (Locale?) -> Unit,
+    onOriginalLocaleChange: (Locale?) -> Unit,
+    onAuthorChange: (String?) -> Unit,
+    onToggleState: (ContentState, Boolean) -> Unit,
+    onToggleContentType: (ContentType, Boolean) -> Unit,
+    onToggleContentRating: (ContentRating, Boolean) -> Unit,
+    onToggleDemographic: (Demographic, Boolean) -> Unit,
+    onToggleTag: (ContentTag, Boolean, Boolean) -> Unit,
+    onSetYear: (Int) -> Unit,
+    onSetYearRange: (Int, Int) -> Unit,
+    onToggleSavedFilter: (PersistableFilter) -> Unit,
+    onRenameSavedFilter: (PersistableFilter) -> Unit,
+    onDeleteSavedFilter: (PersistableFilter) -> Unit,
+    onTextInputTagClick: (ContentTag) -> Unit,
+    onOpenTagCatalog: (String?, Boolean) -> Unit,
+    resolveSortOrderLabel: (String, SortOrder) -> String,
+    resolveErrorMessage: (Throwable?) -> String?,
+    resolveLocaleLabel: (Locale?) -> String,
+    textInputValue: (ContentTag) -> String?,
+    textInputLabel: (ContentTag) -> String,
+) {
+    val scrollState = rememberScrollState()
+    var sortExpanded by remember { mutableStateOf(false) }
+    var authorInput by remember(authorsProperty.selectedItems) {
+        mutableStateOf(authorsProperty.selectedItems.firstOrNull().orEmpty())
+    }
+    LaunchedEffect(authorsProperty.selectedItems) {
+        authorInput = authorsProperty.selectedItems.firstOrNull().orEmpty()
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        FilterSheetHeader(
+            title = LocalContext.current.getString(R.string.filter),
+            isEmbedded = isEmbedded,
+            onDismiss = onDismiss,
+        )
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(scrollState)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            FilterSection(
+                title = LocalContext.current.getString(R.string.sort_order),
+                errorMessage = resolveErrorMessage(sortOrderProperty.error),
+                loading = sortOrderProperty.isLoading,
+                visible = !sortOrderProperty.isEmpty() || sortOrderProperty.isLoading || sortOrderProperty.error != null,
+            ) {
+                SortOrderSection(
+                    sourceName = sourceName,
+                    property = sortOrderProperty,
+                    expanded = sortExpanded,
+                    onExpandedChange = { sortExpanded = it },
+                    onSortOrderChange = onSortOrderChange,
+                    resolveSortOrderLabel = resolveSortOrderLabel,
+                )
+            }
+
+            TagGroupsSection(
+                title = LocalContext.current.getString(R.string.genres),
+                property = tagsProperty,
+                excludeMode = false,
+                resolveErrorMessage = resolveErrorMessage,
+                textInputValue = textInputValue,
+                textInputLabel = textInputLabel,
+                onToggleTag = onToggleTag,
+                onTextInputTagClick = onTextInputTagClick,
+                onOpenTagCatalog = onOpenTagCatalog,
+            )
+
+            TagGroupsSection(
+                title = LocalContext.current.getString(R.string.genres_exclude),
+                property = tagsExcludedProperty,
+                excludeMode = true,
+                resolveErrorMessage = resolveErrorMessage,
+                textInputValue = textInputValue,
+                textInputLabel = textInputLabel,
+                onToggleTag = onToggleTag,
+                onTextInputTagClick = onTextInputTagClick,
+                onOpenTagCatalog = onOpenTagCatalog,
+            )
+
+            SavedFiltersSection(
+                property = savedFiltersProperty,
+                onToggleSavedFilter = onToggleSavedFilter,
+                onRenameSavedFilter = onRenameSavedFilter,
+                onDeleteSavedFilter = onDeleteSavedFilter,
+                resolveErrorMessage = resolveErrorMessage,
+            )
+
+            LocaleSection(
+                title = LocalContext.current.getString(R.string.language),
+                property = localeProperty,
+                onChange = onLocaleChange,
+                resolveErrorMessage = resolveErrorMessage,
+                resolveLocaleLabel = resolveLocaleLabel,
+            )
+
+            LocaleSection(
+                title = LocalContext.current.getString(R.string.original_language),
+                property = originalLocaleProperty,
+                onChange = onOriginalLocaleChange,
+                resolveErrorMessage = resolveErrorMessage,
+                resolveLocaleLabel = resolveLocaleLabel,
+            )
+
+            AuthorsSection(
+                property = authorsProperty,
+                authorInput = authorInput,
+                onAuthorInputChange = { value ->
+                    authorInput = value
+                    onAuthorChange(value.trim().ifBlank { null })
+                },
+                onAuthorSelect = {
+                    authorInput = it.orEmpty()
+                    onAuthorChange(it)
+                },
+                resolveErrorMessage = resolveErrorMessage,
+            )
+
+            MultiSelectSection(
+                title = LocalContext.current.getString(R.string.type),
+                property = contentTypesProperty,
+                itemLabel = { LocalContext.current.getString(it.titleResId) },
+                onToggle = onToggleContentType,
+                resolveErrorMessage = resolveErrorMessage,
+            )
+
+            MultiSelectSection(
+                title = LocalContext.current.getString(R.string.state),
+                property = statesProperty,
+                itemLabel = { LocalContext.current.getString(it.titleResId) },
+                onToggle = onToggleState,
+                resolveErrorMessage = resolveErrorMessage,
+            )
+
+            MultiSelectSection(
+                title = LocalContext.current.getString(R.string.content_rating),
+                property = contentRatingProperty,
+                itemLabel = { LocalContext.current.getString(it.titleResId) },
+                onToggle = onToggleContentRating,
+                resolveErrorMessage = resolveErrorMessage,
+            )
+
+            MultiSelectSection(
+                title = LocalContext.current.getString(R.string.demographics),
+                property = demographicsProperty,
+                itemLabel = { LocalContext.current.getString(it.titleResId) },
+                onToggle = onToggleDemographic,
+                resolveErrorMessage = resolveErrorMessage,
+            )
+
+            YearSection(
+                property = yearProperty,
+                onSetYear = onSetYear,
+                resolveErrorMessage = resolveErrorMessage,
+            )
+
+            YearRangeSection(
+                property = yearRangeProperty,
+                onSetYearRange = onSetYearRange,
+                resolveErrorMessage = resolveErrorMessage,
+            )
+        }
+
+        FilterSheetActions(
+            isEmbedded = isEmbedded,
+            isSaveEnabled = isSaveEnabled,
+            onSave = onSave,
+            onReset = onReset,
+            onDismiss = onDismiss,
+        )
+    }
+}
+
+@Composable
+private fun SortOrderSection(
+    sourceName: String,
+    property: FilterProperty<SortOrder>,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onSortOrderChange: (SortOrder) -> Unit,
+    resolveSortOrderLabel: (String, SortOrder) -> String,
+) {
+    val selected = property.selectedItems.firstOrNull()
+    val selectedLabel = selected?.let { resolveSortOrderLabel(sourceName, it) }.orEmpty()
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onExpandedChange(!expanded) }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = selectedLabel,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Icon(
+                    painter = painterResource(R.drawable.ic_expand_more),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+
+        if (expanded) {
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    property.availableItems.forEachIndexed { index, item ->
+                        val isSelected = item == selected
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onSortOrderChange(item)
+                                    onExpandedChange(false)
+                                }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = resolveSortOrderLabel(sourceName, item),
+                                    color = if (isSelected) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    },
+                                )
+                                if (isSelected) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_check),
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(14.dp),
+                                    )
+                                }
+                            }
+                        }
+                        if (index != property.availableItems.lastIndex) {
+                            HorizontalDivider()
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterSheetHeader(
+    title: String,
+    isEmbedded: Boolean,
+    onDismiss: () -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            if (!isEmbedded) {
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Outlined.Close,
+                        contentDescription = null,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterSheetActions(
+    isEmbedded: Boolean,
+    isSaveEnabled: Boolean,
+    onSave: () -> Unit,
+    onReset: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 4.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedButton(
+                onClick = onSave,
+                enabled = isSaveEnabled,
+            ) {
+                Text(text = LocalContext.current.getString(R.string.save))
+            }
+            OutlinedButton(onClick = onReset) {
+                Text(text = LocalContext.current.getString(R.string.reset_filter))
+            }
+            if (!isEmbedded) {
+                TextButton(onClick = onDismiss) {
+                    Text(text = LocalContext.current.getString(android.R.string.ok))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SavedFiltersSection(
+    property: FilterProperty<PersistableFilter>,
+    onToggleSavedFilter: (PersistableFilter) -> Unit,
+    onRenameSavedFilter: (PersistableFilter) -> Unit,
+    onDeleteSavedFilter: (PersistableFilter) -> Unit,
+    resolveErrorMessage: (Throwable?) -> String?,
+) {
+    var menuPreset by remember { mutableStateOf<PersistableFilter?>(null) }
+    FilterSection(
+        title = LocalContext.current.getString(R.string.saved_filters),
+        errorMessage = resolveErrorMessage(property.error),
+        loading = property.isLoading,
+        visible = !property.isEmpty() || property.isLoading || property.error != null,
+    ) {
+        CompactFilterChipFlow {
+            property.availableItems.forEach { preset ->
+                val selected = preset in property.selectedItems
+                Box {
+                    CompactFilterChip(
+                        selected = selected,
+                        onClick = { onToggleSavedFilter(preset) },
+                        label = {
+                            Text(
+                                text = preset.name,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                        trailingIcon = {
+                            IconButton(
+                                onClick = { menuPreset = preset },
+                                modifier = Modifier.size(18.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.MoreVert,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                            }
+                        },
+                    )
+                    DropdownMenu(
+                        expanded = menuPreset == preset,
+                        onDismissRequest = { menuPreset = null },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(LocalContext.current.getString(R.string.rename)) },
+                            onClick = {
+                                menuPreset = null
+                                onRenameSavedFilter(preset)
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(LocalContext.current.getString(R.string.delete)) },
+                            onClick = {
+                                menuPreset = null
+                                onDeleteSavedFilter(preset)
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LocaleSection(
+    title: String,
+    property: FilterProperty<Locale?>,
+    onChange: (Locale?) -> Unit,
+    resolveErrorMessage: (Throwable?) -> String?,
+    resolveLocaleLabel: (Locale?) -> String,
+) {
+    FilterSection(
+        title = title,
+        errorMessage = resolveErrorMessage(property.error),
+        loading = property.isLoading,
+        visible = !property.isEmpty() || property.isLoading || property.error != null,
+    ) {
+        CompactFilterChipFlow {
+            property.availableItems.forEach { locale ->
+                val selected = locale in property.selectedItems
+                CompactFilterChip(
+                    selected = selected,
+                    onClick = { onChange(if (selected) null else locale) },
+                    label = {
+                        Text(
+                            text = resolveLocaleLabel(locale),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AuthorsSection(
+    property: FilterProperty<String>,
+    authorInput: String,
+    onAuthorInputChange: (String) -> Unit,
+    onAuthorSelect: (String?) -> Unit,
+    resolveErrorMessage: (Throwable?) -> String?,
+) {
+    FilterSection(
+        title = LocalContext.current.getString(R.string.author),
+        errorMessage = resolveErrorMessage(property.error),
+        loading = property.isLoading,
+        visible = !property.isEmpty() || property.isLoading || property.error != null,
+    ) {
+        OutlinedTextField(
+            value = authorInput,
+            onValueChange = onAuthorInputChange,
+            label = { Text(LocalContext.current.getString(R.string.author)) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions.Default,
+        )
+        if (property.availableItems.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            CompactFilterChipFlow {
+                property.availableItems.take(24).forEach { author ->
+                    val selected = author in property.selectedItems
+                    CompactFilterChip(
+                        selected = selected,
+                        onClick = { onAuthorSelect(if (selected) null else author) },
+                        label = {
+                            Text(
+                                text = author,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun <T> MultiSelectSection(
+    title: String,
+    property: FilterProperty<T>,
+    itemLabel: @Composable (T) -> String,
+    onToggle: (T, Boolean) -> Unit,
+    resolveErrorMessage: (Throwable?) -> String?,
+) {
+    FilterSection(
+        title = title,
+        errorMessage = resolveErrorMessage(property.error),
+        loading = property.isLoading,
+        visible = !property.isEmpty() || property.isLoading || property.error != null,
+    ) {
+        CompactFilterChipFlow {
+            property.availableItems.forEach { item ->
+                val selected = item in property.selectedItems
+                CompactFilterChip(
+                    selected = selected,
+                    onClick = { onToggle(item, !selected) },
+                    label = { Text(itemLabel(item)) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun YearSection(
+    property: FilterProperty<Int>,
+    onSetYear: (Int) -> Unit,
+    resolveErrorMessage: (Throwable?) -> String?,
+) {
+    FilterSection(
+        title = LocalContext.current.getString(R.string.year),
+        errorMessage = resolveErrorMessage(property.error),
+        loading = property.isLoading,
+        visible = !property.isEmpty() || property.isLoading || property.error != null,
+    ) {
+        val minYear = property.availableItems.firstOrNull() ?: YEAR_MIN
+        val maxYear = property.availableItems.lastOrNull() ?: minYear
+        var sliderValue by remember(property.selectedItems) {
+            mutableStateOf((property.selectedItems.firstOrNull() ?: YEAR_UNKNOWN).let { value ->
+                if (value == YEAR_UNKNOWN) minYear.toFloat() else value.toFloat()
+            })
+        }
+        LaunchedEffect(property.selectedItems, minYear) {
+            sliderValue = (property.selectedItems.firstOrNull() ?: YEAR_UNKNOWN).let { value ->
+                if (value == YEAR_UNKNOWN) minYear.toFloat() else value.toFloat()
+            }
+        }
+        Text(
+            text = if (sliderValue.toInt() <= minYear) {
+                LocalContext.current.getString(R.string.any)
+            } else {
+                sliderValue.toInt().toString()
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Slider(
+            value = sliderValue,
+            onValueChange = { sliderValue = it },
+            valueRange = minYear.toFloat()..maxYear.toFloat(),
+            steps = (maxYear - minYear - 1).coerceAtLeast(0),
+            onValueChangeFinished = {
+                onSetYear(
+                    if (sliderValue.toInt() <= minYear) YEAR_UNKNOWN else sliderValue.toInt(),
+                )
+            },
+        )
+    }
+}
+
+@Composable
+private fun YearRangeSection(
+    property: FilterProperty<Int>,
+    onSetYearRange: (Int, Int) -> Unit,
+    resolveErrorMessage: (Throwable?) -> String?,
+) {
+    FilterSection(
+        title = LocalContext.current.getString(R.string.years),
+        errorMessage = resolveErrorMessage(property.error),
+        loading = property.isLoading,
+        visible = !property.isEmpty() || property.isLoading || property.error != null,
+    ) {
+        val minYear = property.availableItems.firstOrNull() ?: YEAR_MIN
+        val maxYear = property.availableItems.lastOrNull() ?: minYear
+        val selectedFrom = property.selectedItems.minOrNull() ?: minYear
+        val selectedTo = property.selectedItems.maxOrNull() ?: maxYear
+        var sliderValues by remember(property.selectedItems) {
+            mutableStateOf(selectedFrom.toFloat() to selectedTo.toFloat())
+        }
+        LaunchedEffect(property.selectedItems) {
+            sliderValues = selectedFrom.toFloat() to selectedTo.toFloat()
+        }
+        val fromLabel = if (sliderValues.first.toInt() <= minYear) {
+            LocalContext.current.getString(R.string.any)
+        } else {
+            sliderValues.first.toInt().toString()
+        }
+        val toLabel = if (sliderValues.second.toInt() >= maxYear) {
+            LocalContext.current.getString(R.string.any)
+        } else {
+            sliderValues.second.toInt().toString()
+        }
+        Text(
+            text = "$fromLabel - $toLabel",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        RangeSlider(
+            value = sliderValues.first..sliderValues.second,
+            onValueChange = { range ->
+                sliderValues = range.start to range.endInclusive
+            },
+            valueRange = minYear.toFloat()..maxYear.toFloat(),
+            steps = (maxYear - minYear - 1).coerceAtLeast(0),
+            onValueChangeFinished = {
+                onSetYearRange(
+                    if (sliderValues.first.toInt() <= minYear) YEAR_UNKNOWN else sliderValues.first.toInt(),
+                    if (sliderValues.second.toInt() >= maxYear) YEAR_UNKNOWN else sliderValues.second.toInt(),
+                )
+            },
+        )
+    }
+}
+
+@Composable
+private fun TagGroupsSection(
+    title: String,
+    property: FilterProperty<UiTagGroup>,
+    excludeMode: Boolean,
+    resolveErrorMessage: (Throwable?) -> String?,
+    textInputValue: (ContentTag) -> String?,
+    textInputLabel: (ContentTag) -> String,
+    onToggleTag: (ContentTag, Boolean, Boolean) -> Unit,
+    onTextInputTagClick: (ContentTag) -> Unit,
+    onOpenTagCatalog: (String?, Boolean) -> Unit,
+) {
+    val groups = property.availableItems.filter { it.tags.isNotEmpty() }
+    FilterSection(
+        title = title,
+        errorMessage = resolveErrorMessage(property.error),
+        loading = property.isLoading,
+        visible = groups.isNotEmpty() || property.isLoading || property.error != null,
+    ) {
+        groups.forEach { group ->
+            TagGroupBlock(
+                group = group,
+                excludeMode = excludeMode,
+                textInputValue = textInputValue,
+                textInputLabel = textInputLabel,
+                onToggleTag = onToggleTag,
+                onTextInputTagClick = onTextInputTagClick,
+                onOpenTagCatalog = onOpenTagCatalog,
+            )
+        }
+    }
+}
+
+@Composable
+private fun TagGroupBlock(
+    group: UiTagGroup,
+    excludeMode: Boolean,
+    textInputValue: (ContentTag) -> String?,
+    textInputLabel: (ContentTag) -> String,
+    onToggleTag: (ContentTag, Boolean, Boolean) -> Unit,
+    onTextInputTagClick: (ContentTag) -> Unit,
+    onOpenTagCatalog: (String?, Boolean) -> Unit,
+) {
+    val sortedTags = remember(group) {
+        val selectedKeys = group.selected.map { it.key }.toSet()
+        val selectedTags = group.tags.filter { it.key in selectedKeys }
+        val unselectedTags = group.tags.filterNot { it.key in selectedKeys }.sortedBy { it.title }
+        (selectedTags + unselectedTags).distinctBy { it.key }
+    }
+    val visibleTags = remember(sortedTags) { sortedTags.take(12) }
+    val canExpand = sortedTags.size > visibleTags.size
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(1.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = group.title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (canExpand) {
+                IconButton(
+                    onClick = { onOpenTagCatalog(group.title, excludeMode) },
+                    modifier = Modifier.size(18.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.MoreVert,
+                        contentDescription = LocalContext.current.getString(R.string.show_more),
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+            }
+        }
+        CompactFilterChipFlow {
+            visibleTags.forEach { tag ->
+                val value = textInputValue(tag)
+                val isTextInput = value != null || textInputLabel(tag) != tag.title || tag.key.startsWith("text:")
+                val selected = if (isTextInput) {
+                    !value.isNullOrBlank()
+                } else {
+                    tag in group.selected
+                }
+                CompactFilterChip(
+                    selected = selected,
+                    onClick = {
+                        if (isTextInput) {
+                            onTextInputTagClick(tag)
+                        } else {
+                            onToggleTag(tag, !selected, excludeMode)
+                        }
+                    },
+                    label = {
+                        Text(
+                            text = if (isTextInput && !value.isNullOrBlank()) {
+                                "${textInputLabel(tag)}: $value"
+                            } else if (isTextInput) {
+                                textInputLabel(tag)
+                            } else {
+                                tag.title
+                            },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    trailingIcon = if (isTextInput) {
+                        {
+                            Icon(
+                                imageVector = Icons.Filled.KeyboardArrowDown,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterSection(
+    title: String,
+    errorMessage: String?,
+    loading: Boolean,
+    visible: Boolean,
+    content: @Composable () -> Unit,
+) {
+    if (!visible) {
+        return
+    }
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 2.dp,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            when {
+                errorMessage != null -> {
+                    Text(
+                        text = errorMessage,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                loading -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                    )
+                }
+                else -> content()
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CompactFilterChipFlow(
+    content: @Composable () -> Unit,
+) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun CompactFilterChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    trailingIcon: (@Composable () -> Unit)? = null,
+) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        modifier = modifier.heightIn(min = 26.dp),
+        label = {
+            androidx.compose.material3.ProvideTextStyle(MaterialTheme.typography.labelSmall) {
+                label()
+            }
+        },
+        trailingIcon = trailingIcon,
+    )
 }

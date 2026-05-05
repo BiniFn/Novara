@@ -2,9 +2,12 @@ package org.skepsun.kototoro.search.ui.compose
 
 import android.app.Activity
 import android.content.res.Configuration
+import android.view.inputmethod.EditorInfo
 import androidx.core.text.HtmlCompat
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -58,7 +61,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -100,6 +102,8 @@ import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
+import org.skepsun.kototoro.core.ui.dialog.setEditText
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.ui.model.titleRes
 import org.skepsun.kototoro.core.util.ShareHelper
@@ -168,6 +172,7 @@ fun AppSearchContentListRoute(
     val resolvedSourceTitle = rememberResolvedSourceTitle(viewModel.source)
     val sortOrderProperty by viewModel.filterCoordinator.sortOrder.collectAsStateWithLifecycle()
     val tagsProperty by viewModel.filterCoordinator.tags.collectAsStateWithLifecycle()
+    val tagsExcludedProperty by viewModel.filterCoordinator.tagsExcluded.collectAsStateWithLifecycle()
     val contentTypesProperty by viewModel.filterCoordinator.contentTypes.collectAsStateWithLifecycle()
     val statesProperty by viewModel.filterCoordinator.states.collectAsStateWithLifecycle()
     val localeProperty by viewModel.filterCoordinator.locale.collectAsStateWithLifecycle()
@@ -453,9 +458,11 @@ fun AppSearchContentListRoute(
                         )
                     } else {
                         SearchFilterPanel(
+                            sourceName = viewModel.source.name,
                             sortOrders = sortOrderProperty.availableItems,
                             selectedSortOrder = sortOrderProperty.selectedItems.firstOrNull(),
                             tagGroups = tagsProperty.availableItems,
+                            excludedTagGroups = tagsExcludedProperty.availableItems,
                             contentTypes = contentTypesProperty.availableItems,
                             selectedContentTypes = contentTypesProperty.selectedItems,
                             states = statesProperty.availableItems,
@@ -465,12 +472,28 @@ fun AppSearchContentListRoute(
                             authors = authorsProperty.availableItems,
                             selectedAuthor = authorsProperty.selectedItems.firstOrNull(),
                             onSortOrderChange = viewModel.filterCoordinator::setSortOrder,
-                            onToggleTag = { tag, selected -> viewModel.filterCoordinator.toggleTag(tag, selected) },
+                            onToggleTag = { tag, selected, excludeMode ->
+                                if (excludeMode) {
+                                    viewModel.filterCoordinator.toggleTagExclude(tag, selected)
+                                } else {
+                                    viewModel.filterCoordinator.toggleTag(tag, selected)
+                                }
+                            },
                             onToggleContentType = { type, selected -> viewModel.filterCoordinator.toggleContentType(type, selected) },
                             onToggleState = { state, selected -> viewModel.filterCoordinator.toggleState(state, selected) },
                             onLocaleChange = viewModel.filterCoordinator::setLocale,
                             onAuthorChange = viewModel.filterCoordinator::setAuthor,
                             onReset = viewModel.filterCoordinator::reset,
+                            isTextInputTag = viewModel.filterCoordinator::isTextInputTag,
+                            textInputValue = viewModel.filterCoordinator::getTextInputValue,
+                            textInputLabel = viewModel.filterCoordinator::getTextInputLabel,
+                            onSetTextInputValue = viewModel.filterCoordinator::setTextInputValue,
+                            onOpenTagCatalog = { groupTitle, excludeMode ->
+                                appRouter.showTagsCatalogSheet(
+                                    excludeMode = excludeMode,
+                                    groupTitle = groupTitle,
+                                )
+                            },
                             modifier = Modifier.fillMaxHeight(),
                         )
                     }
@@ -537,9 +560,11 @@ fun AppSearchContentListRoute(
                 containerColor = MaterialTheme.colorScheme.surface,
             ) {
                 SearchFilterPanel(
+                    sourceName = viewModel.source.name,
                     sortOrders = sortOrderProperty.availableItems,
                     selectedSortOrder = sortOrderProperty.selectedItems.firstOrNull(),
                     tagGroups = tagsProperty.availableItems,
+                    excludedTagGroups = tagsExcludedProperty.availableItems,
                     contentTypes = contentTypesProperty.availableItems,
                     selectedContentTypes = contentTypesProperty.selectedItems,
                     states = statesProperty.availableItems,
@@ -549,12 +574,28 @@ fun AppSearchContentListRoute(
                     authors = authorsProperty.availableItems,
                     selectedAuthor = authorsProperty.selectedItems.firstOrNull(),
                     onSortOrderChange = viewModel.filterCoordinator::setSortOrder,
-                    onToggleTag = { tag, selected -> viewModel.filterCoordinator.toggleTag(tag, selected) },
+                    onToggleTag = { tag, selected, excludeMode ->
+                        if (excludeMode) {
+                            viewModel.filterCoordinator.toggleTagExclude(tag, selected)
+                        } else {
+                            viewModel.filterCoordinator.toggleTag(tag, selected)
+                        }
+                    },
                     onToggleContentType = { type, selected -> viewModel.filterCoordinator.toggleContentType(type, selected) },
                     onToggleState = { state, selected -> viewModel.filterCoordinator.toggleState(state, selected) },
                     onLocaleChange = viewModel.filterCoordinator::setLocale,
                     onAuthorChange = viewModel.filterCoordinator::setAuthor,
                     onReset = viewModel.filterCoordinator::reset,
+                    isTextInputTag = viewModel.filterCoordinator::isTextInputTag,
+                    textInputValue = viewModel.filterCoordinator::getTextInputValue,
+                    textInputLabel = viewModel.filterCoordinator::getTextInputLabel,
+                    onSetTextInputValue = viewModel.filterCoordinator::setTextInputValue,
+                    onOpenTagCatalog = { groupTitle, excludeMode ->
+                        appRouter.showTagsCatalogSheet(
+                            excludeMode = excludeMode,
+                            groupTitle = groupTitle,
+                        )
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -1316,9 +1357,11 @@ private fun ActiveQueryRow(query: String) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SearchFilterPanel(
+    sourceName: String,
     sortOrders: List<SortOrder>,
     selectedSortOrder: SortOrder?,
     tagGroups: List<UiTagGroup>,
+    excludedTagGroups: List<UiTagGroup>,
     contentTypes: List<ContentType>,
     selectedContentTypes: Set<ContentType>,
     states: List<ContentState>,
@@ -1328,22 +1371,29 @@ private fun SearchFilterPanel(
     authors: List<String>,
     selectedAuthor: String?,
     onSortOrderChange: (SortOrder) -> Unit,
-    onToggleTag: (ContentTag, Boolean) -> Unit,
+    onToggleTag: (ContentTag, Boolean, Boolean) -> Unit,
     onToggleContentType: (ContentType, Boolean) -> Unit,
     onToggleState: (ContentState, Boolean) -> Unit,
     onLocaleChange: (Locale?) -> Unit,
     onAuthorChange: (String?) -> Unit,
     onReset: () -> Unit,
+    isTextInputTag: (ContentTag) -> Boolean,
+    textInputValue: (ContentTag) -> String?,
+    textInputLabel: (ContentTag) -> String,
+    onSetTextInputValue: (ContentTag, String) -> Unit,
+    onOpenTagCatalog: (String?, Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     val scrollState = rememberScrollState()
+    var sortExpanded by rememberSaveable { mutableStateOf(false) }
 
     Column(
         modifier = modifier
             .fillMaxHeight()
             .verticalScroll(scrollState)
             .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1361,15 +1411,14 @@ private fun SearchFilterPanel(
         }
 
         FilterSection(title = stringResource(R.string.sort_order)) {
-            FilterChipFlow {
-                sortOrders.forEach { item ->
-                    SearchPanelChip(
-                        selected = item == selectedSortOrder,
-                        onClick = { onSortOrderChange(item) },
-                        label = { Text(stringResource(item.titleRes)) },
-                    )
-                }
-            }
+            SortOrderFilterSection(
+                sourceName = sourceName,
+                sortOrders = sortOrders,
+                selectedSortOrder = selectedSortOrder,
+                expanded = sortExpanded,
+                onExpandedChange = { sortExpanded = it },
+                onSortOrderChange = onSortOrderChange,
+            )
         }
 
         if (contentTypes.isNotEmpty()) {
@@ -1448,34 +1497,289 @@ private fun SearchFilterPanel(
             }
         }
 
-        tagGroups.forEach { group ->
-            val orderedTags = remember(group) {
-                (group.selected.toList() + group.tags.filterNot { it in group.selected }.sortedBy { it.title })
-                    .distinctBy { it.key }
+        TagGroupsSection(
+            title = stringResource(R.string.genres),
+            tagGroups = tagGroups,
+            excludeMode = false,
+            isTextInputTag = isTextInputTag,
+            textInputValue = textInputValue,
+            textInputLabel = textInputLabel,
+            onToggleTag = onToggleTag,
+            onTextInputTagClick = { tag ->
+                val currentValue = textInputValue(tag).orEmpty()
+                buildAlertDialog(context) {
+                    val input = setEditText(
+                        inputType = EditorInfo.TYPE_CLASS_TEXT,
+                        singleLine = true,
+                    )
+                    input.hint = textInputLabel(tag)
+                    input.setText(currentValue)
+                    setTitle(textInputLabel(tag))
+                    setPositiveButton(android.R.string.ok) { _, _ ->
+                        onSetTextInputValue(tag, input.text?.toString()?.trim().orEmpty())
+                    }
+                    setNegativeButton(android.R.string.cancel, null)
+                    setNeutralButton(R.string.clear) { _, _ ->
+                        onSetTextInputValue(tag, "")
+                    }
+                }.show()
+            },
+            onOpenTagCatalog = onOpenTagCatalog,
+        )
+
+        if (excludedTagGroups.any { it.tags.isNotEmpty() }) {
+            TagGroupsSection(
+                title = stringResource(R.string.genres_exclude),
+                tagGroups = excludedTagGroups,
+                excludeMode = true,
+                isTextInputTag = isTextInputTag,
+                textInputValue = textInputValue,
+                textInputLabel = textInputLabel,
+                onToggleTag = onToggleTag,
+                onTextInputTagClick = { tag ->
+                    val currentValue = textInputValue(tag).orEmpty()
+                    buildAlertDialog(context) {
+                        val input = setEditText(
+                            inputType = EditorInfo.TYPE_CLASS_TEXT,
+                            singleLine = true,
+                        )
+                        input.hint = textInputLabel(tag)
+                        input.setText(currentValue)
+                        setTitle(textInputLabel(tag))
+                        setPositiveButton(android.R.string.ok) { _, _ ->
+                            onSetTextInputValue(tag, input.text?.toString()?.trim().orEmpty())
+                        }
+                        setNegativeButton(android.R.string.cancel, null)
+                        setNeutralButton(R.string.clear) { _, _ ->
+                            onSetTextInputValue(tag, "")
+                        }
+                    }.show()
+                },
+                onOpenTagCatalog = onOpenTagCatalog,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SortOrderFilterSection(
+    sourceName: String,
+    sortOrders: List<SortOrder>,
+    selectedSortOrder: SortOrder?,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onSortOrderChange: (SortOrder) -> Unit,
+) {
+    val selectedLabel = selectedSortOrder?.let { resolveSortOrderLabel(sourceName, it) }.orEmpty()
+    Column(
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onExpandedChange(!expanded) }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = selectedLabel,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Icon(
+                    painter = painterResource(R.drawable.ic_expand_more),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
             }
-            if (orderedTags.isNotEmpty()) {
-                var expanded by rememberSaveable(group.title) { mutableStateOf(false) }
-                val visibleTags = remember(orderedTags, expanded) {
-                    if (expanded) orderedTags else orderedTags.take(24)
-                }
-                val canExpand = orderedTags.size > 24
-                FilterSection(title = group.title) {
-                    FilterChipFlow {
-                        visibleTags.forEach { tag ->
-                            val isSelected = tag in group.selected
-                            SearchPanelChip(
-                                selected = isSelected,
-                                onClick = { onToggleTag(tag, !isSelected) },
-                                label = { Text(tag.title) },
+        }
+
+        if (expanded) {
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            ) {
+                Column {
+                    sortOrders.forEachIndexed { index, item ->
+                        val selected = item == selectedSortOrder
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onSortOrderChange(item)
+                                    onExpandedChange(false)
+                                }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = resolveSortOrderLabel(sourceName, item),
+                                color = if (selected) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                },
                             )
+                            if (selected) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_check),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                            }
                         }
-                    }
-                    if (canExpand) {
-                        TextButton(onClick = { expanded = !expanded }) {
-                            Text(if (expanded) stringResource(R.string.show_less) else stringResource(R.string.show_more))
+                        if (index != sortOrders.lastIndex) {
+                            HorizontalDivider()
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun resolveSortOrderLabel(sourceName: String, order: SortOrder): String {
+    return if (sourceName.startsWith("TRACKING_BANGUMI_")) {
+        when (order) {
+            SortOrder.RATING -> stringResource(R.string.sort_by_ranking)
+            SortOrder.POPULARITY -> stringResource(R.string.sort_by_popularity_label)
+            SortOrder.ADDED -> stringResource(R.string.sort_by_collection)
+            SortOrder.NEWEST -> stringResource(R.string.sort_by_date_label)
+            SortOrder.ALPHABETICAL -> stringResource(R.string.sort_by_name_label)
+            else -> stringResource(order.titleRes)
+        }
+    } else {
+        stringResource(order.titleRes)
+    }
+}
+
+@Composable
+private fun TagGroupsSection(
+    title: String,
+    tagGroups: List<UiTagGroup>,
+    excludeMode: Boolean,
+    isTextInputTag: (ContentTag) -> Boolean,
+    textInputValue: (ContentTag) -> String?,
+    textInputLabel: (ContentTag) -> String,
+    onToggleTag: (ContentTag, Boolean, Boolean) -> Unit,
+    onTextInputTagClick: (ContentTag) -> Unit,
+    onOpenTagCatalog: (String?, Boolean) -> Unit,
+) {
+    val visibleGroups = tagGroups.filter { it.tags.isNotEmpty() }
+    if (visibleGroups.isEmpty()) return
+    FilterSection(title = title) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            visibleGroups.forEach { group ->
+                TagGroupContent(
+                    group = group,
+                    excludeMode = excludeMode,
+                    isTextInputTag = isTextInputTag,
+                    textInputValue = textInputValue,
+                    textInputLabel = textInputLabel,
+                    onToggleTag = onToggleTag,
+                    onTextInputTagClick = onTextInputTagClick,
+                    onOpenTagCatalog = onOpenTagCatalog,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TagGroupContent(
+    group: UiTagGroup,
+    excludeMode: Boolean,
+    isTextInputTag: (ContentTag) -> Boolean,
+    textInputValue: (ContentTag) -> String?,
+    textInputLabel: (ContentTag) -> String,
+    onToggleTag: (ContentTag, Boolean, Boolean) -> Unit,
+    onTextInputTagClick: (ContentTag) -> Unit,
+    onOpenTagCatalog: (String?, Boolean) -> Unit,
+) {
+    val orderedTags = remember(group) {
+        (group.selected.toList() + group.tags.filterNot { it in group.selected }.sortedBy { it.title })
+            .distinctBy { it.key }
+    }
+    val visibleTags = remember(orderedTags) { orderedTags.take(12) }
+    val canExpand = orderedTags.size > visibleTags.size
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(1.dp),
+    ) {
+        if (group.title.isNotBlank()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = group.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                if (canExpand) {
+                    IconButton(
+                        onClick = { onOpenTagCatalog(group.title, excludeMode) },
+                        modifier = Modifier.size(18.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = stringResource(R.string.show_more),
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
+                }
+            }
+        }
+
+        FilterChipFlow {
+            visibleTags.forEach { tag ->
+                val value = textInputValue(tag)
+                val textInput = isTextInputTag(tag) || value != null
+                val selected = if (textInput) {
+                    !value.isNullOrBlank()
+                } else {
+                    tag in group.selected
+                }
+                SearchPanelChip(
+                    selected = selected,
+                    onClick = {
+                        if (textInput) {
+                            onTextInputTagClick(tag)
+                        } else {
+                            onToggleTag(tag, !selected, excludeMode)
+                        }
+                    },
+                    label = {
+                        Text(
+                            text = if (textInput && !value.isNullOrBlank()) {
+                                "${textInputLabel(tag)}: $value"
+                            } else if (textInput) {
+                                textInputLabel(tag)
+                            } else {
+                                tag.title
+                            },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                )
             }
         }
     }
@@ -1494,8 +1798,8 @@ private fun FilterSection(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
                 text = title,
@@ -1514,8 +1818,8 @@ private fun FilterChipFlow(
     content: @Composable () -> Unit,
 ) {
     FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
         content()
     }
@@ -1531,7 +1835,7 @@ private fun SearchPanelChip(
     FilterChip(
         selected = selected,
         onClick = onClick,
-        modifier = modifier.heightIn(min = 30.dp),
+        modifier = modifier.heightIn(min = 26.dp),
         label = {
             androidx.compose.material3.ProvideTextStyle(MaterialTheme.typography.labelSmall) {
                 label()
