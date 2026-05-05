@@ -2,6 +2,16 @@ package org.skepsun.kototoro.backups.external
 
 import org.skepsun.kototoro.parsers.model.ContentType
 
+data class ExternalBackupPayload(
+    val records: List<ExternalBackupContentRecord>,
+    val favoriteCategories: List<ExternalBackupFavoriteCategoryRecord> = emptyList(),
+)
+
+data class ExternalBackupFavoriteCategoryRecord(
+    val name: String,
+    val order: Long,
+)
+
 data class ExternalBackupContentRecord(
     val app: ExternalBackupApp,
     val sourceName: String,
@@ -16,6 +26,7 @@ data class ExternalBackupContentRecord(
     val state: String?,
     val isFavorite: Boolean,
     val favoriteTimestamp: Long?,
+    val favoriteCategoryOrders: List<Long>,
     val chaptersCount: Int,
     val readEntriesCount: Int,
     val progressPercent: Float?,

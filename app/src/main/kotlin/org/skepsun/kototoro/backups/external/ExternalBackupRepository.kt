@@ -11,6 +11,7 @@ import org.skepsun.kototoro.core.db.entity.TagEntity
 import org.skepsun.kototoro.favourites.data.FavouriteCategoryEntity
 import org.skepsun.kototoro.favourites.data.FavouriteEntity
 import org.skepsun.kototoro.history.data.HistoryEntity
+import org.skepsun.kototoro.list.domain.ListSortOrder
 import org.skepsun.kototoro.list.domain.ReadingProgress.Companion.PROGRESS_NONE
 import org.skepsun.kototoro.parsers.model.ContentType
 import javax.inject.Inject
@@ -21,29 +22,35 @@ class ExternalBackupRepository @Inject constructor(
     private val database: MangaDatabase,
 ) {
 
-    suspend fun import(records: List<ExternalBackupContentRecord>): ExternalBackupImportSummary {
-        if (records.isEmpty()) return ExternalBackupImportSummary(0, 0)
+    suspend fun import(payload: ExternalBackupPayload): ExternalBackupImportSummary {
+        if (payload.records.isEmpty()) return ExternalBackupImportSummary(0, 0)
         return database.withTransaction {
-            val defaultCategoryId = ensureDefaultCategoryId()
+            val externalCategories = ensureImportedCategories(payload.favoriteCategories)
+            val defaultCategoryId = ensureDefaultCategoryId(externalCategories.values)
             var favoritesImported = 0
             var historyImported = 0
-            for (record in records) {
+            for (record in payload.records) {
                 val mangaId = generateContentId(record)
                 upsertContent(mangaId, record)
                 if (record.isFavorite) {
                     val favoriteTimestamp = record.favoriteTimestamp ?: record.historyTimestamp ?: System.currentTimeMillis()
-                    database.getFavouritesDao().mergeWithTimestamp(
-                        FavouriteEntity(
-                            mangaId = mangaId,
-                            categoryId = defaultCategoryId.toLong(),
-                            sortKey = 0,
-                            isPinned = false,
-                            createdAt = favoriteTimestamp,
-                            deletedAt = 0L,
-                            updatedAt = favoriteTimestamp,
-                        ),
-                    )
-                    favoritesImported++
+                    val targetCategoryIds = record.favoriteCategoryOrders
+                        .mapNotNull(externalCategories::get)
+                        .ifEmpty { listOf(defaultCategoryId.toLong()) }
+                    targetCategoryIds.distinct().forEach { categoryId ->
+                        database.getFavouritesDao().mergeWithTimestamp(
+                            FavouriteEntity(
+                                mangaId = mangaId,
+                                categoryId = categoryId,
+                                sortKey = 0,
+                                isPinned = false,
+                                createdAt = favoriteTimestamp,
+                                deletedAt = 0L,
+                                updatedAt = favoriteTimestamp,
+                            ),
+                        )
+                        favoritesImported++
+                    }
                 }
                 if (record.historyTimestamp != null && !record.historyChapterUrl.isNullOrBlank()) {
                     val chapterId = generateChapterId(record, record.historyChapterUrl)
@@ -108,16 +115,43 @@ class ExternalBackupRepository @Inject constructor(
         )
     }
 
-    private suspend fun ensureDefaultCategoryId(): Int {
+    private suspend fun ensureImportedCategories(
+        categories: List<ExternalBackupFavoriteCategoryRecord>,
+    ): Map<Long, Long> {
+        if (categories.isEmpty()) return emptyMap()
+        val categoriesDao = database.getFavouriteCategoriesDao()
+        val existingByTitle = categoriesDao.findAll().associateBy { it.title }
+        val importedIds = LinkedHashMap<Long, Long>(categories.size)
+        var nextSortKey = categoriesDao.getNextSortKey()
+        categories.forEach { category ->
+            val localCategoryId = existingByTitle[category.name]?.categoryId?.toLong()
+                ?: categoriesDao.insert(
+                    FavouriteCategoryEntity(
+                        categoryId = 0,
+                        createdAt = System.currentTimeMillis(),
+                        sortKey = nextSortKey++,
+                        title = category.name,
+                        order = ListSortOrder.NEWEST.name,
+                        track = false,
+                        isVisibleInLibrary = true,
+                        deletedAt = 0L,
+                    ),
+                )
+            importedIds[category.order] = localCategoryId
+        }
+        return importedIds
+    }
+
+    private suspend fun ensureDefaultCategoryId(existingImportedCategoryIds: Collection<Long>): Int {
         val categories = database.getFavouriteCategoriesDao().findAll()
-        categories.firstOrNull()?.let { return it.categoryId }
+        categories.firstOrNull { it.categoryId.toLong() !in existingImportedCategoryIds }?.let { return it.categoryId }
         val now = System.currentTimeMillis()
         val category = FavouriteCategoryEntity(
             categoryId = 0,
             createdAt = now,
             sortKey = 0,
             title = context.getString(R.string.favourites),
-            order = "",
+            order = ListSortOrder.NEWEST.name,
             track = false,
             isVisibleInLibrary = true,
             deletedAt = 0L,

@@ -22,7 +22,7 @@ class ExternalBackupDecoder @Inject constructor(
 
     private val parser = ProtoBuf
 
-    fun decode(uri: Uri, app: ExternalBackupApp): List<ExternalBackupContentRecord> {
+    fun decode(uri: Uri, app: ExternalBackupApp): ExternalBackupPayload {
         val bytes = readBackupBytes(uri)
         return when (app.family) {
             ExternalBackupFamily.MANGA -> tryDecodeMangaBackup(bytes, app)
@@ -49,125 +49,19 @@ class ExternalBackupDecoder @Inject constructor(
     private fun tryDecodeMangaBackup(
         bytes: ByteArray,
         app: ExternalBackupApp,
-    ): List<ExternalBackupContentRecord>? {
+    ): ExternalBackupPayload? {
         return runCatching {
-            parser.decodeFromByteArray(MihonBackup.serializer(), bytes).backupManga.mapNotNull { manga ->
-                val favoriteTimestamp = manga.favoriteModifiedAt ?: manga.dateAdded.takeIf { it > 0L }
-                val history = manga.history.maxByOrNull { it.lastRead }
-                val progressPercent = calculateProgressPercent(
-                    totalCount = manga.chapters.size,
-                    completedCount = manga.chapters.count { it.read },
-                )
-                if (!manga.favorite && history == null) {
-                    null
-                } else {
-                    ExternalBackupContentRecord(
-                        app = app,
-                        sourceName = "MIHON_${manga.source}",
-                        contentType = ContentType.MANGA,
-                        url = manga.url,
-                        title = manga.title,
-                        authors = listOfNotNull(manga.author, manga.artist)
-                            .distinct()
-                            .joinToString(", ")
-                            .ifBlank { null },
-                        description = manga.description,
-                        tags = manga.genre,
-                        coverUrl = manga.thumbnailUrl,
-                        publicUrl = manga.url,
-                        state = manga.status.toString(),
-                        isFavorite = manga.favorite,
-                        favoriteTimestamp = favoriteTimestamp,
-                        chaptersCount = manga.chapters.size,
-                        readEntriesCount = manga.chapters.count { it.read },
-                        progressPercent = progressPercent,
-                        historyChapterUrl = history?.url,
-                        historyTimestamp = history?.lastRead?.takeIf { it > 0L },
-                    )
-                }
-            }
+            parser.decodeFromByteArray(MihonBackup.serializer(), bytes).toPayload(app)
         }.getOrNull()
     }
 
     private fun tryDecodeAnimeBackup(
         bytes: ByteArray,
         app: ExternalBackupApp,
-    ): List<ExternalBackupContentRecord>? {
+    ): ExternalBackupPayload? {
         return runCatching {
             parser.decodeFromByteArray(AniyomiBackup.serializer(), bytes)
-        }.getOrNull()?.let { backup ->
-            val mangaRecords = backup.backupManga.mapNotNull { manga ->
-                val favoriteTimestamp = manga.favoriteModifiedAt ?: manga.dateAdded.takeIf { it > 0L }
-                val history = manga.history.maxByOrNull { it.lastRead }
-                val progressPercent = calculateProgressPercent(
-                    totalCount = manga.chapters.size,
-                    completedCount = manga.chapters.count { it.read },
-                )
-                if (!manga.favorite && history == null) {
-                    null
-                } else {
-                    ExternalBackupContentRecord(
-                        app = app,
-                        sourceName = "MIHON_${manga.source}",
-                        contentType = ContentType.MANGA,
-                        url = manga.url,
-                        title = manga.title,
-                        authors = listOfNotNull(manga.author, manga.artist)
-                            .distinct()
-                            .joinToString(", ")
-                            .ifBlank { null },
-                        description = manga.description,
-                        tags = manga.genre,
-                        coverUrl = manga.thumbnailUrl,
-                        publicUrl = manga.url,
-                        state = manga.status.toString(),
-                        isFavorite = manga.favorite,
-                        favoriteTimestamp = favoriteTimestamp,
-                        chaptersCount = manga.chapters.size,
-                        readEntriesCount = manga.chapters.count { it.read },
-                        progressPercent = progressPercent,
-                        historyChapterUrl = history?.url,
-                        historyTimestamp = history?.lastRead?.takeIf { it > 0L },
-                    )
-                }
-            }
-            val animeRecords = backup.backupAnime.mapNotNull { anime ->
-                val favoriteTimestamp = anime.favoriteModifiedAt ?: anime.dateAdded.takeIf { it > 0L }
-                val history = anime.history.maxByOrNull { it.lastRead }
-                val progressPercent = calculateProgressPercent(
-                    totalCount = anime.episodes.size,
-                    completedCount = anime.episodes.count { it.seen },
-                )
-                if (!anime.favorite && history == null) {
-                    null
-                } else {
-                    ExternalBackupContentRecord(
-                        app = app,
-                        sourceName = "ANIYOMI_${anime.source}",
-                        contentType = ContentType.VIDEO,
-                        url = anime.url,
-                        title = anime.title,
-                        authors = listOfNotNull(anime.author, anime.artist)
-                            .distinct()
-                            .joinToString(", ")
-                            .ifBlank { null },
-                        description = anime.description,
-                        tags = anime.genre,
-                        coverUrl = anime.thumbnailUrl,
-                        publicUrl = anime.url,
-                        state = anime.status.toString(),
-                        isFavorite = anime.favorite,
-                        favoriteTimestamp = favoriteTimestamp,
-                        chaptersCount = anime.episodes.size,
-                        readEntriesCount = anime.episodes.count { it.seen },
-                        progressPercent = progressPercent,
-                        historyChapterUrl = history?.url,
-                        historyTimestamp = history?.lastRead?.takeIf { it > 0L },
-                    )
-                }
-            }
-            mangaRecords + animeRecords
-        }
+        }.getOrNull()?.toPayload(app)
     }
 
     private fun calculateProgressPercent(
@@ -182,6 +76,7 @@ class ExternalBackupDecoder @Inject constructor(
     @Serializable
     private data class MihonBackup(
         @ProtoNumber(1) val backupManga: List<MihonBackupManga> = emptyList(),
+        @ProtoNumber(2) val backupCategories: List<MihonBackupCategory> = emptyList(),
     )
 
     @Serializable
@@ -198,8 +93,15 @@ class ExternalBackupDecoder @Inject constructor(
         @ProtoNumber(13) val dateAdded: Long = 0,
         @ProtoNumber(100) val favorite: Boolean = true,
         @ProtoNumber(16) val chapters: List<MihonBackupChapter> = emptyList(),
+        @ProtoNumber(17) val categories: List<Long> = emptyList(),
         @ProtoNumber(104) val history: List<MihonBackupHistory> = emptyList(),
         @ProtoNumber(107) val favoriteModifiedAt: Long? = null,
+    )
+
+    @Serializable
+    private data class MihonBackupCategory(
+        @ProtoNumber(1) val name: String,
+        @ProtoNumber(2) val order: Long = 0,
     )
 
     @Serializable
@@ -218,6 +120,7 @@ class ExternalBackupDecoder @Inject constructor(
     @Serializable
     private data class AniyomiBackup(
         @ProtoNumber(1) val backupManga: List<AniyomiBackupManga> = emptyList(),
+        @ProtoNumber(2) val backupCategories: List<MihonBackupCategory> = emptyList(),
         @ProtoNumber(3) val backupAnime: List<AniyomiBackupAnime> = emptyList(),
     )
 
@@ -235,6 +138,7 @@ class ExternalBackupDecoder @Inject constructor(
         @ProtoNumber(13) val dateAdded: Long = 0,
         @ProtoNumber(100) val favorite: Boolean = true,
         @ProtoNumber(16) val chapters: List<MihonBackupChapter> = emptyList(),
+        @ProtoNumber(17) val categories: List<Long> = emptyList(),
         @ProtoNumber(104) val history: List<MihonBackupHistory> = emptyList(),
         @ProtoNumber(107) val favoriteModifiedAt: Long? = null,
     )
@@ -274,5 +178,163 @@ class ExternalBackupDecoder @Inject constructor(
         private const val MAGIC_JSON_SIGNATURE1 = 0x7b7d
         private const val MAGIC_JSON_SIGNATURE2 = 0x7b22
         private const val MAGIC_JSON_SIGNATURE3 = 0x7b0a
+    }
+
+    private fun MihonBackup.toPayload(app: ExternalBackupApp): ExternalBackupPayload {
+        return ExternalBackupPayload(
+            records = backupManga.mapNotNull { manga ->
+                manga.toRecord(
+                    app = app,
+                    sourceName = "MIHON_${manga.source}",
+                    contentType = ContentType.MANGA,
+                    totalCount = manga.chapters.size,
+                    completedCount = manga.chapters.count { it.read },
+                )
+            },
+            favoriteCategories = backupCategories.toFavoriteCategoryRecords(),
+        )
+    }
+
+    private fun AniyomiBackup.toPayload(app: ExternalBackupApp): ExternalBackupPayload {
+        val mangaRecords = backupManga.mapNotNull { manga ->
+            manga.toRecord(
+                app = app,
+                sourceName = "MIHON_${manga.source}",
+                contentType = ContentType.MANGA,
+                totalCount = manga.chapters.size,
+                completedCount = manga.chapters.count { it.read },
+            )
+        }
+        val animeRecords = backupAnime.mapNotNull { anime ->
+            val favoriteTimestamp = anime.favoriteModifiedAt ?: anime.dateAdded.takeIf { it > 0L }
+            val history = anime.history.maxByOrNull { it.lastRead }
+            val progressPercent = calculateProgressPercent(
+                totalCount = anime.episodes.size,
+                completedCount = anime.episodes.count { it.seen },
+            )
+            if (!anime.favorite && history == null) {
+                null
+            } else {
+                ExternalBackupContentRecord(
+                    app = app,
+                    sourceName = "ANIYOMI_${anime.source}",
+                    contentType = ContentType.VIDEO,
+                    url = anime.url,
+                    title = anime.title,
+                    authors = listOfNotNull(anime.author, anime.artist)
+                        .distinct()
+                        .joinToString(", ")
+                        .ifBlank { null },
+                    description = anime.description,
+                    tags = anime.genre,
+                    coverUrl = anime.thumbnailUrl,
+                    publicUrl = anime.url,
+                    state = anime.status.toString(),
+                    isFavorite = anime.favorite,
+                    favoriteTimestamp = favoriteTimestamp,
+                    favoriteCategoryOrders = emptyList(),
+                    chaptersCount = anime.episodes.size,
+                    readEntriesCount = anime.episodes.count { it.seen },
+                    progressPercent = progressPercent,
+                    historyChapterUrl = history?.url,
+                    historyTimestamp = history?.lastRead?.takeIf { it > 0L },
+                )
+            }
+        }
+        return ExternalBackupPayload(
+            records = mangaRecords + animeRecords,
+            favoriteCategories = backupCategories.toFavoriteCategoryRecords(),
+        )
+    }
+
+    private fun MihonBackupManga.toRecord(
+        app: ExternalBackupApp,
+        sourceName: String,
+        contentType: ContentType,
+        totalCount: Int,
+        completedCount: Int,
+    ): ExternalBackupContentRecord? {
+        val favoriteTimestamp = favoriteModifiedAt ?: dateAdded.takeIf { it > 0L }
+        val history = history.maxByOrNull { it.lastRead }
+        val progressPercent = calculateProgressPercent(
+            totalCount = totalCount,
+            completedCount = completedCount,
+        )
+        if (!favorite && history == null) {
+            return null
+        }
+        return ExternalBackupContentRecord(
+            app = app,
+            sourceName = sourceName,
+            contentType = contentType,
+            url = url,
+            title = title,
+            authors = listOfNotNull(author, artist)
+                .distinct()
+                .joinToString(", ")
+                .ifBlank { null },
+            description = description,
+            tags = genre,
+            coverUrl = thumbnailUrl,
+            publicUrl = url,
+            state = status.toString(),
+            isFavorite = favorite,
+            favoriteTimestamp = favoriteTimestamp,
+            favoriteCategoryOrders = categories,
+            chaptersCount = totalCount,
+            readEntriesCount = completedCount,
+            progressPercent = progressPercent,
+            historyChapterUrl = history?.url,
+            historyTimestamp = history?.lastRead?.takeIf { it > 0L },
+        )
+    }
+
+    private fun AniyomiBackupManga.toRecord(
+        app: ExternalBackupApp,
+        sourceName: String,
+        contentType: ContentType,
+        totalCount: Int,
+        completedCount: Int,
+    ): ExternalBackupContentRecord? {
+        val favoriteTimestamp = favoriteModifiedAt ?: dateAdded.takeIf { it > 0L }
+        val history = history.maxByOrNull { it.lastRead }
+        val progressPercent = calculateProgressPercent(
+            totalCount = totalCount,
+            completedCount = completedCount,
+        )
+        if (!favorite && history == null) {
+            return null
+        }
+        return ExternalBackupContentRecord(
+            app = app,
+            sourceName = sourceName,
+            contentType = contentType,
+            url = url,
+            title = title,
+            authors = listOfNotNull(author, artist)
+                .distinct()
+                .joinToString(", ")
+                .ifBlank { null },
+            description = description,
+            tags = genre,
+            coverUrl = thumbnailUrl,
+            publicUrl = url,
+            state = status.toString(),
+            isFavorite = favorite,
+            favoriteTimestamp = favoriteTimestamp,
+            favoriteCategoryOrders = categories,
+            chaptersCount = totalCount,
+            readEntriesCount = completedCount,
+            progressPercent = progressPercent,
+            historyChapterUrl = history?.url,
+            historyTimestamp = history?.lastRead?.takeIf { it > 0L },
+        )
+    }
+
+    private fun List<MihonBackupCategory>.toFavoriteCategoryRecords(): List<ExternalBackupFavoriteCategoryRecord> {
+        return filter { it.name.isNotBlank() }
+            .distinctBy { it.name }
+            .sortedBy { it.order }
+            .map { ExternalBackupFavoriteCategoryRecord(name = it.name, order = it.order) }
     }
 }

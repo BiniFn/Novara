@@ -54,8 +54,8 @@ class ExternalBackupImportService : BaseBackupRestoreService() {
             ?: throw IllegalArgumentException("Missing external backup app")
         powerManager.withPartialWakeLock(TAG) {
             val result = runCatching {
-                val records = withContext(Dispatchers.IO) { decoder.decode(source, app) }
-                repository.import(records)
+                val payload = withContext(Dispatchers.IO) { decoder.decode(source, app) }
+                repository.import(payload)
             }
             result.fold(
                 onSuccess = {
