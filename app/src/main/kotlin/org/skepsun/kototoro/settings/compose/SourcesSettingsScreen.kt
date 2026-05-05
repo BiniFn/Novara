@@ -93,10 +93,11 @@ fun SourcesSettingsScreen(
                         onValueChange = onSourcesSortOrderChange,
                     )
                     SettingsSectionDivider()
-                    SettingsSwitchPreference(
+                    SettingsActionPreference(
                         title = stringResource(R.string.show_in_grid_view),
-                        checked = state.isSourcesGridMode,
-                        onCheckedChange = onSourcesGridModeChange,
+                        summary = stringResource(R.string.browse_display_options_summary),
+                        showChevron = false,
+                        onClick = {},
                     )
                     SettingsSectionDivider()
                     SettingsSwitchPreference(

@@ -95,6 +95,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getEnumValue(KEY_LIST_MODE, ListMode.GRID)
 		set(value) = prefs.edit { putEnumValue(KEY_LIST_MODE, value) }
 
+	var browseListMode: ListMode
+		get() = prefs.getEnumValue(KEY_LIST_MODE_BROWSE, ListMode.GRID)
+		set(value) = prefs.edit { putEnumValue(KEY_LIST_MODE_BROWSE, value) }
+
 	var theme: Int
 		get() = prefs.getString(KEY_THEME, null)?.toIntOrNull()
 			?: AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
@@ -1181,6 +1185,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getBoolean(KEY_SUGGESTIONS, false)
 		set(value) = prefs.edit { putBoolean(KEY_SUGGESTIONS, value) }
 
+	var isBrowseTrackingRecommendationsEnabled: Boolean
+		get() = prefs.getBoolean(KEY_BROWSE_TRACKING_RECOMMENDATIONS, true)
+		set(value) = prefs.edit { putBoolean(KEY_BROWSE_TRACKING_RECOMMENDATIONS, value) }
+
 	val isSuggestionsWiFiOnly: Boolean
 		get() = prefs.getBoolean(KEY_SUGGESTIONS_WIFI_ONLY, false)
 
@@ -1753,6 +1761,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 		const val KEY_ADBLOCK = "adblock"
 		const val KEY_LIST_MODE = "list_mode_2"
+		const val KEY_LIST_MODE_BROWSE = "list_mode_browse"
 		const val KEY_LIST_MODE_HISTORY = "list_mode_history"
 		const val KEY_LIST_MODE_FAVORITES = "list_mode_favorites"
 		const val KEY_LIST_MODE_SUGGESTIONS = "list_mode_suggestions"
@@ -1891,6 +1900,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_READER_PREFETCH_LIMIT = "reader_prefetch_limit"
 		const val KEY_PAGES_PRELOAD = "pages_preload"
 		const val KEY_SUGGESTIONS = "suggestions"
+		const val KEY_BROWSE_TRACKING_RECOMMENDATIONS = "browse_tracking_recommendations"
 		const val KEY_SUGGESTIONS_WIFI_ONLY = "suggestions_wifi"
 		const val KEY_SUGGESTIONS_EXCLUDE_NSFW = "suggestions_exclude_nsfw"
 		const val KEY_SUGGESTIONS_EXCLUDE_TAGS = "suggestions_exclude_tags"

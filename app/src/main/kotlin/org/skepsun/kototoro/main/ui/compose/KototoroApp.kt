@@ -80,8 +80,10 @@ private data class KototoroNavigationPrefs(
 private data class KototoroDisplayPrefs(
     val activeSourcePresetId: Long,
     val listMode: ListMode,
+    val browseListMode: ListMode,
     val gridSize: Int,
     val cornerRadius: Int,
+    val isBrowseTrackingRecommendationsEnabled: Boolean,
 )
 
 @Immutable
@@ -166,14 +168,18 @@ fun KototoroApp(
     val displayPrefs by appSettings.observeAsState(
         AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID,
         AppSettings.KEY_LIST_MODE,
+        AppSettings.KEY_LIST_MODE_BROWSE,
         AppSettings.KEY_GRID_SIZE,
         AppSettings.KEY_POPUP_RADIUS,
+        AppSettings.KEY_BROWSE_TRACKING_RECOMMENDATIONS,
     ) {
         KototoroDisplayPrefs(
             activeSourcePresetId = activeSourcePresetId,
             listMode = listMode,
+            browseListMode = browseListMode,
             gridSize = gridSize,
             cornerRadius = cornerRadius,
+            isBrowseTrackingRecommendationsEnabled = isBrowseTrackingRecommendationsEnabled,
         )
     }
     val filterVisibilityPrefs by appSettings.observeAsState(
@@ -191,8 +197,10 @@ fun KototoroApp(
     val isFloating = navigationPrefs.isFloating
     val activeSourcePresetId = displayPrefs.activeSourcePresetId
     val listMode = displayPrefs.listMode
+    val browseListMode = displayPrefs.browseListMode
     val gridSize = displayPrefs.gridSize
     val cornerRadius = displayPrefs.cornerRadius
+    val isBrowseTrackingRecommendationsEnabled = displayPrefs.isBrowseTrackingRecommendationsEnabled
     val isLandscapeNavigation = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val isLanguagePresetFilterVisibleSetting = filterVisibilityPrefs.isLanguagePresetFilterVisible
     val isContentTypeFilterVisibleSetting = filterVisibilityPrefs.isContentTypeFilterVisible
@@ -295,7 +303,9 @@ fun KototoroApp(
         it.hasRoute<ExploreRoute>() || it.hasRoute<DiscoverRoute>()
     } == true
     val supportsDisplayModeMenu = currentDestination?.let {
-        it.hasRoute<HistoryRoute>() ||
+        it.hasRoute<ExploreRoute>() ||
+            it.hasRoute<DiscoverRoute>() ||
+            it.hasRoute<HistoryRoute>() ||
             it.hasRoute<FavoritesRoute>() ||
             it.hasRoute<LocalRoute>() ||
             it.hasRoute<SuggestionsRoute>() ||
@@ -504,11 +514,27 @@ fun KototoroApp(
                             onSourceTagFilterClick = onSourceTagFilterClick,
                             onSourceTagSelected = onSourceTagSelected,
                             supportsDisplayModeMenu = supportsDisplayModeMenu,
-                            currentListMode = listMode,
-                            onListModeSelected = { appSettings.listMode = it },
+                            currentListMode = if (showBrowseSourceSettingsEntry) browseListMode else listMode,
+                            onListModeSelected = {
+                                if (showBrowseSourceSettingsEntry) {
+                                    appSettings.browseListMode = it
+                                } else {
+                                    appSettings.listMode = it
+                                }
+                            },
                             supportsGridSizeSlider = supportsGridSizeSlider,
                             gridSize = gridSize,
                             onGridSizeChange = { appSettings.gridSize = it },
+                            isBrowseTrackingRecommendationsEnabled = if (showBrowseSourceSettingsEntry) {
+                                isBrowseTrackingRecommendationsEnabled
+                            } else {
+                                null
+                            },
+                            onBrowseTrackingRecommendationsChange = if (showBrowseSourceSettingsEntry) {
+                                { appSettings.isBrowseTrackingRecommendationsEnabled = it }
+                            } else {
+                                null
+                            },
                             showSourceSettingsEntry = showBrowseSourceSettingsEntry,
                             modifier = Modifier
                                 .align(if (isLandscapeNavigation) Alignment.TopStart else Alignment.TopCenter)

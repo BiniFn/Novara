@@ -29,6 +29,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
@@ -97,6 +98,8 @@ fun KototoroTopBar(
     supportsGridSizeSlider: Boolean = false,
     gridSize: Int = 100,
     onGridSizeChange: (Int) -> Unit = {},
+    isBrowseTrackingRecommendationsEnabled: Boolean? = null,
+    onBrowseTrackingRecommendationsChange: ((Boolean) -> Unit)? = null,
     showSourceSettingsEntry: Boolean = false,
     isIncognitoModeEnabled: Boolean = false,
     onIncognitoToggle: () -> Unit = {},
@@ -257,7 +260,7 @@ fun KototoroTopBar(
                 }
             }
         }
-        if (showDisplayOptionsSheet && (supportsDisplayModeMenu || supportsGridSizeSlider)) {
+        if (showDisplayOptionsSheet && (supportsDisplayModeMenu || supportsGridSizeSlider || onBrowseTrackingRecommendationsChange != null)) {
             org.skepsun.kototoro.list.ui.compose.DisplayOptionsSheet(
                 supportsDisplayModeMenu = supportsDisplayModeMenu,
                 currentListMode = currentListMode,
@@ -265,6 +268,39 @@ fun KototoroTopBar(
                 supportsGridSizeSlider = supportsGridSizeSlider,
                 gridSize = gridSize,
                 onGridSizeChange = onGridSizeChange,
+                extraContent = if (onBrowseTrackingRecommendationsChange != null && isBrowseTrackingRecommendationsEnabled != null) {
+                    {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.browse_tracking_recommendations),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                                Text(
+                                    text = stringResource(R.string.browse_tracking_recommendations_summary),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Switch(
+                                checked = isBrowseTrackingRecommendationsEnabled,
+                                onCheckedChange = onBrowseTrackingRecommendationsChange,
+                            )
+                        }
+                    }
+                } else {
+                    null
+                },
                 onDismissRequest = { showDisplayOptionsSheet = false },
             )
         }

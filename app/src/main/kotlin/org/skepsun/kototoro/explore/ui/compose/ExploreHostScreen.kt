@@ -84,6 +84,7 @@ import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.unwrap
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
 import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
@@ -131,6 +132,8 @@ private data class SourceQuickAccessMetrics(
 private data class ExploreScreenPrefs(
     val gridScale: Float,
     val isSourcesGroupedByLanguage: Boolean,
+    val browseListMode: ListMode,
+    val isBrowseTrackingRecommendationsEnabled: Boolean,
 )
 
 private data class SourceOriginBadgeInfo(
@@ -267,14 +270,20 @@ fun KototoroExploreHostRoute(
     val screenPrefs by settings.observeAsState(
         AppSettings.KEY_GRID_SIZE,
         AppSettings.KEY_SOURCES_GROUPED_BY_LANGUAGE,
+        AppSettings.KEY_LIST_MODE_BROWSE,
+        AppSettings.KEY_BROWSE_TRACKING_RECOMMENDATIONS,
     ) {
         ExploreScreenPrefs(
             gridScale = gridSize / 100f,
             isSourcesGroupedByLanguage = isSourcesGroupedByLanguage,
+            browseListMode = browseListMode,
+            isBrowseTrackingRecommendationsEnabled = isBrowseTrackingRecommendationsEnabled,
         )
     }
     val gridScale = screenPrefs.gridScale
     val isSourcesGroupedByLanguage = screenPrefs.isSourcesGroupedByLanguage
+    val browseListMode = screenPrefs.browseListMode
+    val isBrowseTrackingRecommendationsEnabled = screenPrefs.isBrowseTrackingRecommendationsEnabled
     val posterStyle = remember(gridScale) { compactPosterRailCardStyle(gridScale) }
     // 实时读取 LazyColumn 第一个 item 的滚动偏移，驱动 Hero 跟随滚动
     val heroScrollOffsetPx by remember(listState) {
@@ -293,10 +302,10 @@ fun KototoroExploreHostRoute(
     }
     val sources = browseSourceItems.sources
     val browseDiscoverItems = remember(discoverItems) { prepareBrowseDiscoverItems(discoverItems) }
-    val heroRow = browseDiscoverItems.heroRow
-    val heroItems = browseDiscoverItems.heroItems
-    val showcaseRows = browseDiscoverItems.showcaseRows
-    val popularItems = browseDiscoverItems.popularItems
+    val heroRow = if (isBrowseTrackingRecommendationsEnabled) browseDiscoverItems.heroRow else null
+    val heroItems = if (isBrowseTrackingRecommendationsEnabled) browseDiscoverItems.heroItems else emptyList()
+    val showcaseRows = if (isBrowseTrackingRecommendationsEnabled) browseDiscoverItems.showcaseRows else emptyList()
+    val popularItems = if (isBrowseTrackingRecommendationsEnabled) browseDiscoverItems.popularItems else emptyList()
     val isLoadingOnly = browseDiscoverItems.isLoadingOnly
     val heroOverlapDp = if (sources.isNotEmpty() || isLoadingOnly) BrowseHeroContentOverlap else 0.dp
     val heroHeightDp by remember(heroPx, density, heroOverlapDp) {
@@ -417,6 +426,7 @@ fun KototoroExploreHostRoute(
                             sources = sources,
                             isLoadingOnly = isLoadingOnly,
                             metrics = sourceQuickAccessMetrics(gridScale),
+                            browseListMode = browseListMode,
                             isGroupedByLanguage = isSourcesGroupedByLanguage,
                             selectedSourceIds = selectedSourceIds,
                             onSourceClick = { source ->
@@ -682,6 +692,7 @@ private fun DetachedBottomContent(
     sources: List<ContentSourceItem>,
     isLoadingOnly: Boolean,
     metrics: SourceQuickAccessMetrics,
+    browseListMode: ListMode,
     isGroupedByLanguage: Boolean,
     selectedSourceIds: Set<Long>,
     onSourceClick: (ContentSourceItem) -> Unit,
@@ -700,6 +711,7 @@ private fun DetachedBottomContent(
                 SourcesQuickAccessSection(
                     sources = sources,
                     metrics = metrics,
+                    browseListMode = browseListMode,
                     isGroupedByLanguage = isGroupedByLanguage,
                     selectedSourceIds = selectedSourceIds,
                     onSourceClick = onSourceClick,
@@ -734,6 +746,7 @@ private fun DetachedBottomContent(
 private fun SourcesQuickAccessSection(
     sources: List<ContentSourceItem>,
     metrics: SourceQuickAccessMetrics,
+    browseListMode: ListMode,
     isGroupedByLanguage: Boolean,
     selectedSourceIds: Set<Long>,
     onSourceClick: (ContentSourceItem) -> Unit,
@@ -808,6 +821,7 @@ private fun SourcesQuickAccessSection(
                     }
                     SourceQuickAccessGrid(
                         metrics = metrics,
+                        browseListMode = browseListMode,
                         columns = columns,
                         sources = group.sources,
                         selectedSourceIds = selectedSourceIds,
@@ -840,6 +854,7 @@ private fun SourcesQuickAccessSection(
 @Composable
 private fun SourceQuickAccessGrid(
     metrics: SourceQuickAccessMetrics,
+    browseListMode: ListMode,
     columns: Int,
     sources: List<ContentSourceItem>,
     selectedSourceIds: Set<Long>,
@@ -860,6 +875,7 @@ private fun SourceQuickAccessGrid(
                     Box(modifier = Modifier.weight(1f)) {
                         SourceQuickAccessCard(
                             metrics = metrics,
+                            browseListMode = browseListMode,
                             source = source,
                             isSelected = source.id in selectedSourceIds,
                             onClick = { onSourceClick(source) },
@@ -878,6 +894,7 @@ private fun SourceQuickAccessGrid(
 @Composable
 private fun SourceQuickAccessCard(
     metrics: SourceQuickAccessMetrics,
+    browseListMode: ListMode,
     source: ContentSourceItem,
     isSelected: Boolean,
     onClick: () -> Unit,
@@ -890,10 +907,12 @@ private fun SourceQuickAccessCard(
         sourceOriginBadgeInfo(actualSource.name)
     }
 
+    val isGridCard = browseListMode == ListMode.GRID
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(metrics.cardHeight)
+            .height(if (isGridCard) metrics.cardHeight else 70.dp)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick,
@@ -906,70 +925,135 @@ private fun SourceQuickAccessCard(
         },
         tonalElevation = 0.dp,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 6.dp, vertical = 6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Top,
-        ) {
-            Box(
+        if (isGridCard) {
+            Column(
                 modifier = Modifier
-                    .size(metrics.iconContainerSize)
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
-                    .background(
-                        sourceTypeAccent(actualSource.contentType).copy(
-                            alpha = if (isSelected) 0.32f else 0.18f,
-                        ),
-                    ),
-                contentAlignment = Alignment.Center,
+                    .fillMaxSize()
+                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Top,
             ) {
-                ContentSourceIcon(
-                    source = source.source,
-                    modifier = Modifier.size(metrics.iconSize),
-                    contentDescription = title,
-                )
-                if (originBadge != null) {
-                    SourceOriginBadge(
-                        badge = originBadge,
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .offset(x = 2.dp, y = 2.dp),
+                Box(
+                    modifier = Modifier
+                        .size(metrics.iconContainerSize)
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                        .background(
+                            sourceTypeAccent(actualSource.contentType).copy(
+                                alpha = if (isSelected) 0.32f else 0.18f,
+                            ),
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    ContentSourceIcon(
+                        source = source.source,
+                        modifier = Modifier.size(metrics.iconSize),
+                        contentDescription = title,
                     )
+                    if (originBadge != null) {
+                        SourceOriginBadge(
+                            badge = originBadge,
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .offset(x = 2.dp, y = 2.dp),
+                        )
+                    }
+                    if (source.source.isPinned) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_pin_small),
+                            contentDescription = stringResource(R.string.pin),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = (-4).dp, y = 4.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.background.copy(alpha = 0.85f),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                                )
+                                .padding(1.dp)
+                                .size(10.dp),
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelSmall.copy(lineHeight = 13.sp),
+                    color = if (isSelected) {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 1.dp),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                        .background(
+                            sourceTypeAccent(actualSource.contentType).copy(
+                                alpha = if (isSelected) 0.32f else 0.18f,
+                            ),
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    ContentSourceIcon(
+                        source = source.source,
+                        modifier = Modifier.size(28.dp),
+                        contentDescription = title,
+                    )
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(if (browseListMode == ListMode.DETAILED_LIST) 2.dp else 0.dp),
+                ) {
+                    Text(
+                        text = title,
+                        style = if (browseListMode == ListMode.DETAILED_LIST) {
+                            MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                        } else {
+                            MaterialTheme.typography.bodyMedium
+                        },
+                        color = if (isSelected) {
+                            MaterialTheme.colorScheme.onSecondaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (browseListMode == ListMode.DETAILED_LIST) {
+                        Text(
+                            text = actualSource.getLocale()?.getDisplayName(Locale.getDefault()).orEmpty(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
                 if (source.source.isPinned) {
                     Icon(
                         painter = painterResource(R.drawable.ic_pin_small),
                         contentDescription = stringResource(R.string.pin),
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .offset(x = (-4).dp, y = 4.dp)
-                            .background(
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.85f),
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
-                            )
-                            .padding(1.dp)
-                            .size(10.dp),
+                        modifier = Modifier.size(14.dp),
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelSmall.copy(lineHeight = 13.sp),
-                color = if (isSelected) {
-                    MaterialTheme.colorScheme.onSecondaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 1.dp),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            )
         }
     }
 }

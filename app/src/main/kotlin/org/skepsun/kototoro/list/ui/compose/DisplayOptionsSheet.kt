@@ -37,6 +37,7 @@ fun DisplayOptionsSheet(
     supportsGridSizeSlider: Boolean,
     gridSize: Int,
     onGridSizeChange: (Int) -> Unit,
+    extraContent: (@Composable () -> Unit)? = null,
     onDismissRequest: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -102,6 +103,13 @@ fun DisplayOptionsSheet(
                     value = gridSize,
                     onValueChange = onGridSizeChange,
                 )
+            }
+
+            extraContent?.let {
+                if (supportsDisplayModeMenu || supportsGridSizeSlider) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                }
+                it()
             }
         }
     }
