@@ -66,7 +66,7 @@ fun rememberResolvedContentSource(source: ContentSource): ContentSource {
 fun rememberResolvedSourceTitle(source: ContentSource): String {
     val context = LocalContext.current
     val resolvedSource = rememberResolvedContentSource(source)
-    return remember(source.name, resolvedSource.name) {
+    return remember(source.name, resolvedSource.javaClass.name) {
         resolveReadableSourceTitle(
             context = context,
             originalSource = source,
@@ -79,7 +79,7 @@ fun rememberResolvedSourceTitle(source: ContentSource): String {
 fun rememberSourceChipMeta(source: ContentSource): ContentSourceChipMeta? {
     val context = LocalContext.current
     val resolvedSource = rememberResolvedContentSource(source)
-    return remember(source.name, resolvedSource.name, resolvedSource.locale) {
+    return remember(source.name, resolvedSource.javaClass.name, resolvedSource.locale) {
         val locale = resolvedSource.getLocale()
             ?.language
             ?.takeIf { it.isNotBlank() }
