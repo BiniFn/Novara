@@ -181,6 +181,8 @@ private class AppearanceSettingsCoordinator(
             settings.observeAsState(AppSettings.KEY_BROWSE_PANORAMA_BOTTOM_GRADIENT_ALPHA) {
                 browsePanoramaBottomGradientAlpha
             }.value
+        val isPanoramaDownsampleEnabled =
+            settings.observeAsState(AppSettings.KEY_PANORAMA_DOWNSAMPLE) { isPanoramaDownsampleEnabled }.value
         val isPagesTabEnabled = settings.observeAsState(AppSettings.KEY_PAGES_TAB) { isPagesTabEnabled }.value
         val isDetailsTranslateButtonVisible =
             settings.observeAsState(AppSettings.KEY_DETAILS_TRANSLATE_BUTTON) { isDetailsTranslateButtonVisible }.value
@@ -278,6 +280,7 @@ private class AppearanceSettingsCoordinator(
             panoramaBottomGradientAlpha = panoramaBottomGradientAlpha,
             browsePanoramaBlendHeight = browsePanoramaBlendHeight,
             browsePanoramaBottomGradientAlpha = browsePanoramaBottomGradientAlpha,
+            isPanoramaDownsampleEnabled = isPanoramaDownsampleEnabled,
             isPagesTabEnabled = isPagesTabEnabled,
             isDetailsTranslateButtonVisible = isDetailsTranslateButtonVisible,
             defaultDetailsTab = defaultDetailsTab,
@@ -336,6 +339,7 @@ private class AppearanceSettingsCoordinator(
             onPanoramaGradientAlphaChange = { settings.panoramaBottomGradientAlpha = it },
             onBrowsePanoramaBlendHeightChange = { settings.browsePanoramaBlendHeight = it },
             onBrowsePanoramaGradientAlphaChange = { settings.browsePanoramaBottomGradientAlpha = it },
+            onPanoramaDownsampleEnabledChange = { settings.isPanoramaDownsampleEnabled = it },
             onPagesTabEnabledChange = { settings.isPagesTabEnabled = it },
             onDetailsTranslateButtonVisibleChange = { settings.isDetailsTranslateButtonVisible = it },
             onDefaultDetailsTabChange = { settings.defaultDetailsTab = it },

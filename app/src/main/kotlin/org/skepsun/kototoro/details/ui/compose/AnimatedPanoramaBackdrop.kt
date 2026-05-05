@@ -38,6 +38,7 @@ data class PanoramaBackdropPrefs(
     val isAnimationEnabled: Boolean,
     val animationSpeedPercent: Int,
     val extraHeight: Int,
+    val downsampleEnabled: Boolean,
 )
 
 @Composable
@@ -50,6 +51,7 @@ fun rememberPanoramaBackdropPrefs(settings: AppSettings): PanoramaBackdropPrefs 
         AppSettings.KEY_PANORAMA_ANIMATION_ENABLED,
         AppSettings.KEY_PANORAMA_ANIMATION_SPEED,
         AppSettings.KEY_PANORAMA_EXTRA_HEIGHT,
+        AppSettings.KEY_PANORAMA_DOWNSAMPLE,
     ) {
         PanoramaBackdropPrefs(
             isEnabled = isPanoramaCoverEnabled,
@@ -58,6 +60,7 @@ fun rememberPanoramaBackdropPrefs(settings: AppSettings): PanoramaBackdropPrefs 
             isAnimationEnabled = supportsRealtimeEffects && isPanoramaCoverAnimationEnabled,
             animationSpeedPercent = panoramaAnimationSpeed,
             extraHeight = panoramaCoverExtraHeight,
+            downsampleEnabled = isPanoramaDownsampleEnabled,
         )
     }
     return prefs
@@ -136,6 +139,7 @@ fun AnimatedPanoramaBackdrop(
         maxHeightPx = 2200,
         widthOverscan = 1.42f,
         heightOverscan = 1.0f,
+        downsample = prefs.downsampleEnabled,
     )
     val backgroundRequest = androidx.compose.runtime.remember(
         model,

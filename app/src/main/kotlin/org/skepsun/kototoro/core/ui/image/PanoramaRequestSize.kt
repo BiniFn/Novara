@@ -15,6 +15,7 @@ fun rememberPanoramaRequestSize(
     maxHeightPx: Int = 1280,
     widthOverscan: Float = 1.28f,
     heightOverscan: Float = 0.78f,
+    downsample: Boolean = false,
 ): Size {
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
@@ -28,16 +29,21 @@ fun rememberPanoramaRequestSize(
         maxHeightPx,
         widthOverscan,
         heightOverscan,
+        downsample,
     ) {
+        val effectiveMinWidth = if (downsample) (minWidthPx * 0.47f).roundToInt() else minWidthPx
+        val effectiveMinHeight = if (downsample) (minHeightPx * 0.47f).roundToInt() else minHeightPx
+        val effectiveMaxWidth = if (downsample) (maxWidthPx * 0.55f).roundToInt() else maxWidthPx
+        val effectiveMaxHeight = if (downsample) (maxHeightPx * 0.55f).roundToInt() else maxHeightPx
         val widthPx = with(density) {
             (configuration.screenWidthDp * density.density * widthOverscan)
                 .roundToInt()
-                .coerceIn(minWidthPx, maxWidthPx)
+                .coerceIn(effectiveMinWidth, effectiveMaxWidth)
         }
         val heightPx = with(density) {
             (configuration.screenHeightDp * density.density * heightOverscan)
                 .roundToInt()
-                .coerceIn(minHeightPx, maxHeightPx)
+                .coerceIn(effectiveMinHeight, effectiveMaxHeight)
         }
         Size(widthPx, heightPx)
     }

@@ -41,8 +41,10 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -61,6 +64,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import coil3.compose.AsyncImage
@@ -141,6 +145,7 @@ fun HomeScreen(
     val layoutDirection = LocalLayoutDirection.current
     val systemBarsPadding = WindowInsets.systemBars.asPaddingValues()
     val context = LocalContext.current
+    val density = LocalDensity.current
     val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
     val screenPrefs by settings.observeAsState(
         AppSettings.KEY_GRID_SIZE,
@@ -192,56 +197,86 @@ fun HomeScreen(
         HomeQuickAction(stringResource(R.string.reader_settings), R.drawable.ic_read, actions.onReaderSettingsClick),
         HomeQuickAction(stringResource(R.string.settings), R.drawable.ic_settings, actions.onSettingsClick),
     )
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .nestedScroll(rememberNestedScrollInteropConnection())
-            .verticalScroll(scrollState)
-            .padding(
-                start = systemBarsPadding.calculateLeftPadding(layoutDirection) + 8.dp,
-                end = systemBarsPadding.calculateRightPadding(layoutDirection) + 8.dp,
-                top = contentPadding.calculateTopPadding(),
-                bottom = contentPadding.calculateBottomPadding(),
-            )
-            .padding(bottom = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        val hasHighlights = heroEntries.isNotEmpty() ||
-            state.recentHistoryItems.isNotEmpty() ||
-            state.recentUpdates.isNotEmpty() ||
-            state.recommendations.isNotEmpty() ||
-            recentSearches.isNotEmpty()
-        if (hasHighlights) {
-            HomeHighlightsSections(
-                heroEntries = heroEntries,
-                historyItems = state.recentHistoryItems,
-                recentHistoryCount = state.recentHistoryCount,
-                updateItems = state.recentUpdates,
-                unreadUpdatesCount = state.unreadUpdatesCount,
-                recommendationItems = state.recommendations,
-                recommendationsCount = state.recommendationsCount,
-                recentSearches = recentSearches,
-                posterStyle = posterStyle,
-                badgePrefs = badgePrefs,
-                onItemClick = onContentClick,
-                onViewAllRecentClick = actions.onViewAllRecentClick,
-                onViewAllUpdatesClick = actions.onViewAllUpdatesClick,
-                onViewAllRecommendationsClick = actions.onViewAllRecommendationsClick,
-                onRecentSearchClick = actions.onRecentSearchClick,
-            )
+    val topInset = contentPadding.calculateTopPadding()
+    val estimatedHeroPx = with(density) { (340.dp + topInset).roundToPx() }
+    var heroPx by rememberSaveable { mutableIntStateOf(estimatedHeroPx) }
+    val heroHeightDp by remember(heroPx, density) {
+        derivedStateOf { with(density) { heroPx.toDp() } }
+    }
+    val heroScrollOffsetPx by remember(scrollState, heroPx) {
+        derivedStateOf {
+            (-scrollState.value.toFloat()).coerceIn(-heroPx.toFloat(), 0f)
         }
-        if (!hasHighlights && !state.isInitialized) {
-            HomeLoadingSkeleton(posterStyle = posterStyle)
+    }
+
+
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .nestedScroll(rememberNestedScrollInteropConnection())
+                .verticalScroll(scrollState)
+                .padding(
+                    start = systemBarsPadding.calculateLeftPadding(layoutDirection) + 8.dp,
+                    end = systemBarsPadding.calculateRightPadding(layoutDirection) + 8.dp,
+                    bottom = contentPadding.calculateBottomPadding(),
+                )
+                .padding(bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            val hasHighlights = heroEntries.isNotEmpty() ||
+                state.recentHistoryItems.isNotEmpty() ||
+                state.recentUpdates.isNotEmpty() ||
+                state.recommendations.isNotEmpty() ||
+                recentSearches.isNotEmpty()
+            if (hasHighlights) {
+                if (heroEntries.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(heroHeightDp))
+                }
+                HomeHighlightsSections(
+                    historyItems = state.recentHistoryItems,
+                    recentHistoryCount = state.recentHistoryCount,
+                    updateItems = state.recentUpdates,
+                    unreadUpdatesCount = state.unreadUpdatesCount,
+                    recommendationItems = state.recommendations,
+                    recommendationsCount = state.recommendationsCount,
+                    recentSearches = recentSearches,
+                    posterStyle = posterStyle,
+                    badgePrefs = badgePrefs,
+                    onItemClick = onContentClick,
+                    onViewAllRecentClick = actions.onViewAllRecentClick,
+                    onViewAllUpdatesClick = actions.onViewAllUpdatesClick,
+                    onViewAllRecommendationsClick = actions.onViewAllRecommendationsClick,
+                    onRecentSearchClick = actions.onRecentSearchClick,
+                )
+            }
+            if (!hasHighlights && !state.isInitialized) {
+                HomeLoadingSkeleton(posterStyle = posterStyle)
+            }
+
+            QuickActionsSection(actions = quickActions)
         }
 
-        QuickActionsSection(actions = quickActions)
+        if (heroEntries.isNotEmpty()) {
+            HomeHeroSection(
+                entries = heroEntries,
+                onClick = onContentClick,
+                topContentInset = topInset,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .graphicsLayer { translationY = heroScrollOffsetPx }
+                    .onGloballyPositioned { coordinates ->
+                        val newHeight = coordinates.size.height
+                        if (heroPx != newHeight) heroPx = newHeight
+                    },
+            )
+        }
     }
 }
 
 
 @Composable
 private fun HomeHighlightsSections(
-    heroEntries: List<HomeHeroEntry>,
     historyItems: List<HomeRecentItem>,
     recentHistoryCount: Int,
     updateItems: List<HomeUpdateItem>,
@@ -286,70 +321,58 @@ private fun HomeHighlightsSections(
         }
     }
     Column(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 2.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        if (heroEntries.isNotEmpty()) {
-            HomeHeroSection(
-                entries = heroEntries,
-                onClick = onItemClick,
+        if (historyItems.isNotEmpty()) {
+            HomeContentRowSection(
+                title = stringResource(R.string.recent_history),
+                sectionKey = "recent_history",
+                iconRes = R.drawable.ic_history,
+                items = historyDisplayItems,
+                count = recentHistoryCount,
+                posterStyle = posterStyle,
+                badgePrefs = badgePrefs,
+                onItemClick = onItemClick,
+                onMoreClick = onViewAllRecentClick,
+                addTopSpacing = false,
             )
         }
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 2.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            if (historyItems.isNotEmpty()) {
-                HomeContentRowSection(
-                    title = stringResource(R.string.recent_history),
-                    sectionKey = "recent_history",
-                    iconRes = R.drawable.ic_history,
-                    items = historyDisplayItems,
-                    count = recentHistoryCount,
-                    posterStyle = posterStyle,
-                    badgePrefs = badgePrefs,
-                    onItemClick = onItemClick,
-                    onMoreClick = onViewAllRecentClick,
-                    addTopSpacing = false,
-                )
-            }
-            if (updateItems.isNotEmpty()) {
-                HomeContentRowSection(
-                    title = stringResource(R.string.home_recent_updates),
-                    sectionKey = "recent_updates",
-                    iconRes = R.drawable.ic_updated,
-                    items = updateDisplayItems,
-                    count = unreadUpdatesCount,
-                    posterStyle = posterStyle,
-                    badgePrefs = badgePrefs,
-                    onItemClick = onItemClick,
-                    onMoreClick = onViewAllUpdatesClick,
-                    addTopSpacing = false,
-                )
-            }
-            if (recommendationItems.isNotEmpty()) {
-                HomeContentRowSection(
-                    title = stringResource(R.string.suggestions),
-                    sectionKey = "recommendations",
-                    iconRes = R.drawable.ic_feed,
-                    items = recommendationDisplayItems,
-                    count = recommendationsCount,
-                    posterStyle = posterStyle,
-                    badgePrefs = badgePrefs,
-                    onItemClick = onItemClick,
-                    onMoreClick = onViewAllRecommendationsClick,
-                    addTopSpacing = false,
-                )
-            }
-            if (recentSearches.isNotEmpty()) {
-                HomeRecentSearchSection(
-                    queries = recentSearches,
-                    onQueryClick = onRecentSearchClick,
-                )
-            }
+        if (updateItems.isNotEmpty()) {
+            HomeContentRowSection(
+                title = stringResource(R.string.home_recent_updates),
+                sectionKey = "recent_updates",
+                iconRes = R.drawable.ic_updated,
+                items = updateDisplayItems,
+                count = unreadUpdatesCount,
+                posterStyle = posterStyle,
+                badgePrefs = badgePrefs,
+                onItemClick = onItemClick,
+                onMoreClick = onViewAllUpdatesClick,
+                addTopSpacing = false,
+            )
+        }
+        if (recommendationItems.isNotEmpty()) {
+            HomeContentRowSection(
+                title = stringResource(R.string.suggestions),
+                sectionKey = "recommendations",
+                iconRes = R.drawable.ic_feed,
+                items = recommendationDisplayItems,
+                count = recommendationsCount,
+                posterStyle = posterStyle,
+                badgePrefs = badgePrefs,
+                onItemClick = onItemClick,
+                onMoreClick = onViewAllRecommendationsClick,
+                addTopSpacing = false,
+            )
+        }
+        if (recentSearches.isNotEmpty()) {
+            HomeRecentSearchSection(
+                queries = recentSearches,
+                onQueryClick = onRecentSearchClick,
+            )
         }
     }
 }
@@ -358,6 +381,7 @@ private fun HomeHighlightsSections(
 private fun HomeHeroSection(
     entries: List<HomeHeroEntry>,
     onClick: (Content, Rect?, String?) -> Unit,
+    topContentInset: Dp = 0.dp,
     modifier: Modifier = Modifier,
 ) {
     val heroItems = remember(entries) { entries.map(HomeHeroEntry::toListModel) }
@@ -378,7 +402,7 @@ private fun HomeHeroSection(
                     ?.let { content -> onClick(content, rect, sharedKey) }
             },
             onSelectService = {},
-            topContentInset = 0.dp,
+            topContentInset = topContentInset,
             settings = null,
             detachedBottomContent = true,
             bottomContent = {
@@ -757,6 +781,7 @@ private fun QuickActionsSection(
             text = stringResource(R.string.quick_access),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
         )
         androidx.compose.foundation.layout.BoxWithConstraints {
             val compact = maxWidth < 680.dp
@@ -1047,7 +1072,7 @@ private fun HomeHeroEntry.supportingText(): String? = when (kind) {
 private fun HomeHeroEntry.toListModel(): ContentGridModel = ContentGridModel(
     manga = content,
     override = null,
-    subtitle = content.source.name,
+    subtitle = null,
     counter = 0,
     id = content.id,
     progress = null,

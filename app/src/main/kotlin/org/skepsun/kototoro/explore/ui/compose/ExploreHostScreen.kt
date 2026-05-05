@@ -791,8 +791,8 @@ private fun SourcesQuickAccessSection(
         }
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             var isExpanded by rememberSaveable(sources.size) { mutableStateOf(false) }
-            val columns = remember(metrics) {
-                metrics.columns
+            val columns = remember(metrics, browseListMode) {
+                if (browseListMode == ListMode.GRID) metrics.columns else 1
             }
             val collapsedRowCount = if (maxWidth < 520.dp) 5 else 4
             val collapsedVisibleCount = columns * collapsedRowCount

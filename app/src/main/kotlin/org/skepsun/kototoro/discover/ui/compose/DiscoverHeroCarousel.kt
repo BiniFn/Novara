@@ -101,6 +101,7 @@ private data class DiscoverHeroPanoramaPrefs(
     val animationEnabled: Boolean,
     val animationSpeedPercent: Int,
     val blendHeight: Int,
+    val downsampleEnabled: Boolean,
 )
 
 @Composable
@@ -113,6 +114,7 @@ private fun rememberDiscoverHeroPanoramaPrefs(settings: AppSettings): DiscoverHe
         AppSettings.KEY_PANORAMA_ANIMATION_ENABLED,
         AppSettings.KEY_PANORAMA_ANIMATION_SPEED,
         AppSettings.KEY_BROWSE_PANORAMA_BLEND_HEIGHT,
+        AppSettings.KEY_PANORAMA_DOWNSAMPLE,
     ) {
         DiscoverHeroPanoramaPrefs(
             isEnabled = isPanoramaCoverEnabled,
@@ -121,6 +123,7 @@ private fun rememberDiscoverHeroPanoramaPrefs(settings: AppSettings): DiscoverHe
             animationEnabled = supportsRealtimeEffects && isPanoramaCoverAnimationEnabled,
             animationSpeedPercent = panoramaAnimationSpeed,
             blendHeight = browsePanoramaBlendHeight,
+            downsampleEnabled = isPanoramaDownsampleEnabled,
         )
     }
     return prefs
@@ -166,6 +169,7 @@ fun DiscoverHeroCarousel(
         maxHeightPx = 1600,
         widthOverscan = 1.34f,
         heightOverscan = 0.64f,
+        downsample = panoramaPrefs.downsampleEnabled,
     )
     val heroBottomBlendHeight = when {
         detachedBottomContent && isLandscape -> DiscoverHeroBottomBlendHeightDetachedLandscape
@@ -261,6 +265,7 @@ fun DiscoverHeroCarousel(
         if (panoramaPrefs.isEnabled) {
             Crossfade(
                 targetState = selectedItem.id,
+                animationSpec = tween(180),
                 label = "discover_hero_background",
                 modifier = heroImageModifier,
             ) { currentId ->

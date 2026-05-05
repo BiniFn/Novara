@@ -2209,6 +2209,9 @@
     <string name="pref_panorama_gradient_alpha">Edge gradient intensity</string>
     <string name="pref_browse_panorama_blend_height">Browse panorama transition height</string>
     <string name="pref_browse_panorama_gradient_alpha">Browse panorama gradient intensity</string>
+    <string name="pref_panorama_downsample">Reduce panorama cover resolution</string>
+    <string name="pref_panorama_downsample_summary">Downscale the background image before blurring to reduce GPU and memory overhead</string>
+
 	<string name="reader_translation_ocr_model_selection_not_downloaded_suffix">" (⚠️ Not Downloaded)"</string>
     <string name="reader_translation_ocr_model_rec_selection">Recognition model selection</string>
     <string name="reader_translation_ocr_model_rec_autodetect">Auto Select</string>

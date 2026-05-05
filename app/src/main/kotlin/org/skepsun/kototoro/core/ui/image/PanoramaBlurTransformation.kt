@@ -11,9 +11,11 @@ import kotlin.math.roundToInt
 
 fun ImageRequest.Builder.panoramaBlur(blurPercent: Int): ImageRequest.Builder {
     return if (blurPercent > 0) {
-        allowRgb565(false)
-            .bitmapConfig(Bitmap.Config.ARGB_8888)
-            .transformations(PanoramaBlurTransformation(blurPercent))
+        if (blurPercent < 30) {
+            allowRgb565(false)
+                .bitmapConfig(Bitmap.Config.ARGB_8888)
+        }
+        transformations(PanoramaBlurTransformation(blurPercent))
     } else {
         this
     }

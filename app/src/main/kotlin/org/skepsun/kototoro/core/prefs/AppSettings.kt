@@ -250,6 +250,11 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getSafeInt(KEY_BROWSE_PANORAMA_BLEND_HEIGHT, 156).coerceIn(48, 220)
 		set(value) = prefs.edit { putInt(KEY_BROWSE_PANORAMA_BLEND_HEIGHT, value.coerceIn(48, 220)) }
 
+	var isPanoramaDownsampleEnabled: Boolean
+		get() = prefs.getBoolean(KEY_PANORAMA_DOWNSAMPLE, true)
+		set(value) = prefs.edit { putBoolean(KEY_PANORAMA_DOWNSAMPLE, value) }
+
+
 	var historyListMode: ListMode
 		get() = prefs.getEnumValue(KEY_LIST_MODE_HISTORY, listMode)
 		set(value) = prefs.edit { putEnumValue(KEY_LIST_MODE_HISTORY, value) }
@@ -2091,6 +2096,8 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA = "panorama_bottom_gradient_alpha"
 		const val KEY_BROWSE_PANORAMA_BOTTOM_GRADIENT_ALPHA = "browse_panorama_bottom_gradient_alpha"
 		const val KEY_BROWSE_PANORAMA_BLEND_HEIGHT = "browse_panorama_blend_height"
+		const val KEY_PANORAMA_DOWNSAMPLE = "panorama_downsample"
+	
 		const val KEY_BACKUP_TG_ENABLED = "backup_periodic_tg_enabled"
 		const val KEY_BACKUP_TG_CHAT = "backup_periodic_tg_chat_id"
 		// WebDAV backup keys

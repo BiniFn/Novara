@@ -35,6 +35,8 @@ class SettingsSearchHelper @Inject constructor(
 			"panorama_blur" to R.string.pref_panorama_blur,
 			"panorama_extra_height" to R.string.pref_panorama_extra_height,
 			"panorama_bottom_gradient_alpha" to R.string.pref_panorama_gradient_alpha,
+			"panorama_downsample" to R.string.pref_panorama_downsample,
+			
 			"pages_tab" to R.string.show_pages_thumbs,
 			"details_translate_button" to R.string.details_translate_button_visible,
 			"details_tab" to R.string.default_tab,

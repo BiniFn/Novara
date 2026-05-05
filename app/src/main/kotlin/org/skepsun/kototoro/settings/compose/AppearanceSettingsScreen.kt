@@ -56,6 +56,7 @@ data class AppearanceSettingsUiState(
     val panoramaBottomGradientAlpha: Int,
     val browsePanoramaBlendHeight: Int,
     val browsePanoramaBottomGradientAlpha: Int,
+    val isPanoramaDownsampleEnabled: Boolean,
     val isPagesTabEnabled: Boolean,
     val isDetailsTranslateButtonVisible: Boolean,
     val defaultDetailsTab: Int,
@@ -136,6 +137,7 @@ fun AppearanceSettingsScreen(
     onPanoramaGradientAlphaChange: (Int) -> Unit,
     onBrowsePanoramaBlendHeightChange: (Int) -> Unit,
     onBrowsePanoramaGradientAlphaChange: (Int) -> Unit,
+    onPanoramaDownsampleEnabledChange: (Boolean) -> Unit,
     onPagesTabEnabledChange: (Boolean) -> Unit,
     onDetailsTranslateButtonVisibleChange: (Boolean) -> Unit,
     onDefaultDetailsTabChange: (Int) -> Unit,
@@ -407,6 +409,13 @@ fun AppearanceSettingsScreen(
                         step = 5,
                         valueText = { "$it%" },
                         onValueChange = onBrowsePanoramaGradientAlphaChange,
+                    )
+                    SettingsSectionDivider()
+                    SettingsSwitchPreference(
+                        title = stringResource(R.string.pref_panorama_downsample),
+                        checked = state.isPanoramaDownsampleEnabled,
+                        summary = stringResource(R.string.pref_panorama_downsample_summary),
+                        onCheckedChange = onPanoramaDownsampleEnabledChange,
                     )
                 }
                 SettingsSectionDivider()
