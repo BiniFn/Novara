@@ -924,6 +924,7 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			score = score,
 			scoreMax = scoreMax,
 			url = url,
+				totalEpisodes = totalEpisodes,
 		)
 	}
 

@@ -9,7 +9,6 @@ val LocalHazeState = staticCompositionLocalOf { HazeState() }
 
 @Immutable
 data class GlassPrefs(
-    val blurMode: AppSettings.BlurMode,
     val hazeOpacityPercent: Int,
 )
 

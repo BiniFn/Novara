@@ -78,6 +78,7 @@ data class TrackingSiteItem(
 	val score: Float? = null,
 	val scoreMax: Float? = null,
 	val url: String? = null,
+		val totalEpisodes: Int? = null,
 )
 
 @Deprecated(

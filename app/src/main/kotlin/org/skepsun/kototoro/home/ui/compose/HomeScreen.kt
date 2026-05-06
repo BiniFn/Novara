@@ -21,10 +21,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -49,9 +52,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
@@ -66,12 +72,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import java.util.Locale
+import kotlin.math.absoluteValue
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.compose.HeroAutoAdvanceEffect
 import org.skepsun.kototoro.core.ui.compose.HeroPagerIndicator
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -86,7 +95,9 @@ import org.skepsun.kototoro.core.ui.compose.rememberHorizontalRailScrollIntensit
 import org.skepsun.kototoro.core.ui.compose.unclippedBoundsInWindow
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.util.ext.mangaExtra
-import org.skepsun.kototoro.discover.ui.compose.DiscoverHeroCarousel
+import org.skepsun.kototoro.details.ui.compose.AnimatedPanoramaBackdrop
+import org.skepsun.kototoro.details.ui.compose.PanoramaBackdropPrefs
+import org.skepsun.kototoro.details.ui.compose.rememberPanoramaBackdropPrefs
 import org.skepsun.kototoro.home.ui.HOME_HERO_SECTION_LIMIT
 import org.skepsun.kototoro.home.ui.HOME_HERO_TOTAL_LIMIT
 import org.skepsun.kototoro.home.ui.HomeRecentItem
@@ -97,6 +108,7 @@ import org.skepsun.kototoro.list.ui.compose.ContentCardCornerBadges
 import org.skepsun.kototoro.list.ui.compose.ContentCardNsfwBadge
 import org.skepsun.kototoro.list.ui.compose.contentCardBadgeMetricsFor
 import org.skepsun.kototoro.list.ui.model.ContentGridModel
+import org.skepsun.kototoro.list.ui.model.buildInfoText
 import org.skepsun.kototoro.parsers.model.Content
 
 @Immutable
@@ -167,6 +179,7 @@ fun HomeScreen(
     val gridScale = screenPrefs.gridScale
     val badgePrefs = screenPrefs.badgePrefs
     val posterStyle = remember(gridScale) { compactPosterRailCardStyle(gridScale) }
+    val panoramaPrefs = rememberPanoramaBackdropPrefs(settings)
     val recentSearches = remember(state.recentSearches) { state.recentSearches.map { it.query } }
     val heroEntries = remember(
         state.resumeState.content,
@@ -260,8 +273,9 @@ fun HomeScreen(
         if (heroEntries.isNotEmpty()) {
             HomeHeroSection(
                 entries = heroEntries,
+                panoramaPrefs = panoramaPrefs,
                 onClick = onContentClick,
-                topContentInset = topInset,
+                topContentInset = topInset + 8.dp,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .graphicsLayer { translationY = heroScrollOffsetPx }
@@ -323,50 +337,71 @@ private fun HomeHighlightsSections(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 2.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(horizontal = 0.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (historyItems.isNotEmpty()) {
-            HomeContentRowSection(
-                title = stringResource(R.string.recent_history),
-                sectionKey = "recent_history",
-                iconRes = R.drawable.ic_history,
-                items = historyDisplayItems,
-                count = recentHistoryCount,
-                posterStyle = posterStyle,
-                badgePrefs = badgePrefs,
-                onItemClick = onItemClick,
-                onMoreClick = onViewAllRecentClick,
-                addTopSpacing = false,
-            )
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.64f),
+                tonalElevation = 0.dp,
+            ) {
+                HomeContentRowSection(
+                    title = stringResource(R.string.recent_history),
+                    sectionKey = "recent_history",
+                    iconRes = R.drawable.ic_history,
+                    items = historyDisplayItems,
+                    count = recentHistoryCount,
+                    posterStyle = posterStyle,
+                    badgePrefs = badgePrefs,
+                    onItemClick = onItemClick,
+                    onMoreClick = onViewAllRecentClick,
+                    addTopSpacing = false,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                )
+            }
         }
         if (updateItems.isNotEmpty()) {
-            HomeContentRowSection(
-                title = stringResource(R.string.home_recent_updates),
-                sectionKey = "recent_updates",
-                iconRes = R.drawable.ic_updated,
-                items = updateDisplayItems,
-                count = unreadUpdatesCount,
-                posterStyle = posterStyle,
-                badgePrefs = badgePrefs,
-                onItemClick = onItemClick,
-                onMoreClick = onViewAllUpdatesClick,
-                addTopSpacing = false,
-            )
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.64f),
+                tonalElevation = 0.dp,
+            ) {
+                HomeContentRowSection(
+                    title = stringResource(R.string.home_recent_updates),
+                    sectionKey = "recent_updates",
+                    iconRes = R.drawable.ic_updated,
+                    items = updateDisplayItems,
+                    count = unreadUpdatesCount,
+                    posterStyle = posterStyle,
+                    badgePrefs = badgePrefs,
+                    onItemClick = onItemClick,
+                    onMoreClick = onViewAllUpdatesClick,
+                    addTopSpacing = false,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                )
+            }
         }
         if (recommendationItems.isNotEmpty()) {
-            HomeContentRowSection(
-                title = stringResource(R.string.suggestions),
-                sectionKey = "recommendations",
-                iconRes = R.drawable.ic_feed,
-                items = recommendationDisplayItems,
-                count = recommendationsCount,
-                posterStyle = posterStyle,
-                badgePrefs = badgePrefs,
-                onItemClick = onItemClick,
-                onMoreClick = onViewAllRecommendationsClick,
-                addTopSpacing = false,
-            )
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.64f),
+                tonalElevation = 0.dp,
+            ) {
+                HomeContentRowSection(
+                    title = stringResource(R.string.suggestions),
+                    sectionKey = "recommendations",
+                    iconRes = R.drawable.ic_suggestion,
+                    items = recommendationDisplayItems,
+                    count = recommendationsCount,
+                    posterStyle = posterStyle,
+                    badgePrefs = badgePrefs,
+                    onItemClick = onItemClick,
+                    onMoreClick = onViewAllRecommendationsClick,
+                    addTopSpacing = false,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                )
+            }
         }
         if (recentSearches.isNotEmpty()) {
             HomeRecentSearchSection(
@@ -380,103 +415,248 @@ private fun HomeHighlightsSections(
 @Composable
 private fun HomeHeroSection(
     entries: List<HomeHeroEntry>,
+    panoramaPrefs: PanoramaBackdropPrefs,
     onClick: (Content, Rect?, String?) -> Unit,
     topContentInset: Dp = 0.dp,
     modifier: Modifier = Modifier,
 ) {
-    val heroItems = remember(entries) { entries.map(HomeHeroEntry::toListModel) }
+    if (entries.isEmpty()) return
     val pagerState = rememberPagerState(pageCount = { entries.size })
+    val hasIndicator = entries.size > 1
     val selectedIndex by remember(entries, pagerState) {
         derivedStateOf { pagerState.currentPage.coerceIn(0, entries.lastIndex) }
     }
 
-    Box(modifier = modifier.fillMaxWidth()) {
-        DiscoverHeroCarousel(
-            title = stringResource(R.string.home),
-            items = heroItems,
-            activeService = null,
-            availableServices = emptyList(),
-            onItemClick = { item, rect, sharedKey ->
-                entries.getOrNull(heroItems.indexOfFirst { it.id == item.id })
-                    ?.content
-                    ?.let { content -> onClick(content, rect, sharedKey) }
-            },
-            onSelectService = {},
-            topContentInset = topContentInset,
-            settings = null,
-            detachedBottomContent = true,
-            bottomContent = {
-                HomeHeroOverlay(
-                    entry = entries[selectedIndex],
-                    currentPage = selectedIndex,
-                    pageCount = entries.size,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                )
-            },
-            sharedElementKeyForItem = { _, index ->
-                entries[index].sharedElementKey
-            },
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
-}
+    HeroAutoAdvanceEffect(
+        pagerState = pagerState,
+        pageCount = entries.size,
+        intervalMillis = 5200L,
+    )
 
-@Composable
-private fun HomeHeroOverlay(
-    entry: HomeHeroEntry,
-    currentPage: Int,
-    pageCount: Int,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = topContentInset),
     ) {
-        Row(
+        val sidePeek = 26.dp
+        val pageSpacing = 10.dp
+        val horizontalContentPadding = 14.dp
+        val cardWidth = (maxWidth - (horizontalContentPadding * 2) - (sidePeek * 2) - pageSpacing)
+            .coerceAtLeast(264.dp)
+
+        HorizontalPager(
+            state = pagerState,
+            pageSize = PageSize.Fixed(cardWidth),
+            pageSpacing = pageSpacing,
+            beyondViewportPageCount = 2,
+            contentPadding = PaddingValues(horizontal = horizontalContentPadding),
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            HomeBadge(
-                text = stringResource(entry.kind.labelRes),
-                iconRes = entry.kind.iconRes,
+        ) { page ->
+            HomeHeroCard(
+                entry = entries[page],
+                bottomInset = if (hasIndicator) 32.dp else 12.dp,
+                posterWidth = 88.dp,
+                posterHeight = 122.dp,
+                panoramaPrefs = panoramaPrefs,
+                onClick = onClick,
+                modifier = Modifier
+                    .zIndex(if (page == selectedIndex) 1f else 0f)
+                    .graphicsLayer {
+                        val signedOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction)
+                            .coerceIn(-1f, 1f)
+                        val focus = 1f - signedOffset.absoluteValue.coerceIn(0f, 1f)
+                        val hOrigin = when {
+                            signedOffset < -0.02f -> 0f
+                            signedOffset > 0.02f -> 1f
+                            else -> 0.5f
+                        }
+                        scaleX = 0.9f + (0.1f * focus)
+                        scaleY = 0.9f + (0.1f * focus)
+                        alpha = 0.64f + (0.36f * focus)
+                        transformOrigin = TransformOrigin(hOrigin, 0.5f)
+                    },
             )
-            if (pageCount > 1) {
+        }
+
+        if (hasIndicator) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                HeroPagerIndicator(
+                    pageCount = entries.size,
+                    currentPage = selectedIndex,
+                )
                 HomeBadge(
-                    text = "${currentPage + 1}/$pageCount",
-                    iconRes = entry.kind.iconRes,
+                    text = "${selectedIndex + 1}/${entries.size}",
+                    iconRes = entries[selectedIndex].kind.iconRes,
                 )
             }
         }
-        Text(
-            text = entry.content.title,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
+    }
+}
+
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+private fun HomeHeroCard(
+    entry: HomeHeroEntry,
+    bottomInset: Dp,
+    posterWidth: Dp,
+    posterHeight: Dp,
+    panoramaPrefs: PanoramaBackdropPrefs,
+    onClick: (Content, Rect?, String?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val content = entry.content
+    val sharedTransitionScope = LocalSharedTransitionScope.current
+    val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
+    val shouldCrossfade = sharedTransitionScope == null || animatedVisibilityScope == null
+    val imageRequest = remember(content.coverUrl, content.id, shouldCrossfade) {
+        ImageRequest.Builder(context)
+            .data(content.coverUrl)
+            .crossfade(shouldCrossfade)
+            .apply { mangaExtra(content) }
+            .build()
+    }
+    var coverBounds by remember(entry.kind, content.id) { mutableStateOf<Rect?>(null) }
+    val sharedElementKey = remember(entry.kind, content.id, content.coverUrl) {
+        contentCoverSharedKey(
+            sourceName = content.source.name,
+            url = content.coverUrl.orEmpty(),
+            instanceKey = "home_hero_${entry.kind.name.lowercase(Locale.ROOT)}_${content.id}",
         )
-        Text(
-            text = rememberResolvedSourceTitle(entry.content.source),
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.White.copy(alpha = 0.86f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        entry.supportingText()?.let { supportingText ->
-            Text(
-                text = supportingText,
-                style = MaterialTheme.typography.labelLarge,
-                color = Color.White.copy(alpha = 0.92f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+    }
+
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(212.dp)
+            .clip(MaterialTheme.shapes.large)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable { onClick(content, coverBounds, sharedElementKey) },
+    ) {
+        if (panoramaPrefs.isEnabled) {
+            AnimatedPanoramaBackdrop(
+                prefs = panoramaPrefs,
+                model = imageRequest,
+                contentAlpha = 0.94f,
+                backgroundColor = MaterialTheme.colorScheme.surface,
+            )
+        } else {
+            AsyncImage(
+                model = imageRequest,
+                contentDescription = content.title,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
             )
         }
-        if (pageCount > 1) {
-            HeroPagerIndicator(
-                pageCount = pageCount,
-                currentPage = currentPage,
-            )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .drawBehind {
+                    drawRect(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.14f),
+                                Color.Black.copy(alpha = 0.70f),
+                            ),
+                        ),
+                    )
+                    drawRect(
+                        Brush.horizontalGradient(
+                            listOf(
+                                Color.Black.copy(alpha = 0.16f),
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.12f),
+                            ),
+                        ),
+                    )
+                },
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    start = 14.dp,
+                    top = 14.dp,
+                    end = 14.dp,
+                    bottom = bottomInset,
+                ),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = posterWidth, height = posterHeight)
+                    .onGloballyPositioned { coordinates ->
+                        coverBounds = coordinates.unclippedBoundsInWindow()
+                    }
+                    .then(
+                        if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                            with(sharedTransitionScope) {
+                                Modifier.sharedElement(
+                                    rememberSharedContentState(key = sharedElementKey),
+                                    animatedVisibilityScope = animatedVisibilityScope,
+                                )
+                            }
+                        } else Modifier
+                    )
+                    .clip(MaterialTheme.shapes.medium)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.28f)),
+            ) {
+                AsyncImage(
+                    model = imageRequest,
+                    contentDescription = content.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+                if (content.isNsfw()) {
+                    ContentCardNsfwBadge(
+                        metrics = contentCardBadgeMetricsFor(posterWidth),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(4.dp),
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                HomeBadge(
+                    text = stringResource(entry.kind.labelRes),
+                    iconRes = entry.kind.iconRes,
+                )
+                Text(
+                    text = content.title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = rememberResolvedSourceTitle(content.source),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.86f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                entry.supportingText()?.let { supportingText ->
+                    Text(
+                        text = supportingText,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Color.White.copy(alpha = 0.92f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
         }
     }
 }
@@ -597,9 +777,10 @@ private fun HomeContentRowSection(
         val railAnimationFactor = rememberRailAnimationFactor()
         LazyRow(
             state = rowState,
+            flingBehavior = rememberSnapFlingBehavior(rowState),
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp),
+            contentPadding = PaddingValues(horizontal = 4.dp),
         ) {
             itemsIndexed(
                 items = items.take(12),
@@ -639,6 +820,7 @@ private fun HomeCoverRowItem(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
     val density = LocalDensity.current
     val cardShape = MaterialTheme.shapes.medium
     val cardRadius = remember(cardShape, density) {
@@ -756,6 +938,22 @@ private fun HomeCoverRowItem(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
+        if (settings.showExtraInfoOnCards) {
+            item.cardModel?.let { model ->
+                val infoText = remember(model.manga.state, model.manga.chapters?.size, model.manga.tags, context) {
+                    model.buildInfoText(context)
+                }
+                infoText?.takeIf { it.isNotBlank() }?.let { info ->
+                    Text(
+                        text = info,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -1033,7 +1231,7 @@ private enum class HomeHeroKind(val labelRes: Int, val iconRes: Int) {
     RESUME(R.string.home_resume_title, R.drawable.ic_read),
     HISTORY(R.string.recent_history, R.drawable.ic_history),
     UPDATE(R.string.home_recent_updates, R.drawable.ic_updated),
-    RECOMMENDATION(R.string.suggestions, R.drawable.ic_feed),
+    RECOMMENDATION(R.string.suggestions, R.drawable.ic_suggestion),
 }
 
 private data class HomeHeroEntry(

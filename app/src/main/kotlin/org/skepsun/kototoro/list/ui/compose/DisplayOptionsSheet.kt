@@ -13,6 +13,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -26,7 +27,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
+import org.skepsun.kototoro.core.prefs.observeAsState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,6 +44,13 @@ fun DisplayOptionsSheet(
     onDismissRequest: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val settings = remember(context.applicationContext) {
+        org.skepsun.kototoro.core.prefs.AppSettings(context.applicationContext)
+    }
+    val showExtraInfo by settings.observeAsState(
+        org.skepsun.kototoro.core.prefs.AppSettings.KEY_SHOW_EXTRA_INFO_ON_CARDS,
+    ) { showExtraInfoOnCards }
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -102,6 +112,32 @@ fun DisplayOptionsSheet(
                     title = stringResource(R.string.grid_size),
                     value = gridSize,
                     onValueChange = onGridSizeChange,
+                )
+            }
+
+            if (supportsDisplayModeMenu || supportsGridSizeSlider) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.show_extra_info_on_cards),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = stringResource(R.string.show_extra_info_on_cards_summary),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = showExtraInfo,
+                    onCheckedChange = { settings.showExtraInfoOnCards = it },
                 )
             }
 

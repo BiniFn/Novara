@@ -50,6 +50,7 @@ import org.skepsun.kototoro.list.ui.compose.contentCardBadgeMetricsFor
 import org.skepsun.kototoro.core.ui.compose.rememberHorizontalRailScrollIntensity
 import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
 import org.skepsun.kototoro.list.ui.model.ContentListModel
+import org.skepsun.kototoro.list.ui.model.buildInfoText
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -228,5 +229,17 @@ private fun DiscoverPosterCard(
 			maxLines = 2,
 			overflow = TextOverflow.Ellipsis,
 		)
+		val infoText = remember(model.manga.state, model.manga.chapters?.size, model.manga.tags, model.scoreText, context) {
+			model.buildInfoText(context)
+		}
+		infoText?.takeIf { it.isNotBlank() }?.let { info ->
+			Text(
+				text = info,
+				style = MaterialTheme.typography.bodySmall,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
+				maxLines = 1,
+				overflow = TextOverflow.Ellipsis,
+			)
+		}
 	}
 }

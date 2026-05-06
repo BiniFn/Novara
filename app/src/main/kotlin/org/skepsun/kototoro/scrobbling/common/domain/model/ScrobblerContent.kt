@@ -16,6 +16,7 @@ data class ScrobblerContent(
 	val updatedAtText: String? = null,
 	val score: Float? = null,
 	val scoreMax: Float? = null,
+	val totalEpisodes: Int? = null,
 	val isBestMatch: Boolean = false,
 ) : ListModel {
 

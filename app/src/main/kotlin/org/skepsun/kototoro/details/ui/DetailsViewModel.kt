@@ -361,7 +361,7 @@ class DetailsViewModel @Inject constructor(
 		is org.skepsun.kototoro.details.ui.model.DetailsOrigin.LocalMangaId -> ContentIntent.of(origin.mangaId)
 		else -> null
 	}
-	private var loadingJob: Job
+	private var loadingJob: Job = Job()
 	private var translateAvailabilityJob: Job? = null
 	private var currentLoadIntentOverride: ContentIntent? = initialLoadIntentOverride
 	private var translationCacheSourceLang: String? = null
@@ -2007,7 +2007,9 @@ class DetailsViewModel @Inject constructor(
 		get() = selectedBranch.value
 
 	init {
-		loadingJob = doLoad(force = false)
+		if (initialLoadIntentOverride?.mangaId?.takeIf { it != 0L } != null || intent.mangaId != 0L || intent.manga != null) {
+			loadingJob = doLoad(force = false)
+		}
 		scrobblingInfo
 			.onEach {
 				refreshTrackingMatchSuggestion()
@@ -2768,7 +2770,9 @@ class DetailsViewModel @Inject constructor(
 	}
 
 	private fun doLoad(force: Boolean) = launchLoadingJob(Dispatchers.Default) {
-		detailsLoadUseCase.invoke(currentLoadIntentOverride ?: intent, force)
+		val resolvedIntent = currentLoadIntentOverride ?: intent
+		if (resolvedIntent.mangaId == 0L && resolvedIntent.manga == null) return@launchLoadingJob
+		detailsLoadUseCase.invoke(resolvedIntent, force)
 			.onEachWhile {
 				if (it.allChapters.isNotEmpty()) {
 					val manga = it.toContent()

@@ -77,6 +77,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -553,76 +554,6 @@ fun DetailsHeader(
             )
         }
 
-        if (linkedTrackingItems.isNotEmpty()) {
-            GlassSurface(
-                modifier = Modifier.fillMaxWidth(),
-                style = GlassDefaults.subtleStyle().copy(
-                    containerAlpha = 0.78f,
-                    borderAlpha = 0.22f,
-                ),
-                shape = RoundedCornerShape(22.dp),
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Text(
-                        text = stringResource(R.string.tracking_source),
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        linkedTrackingItems.forEach { linked ->
-                            SuggestionChip(
-                                onClick = { onOpenLinkedTracking(linked) },
-                                icon = {
-                                    Icon(
-                                        painter = painterResource(linked.service.iconResId),
-                                        contentDescription = null,
-                                        tint = Color.Unspecified,
-                                        modifier = Modifier.size(16.dp),
-                                    )
-                                },
-                                label = {
-                                    Text(
-                                        text = linked.title.ifBlank { stringResource(linked.service.titleResId) },
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                },
-                                colors = SuggestionChipDefaults.suggestionChipColors(
-                                    containerColor = if (linked.isPreferred) {
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
-                                    } else {
-                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.42f)
-                                    },
-                                    labelColor = if (linked.isPreferred) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurface
-                                    },
-                                ),
-                                border = SuggestionChipDefaults.suggestionChipBorder(
-                                    enabled = true,
-                                    borderColor = if (linked.isPreferred) {
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
-                                    } else {
-                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                                    },
-                                ),
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -963,11 +894,13 @@ fun MetadataSourceSheet(
     isLoading: Boolean,
     hasSearched: Boolean,
     unavailableText: String,
+    linkedTrackingItems: List<LinkedTrackingItemUiModel> = emptyList(),
     onDismissRequest: () -> Unit,
     onSelectOption: (DetailsSourceOption) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
     onBindResult: (TrackingSiteItem) -> Unit,
+    onOpenLinkedTracking: (LinkedTrackingItemUiModel) -> Unit = {},
 ) {
     val visibleSections = remember(searchServices, searchSections) {
         if (searchSections.isNotEmpty()) {
@@ -992,27 +925,91 @@ fun MetadataSourceSheet(
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.onSurface,
             )
-            Column(
-                modifier = Modifier.heightIn(max = 180.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                currentOptions.forEach { option ->
-                    SourceOptionSheetRow(
-                        title = detailsSourceOptionTitle(option, unavailableText),
-                        subtitle = when {
-                            option.trackingService != null -> stringResource(R.string.tracking_source)
-                            option.source != null -> stringResource(R.string.source)
-                            else -> unavailableText
-                        },
-                        isSelected = option == selectedOption || option.isSelected,
-                        onClick = {
+    val detailContext = LocalContext.current
+    if (currentOptions.isNotEmpty()) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(
+                items = currentOptions,
+                key = { it.key },
+            ) { option ->
+                val linked = option.trackingService?.let { svc ->
+                    linkedTrackingItems.firstOrNull { it.service == svc && it.remoteId == option.remoteId }
+                }
+                val isSelected = option == selectedOption || option.isSelected
+                val label = when {
+                    option.trackingService != null -> stringResource(option.trackingService.titleResId)
+                    option.source != null -> rememberResolvedSourceTitle(option.source)
+                    else -> ""
+                }
+                val title = linked?.title
+                    ?: option.source?.getTitle(detailContext)
+                    ?: option.key
+                Surface(
+                    modifier = Modifier
+                        .width(100.dp)
+                        .clickable {
                             onDismissRequest()
                             onSelectOption(option)
                         },
-                    )
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isSelected)
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                    border = if (isSelected)
+                        BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                    else null,
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(8.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp, 80.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (linked?.coverUrl != null) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(linked.coverUrl)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            } else if (option.trackingService != null) {
+                                Icon(
+                                    painter = painterResource(option.trackingService.iconResId),
+                                    contentDescription = null,
+                                    tint = Color.Unspecified,
+                                    modifier = Modifier.size(28.dp),
+                                )
+                            } else {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_extension),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(28.dp),
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(text = label, style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(text = title, style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+    }
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = onSearchQueryChange,
@@ -1264,7 +1261,7 @@ private fun DetailsSourceOverlayDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.42f)),
+                .background(Color.Black.copy(alpha = 0.18f)),
         ) {
             Box(
                 modifier = Modifier
@@ -1288,11 +1285,21 @@ private fun DetailsSourceOverlayDialog(
                 style = GlassDefaults.prominentStyle().copy(
                     containerAlpha = 0.84f,
                     borderAlpha = 0.20f,
-                    shadowElevation = 8.dp,
+                    shadowElevation = 0.dp,
                 ),
                 shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
             ) {
                 content()
+                // Drag handle at top center
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 8.dp)
+                        .width(36.dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)),
+                )
             }
         }
     }
@@ -1580,6 +1587,24 @@ private fun TrackingSearchResultCard(
             item.altTitle?.takeIf { it.isNotBlank() }?.let { altTitle ->
                 Text(
                     text = altTitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            val infoParts = buildList {
+                item.score?.let { score ->
+                    val max = item.scoreMax ?: 10f
+                    add("%.1f".format(score / max * 10))
+                }
+                item.totalEpisodes?.let { count ->
+                    add("$count EP")
+                }
+            }
+            if (infoParts.isNotEmpty()) {
+                Text(
+                    text = infoParts.joinToString(" · "),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

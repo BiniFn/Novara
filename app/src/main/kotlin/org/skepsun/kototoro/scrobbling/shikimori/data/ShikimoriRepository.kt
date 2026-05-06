@@ -711,6 +711,7 @@ class ShikimoriRepository @Inject constructor(
 				?: json.getStringOrNull("released_on")?.takeIf { it.isNotBlank() },
 			score = json.optString("score").toFloatOrNull()?.takeIf { it > 0f },
 			scoreMax = 10f,
+				totalEpisodes = json.optInt("episodes", 0).takeIf { it > 0 } ?: json.optInt("chapters", 0).takeIf { it > 0 },
 		)
 	}
 

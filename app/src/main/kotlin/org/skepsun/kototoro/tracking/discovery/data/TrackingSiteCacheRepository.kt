@@ -192,6 +192,7 @@ class TrackingSiteCacheRepository @Inject constructor(
 			score = rating,
 			scoreMax = scoreMax,
 			url = siteUrl,
+				totalEpisodes = totalEpisodes,
 		)
 	}
 
@@ -669,6 +670,7 @@ class TrackingSiteCacheRepository @Inject constructor(
 								score = item.takeIf { it.has("score") }?.optDouble("score")?.toFloat(),
 								scoreMax = item.takeIf { it.has("scoreMax") }?.optDouble("scoreMax")?.toFloat(),
 								url = item.optString("url").nullIfBlank(),
+								totalEpisodes = item.takeIf { it.has("totalEpisodes") }?.optInt("totalEpisodes"),
 							),
 						)
 					}

@@ -112,6 +112,7 @@ import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.list.ui.model.secondaryTitleText
 import org.skepsun.kototoro.list.ui.model.supportingText
+import org.skepsun.kototoro.list.ui.model.buildInfoText
 import org.skepsun.kototoro.core.parser.external.ExternalContentSource
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.parsers.model.ContentType
@@ -134,6 +135,7 @@ private data class ExploreScreenPrefs(
     val isSourcesGroupedByLanguage: Boolean,
     val browseListMode: ListMode,
     val isBrowseTrackingRecommendationsEnabled: Boolean,
+    val panoramaCoverBlur: Int,
 )
 
 private data class SourceOriginBadgeInfo(
@@ -272,15 +274,18 @@ fun KototoroExploreHostRoute(
         AppSettings.KEY_SOURCES_GROUPED_BY_LANGUAGE,
         AppSettings.KEY_LIST_MODE_BROWSE,
         AppSettings.KEY_BROWSE_TRACKING_RECOMMENDATIONS,
+        AppSettings.KEY_PANORAMA_BLUR,
     ) {
         ExploreScreenPrefs(
             gridScale = gridSize / 100f,
             isSourcesGroupedByLanguage = isSourcesGroupedByLanguage,
             browseListMode = browseListMode,
             isBrowseTrackingRecommendationsEnabled = isBrowseTrackingRecommendationsEnabled,
+            panoramaCoverBlur = panoramaCoverBlur,
         )
     }
     val gridScale = screenPrefs.gridScale
+    val panoramaCoverBlur = screenPrefs.panoramaCoverBlur
     val isSourcesGroupedByLanguage = screenPrefs.isSourcesGroupedByLanguage
     val browseListMode = screenPrefs.browseListMode
     val isBrowseTrackingRecommendationsEnabled = screenPrefs.isBrowseTrackingRecommendationsEnabled
@@ -509,6 +514,7 @@ fun KototoroExploreHostRoute(
                                 item = item,
                                 posterStyle = posterStyle,
                                 sharedElementKey = sharedElementKey,
+                                panoramaCoverBlur = panoramaCoverBlur,
                                 modifier = animatedModifier.padding(horizontal = 16.dp, vertical = 5.dp),
                                 onClick = {
                                     openTrackingItem(
@@ -1253,19 +1259,20 @@ private fun BrowsePopularListItem(
     item: ContentListModel,
     posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
     sharedElementKey: String,
+    panoramaCoverBlur: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
-    val backgroundRequest = remember(item.coverUrl, item.id) {
+    val backgroundRequest = remember(item.coverUrl, item.id, panoramaCoverBlur) {
         buildExploreCoverRequest(
             context = context,
             coverUrl = item.coverUrl,
             content = item.manga,
             size = 150,
-            blurPercent = 58,
+            blurPercent = panoramaCoverBlur,
         )
     }
     val posterRequest = remember(item.coverUrl, item.id) {
@@ -1381,6 +1388,18 @@ private fun BrowsePopularListItem(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    val infoText = remember(item.manga.state, item.manga.chapters?.size, item.manga.tags, item.scoreText, context) {
+                        item.buildInfoText(context)
+                    }
+                    infoText?.takeIf { it.isNotBlank() }?.let { info ->
+                        Text(
+                            text = info,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     item.secondaryTitleText()?.takeIf { it.isNotBlank() }?.let { secondaryTitle ->
                         Text(
                             text = secondaryTitle,

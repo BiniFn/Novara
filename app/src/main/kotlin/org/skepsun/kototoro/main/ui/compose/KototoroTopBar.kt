@@ -122,15 +122,13 @@ fun KototoroTopBar(
             .fillMaxWidth()
             .padding(top = statusBarPadding.calculateTopPadding())
     ) {
-        Surface(
+        GlassSurface(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp)
                 .graphicsLayer { alpha = collapsedAlpha },
             shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            tonalElevation = 1.dp,
-            shadowElevation = 2.dp,
+            style = GlassDefaults.subtleStyle(),
         ) {
             CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides CompactTopBarActionSize) {
                 Row(

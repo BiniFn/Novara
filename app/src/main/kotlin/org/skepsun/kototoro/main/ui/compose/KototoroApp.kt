@@ -1,8 +1,10 @@
 package org.skepsun.kototoro.main.ui.compose
 
 import android.content.res.Configuration
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -65,6 +67,7 @@ import org.skepsun.kototoro.search.ui.compose.SearchNavigationRequest
 import org.skepsun.kototoro.search.ui.compose.SearchRoute
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.material3.MaterialTheme
 import org.skepsun.kototoro.core.ui.compose.LocalRailAnimationFactor
 import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
 import org.skepsun.kototoro.core.ui.compose.rememberRailAnimationFactor
@@ -294,10 +297,20 @@ fun KototoroApp(
         }
     }
     val isChromeVisible = shouldShowChrome && (!isDetailsRoute || shouldKeepChromeVisible)
-    val chromeAlpha by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (isChromeVisible) 1f else 0f,
-        animationSpec = tween(if (isChromeVisible) 200 else 150),
+    val scrollAlpha = if (!isChromeVisible) 0f else {
+        val maxCollapse = topBarHeightPx.toFloat()
+        if (maxCollapse <= 0f) 1f
+        else (1f + topBarOffset / maxCollapse).coerceIn(0f, 1f)
+    }
+    val chromeAlpha by animateFloatAsState(
+        targetValue = scrollAlpha,
+        animationSpec = tween(durationMillis = 120),
         label = "chrome_alpha",
+    )
+    val animatedBottomNavOffset by animateFloatAsState(
+        targetValue = bottomNavOffset,
+        animationSpec = tween(durationMillis = 300, easing = LinearEasing),
+        label = "bottom_nav_offset",
     )
     val showBrowseSourceSettingsEntry = currentDestination?.let {
         it.hasRoute<ExploreRoute>() || it.hasRoute<DiscoverRoute>()
@@ -305,6 +318,7 @@ fun KototoroApp(
     val supportsDisplayModeMenu = currentDestination?.let {
         it.hasRoute<ExploreRoute>() ||
             it.hasRoute<DiscoverRoute>() ||
+            it.hasRoute<HomeRoute>() ||
             it.hasRoute<HistoryRoute>() ||
             it.hasRoute<FavoritesRoute>() ||
             it.hasRoute<LocalRoute>() ||
@@ -390,7 +404,10 @@ fun KototoroApp(
             LocalGlassPrefs provides glassPrefs,
             LocalRailAnimationFactor provides railAnimationFactor,
         ) {
-            Box(modifier = Modifier.fillMaxSize().nestedScroll(nestedScrollConnection)) {
+            Box(modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .nestedScroll(nestedScrollConnection)) {
                 SharedTransitionLayout {
                     CompositionLocalProvider(LocalSharedTransitionScope provides this@SharedTransitionLayout) {
                         AppNavGraph(
@@ -557,12 +574,11 @@ fun KototoroApp(
                             .align(if (isLandscapeNavigation) Alignment.CenterStart else Alignment.BottomCenter)
                             .offset {
                                 if (isLandscapeNavigation) {
-                                    androidx.compose.ui.unit.IntOffset((-bottomNavOffset).toInt(), 0)
+                                    androidx.compose.ui.unit.IntOffset((-animatedBottomNavOffset).toInt(), 0)
                                 } else {
-                                    androidx.compose.ui.unit.IntOffset(0, bottomNavOffset.toInt())
+                                    androidx.compose.ui.unit.IntOffset(0, animatedBottomNavOffset.toInt())
                                 }
                             }
-                            .graphicsLayer { alpha = chromeAlpha }
                             .onGloballyPositioned { coords ->
                                 val newHeight = if (isLandscapeNavigation) coords.size.width else coords.size.height
                                 if (bottomNavHeightPx != newHeight) {

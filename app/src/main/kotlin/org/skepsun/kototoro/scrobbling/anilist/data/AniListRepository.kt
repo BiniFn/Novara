@@ -465,6 +465,7 @@ class AniListRepository @Inject constructor(
 							?.let(::aniListTimestampToDate),
 					score = score,
 					scoreMax = 100f,
+						totalEpisodes = json.optInt("episodes", 0).takeIf { it > 0 } ?: json.optInt("chapters", 0).takeIf { it > 0 },
 					isBestMatch = false,
 				),
 			)
@@ -566,6 +567,7 @@ class AniListRepository @Inject constructor(
 				?: targetDate.toString(),
 			score = score,
 			scoreMax = 100f,
+				totalEpisodes = optInt("episodes", 0).takeIf { it > 0 },
 			isBestMatch = false,
 		)
 	}

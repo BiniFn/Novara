@@ -319,6 +319,8 @@
     <string name="browse_tracking_recommendations">Show tracking web recommendations</string>
     <string name="browse_tracking_recommendations_summary">Show recommendation rows from tracking websites on the Browse page. When disabled, Browse only shows content sources.</string>
     <string name="browse_display_options_summary">This option has moved to Browse page search bar > More > Display options.</string>
+    <string name="show_extra_info_on_cards">Show extra info on cards</string>
+    <string name="show_extra_info_on_cards_summary">Display rating, status, chapter count and tags on content cards</string>
     <string name="text_suggestion_holder">Start reading manga and you will get personalized suggestions</string>
     <string name="exclude_nsfw_from_suggestions">Do not suggest NSFW manga</string>
     <string name="video_aspect_ratio">Aspect Ratio</string>
@@ -477,6 +479,7 @@
     <string name="novel_translate">Translate</string>
     <string name="novel_reset">Reset</string>
     <string name="novel_chapters_count">%1$d Chapters</string>
+    <string name="chapters_count_info">%d chapters</string>
     <string name="novel_last_chapter">Already at the last chapter</string>
     <string name="novel_first_chapter">Already at the first chapter</string>
     <string name="novel_cannot_add_bookmark">Cannot add bookmark</string>

@@ -30,11 +30,9 @@ import dev.chrisbanes.haze.hazeChild
 @Composable
 fun rememberGlassPrefs(settings: AppSettings): GlassPrefs {
     val prefs by settings.observeAsState(
-        AppSettings.KEY_BLUR_MODE,
         AppSettings.KEY_HAZE_OPACITY,
     ) {
         GlassPrefs(
-            blurMode = blurMode,
             hazeOpacityPercent = hazeOpacityPercent,
         )
     }
@@ -110,7 +108,6 @@ fun GlassSurface(
 
     val glassColors = remember(glassPrefs, isDarkTheme, style, colorScheme) {
         computeGlassColors(
-            glassPrefs.blurMode,
             glassPrefs.hazeOpacityPercent,
             isDarkTheme,
             style,
@@ -191,20 +188,16 @@ private data class GlassColors(
 )
 
 private fun computeGlassColors(
-    blurMode: AppSettings.BlurMode,
     hazeOpacityPercent: Int,
     isDarkTheme: Boolean,
     style: GlassStyle,
     colorScheme: androidx.compose.material3.ColorScheme,
 ): GlassColors {
-    val opacityFactor = (hazeOpacityPercent.coerceIn(45, 100)) / 100f
-    val effectiveContainerAlpha = (when (blurMode) {
-        AppSettings.BlurMode.STANDARD -> (style.containerAlpha * opacityFactor + 0.06f).coerceAtMost(0.94f)
-        AppSettings.BlurMode.IMMERSIVE -> style.containerAlpha * opacityFactor
-        AppSettings.BlurMode.ENHANCED -> (style.containerAlpha * opacityFactor - 0.04f).coerceAtLeast(0.20f)
-    }).let { alpha ->
-        if (isDarkTheme) (alpha - 0.04f).coerceAtLeast(0.18f) else alpha
-    }
+    val opacityFactor = (hazeOpacityPercent.coerceIn(0, 100)) / 100f
+    val effectiveContainerAlpha = (style.containerAlpha * opacityFactor)
+        .let { alpha ->
+            if (isDarkTheme) (alpha - 0.04f).coerceAtLeast(0.0f) else alpha
+        }
     val baseColor = when {
         effectiveContainerAlpha >= 0.86f -> colorScheme.surfaceContainerHigh
         effectiveContainerAlpha >= 0.80f -> colorScheme.surfaceContainer
@@ -217,18 +210,11 @@ private fun computeGlassColors(
         style.shadowElevation >= 6.dp -> 24.dp
         else -> 18.dp
     }
-    val blurRadius = when (blurMode) {
-        AppSettings.BlurMode.STANDARD -> baseBlurRadius * 0.78f
-        AppSettings.BlurMode.IMMERSIVE -> baseBlurRadius
-        AppSettings.BlurMode.ENHANCED -> baseBlurRadius * 1.24f
-    }
-    val tintAlpha = when (blurMode) {
-        AppSettings.BlurMode.STANDARD -> (effectiveContainerAlpha * 0.44f).coerceIn(0.22f, 0.42f)
-        AppSettings.BlurMode.IMMERSIVE -> (effectiveContainerAlpha * 0.32f).coerceIn(0.18f, 0.34f)
-        AppSettings.BlurMode.ENHANCED -> (effectiveContainerAlpha * 0.24f).coerceIn(0.12f, 0.28f)
-    }.let { alpha ->
-        if (isDarkTheme) (alpha + 0.10f).coerceAtMost(0.50f) else alpha
-    }
+    val blurRadius = baseBlurRadius
+    val tintAlpha = (effectiveContainerAlpha * 0.32f).coerceIn(0.18f, 0.34f)
+        .let { alpha ->
+            if (isDarkTheme) (alpha + 0.10f).coerceAtMost(0.50f) else alpha
+        }
     val border = BorderStroke(
         width = 1.dp,
         color = colorScheme.outlineVariant.copy(

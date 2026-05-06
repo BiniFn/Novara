@@ -30,7 +30,6 @@ data class AppearanceSettingsUiState(
     val colorScheme: ColorScheme,
     val theme: Int,
     val isAmoledTheme: Boolean,
-    val blurMode: AppSettings.BlurMode,
     val hazeOpacityPercent: Int,
     val tabletUiMode: TabletUiMode,
     val appLocale: String,
@@ -85,7 +84,6 @@ data class AppearanceSettingsUiState(
 data class AppearanceSettingsOptions(
     val colorSchemes: List<SettingsChoiceOption<ColorScheme>>,
     val themes: List<SettingsChoiceOption<Int>>,
-    val blurModes: List<SettingsChoiceOption<AppSettings.BlurMode>>,
     val tabletUiModes: List<SettingsChoiceOption<TabletUiMode>>,
     val appLocales: List<SettingsChoiceOption<String>>,
     val loadingCircleStyles: List<SettingsChoiceOption<AppSettings.LoadingCircleStyle>>,
@@ -111,7 +109,6 @@ fun AppearanceSettingsScreen(
     onColorSchemeChange: (ColorScheme) -> Unit,
     onThemeChange: (Int) -> Unit,
     onAmoledThemeChange: (Boolean) -> Unit,
-    onBlurModeChange: (AppSettings.BlurMode) -> Unit,
     onHazeOpacityChange: (Int) -> Unit,
     onTabletUiModeChange: (TabletUiMode) -> Unit,
     onAppLocaleChange: (String) -> Unit,
@@ -200,18 +197,10 @@ fun AppearanceSettingsScreen(
                     onCheckedChange = onAmoledThemeChange,
                 )
                 SettingsSectionDivider()
-                SettingsChoicePreference(
-                    title = stringResource(R.string.pref_blur_mode),
-                    value = state.blurMode,
-                    options = options.blurModes,
-                    summary = stringResource(R.string.pref_blur_mode_summary),
-                    onValueChange = onBlurModeChange,
-                )
-                SettingsSectionDivider()
                 SettingsSliderPreference(
                     title = stringResource(R.string.pref_haze_opacity),
                     value = state.hazeOpacityPercent,
-                    valueRange = 45..100,
+                    valueRange = 0..100,
                     step = 5,
                     valueText = { "$it%" },
                     onValueChange = onHazeOpacityChange,

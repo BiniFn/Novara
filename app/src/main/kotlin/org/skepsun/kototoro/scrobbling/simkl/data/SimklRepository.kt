@@ -614,6 +614,7 @@ class SimklRepository @Inject constructor(
 					?.optJSONObject("simkl")
 					?.optFloatOrNull("rating"),
 			scoreMax = 10f,
+				totalEpisodes = optIntOrNull("total_episodes"),
 		)
 	}
 

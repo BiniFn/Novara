@@ -169,7 +169,7 @@ class BangumiRepository @Inject constructor(
 				cover = json.getJSONObject("images").getString("medium"),
 				url = "https://bangumi.tv/subject/${json.getLong("id")}",
 				mediaType = json.optString("platform").takeIf { it.isNotBlank() },
-				isBestMatch = false
+					totalEpisodes = json.optInt("eps", -1).takeIf { it > 0 },
 			)
 		}
 	}

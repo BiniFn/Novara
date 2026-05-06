@@ -751,24 +751,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = cornerRadius
 		set(value) { cornerRadius = value }
 
-	enum class BlurMode(val value: String) {
-		STANDARD("standard"),
-		IMMERSIVE("immersive"),
-		ENHANCED("enhanced");
-
-		companion object {
-			fun fromValue(value: String?): BlurMode =
-				entries.find { it.value == value } ?: STANDARD
-		}
-	}
-
-	var blurMode: BlurMode
-		get() = BlurMode.fromValue(prefs.getString(KEY_BLUR_MODE, BlurMode.STANDARD.value))
-		set(value) = prefs.edit { putString(KEY_BLUR_MODE, value.value) }
 
 	var hazeOpacityPercent: Int
-		get() = prefs.getSafeInt(KEY_HAZE_OPACITY, 82).coerceIn(45, 100)
-		set(value) = prefs.edit { putInt(KEY_HAZE_OPACITY, value.coerceIn(45, 100)) }
+		get() = prefs.getSafeInt(KEY_HAZE_OPACITY, 82).coerceIn(0, 100)
+		set(value) = prefs.edit { putInt(KEY_HAZE_OPACITY, value.coerceIn(0, 100)) }
 
 	var incognitoModeForNsfw: TriStateOption
 		get() = prefs.getEnumValue(KEY_INCOGNITO_NSFW, TriStateOption.ASK)
@@ -896,6 +882,12 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getBoolean(KEY_SHOW_SOURCE_ON_CARDS, false)
 		set(value) {
 			prefs.edit { putBoolean(KEY_SHOW_SOURCE_ON_CARDS, value) }
+		}
+
+	var showExtraInfoOnCards: Boolean
+		get() = prefs.getBoolean(KEY_SHOW_EXTRA_INFO_ON_CARDS, false)
+		set(value) {
+			prefs.edit { putBoolean(KEY_SHOW_EXTRA_INFO_ON_CARDS, value) }
 		}
 
 	var isSharedElementTransitionsEnabled: Boolean
@@ -2020,6 +2012,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_CONTENT_LANGUAGES = "content_languages"
 		const val KEY_EXTENSION_LANGUAGES = "extension_languages"
 		const val KEY_GITHUB_MIRROR = "github_mirror"
+		const val KEY_SHOW_EXTRA_INFO_ON_CARDS = "show_extra_info_on_cards"
 		const val KEY_HUGGINGFACE_MIRROR = "huggingface_mirror"
 		const val KEY_TVBOX_ACTIVE_REPOSITORY = "tvbox_active_repository"
 		const val KEY_TVBOX_ACTIVE_REPOSITORY_TITLE = "tvbox_active_repository_title"
@@ -2056,7 +2049,6 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_READER_TOOLBAR_FLOATING = "reader_toolbar_floating"
 		const val KEY_LOADING_CIRCLE_STYLE = "loading_circle_style"
 		const val KEY_POPUP_RADIUS = "popup_radius"
-		const val KEY_BLUR_MODE = "blur_mode"
 		const val KEY_HAZE_OPACITY = "haze_opacity"
 		const val KEY_MAIN_FAB = "main_fab"
 		const val KEY_32BIT_COLOR = "enhanced_colors"

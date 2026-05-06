@@ -74,7 +74,7 @@ fun SettingsRootScreen(
 ) {
     Surface(
         modifier = modifier.fillMaxSize(),
-        color = Color.Transparent,
+        color = MaterialTheme.colorScheme.background,
     ) {
     val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
         LazyColumn(state = listState,

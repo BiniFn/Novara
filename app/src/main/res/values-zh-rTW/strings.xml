@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="chapters_count_info">%d話</string>
     <string name="show_notification_new_chapters_off">您將不會收到通知，但新的章節將在清單中被凸顯</string>
     <string name="computing_">計算中…</string>
     <string name="try_again">重試</string>

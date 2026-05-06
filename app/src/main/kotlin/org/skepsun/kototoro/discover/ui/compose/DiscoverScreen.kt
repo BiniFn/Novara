@@ -138,6 +138,7 @@ fun DiscoverScreen(
 		AppSettings.KEY_BADGES_TOP_RIGHT,
 		AppSettings.KEY_BADGES_BOTTOM_LEFT,
 		AppSettings.KEY_BADGES_BOTTOM_RIGHT,
+			AppSettings.KEY_SHOW_EXTRA_INFO_ON_CARDS,
 	) {
 		DiscoverScreenPrefs(
 			gridScale = gridSize / 100f,
@@ -145,6 +146,7 @@ fun DiscoverScreen(
 				badgesTopLeft = badgesTopLeft,
 				badgesTopRight = badgesTopRight,
 				badgesBottomLeft = badgesBottomLeft,
+					showExtraInfo = showExtraInfoOnCards,
 				badgesBottomRight = badgesBottomRight,
 			),
 		)
@@ -183,7 +185,7 @@ fun DiscoverScreen(
 			LazyColumn(
 				state = listState,
 				contentPadding = PaddingValues(
-					top = contentPadding.calculateTopPadding() + 8.dp,
+					top = contentPadding.calculateTopPadding(),
 					bottom = contentPadding.calculateBottomPadding() + 8.dp
 				),
 				modifier = Modifier.fillMaxSize()

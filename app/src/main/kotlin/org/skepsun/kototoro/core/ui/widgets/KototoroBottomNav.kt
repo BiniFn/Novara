@@ -25,7 +25,6 @@ import dagger.hilt.android.EntryPointAccessors
 @Immutable
 private data class BottomNavPrefs(
     val isFloating: Boolean,
-    val blurMode: AppSettings.BlurMode,
     val isLabelsVisible: Boolean,
     val navHeight: Int,
     val navFloatingHeight: Int,
@@ -46,21 +45,18 @@ fun KototoroBottomNav(
 
     val prefs by appSettings.observeAsState(
         AppSettings.KEY_NAV_FLOATING,
-        AppSettings.KEY_BLUR_MODE,
         AppSettings.KEY_NAV_LABELS,
         AppSettings.KEY_NAV_HEIGHT,
         AppSettings.KEY_NAV_FLOATING_HEIGHT,
     ) {
         BottomNavPrefs(
             isFloating = isNavFloating,
-            blurMode = blurMode,
             isLabelsVisible = isNavLabelsVisible,
             navHeight = navHeight,
             navFloatingHeight = navFloatingHeight,
         )
     }
     val isFloating = prefs.isFloating
-    val blurMode = prefs.blurMode
     val isLabelsVisible = prefs.isLabelsVisible
     val navHeight = prefs.navHeight
     val navFloatingHeight = prefs.navFloatingHeight
@@ -69,11 +65,7 @@ fun KototoroBottomNav(
     val useNavigationRail = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
-    val targetAlpha = when (blurMode) {
-        AppSettings.BlurMode.ENHANCED -> 0.72f
-        AppSettings.BlurMode.STANDARD -> 0.84f
-        else -> 0.84f
-    }
+    val targetAlpha = 0.84f
 
     val horizontalPadding by androidx.compose.animation.core.animateDpAsState(
         if (isFloating && !useNavigationRail) 24.dp else 0.dp,

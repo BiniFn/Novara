@@ -51,6 +51,7 @@
     <string name="discover_manage_binding">管理绑定</string>
     <string name="discover_local_linked">已关联本地作品</string>
     <string name="discover_local_unlinked">尚未关联本地作品</string>
+    <string name="display_options">显示选项</string>
     <string name="details">详情</string>
     <string name="detailed_list">详情</string>
     <string name="grid">网格</string>
@@ -775,6 +776,7 @@
     <string name="novel_transparent_status_bar">透明阅读状态栏</string>
     <string name="novel_reset">重置</string>
     <string name="novel_chapters_count">共 %1$d 章</string>
+    <string name="chapters_count_info">%d话</string>
     <string name="novel_last_chapter">已经是最后一章</string>
     <string name="novel_first_chapter">已经是第一章</string>
     <string name="novel_cannot_add_bookmark">无法添加书签</string>
@@ -2045,4 +2047,6 @@
     <string name="details_show_original">显示原文</string>
     <string name="details_show_translation">显示译文</string>
     <string name="simkl" translatable="false">Simkl</string>
+    <string name="show_extra_info_on_cards">在卡片上显示额外信息</string>
+    <string name="show_extra_info_on_cards_summary">在内容卡片上显示评分、连载状态、章节数和类别标签</string>
 </resources>

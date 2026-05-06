@@ -1123,11 +1123,15 @@ fun DetailsScreen(
                     isLoading = metadataSearchLoading,
                     hasSearched = metadataSearchHasSearched,
                     unavailableText = stringResource(R.string.details_reading_source_unavailable),
+                    linkedTrackingItems = linkedTrackingItems,
                     onDismissRequest = { showMetadataSourceDialog = false },
                     onSelectOption = viewModel::selectMetadataSource,
                     onSearchQueryChange = viewModel::updateMetadataSearchQuery,
                     onSearch = viewModel::searchMetadataBindings,
                     onBindResult = viewModel::bindMetadataSource,
+                    onOpenLinkedTracking = { linked ->
+                        onActionClick(DetailsAction.OpenTrackingDetails(linked.service, linked.remoteId, linked.url))
+                    },
                 )
             }
 

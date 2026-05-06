@@ -264,6 +264,7 @@ class KitsuRepository(
 			updatedAtText = attrs.getStringOrNull("updatedAt")?.takeIf { it.isNotBlank() }?.take(10),
 			score = attrs.getStringOrNull("averageRating")?.toFloatOrNull(),
 			scoreMax = 100f,
+				totalEpisodes = attrs.optInt("episodeCount", 0).takeIf { it > 0 } ?: attrs.optInt("chapterCount", 0).takeIf { it > 0 },
 		)
 	}
 

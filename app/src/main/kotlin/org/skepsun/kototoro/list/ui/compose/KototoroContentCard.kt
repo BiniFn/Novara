@@ -61,6 +61,7 @@ import org.skepsun.kototoro.list.ui.model.ContentDetailedListModel
 import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
 import org.skepsun.kototoro.list.ui.model.secondaryTitleText
 import org.skepsun.kototoro.list.ui.model.supportingText
+import org.skepsun.kototoro.list.ui.model.buildInfoText
 import java.util.Locale
 import androidx.compose.foundation.layout.Arrangement
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -117,6 +118,7 @@ data class ContentCardUiPrefs(
     val badgesTopRight: Set<String>,
     val badgesBottomLeft: Set<String>,
     val badgesBottomRight: Set<String>,
+    val showExtraInfo: Boolean = false,
 )
 
 @Composable
@@ -128,12 +130,14 @@ fun rememberContentCardUiPrefs(
         AppSettings.KEY_BADGES_TOP_RIGHT,
         AppSettings.KEY_BADGES_BOTTOM_LEFT,
         AppSettings.KEY_BADGES_BOTTOM_RIGHT,
+        AppSettings.KEY_SHOW_EXTRA_INFO_ON_CARDS,
     ) {
         ContentCardUiPrefs(
             badgesTopLeft = badgesTopLeft,
             badgesTopRight = badgesTopRight,
             badgesBottomLeft = badgesBottomLeft,
             badgesBottomRight = badgesBottomRight,
+            showExtraInfo = showExtraInfoOnCards,
         )
     }
     return prefs
@@ -376,6 +380,24 @@ fun KototoroContentCardGrid(
                 .fillMaxWidth()
                 .padding(top = 8.dp)
         )
+        if (resolvedUiPrefs.showExtraInfo) {
+            val infoText = remember(item.manga.state, item.manga.chapters?.size, item.manga.tags, item.scoreText, context) {
+                item.buildInfoText(context)
+            }
+            infoText?.takeIf { it.isNotBlank() }?.let { info ->
+            Text(
+                text = info,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .widthIn(max = posterStyle.itemWidth)
+                    .fillMaxWidth()
+                    .padding(top = 2.dp),
+            )
+        }
+
         if (!item.subtitle.isNullOrBlank()) {
             Text(
                 text = item.subtitle,
@@ -388,6 +410,7 @@ fun KototoroContentCardGrid(
                     .fillMaxWidth()
                     .padding(top = 2.dp)
             )
+        }
         }
     }
 }

@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -86,10 +88,11 @@ import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.secondaryTitleText
 import org.skepsun.kototoro.list.ui.model.supportingText
+import org.skepsun.kototoro.list.ui.model.buildInfoText
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 
 private val DiscoverHeroHeight = 340.dp
-private val DiscoverHeroHeightDetached = 232.dp
+private val DiscoverHeroHeightDetached = 262.dp
 private val DiscoverHeroHeightLandscape = 220.dp
 private val DiscoverHeroBottomBlendHeightLandscape = 128.dp
 private val DiscoverHeroBottomBlendHeightDetachedLandscape = 64.dp
@@ -401,7 +404,7 @@ fun DiscoverHeroCarousel(
                 .padding(
                     top = topContentInset + 12.dp,
                     bottom = when {
-                        detachedBottomContent -> 44.dp
+                        detachedBottomContent -> 20.dp
                         bottomContent == null -> 14.dp
                         else -> 0.dp
                     },
@@ -514,7 +517,8 @@ fun DiscoverHeroCarousel(
                             contentDescription = item.title,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
-                                .size(width = 96.dp, height = 132.dp)
+                                .width(96.dp)
+                                .aspectRatio(0.72f)
                                 .onGloballyPositioned { coordinates ->
                                     coverBounds = coordinates.unclippedBoundsInWindow()
                                 }
@@ -563,6 +567,18 @@ fun DiscoverHeroCarousel(
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        val infoText = remember(item.manga.state, item.manga.chapters?.size, item.manga.tags, item.scoreText, context) {
+                            item.buildInfoText(context)
+                        }
+                        infoText?.takeIf { it.isNotBlank() }?.let { info ->
+                            Text(
+                                text = info,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                         item.secondaryTitleText()?.takeIf { it.isNotBlank() }?.let { secondaryTitle ->
                             Text(
                                 text = secondaryTitle,

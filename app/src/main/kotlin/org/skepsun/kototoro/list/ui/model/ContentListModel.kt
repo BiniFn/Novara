@@ -4,12 +4,14 @@ import android.content.Context
 import androidx.core.text.bold
 import androidx.core.text.buildSpannedString
 import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.model.titleResId
 import org.skepsun.kototoro.core.model.withOverride
 import org.skepsun.kototoro.core.ui.model.ContentOverride
 import org.skepsun.kototoro.list.ui.ListModelDiffCallback.Companion.PAYLOAD_ANYTHING_CHANGED
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
+import org.skepsun.kototoro.R
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 
 sealed class ContentListModel : ListModel {
@@ -68,4 +70,29 @@ fun ContentListModel.supportingText(): String? = when (this) {
 	is ContentCompactListModel -> supportingText
 	is ContentDetailedListModel -> supportingText
 	else -> null
+}
+
+fun ContentListModel.buildInfoText(context: Context): String? {
+    val parts = mutableListOf<String>()
+
+    manga.state?.let { state ->
+        val stateText = context.getString(state.titleResId)
+        if (stateText.isNotBlank()) {
+            parts += stateText
+        }
+    }
+
+    val chapterCount = manga.chapters?.size
+    if (chapterCount != null && chapterCount > 0) {
+        parts += context.getString(R.string.chapters_count_info, chapterCount)
+    }
+
+    if (manga.tags.isNotEmpty()) {
+        val tagsText = manga.tags.take(3).joinToString(", ") { it.title }
+        if (tagsText.isNotBlank()) {
+            parts += tagsText
+        }
+    }
+
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
 }

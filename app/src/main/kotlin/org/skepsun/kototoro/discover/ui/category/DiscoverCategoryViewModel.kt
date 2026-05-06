@@ -357,6 +357,7 @@ class DiscoverCategoryViewModel @Inject constructor(
 				state = org.skepsun.kototoro.parsers.model.ContentState.ONGOING,
 				authors = emptySet(),
 				source = ContentSource("TRACKING_${item.service.name}"),
+				chapters = item.totalEpisodes?.let { count -> List(count) { org.skepsun.kototoro.parsers.model.ContentChapter(0L, null, 0f, 0, "", null, 0L, null, ContentSource("TRACKING_${item.service.name}")) } },
 			)
 		}
 		return contentListMapper.toListModelList(proxyContents, appSettings.listMode).map { model ->
