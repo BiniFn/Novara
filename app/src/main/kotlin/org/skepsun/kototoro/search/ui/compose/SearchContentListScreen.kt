@@ -1823,7 +1823,7 @@ private fun FilterChipFlow(
 ) {
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(3.dp),
-        verticalArrangement = Arrangement.spacedBy(0.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         content()
     }
