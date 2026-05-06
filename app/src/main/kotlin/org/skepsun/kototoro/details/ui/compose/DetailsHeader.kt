@@ -553,6 +553,76 @@ fun DetailsHeader(
             )
         }
 
+        if (linkedTrackingItems.isNotEmpty()) {
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                style = GlassDefaults.subtleStyle().copy(
+                    containerAlpha = 0.78f,
+                    borderAlpha = 0.22f,
+                ),
+                shape = RoundedCornerShape(22.dp),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.tracking_source),
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        linkedTrackingItems.forEach { linked ->
+                            SuggestionChip(
+                                onClick = { onOpenLinkedTracking(linked) },
+                                icon = {
+                                    Icon(
+                                        painter = painterResource(linked.service.iconResId),
+                                        contentDescription = null,
+                                        tint = Color.Unspecified,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                },
+                                label = {
+                                    Text(
+                                        text = linked.title.ifBlank { stringResource(linked.service.titleResId) },
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                },
+                                colors = SuggestionChipDefaults.suggestionChipColors(
+                                    containerColor = if (linked.isPreferred) {
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                                    } else {
+                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.42f)
+                                    },
+                                    labelColor = if (linked.isPreferred) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    },
+                                ),
+                                border = SuggestionChipDefaults.suggestionChipBorder(
+                                    enabled = true,
+                                    borderColor = if (linked.isPreferred) {
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+                                    } else {
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                    },
+                                ),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -1205,7 +1275,7 @@ private fun DetailsSourceOverlayDialog(
                         onClick = onDismissRequest,
                     ),
             )
-            Surface(
+            GlassSurface(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
@@ -1215,8 +1285,12 @@ private fun DetailsSourceOverlayDialog(
                         indication = null,
                         onClick = {},
                     ),
+                style = GlassDefaults.prominentStyle().copy(
+                    containerAlpha = 0.84f,
+                    borderAlpha = 0.20f,
+                    shadowElevation = 8.dp,
+                ),
                 shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
             ) {
                 content()
             }

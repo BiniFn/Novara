@@ -2686,6 +2686,15 @@ class DetailsViewModel @Inject constructor(
 			val content = manga.filterNotNull().firstOrNull() ?: return@launchJob
 			trackingSiteMatcher.confirmMatch(match.service, content.id, match.remoteId)
 			dataRepository.setIgnoredTrackingSuggestion(content.id, null)
+			autoLinkTrackingServiceIfAuthorized(
+				mangaId = content.id,
+				item = org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItem(
+					service = match.service,
+					remoteId = match.remoteId,
+					title = match.title,
+					url = match.url,
+				),
+			)
 			refreshTrackingMatchSuggestion()
 		}
 	}
