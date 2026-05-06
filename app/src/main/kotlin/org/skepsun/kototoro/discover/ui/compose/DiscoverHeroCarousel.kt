@@ -77,6 +77,7 @@ import org.skepsun.kototoro.core.ui.image.rememberPanoramaRequestSize
 import org.skepsun.kototoro.core.ui.compose.HeroAutoAdvanceEffect
 import org.skepsun.kototoro.core.ui.compose.unclippedBoundsInWindow
 import org.skepsun.kototoro.core.ui.compose.HeroPagerIndicator
+import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
 import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
@@ -580,7 +581,7 @@ fun DiscoverHeroCarousel(
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
-                        DiscoverHeroPill(text = item.source.getTitle(context))
+                        DiscoverHeroPill(text = rememberResolvedSourceTitle(item.source))
                     }
                 }
             }

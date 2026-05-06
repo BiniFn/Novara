@@ -7,6 +7,7 @@ import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.util.ext.getQuantityStringSafe
 import org.skepsun.kototoro.settings.SettingsDestination
+import org.skepsun.kototoro.settings.SyncSettingsFragment
 
 fun buildSettingsRootSections(
 	context: Context,
@@ -73,6 +74,13 @@ fun buildSettingsRootSections(
 	val usersSection = SettingsRootSection(
 		title = context.getString(R.string.users),
 		items = listOf(
+			settingsRootItem(
+				key = "sync",
+				iconRes = R.drawable.ic_sync,
+				title = context.getString(R.string.sync),
+				summary = context.getString(R.string.sync_settings_summary),
+				onClick = { onOpenFragment(SyncSettingsFragment::class.java) },
+			),
 			settingsRootItem(
 				key = "tracking_accounts",
 				iconRes = R.drawable.ic_user,
