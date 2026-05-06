@@ -17,6 +17,7 @@ sealed interface SettingsDestination {
 	data object ReaderSettings : SettingsDestination
 	data object SourcesSettings : SettingsDestination
 	data object SuggestionsSettings : SettingsDestination
+	data object SyncSettings : SettingsDestination
 	data object BackupsSettings : SettingsDestination
 	data object TranslationSettings : SettingsDestination
 	data object TranslationApiSettings : SettingsDestination

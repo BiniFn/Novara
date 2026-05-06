@@ -21,7 +21,6 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
 
 data class SyncSettingsUiState(
-    val syncUrl: String,
     val isWebDavEnabled: Boolean,
     val webDavServerUrl: String,
     val webDavUsername: String,
@@ -40,7 +39,6 @@ fun SyncSettingsScreen(
     settings: AppSettings,
     state: SyncSettingsUiState,
     snackbarHostState: SnackbarHostState,
-    onSyncUrlClick: () -> Unit,
     onWebDavEnabledChange: (Boolean) -> Unit,
     onWebDavServerUrlChange: (String) -> Unit,
     onWebDavUsernameChange: (String) -> Unit,
@@ -74,15 +72,6 @@ fun SyncSettingsScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item(key = "host") {
-                SettingsPreferenceSection(title = stringResource(R.string.sync_settings)) {
-                    SettingsActionPreference(
-                        title = stringResource(R.string.server_address),
-                        summary = state.syncUrl.ifEmpty { null },
-                        onClick = onSyncUrlClick,
-                    )
-                }
-            }
             item(key = "webdav") {
                 SettingsPreferenceSection(title = stringResource(R.string.webdav_integration)) {
                     SettingsSwitchPreference(

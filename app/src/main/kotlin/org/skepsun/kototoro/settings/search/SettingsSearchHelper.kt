@@ -5,7 +5,6 @@ import dagger.Reusable
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.LocalizedAppContext
 import org.skepsun.kototoro.settings.SettingsDestination
-import org.skepsun.kototoro.settings.SyncSettingsFragment
 import javax.inject.Inject
 
 @Reusable
@@ -399,7 +398,7 @@ class SettingsSearchHelper @Inject constructor(
 					key = key,
 					title = context.getString(titleRes),
 					breadcrumbs = syncBreadcrumbs,
-					fragmentClass = SyncSettingsFragment::class.java,
+					destination = SettingsDestination.SyncSettings,
 				),
 			)
 		}

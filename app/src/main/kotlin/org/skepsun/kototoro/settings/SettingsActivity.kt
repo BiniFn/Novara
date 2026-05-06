@@ -443,6 +443,10 @@ class SettingsActivity :
 					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_SUGGESTIONS_SETTINGS)
 					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
 				}
+				SettingsDestination.SyncSettings -> {
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_SYNC_SETTINGS)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+				}
 				SettingsDestination.BackupsSettings -> {
 					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_BACKUPS_SETTINGS)
 					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
@@ -643,6 +647,7 @@ class SettingsActivity :
 				SettingsDestination.ReaderSettings,
 				SettingsDestination.SourcesSettings,
 				SettingsDestination.SuggestionsSettings,
+				SettingsDestination.SyncSettings,
 				SettingsDestination.BackupsSettings,
 				SettingsDestination.TranslationSettings,
 				SettingsDestination.TranslationApiSettings,
@@ -830,6 +835,7 @@ class SettingsActivity :
 			SettingsDestination.ReaderSettings -> COMPOSE_DESTINATION_READER_SETTINGS
 			SettingsDestination.SourcesSettings -> COMPOSE_DESTINATION_SOURCES_SETTINGS
 			SettingsDestination.SuggestionsSettings -> COMPOSE_DESTINATION_SUGGESTIONS_SETTINGS
+			SettingsDestination.SyncSettings -> COMPOSE_DESTINATION_SYNC_SETTINGS
 			SettingsDestination.BackupsSettings -> COMPOSE_DESTINATION_BACKUPS_SETTINGS
 			SettingsDestination.TranslationSettings -> COMPOSE_DESTINATION_TRANSLATION_SETTINGS
 			SettingsDestination.TranslationApiSettings -> COMPOSE_DESTINATION_TRANSLATION_API_SETTINGS
@@ -864,6 +870,7 @@ class SettingsActivity :
 			SettingsDestination.ReaderSettings -> getString(R.string.reader_settings)
 			SettingsDestination.SourcesSettings -> getString(R.string.remote_sources)
 			SettingsDestination.SuggestionsSettings -> getString(R.string.suggestions)
+			SettingsDestination.SyncSettings -> getString(R.string.sync_settings)
 			SettingsDestination.BackupsSettings -> getString(R.string.backup_restore)
 			SettingsDestination.TranslationSettings -> getString(R.string.translation_settings)
 			SettingsDestination.TranslationApiSettings -> getString(R.string.ai_api_settings)
@@ -1043,6 +1050,13 @@ class SettingsActivity :
 					suggestionsScheduler = suggestionsScheduler,
 					excludeTagsFlow = suggestionsExcludeTagsFlow,
 					preferredTagsFlow = suggestionsPreferredTagsFlow,
+				)
+			}
+			SettingsDestination.SyncSettings -> RenderComposeSection(title = getString(R.string.sync_settings)) {
+				SyncSettingsRoute(
+					settings = kototoroAppSettings,
+					backupSettingsViewModel = periodicalBackupSettingsViewModel,
+					modifier = Modifier.fillMaxSize(),
 				)
 			}
 			SettingsDestination.BackupsSettings -> RenderComposeSection(title = getString(R.string.backup_restore)) {
@@ -1748,6 +1762,7 @@ class SettingsActivity :
 		private const val COMPOSE_DESTINATION_READER_SETTINGS = "reader_settings"
 		private const val COMPOSE_DESTINATION_SOURCES_SETTINGS = "sources_settings"
 		private const val COMPOSE_DESTINATION_SUGGESTIONS_SETTINGS = "suggestions_settings"
+		private const val COMPOSE_DESTINATION_SYNC_SETTINGS = "sync_settings"
 		private const val COMPOSE_DESTINATION_BACKUPS_SETTINGS = "backups_settings"
 		private const val COMPOSE_DESTINATION_TRANSLATION_SETTINGS = "translation_settings"
 		private const val COMPOSE_DESTINATION_TRANSLATION_API_SETTINGS = "translation_api_settings"
@@ -1779,6 +1794,7 @@ class SettingsActivity :
 			COMPOSE_DESTINATION_READER_SETTINGS -> SettingsDestination.ReaderSettings
 			COMPOSE_DESTINATION_SOURCES_SETTINGS -> SettingsDestination.SourcesSettings
 			COMPOSE_DESTINATION_SUGGESTIONS_SETTINGS -> SettingsDestination.SuggestionsSettings
+			COMPOSE_DESTINATION_SYNC_SETTINGS -> SettingsDestination.SyncSettings
 			COMPOSE_DESTINATION_BACKUPS_SETTINGS -> SettingsDestination.BackupsSettings
 			COMPOSE_DESTINATION_TRANSLATION_SETTINGS -> SettingsDestination.TranslationSettings
 			COMPOSE_DESTINATION_TRANSLATION_API_SETTINGS -> SettingsDestination.TranslationApiSettings

@@ -7,7 +7,6 @@ import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.util.ext.getQuantityStringSafe
 import org.skepsun.kototoro.settings.SettingsDestination
-import org.skepsun.kototoro.settings.SyncSettingsFragment
 
 fun buildSettingsRootSections(
 	context: Context,
@@ -77,9 +76,9 @@ fun buildSettingsRootSections(
 			settingsRootItem(
 				key = "sync",
 				iconRes = R.drawable.ic_sync,
-				title = context.getString(R.string.sync),
+				title = context.getString(R.string.sync_settings),
 				summary = context.getString(R.string.sync_settings_summary),
-				onClick = { onOpenFragment(SyncSettingsFragment::class.java) },
+				onClick = { onOpenDestination(SettingsDestination.SyncSettings) },
 			),
 			settingsRootItem(
 				key = "tracking_accounts",
