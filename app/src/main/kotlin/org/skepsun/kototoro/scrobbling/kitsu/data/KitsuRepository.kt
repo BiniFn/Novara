@@ -10,6 +10,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okio.IOException
 import org.jsoup.Jsoup
+import org.json.JSONArray
 import org.json.JSONObject
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.MangaDatabase
@@ -719,13 +720,13 @@ class KitsuRepository(
 						val personId = voice.relationshipId("person") ?: continue
 						val person = peopleMap[personId] ?: continue
 						add(
-							ScrobblerContentInfo.RelatedWork(
-								id = person.optString("id").toLongOrNull() ?: continue,
-								title = person.displayEntityName(),
-								coverUrl = person.optJSONObject("attributes")?.optJSONObject("image").bestKitsuImage().orEmpty(),
-								relationship = locale?.toKitsuLocaleLabel(),
-								url = "$BASE_WEB_URL/people/$personId",
-							),
+								ScrobblerContentInfo.RelatedWork(
+									id = person.optString("id").toLongOrNull() ?: continue,
+									title = person.displayEntityName(),
+									coverUrl = person.optJSONObject("attributes")?.optJSONObject("image")?.bestKitsuImage().orEmpty(),
+									relationship = locale?.toKitsuLocaleLabel(),
+									url = "$BASE_WEB_URL/people/$personId",
+								),
 						)
 					}
 				}
@@ -988,10 +989,10 @@ class KitsuRepository(
 	private fun JSONObject.toKitsuRequestBody() = toString().toRequestBody(VND_JSON.toMediaType())
 
 	private fun JSONArray?.buildIncludedMediaMap(): Map<String, JSONObject> {
-		if (this == null) return emptyMap()
-		return buildMap {
-			for (i in 0 until length()) {
-				val item = optJSONObject(i) ?: continue
+		val source = this ?: return emptyMap()
+		return LinkedHashMap<String, JSONObject>(source.length()).apply {
+			for (i in 0 until source.length()) {
+				val item = source.optJSONObject(i) ?: continue
 				val type = item.optString("type")
 				if (type != "anime" && type != "manga") continue
 				val id = item.optString("id").takeIf { it.isNotBlank() } ?: continue
@@ -1001,10 +1002,10 @@ class KitsuRepository(
 	}
 
 	private fun JSONArray?.buildIncludedCharacterMap(): Map<String, JSONObject> {
-		if (this == null) return emptyMap()
-		return buildMap {
-			for (i in 0 until length()) {
-				val item = optJSONObject(i) ?: continue
+		val source = this ?: return emptyMap()
+		return LinkedHashMap<String, JSONObject>(source.length()).apply {
+			for (i in 0 until source.length()) {
+				val item = source.optJSONObject(i) ?: continue
 				if (item.optString("type") != "characters") continue
 				val id = item.optString("id").takeIf { it.isNotBlank() } ?: continue
 				put(id, item)
@@ -1013,10 +1014,10 @@ class KitsuRepository(
 	}
 
 	private fun JSONArray?.buildIncludedPeopleMap(): Map<String, JSONObject> {
-		if (this == null) return emptyMap()
-		return buildMap {
-			for (i in 0 until length()) {
-				val item = optJSONObject(i) ?: continue
+		val source = this ?: return emptyMap()
+		return LinkedHashMap<String, JSONObject>(source.length()).apply {
+			for (i in 0 until source.length()) {
+				val item = source.optJSONObject(i) ?: continue
 				if (item.optString("type") != "people") continue
 				val id = item.optString("id").takeIf { it.isNotBlank() } ?: continue
 				put(id, item)
@@ -1025,10 +1026,10 @@ class KitsuRepository(
 	}
 
 	private fun JSONArray?.buildIncludedMediaCharacterMap(): Map<String, JSONObject> {
-		if (this == null) return emptyMap()
-		return buildMap {
-			for (i in 0 until length()) {
-				val item = optJSONObject(i) ?: continue
+		val source = this ?: return emptyMap()
+		return LinkedHashMap<String, JSONObject>(source.length()).apply {
+			for (i in 0 until source.length()) {
+				val item = source.optJSONObject(i) ?: continue
 				if (item.optString("type") != "mediaCharacters") continue
 				val id = item.optString("id").takeIf { it.isNotBlank() } ?: continue
 				put(id, item)
@@ -1037,10 +1038,10 @@ class KitsuRepository(
 	}
 
 	private fun JSONArray?.buildIncludedVoiceMap(): Map<String, JSONObject> {
-		if (this == null) return emptyMap()
-		return buildMap {
-			for (i in 0 until length()) {
-				val item = optJSONObject(i) ?: continue
+		val source = this ?: return emptyMap()
+		return LinkedHashMap<String, JSONObject>(source.length()).apply {
+			for (i in 0 until source.length()) {
+				val item = source.optJSONObject(i) ?: continue
 				if (item.optString("type") != "characterVoices") continue
 				val id = item.optString("id").takeIf { it.isNotBlank() } ?: continue
 				put(id, item)

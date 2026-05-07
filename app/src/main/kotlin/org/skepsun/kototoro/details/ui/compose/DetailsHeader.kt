@@ -1264,6 +1264,7 @@ fun ReadingSourceSheet(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DetailsSourceOverlayDialog(
     onDismissRequest: () -> Unit,
