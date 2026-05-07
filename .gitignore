@@ -41,4 +41,5 @@ docs/.vitepress/dist/
 */build
 .claude/worktrees
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 *.txt

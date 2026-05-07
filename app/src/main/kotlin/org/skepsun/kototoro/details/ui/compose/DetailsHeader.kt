@@ -95,7 +95,6 @@ import coil3.request.crossfade
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.iconResId
 import org.skepsun.kototoro.core.model.containsAdultTagKeyword
-import org.skepsun.kototoro.core.model.getOriginLabel
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.titleResId
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -886,24 +885,13 @@ private fun detailsSourceOptionTitle(
     option: DetailsSourceOption?,
     unavailableText: String,
 ): String {
-    val context = LocalContext.current
     return when {
-        option?.source != null -> resolveSourceDisplayTitle(context, option.source)
+        option?.source != null -> rememberResolvedSourceTitle(option.source)
         option?.trackingService != null -> stringResource(option.trackingService.titleResId)
         !option?.subtitle.isNullOrBlank() -> option?.subtitle.orEmpty()
         !option?.title.isNullOrBlank() -> option?.title.orEmpty()
         else -> unavailableText
     }
-}
-
-private fun resolveSourceDisplayTitle(
-    context: android.content.Context,
-    source: ContentSource,
-): String {
-    return source.getTitle(context)
-        .takeIf { it.isNotBlank() && !it.startsWith("Loading ", ignoreCase = true) }
-        ?: source.getOriginLabel(context)
-        ?: source.name
 }
 
 private data class SourceOptionDisplayModel(
@@ -917,12 +905,11 @@ private data class SourceOptionDisplayModel(
 
 @Composable
 private fun DetailsSourceOption.resolveDisplayModel(
-    context: android.content.Context,
     currentContent: Content?,
     linkedTrackingItem: LinkedTrackingItemUiModel?,
     isSelected: Boolean,
 ): SourceOptionDisplayModel {
-    val sourceTitle = source?.let { resolveSourceDisplayTitle(context, it) }.orEmpty()
+    val sourceTitle = if (source != null) rememberResolvedSourceTitle(source) else ""
     val trackingTitle = trackingService?.let { stringResource(it.titleResId) }.orEmpty()
     val title = when {
         !this.title.isNullOrBlank() -> this.title.orEmpty()
@@ -1104,7 +1091,6 @@ fun MetadataSourceSheet(
 	                            }
 	                            SourceOptionCard(
 	                                displayModel = option.resolveDisplayModel(
-	                                    context = context,
 	                                    currentContent = currentContent,
 	                                    linkedTrackingItem = linked,
 	                                    isSelected = option == selectedOption || option.isSelected,
@@ -1268,7 +1254,6 @@ fun ReadingSourceSheet(
 	                    ) { _, option ->
 	                            SourceOptionCard(
 	                                displayModel = option.resolveDisplayModel(
-	                                    context = context,
 	                                    currentContent = currentContent,
 	                                    linkedTrackingItem = null,
 	                                    isSelected = option == selectedOption || option.isSelected,
