@@ -125,9 +125,7 @@ class FeedViewModel @Inject constructor(
 		val sourceTags = values[5] as Set<SourceTag>
 		val favorites = values[6] as List<org.skepsun.kototoro.favourites.data.FavouriteContent>
 		val preset = values[8] as? org.skepsun.kototoro.explore.data.SourcePreset
-		val mangaCategoryIds = favorites.associate { favorite ->
-			favorite.feedLookupKey() to favorite.categories.mapTo(linkedSetOf()) { it.categoryId.toLong() }
-		}
+		val mangaCategoryIds = favorites.buildFeedCategoryIds()
 
 		val filteredList = list.filter { item ->
 			val source = item.manga.source
@@ -253,9 +251,7 @@ class FeedViewModel @Inject constructor(
 			quickFilter.appliedOptions.combineWithSettings().flatMapLatest {
 				repository.observeUpdatedContent(10, it)
 			}.map { mangaList ->
-				val mangaCategoryIds = args.favorites.associate { favorite ->
-					favorite.feedLookupKey() to favorite.categories.mapTo(linkedSetOf()) { it.categoryId.toLong() }
-				}
+				val mangaCategoryIds = args.favorites.buildFeedCategoryIds()
 				val filteredContentList = mangaList.filter { item ->
 					val source = item.manga.source
 					if (args.preset != null && source.name !in args.preset.sources) {
@@ -298,4 +294,16 @@ private fun org.skepsun.kototoro.favourites.data.FavouriteContent.feedLookupKey(
 
 private fun Content.feedLookupKey(): String {
 	return "${source.name}|$url"
+}
+
+private fun List<org.skepsun.kototoro.favourites.data.FavouriteContent>.buildFeedCategoryIds(): Map<String, Set<Long>> {
+	val categoryIdsByContent = LinkedHashMap<String, LinkedHashSet<Long>>(size)
+	for (favorite in this) {
+		val key = favorite.feedLookupKey()
+		val categoryIds = categoryIdsByContent.getOrPut(key) { linkedSetOf() }
+		favorite.categories.forEach { category ->
+			categoryIds += category.categoryId.toLong()
+		}
+	}
+	return categoryIdsByContent
 }

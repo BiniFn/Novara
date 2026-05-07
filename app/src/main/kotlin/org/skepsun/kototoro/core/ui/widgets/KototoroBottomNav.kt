@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalConfiguration
@@ -39,6 +40,7 @@ fun KototoroBottomNav(
     val navState by state.collectAsState()
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
+    val layoutDirection = LocalLayoutDirection.current
     val appSettings = remember {
         EntryPointAccessors.fromApplication<BaseActivityEntryPoint>(context.applicationContext).settings
     }
@@ -63,7 +65,11 @@ fun KototoroBottomNav(
 
     val activeItems = navState.items.filter { navState.itemVisibility[it.id] != false }
     val useNavigationRail = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val systemBarsPadding = WindowInsets.systemBars.asPaddingValues()
     val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val railStartInset = systemBarsPadding.calculateStartPadding(layoutDirection)
+    val railEndInset = systemBarsPadding.calculateEndPadding(layoutDirection)
+    val railBottomInset = systemBarsPadding.calculateBottomPadding()
 
     val targetAlpha = 0.84f
 
@@ -86,10 +92,10 @@ fun KototoroBottomNav(
                 Modifier
                     .fillMaxHeight()
                     .padding(
-                        start = railHorizontalPadding,
-                        end = railHorizontalPadding,
+                        start = railHorizontalPadding + railStartInset,
+                        end = railHorizontalPadding + railEndInset,
                         top = railVerticalPadding + statusBarTopPadding,
-                        bottom = railVerticalPadding,
+                        bottom = railVerticalPadding + railBottomInset,
                     )
             } else {
                 Modifier
