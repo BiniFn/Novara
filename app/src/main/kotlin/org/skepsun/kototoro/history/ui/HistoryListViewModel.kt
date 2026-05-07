@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.exceptions.EmptyHistoryException
 import org.skepsun.kototoro.core.model.ContentHistory
 import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -25,6 +26,7 @@ import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.observeAsFlow
 import org.skepsun.kototoro.core.prefs.observeAsStateFlow
 import org.skepsun.kototoro.core.ui.util.ReversibleAction
+import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.calculateTimeAgo
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.flattenLatest
@@ -56,6 +58,7 @@ import org.skepsun.kototoro.entitygraph.data.EntityGraphRepository
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.core.os.NetworkState
 import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
 import org.skepsun.kototoro.list.ui.model.ContentDetailedListModel
 import org.skepsun.kototoro.list.ui.model.ContentGridModel
@@ -73,6 +76,7 @@ class HistoryListViewModel @Inject constructor(
 	private val sourceGroupManager: SourceGroupManager,
 	private val entityGraphRepository: EntityGraphRepository,
 	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
+	private val networkState: NetworkState,
 	mangaDataRepository: ContentDataRepository,
 	@LocalStorageChanges localStorageChanges: SharedFlow<LocalContent?>,
 	private val sourcePresetsRepository: org.skepsun.kototoro.explore.data.SourcePresetsRepository,
@@ -80,6 +84,7 @@ class HistoryListViewModel @Inject constructor(
 
 	@Volatile
 	private var groupedHistoryIds: Map<Long, Set<Long>> = emptyMap()
+	val onOpenReader = MutableEventFlow<Content>()
 
 	override val isFilterBarVisible = MutableStateFlow(true)
 		private val refreshTrigger = MutableStateFlow(Any())
@@ -123,6 +128,20 @@ class HistoryListViewModel @Inject constructor(
 		key = AppSettings.KEY_STATS_ENABLED,
 		valueProducer = { isStatsEnabled },
 	)
+
+	val isResumeEnabled = combine(
+		settings.observe(
+			AppSettings.KEY_MAIN_FAB,
+			AppSettings.KEY_INCOGNITO_MODE,
+		),
+		repository.observeLast(),
+		networkState,
+	) { _, last, isOnline ->
+		settings.isMainFabEnabled &&
+			!settings.isIncognitoModeEnabled &&
+			last != null &&
+			(isOnline || last.isLocal)
+	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.WhileSubscribed(5000), false)
 
 	override val content = combine(
 		quickFilter.appliedOptions,
@@ -200,6 +219,13 @@ class HistoryListViewModel @Inject constructor(
 	fun requestMoreItems() {
 		if (isPaginationReady.compareAndSet(true, false)) {
 			limit.value += PAGE_SIZE
+		}
+	}
+
+	fun openLastReader() {
+		launchLoadingJob(Dispatchers.Default) {
+			val manga = repository.getLastOrNull() ?: throw EmptyHistoryException()
+			onOpenReader.call(manga)
 		}
 	}
 

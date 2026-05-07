@@ -287,6 +287,7 @@ fun AppNavGraph(
             val items by viewModel.content.collectAsStateWithLifecycle(initialValue = emptyList())
             val listMode by viewModel.listMode.collectAsStateWithLifecycle(initialValue = org.skepsun.kototoro.core.prefs.ListMode.GRID)
             val isStatsEnabled by viewModel.isStatsEnabled.collectAsStateWithLifecycle(initialValue = false)
+            val isResumeEnabled by viewModel.isResumeEnabled.collectAsStateWithLifecycle(initialValue = false)
             val gridScale by viewModel.gridScale.collectAsStateWithLifecycle(initialValue = 1f)
             val selectedGroupTab by viewModel.currentGroupTab.collectAsStateWithLifecycle(initialValue = BrowseGroupTab.All)
             val selectedSourceTags by viewModel.currentSourceTags.collectAsStateWithLifecycle(initialValue = emptySet())
@@ -341,6 +342,30 @@ fun AppNavGraph(
             DisposableEffect(Unit) {
                 onDispose {
                     onExploreSourceSelectionTopBarChanged(null)
+                }
+            }
+
+            androidx.compose.runtime.LaunchedEffect(viewModel.onOpenReader, appRouter) {
+                viewModel.onOpenReader.collect { event ->
+                    event?.consume { content ->
+                        appRouter.openReader(content)
+                    }
+                }
+            }
+
+            androidx.compose.runtime.LaunchedEffect(viewModel.onActionDone) {
+                val observer = org.skepsun.kototoro.core.ui.util.ReversibleActionObserver(rootView)
+                viewModel.onActionDone.collect { event ->
+                    event?.consume(observer)
+                }
+            }
+
+            androidx.compose.runtime.LaunchedEffect(viewModel.onError) {
+                val host = activity.window.decorView.rootView
+                val resolver = (activity as? org.skepsun.kototoro.core.ui.BaseActivity<*>)?.exceptionResolver
+                val observer = org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver(host, null, resolver)
+                viewModel.onError.collect { event ->
+                    event?.consume(observer)
                 }
             }
 
@@ -406,6 +431,8 @@ fun AppNavGraph(
                     },
                     onClearHistoryClick = { showClearDialog = true },
                     onStatsClick = { appRouter.openStatistic() },
+                    onContinueReadingClick = { viewModel.openLastReader() },
+                    showContinueReadingButton = isResumeEnabled,
                     showInlineSelectionTopBar = false,
                 )
 

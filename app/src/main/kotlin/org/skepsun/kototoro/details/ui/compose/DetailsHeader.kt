@@ -47,12 +47,14 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -81,8 +83,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import android.widget.Toast
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
@@ -925,91 +925,110 @@ fun MetadataSourceSheet(
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.onSurface,
             )
-    val detailContext = LocalContext.current
-    if (currentOptions.isNotEmpty()) {
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(
-                items = currentOptions,
-                key = { it.key },
-            ) { option ->
-                val linked = option.trackingService?.let { svc ->
-                    linkedTrackingItems.firstOrNull { it.service == svc && it.remoteId == option.remoteId }
-                }
-                val isSelected = option == selectedOption || option.isSelected
-                val label = when {
-                    option.trackingService != null -> stringResource(option.trackingService.titleResId)
-                    option.source != null -> rememberResolvedSourceTitle(option.source)
-                    else -> ""
-                }
-                val title = linked?.title
-                    ?: option.source?.getTitle(detailContext)
-                    ?: option.key
-                Surface(
-                    modifier = Modifier
-                        .width(100.dp)
-                        .clickable {
-                            onDismissRequest()
-                            onSelectOption(option)
-                        },
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (isSelected)
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
-                    else
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                    border = if (isSelected)
-                        BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
-                    else null,
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(8.dp),
-                    ) {
-                        Box(
+            val detailContext = LocalContext.current
+            if (currentOptions.isNotEmpty()) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(
+                        items = currentOptions,
+                        key = { it.key },
+                    ) { option ->
+                        val linked = option.trackingService?.let { svc ->
+                            linkedTrackingItems.firstOrNull { it.service == svc && it.remoteId == option.remoteId }
+                        }
+                        val isSelected = option == selectedOption || option.isSelected
+                        val label = when {
+                            option.trackingService != null -> stringResource(option.trackingService.titleResId)
+                            option.source != null -> rememberResolvedSourceTitle(option.source)
+                            else -> ""
+                        }
+                        val title = when {
+                            option.source != null -> option.source.getTitle(detailContext)
+                            !linked?.title.isNullOrBlank() -> linked?.title.orEmpty()
+                            option.trackingService != null -> stringResource(option.trackingService.titleResId)
+                            else -> option.key
+                        }
+                        val subtitle = when {
+                            !linked?.title.isNullOrBlank() && linked.title != title -> linked.title
+                            option.remoteId != null -> "#${option.remoteId}"
+                            else -> label
+                        }
+                        val coverUrl = linked?.coverUrl
+                        Surface(
                             modifier = Modifier
-                                .size(56.dp, 80.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
-                            contentAlignment = Alignment.Center,
+                                .width(112.dp)
+                                .clickable {
+                                    onDismissRequest()
+                                    onSelectOption(option)
+                                },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected)
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                            else
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            border = if (isSelected)
+                                BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                            else null,
                         ) {
-                            if (linked?.coverUrl != null) {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(LocalContext.current)
-                                        .data(linked.coverUrl)
-                                        .crossfade(true)
-                                        .build(),
-                                    contentDescription = title,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize(),
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(8.dp),
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(56.dp, 80.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    if (!coverUrl.isNullOrBlank()) {
+                                        AsyncImage(
+                                            model = ImageRequest.Builder(LocalContext.current)
+                                                .data(coverUrl)
+                                                .crossfade(true)
+                                                .build(),
+                                            contentDescription = title,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize(),
+                                        )
+                                    } else if (option.trackingService != null) {
+                                        Icon(
+                                            painter = painterResource(option.trackingService.iconResId),
+                                            contentDescription = null,
+                                            tint = Color.Unspecified,
+                                            modifier = Modifier.size(28.dp),
+                                        )
+                                    } else {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_extension),
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(28.dp),
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    textAlign = TextAlign.Center,
                                 )
-                            } else if (option.trackingService != null) {
-                                Icon(
-                                    painter = painterResource(option.trackingService.iconResId),
-                                    contentDescription = null,
-                                    tint = Color.Unspecified,
-                                    modifier = Modifier.size(28.dp),
-                                )
-                            } else {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_extension),
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(28.dp),
+                                Text(
+                                    text = subtitle,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    textAlign = TextAlign.Center,
                                 )
                             }
                         }
-                        Spacer(Modifier.height(4.dp))
-                        Text(text = label, style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(text = title, style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
             }
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-    }
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = onSearchQueryChange,
@@ -1250,57 +1269,36 @@ private fun DetailsSourceOverlayDialog(
     onDismissRequest: () -> Unit,
     content: @Composable () -> Unit,
 ) {
-    val consumeClicks = remember { MutableInteractionSource() }
-    Dialog(
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    ModalBottomSheet(
         onDismissRequest = onDismissRequest,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false,
-        ),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.18f)),
-        ) {
+        sheetState = sheetState,
+        dragHandle = {
             Box(
                 modifier = Modifier
-                    .matchParentSize()
-                    .clickable(
-                        interactionSource = consumeClicks,
-                        indication = null,
-                        onClick = onDismissRequest,
-                    ),
+                    .padding(top = 8.dp)
+                    .width(36.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)),
             )
-            GlassSurface(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.92f)
-                    .clickable(
-                        interactionSource = consumeClicks,
-                        indication = null,
-                        onClick = {},
-                    ),
-                style = GlassDefaults.prominentStyle().copy(
-                    containerAlpha = 0.84f,
-                    borderAlpha = 0.20f,
-                    shadowElevation = 0.dp,
-                ),
-                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-            ) {
-                content()
-                // Drag handle at top center
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 8.dp)
-                        .width(36.dp)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)),
-                )
-            }
+        },
+        containerColor = Color.Transparent,
+        scrimColor = Color.Black.copy(alpha = 0.18f),
+        tonalElevation = 0.dp,
+    ) {
+        GlassSurface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.92f),
+            style = GlassDefaults.prominentStyle().copy(
+                containerAlpha = 0.84f,
+                borderAlpha = 0.20f,
+                shadowElevation = 0.dp,
+            ),
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        ) {
+            content()
         }
     }
 }

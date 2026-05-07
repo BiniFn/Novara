@@ -29,6 +29,7 @@ import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerType
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUserProfile
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUserStats
+import org.skepsun.kototoro.entitygraph.domain.EntityType
 import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -241,6 +242,17 @@ class AniListRepository @Inject constructor(
 		return getMediaDetails(id)
 	}
 
+	suspend fun getEntityInfo(
+		entityType: EntityType,
+		id: Long,
+	): ScrobblerContentInfo? {
+		return when (entityType) {
+			EntityType.CHARACTER -> getCharacterDetails(id)
+			EntityType.PERSON -> getStaffDetails(id)
+			else -> null
+		}
+	}
+
 	private suspend fun getMediaDetails(id: Long): ScrobblerContentInfo {
 		val response = doRequest(
 			REQUEST_QUERY,
@@ -365,6 +377,134 @@ class AniListRepository @Inject constructor(
 			""",
 		)
 		return parseMediaDetails(response.getJSONObject("data").getJSONObject("Media"))
+	}
+
+	private suspend fun getCharacterDetails(id: Long): ScrobblerContentInfo {
+		val response = doRequest(
+			REQUEST_QUERY,
+			"""
+			Character(id: $id) {
+				id
+				name {
+					userPreferred
+					full
+					native
+				}
+				image {
+					large
+					medium
+				}
+				description(asHtml: true)
+				siteUrl
+				media(sort: [POPULARITY_DESC], perPage: 25) {
+					edges {
+						characterRole
+						voiceActors(language: JAPANESE, sort: [RELEVANCE, ID]) {
+							id
+							name {
+								full
+								userPreferred
+							}
+							image {
+								large
+								medium
+							}
+							siteUrl
+						}
+						node {
+							id
+							type
+							title {
+								userPreferred
+								native
+							}
+							coverImage {
+								extraLarge
+								large
+								medium
+							}
+							siteUrl
+						}
+					}
+				}
+			}
+			""",
+		)
+		return parseCharacterDetails(response.getJSONObject("data").getJSONObject("Character"))
+	}
+
+	private suspend fun getStaffDetails(id: Long): ScrobblerContentInfo {
+		val response = doRequest(
+			REQUEST_QUERY,
+			"""
+			Staff(id: $id) {
+				id
+				name {
+					full
+					native
+					userPreferred
+				}
+				image {
+					large
+					medium
+				}
+				description(asHtml: true)
+				siteUrl
+				characters(sort: [FAVOURITES_DESC], perPage: 25) {
+					edges {
+						role
+						media {
+							id
+							type
+							title {
+								userPreferred
+								native
+							}
+							coverImage {
+								extraLarge
+								large
+								medium
+							}
+							siteUrl
+						}
+						node {
+							id
+							name {
+								userPreferred
+								full
+								native
+							}
+							image {
+								large
+								medium
+							}
+							siteUrl
+						}
+					}
+				}
+				staffMedia(sort: [POPULARITY_DESC], perPage: 25) {
+					edges {
+						staffRole
+						node {
+							id
+							type
+							title {
+								userPreferred
+								native
+							}
+							coverImage {
+								extraLarge
+								large
+								medium
+							}
+							siteUrl
+						}
+					}
+				}
+			}
+			""",
+		)
+		return parseStaffDetails(response.getJSONObject("data").getJSONObject("Staff"))
 	}
 
 	private fun JSONObject?.optIntOrNull(key: String): Int? {
@@ -861,6 +1001,175 @@ class AniListRepository @Inject constructor(
 			reviews = reviews,
 			relatedWorks = relatedWorks,
 			recommendations = recommendations,
+		)
+	}
+
+	private fun parseCharacterDetails(json: JSONObject): ScrobblerContentInfo {
+		val infobox = mutableListOf<Pair<String, String>>()
+		json.optJSONObject("name")?.getStringOrNull("native")?.takeIf { it.isNotBlank() }?.let {
+			infobox += "Native Name" to it
+		}
+		val mediaEdges = json.optJSONObject("media")?.optJSONArray("edges")
+		val voiceActors = linkedMapOf<Long?, ScrobblerContentInfo.PersonInfo>()
+		val relatedWorks = mutableListOf<ScrobblerContentInfo.RelatedWork>()
+		mediaEdges?.let { edges ->
+			for (i in 0 until edges.length()) {
+				val edge = edges.optJSONObject(i) ?: continue
+				val node = edge.optJSONObject("node") ?: continue
+				val mediaId = node.optLong("id", 0L)
+				if (mediaId > 0L) {
+					relatedWorks += ScrobblerContentInfo.RelatedWork(
+						id = mediaId,
+						title = node.optJSONObject("title")?.getStringOrNull("userPreferred")
+							?: node.optJSONObject("title")?.getStringOrNull("native")
+							?: "Unknown",
+						coverUrl = node.optJSONObject("coverImage")?.optAniListCoverUrl().orEmpty(),
+						relationship = edge.getStringOrNull("characterRole")?.toDiscoveryLabel(),
+						url = node.getStringOrNull("siteUrl") ?: "https://anilist.co/anime/$mediaId",
+					)
+				}
+				edge.optJSONArray("voiceActors")?.let { actors ->
+					for (j in 0 until actors.length()) {
+						val actor = actors.optJSONObject(j) ?: continue
+						val actorId = actor.optLong("id", 0L).takeIf { it > 0L }
+						val actorName = actor.optJSONObject("name")?.getStringOrNull("userPreferred")
+							?: actor.optJSONObject("name")?.getStringOrNull("full")
+							?: continue
+						voiceActors.putIfAbsent(
+							actorId ?: actorName.hashCode().toLong(),
+							ScrobblerContentInfo.PersonInfo(
+								id = actorId,
+								name = actorName,
+								avatarUrl = actor.optJSONObject("image")?.optAniListCoverUrl()?.takeIf { it.isNotBlank() },
+								url = actor.getStringOrNull("siteUrl"),
+							),
+						)
+					}
+				}
+			}
+		}
+		return ScrobblerContentInfo(
+			id = json.getLong("id"),
+			name = json.optJSONObject("name")?.getStringOrNull("userPreferred")
+				?: json.optJSONObject("name")?.getStringOrNull("full")
+				?: "Unknown",
+			cover = json.optJSONObject("image")?.optAniListCoverUrl().orEmpty(),
+			url = json.getStringOrNull("siteUrl") ?: "https://anilist.co/character/${json.getLong("id")}",
+			descriptionHtml = json.optString("description", "").normalizeAniListDescriptionHtml(),
+			authors = voiceActors.values.map { it.name },
+			infoboxProperties = infobox,
+			relatedWorks = relatedWorks.distinctBy { it.id },
+			extraSections = listOfNotNull(
+				voiceActors.values.takeIf { it.isNotEmpty() }?.let { actors ->
+					ScrobblerContentInfo.RelatedSection(
+						title = "Voice Actors",
+						items = actors.mapIndexed { index, actor ->
+							ScrobblerContentInfo.RelatedWork(
+								id = actor.id ?: -(index + 1).toLong(),
+								title = actor.name,
+								coverUrl = actor.avatarUrl.orEmpty(),
+								url = actor.url.orEmpty(),
+							)
+						},
+					)
+				},
+			),
+		)
+	}
+
+	private fun parseStaffDetails(json: JSONObject): ScrobblerContentInfo {
+		val infobox = mutableListOf<Pair<String, String>>()
+		json.optJSONObject("name")?.getStringOrNull("native")?.takeIf { it.isNotBlank() }?.let {
+			infobox += "Native Name" to it
+		}
+		val voicedWorks = mutableListOf<ScrobblerContentInfo.RelatedWork>()
+		val voicedCharacters = linkedMapOf<Long, ScrobblerContentInfo.RelatedWork>()
+		json.optJSONObject("characters")?.optJSONArray("edges")?.let { edges ->
+			for (i in 0 until edges.length()) {
+				val edge = edges.optJSONObject(i) ?: continue
+				val character = edge.optJSONObject("node") ?: continue
+				val characterId = character.optLong("id", 0L)
+				if (characterId > 0L) {
+					voicedCharacters[characterId] = ScrobblerContentInfo.RelatedWork(
+						id = characterId,
+						title = character.optJSONObject("name")?.getStringOrNull("userPreferred")
+							?: character.optJSONObject("name")?.getStringOrNull("full")
+							?: "Unknown",
+						coverUrl = character.optJSONObject("image")?.optAniListCoverUrl().orEmpty(),
+						relationship = edge.getStringOrNull("role")?.takeIf { it.isNotBlank() },
+						url = character.getStringOrNull("siteUrl") ?: "https://anilist.co/character/$characterId",
+					)
+				}
+				edge.optJSONArray("media")?.let { mediaArray ->
+					for (j in 0 until mediaArray.length()) {
+						val media = mediaArray.optJSONObject(j) ?: continue
+						val mediaId = media.optLong("id", 0L)
+						if (mediaId > 0L) {
+							voicedWorks += ScrobblerContentInfo.RelatedWork(
+								id = mediaId,
+								title = media.optJSONObject("title")?.getStringOrNull("userPreferred")
+									?: media.optJSONObject("title")?.getStringOrNull("native")
+									?: "Unknown",
+								coverUrl = media.optJSONObject("coverImage")?.optAniListCoverUrl().orEmpty(),
+								relationship = character.optJSONObject("name")?.getStringOrNull("userPreferred")
+									?: character.optJSONObject("name")?.getStringOrNull("full"),
+								url = media.getStringOrNull("siteUrl") ?: "https://anilist.co/anime/$mediaId",
+							)
+						}
+					}
+				}
+			}
+		}
+		val staffWorks = mutableListOf<ScrobblerContentInfo.RelatedWork>()
+		json.optJSONObject("staffMedia")?.optJSONArray("edges")?.let { edges ->
+			for (i in 0 until edges.length()) {
+				val edge = edges.optJSONObject(i) ?: continue
+				val media = edge.optJSONObject("node") ?: continue
+				val mediaId = media.optLong("id", 0L)
+				if (mediaId <= 0L) continue
+				staffWorks += ScrobblerContentInfo.RelatedWork(
+					id = mediaId,
+					title = media.optJSONObject("title")?.getStringOrNull("userPreferred")
+						?: media.optJSONObject("title")?.getStringOrNull("native")
+						?: "Unknown",
+					coverUrl = media.optJSONObject("coverImage")?.optAniListCoverUrl().orEmpty(),
+					relationship = edge.getStringOrNull("staffRole")?.takeIf { it.isNotBlank() },
+					url = media.getStringOrNull("siteUrl") ?: "https://anilist.co/anime/$mediaId",
+				)
+			}
+		}
+		return ScrobblerContentInfo(
+			id = json.getLong("id"),
+			name = json.optJSONObject("name")?.getStringOrNull("full")
+				?: json.optJSONObject("name")?.getStringOrNull("userPreferred")
+				?: "Unknown",
+			cover = json.optJSONObject("image")?.optAniListCoverUrl().orEmpty(),
+			url = json.getStringOrNull("siteUrl") ?: "https://anilist.co/staff/${json.getLong("id")}",
+			descriptionHtml = json.optString("description", "").normalizeAniListDescriptionHtml(),
+			infoboxProperties = infobox,
+			relatedWorks = staffWorks.distinctBy { it.id },
+			extraSections = buildList {
+				voicedWorks.distinctBy { it.id to it.relationship }
+					.takeIf { it.isNotEmpty() }
+					?.let { works ->
+						add(
+							ScrobblerContentInfo.RelatedSection(
+								title = "Voiced Works",
+								items = works,
+							),
+						)
+					}
+				voicedCharacters.values.toList()
+					.takeIf { it.isNotEmpty() }
+					?.let { characters ->
+						add(
+							ScrobblerContentInfo.RelatedSection(
+								title = "Voiced Characters",
+								items = characters,
+							),
+						)
+					}
+			},
 		)
 	}
 

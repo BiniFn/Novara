@@ -33,6 +33,7 @@ import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUserProfile
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUserStats
 import org.skepsun.kototoro.scrobbling.kitsu.data.KitsuInterceptor.Companion.VND_JSON
+import org.skepsun.kototoro.entitygraph.domain.EntityType
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
@@ -327,6 +328,17 @@ class KitsuRepository(
 		return parseContentInfoResponse(json, "anime")
 	}
 
+	suspend fun getEntityInfo(
+		entityType: EntityType,
+		id: Long,
+	): ScrobblerContentInfo? {
+		return when (entityType) {
+			EntityType.PERSON -> getPersonInfo(id)
+			EntityType.CHARACTER -> getCharacterInfo(id)
+			else -> null
+		}
+	}
+
 	private suspend fun parseContentInfoResponse(data: JSONObject, mediaType: String): ScrobblerContentInfo {
 
 		val mainData = data.getJSONObject("data")
@@ -551,6 +563,215 @@ class KitsuRepository(
 		)
 	}
 
+	private suspend fun getPersonInfo(id: Long): ScrobblerContentInfo {
+		val request = Request.Builder()
+			.get()
+			.url(
+				"$BASE_WEB_URL/api/edge/people/$id" +
+					"?include=voices.mediaCharacter.media,voices.mediaCharacter.character,staff.media"
+			)
+		val json = okHttp.newCall(request.build()).await().parseJson().ensureSuccess()
+		val data = json.getJSONObject("data")
+		val attrs = data.getJSONObject("attributes")
+		val included = json.optJSONArray("included")
+
+		val mediaMap = included.buildIncludedMediaMap()
+		val characterMap = included.buildIncludedCharacterMap()
+		val mediaCharacterMap = included.buildIncludedMediaCharacterMap()
+
+		val infobox = buildList {
+			val description = attrs.getStringOrNull("description")?.toPlainText()
+			if (!description.isNullOrBlank() && description != "Wikipedia" && description != "AniDB") {
+				add("简介来源" to description)
+			}
+		}
+		val authorAliases = attrs.optString("name").takeIf { it.isNotBlank() }?.let(::listOf).orEmpty()
+
+		val voicedWorks = buildList {
+			if (included != null) {
+				for (i in 0 until included.length()) {
+					val item = included.optJSONObject(i) ?: continue
+					if (item.optString("type") != "characterVoices") continue
+					val voiceAttrs = item.optJSONObject("attributes")
+					val locale = voiceAttrs?.getStringOrNull("locale")
+					if (locale != null && locale != "ja_jp") continue
+					val mediaCharacterId = item.optJSONObject("relationships")
+						?.optJSONObject("mediaCharacter")
+						?.optJSONObject("data")
+						?.optString("id")
+						?.takeIf { it.isNotBlank() }
+						?: continue
+					val mediaCharacter = mediaCharacterMap[mediaCharacterId] ?: continue
+					val mediaId = mediaCharacter.relationshipId("media") ?: continue
+					val media = mediaMap[mediaId] ?: continue
+					val characterId = mediaCharacter.relationshipId("character")
+					val character = characterId?.let(characterMap::get)
+					add(
+						media.toKitsuRelatedWork(
+							relationship = character?.displayEntityName()?.let { "配音角色 · $it" } ?: "配音作品",
+						) ?: continue,
+					)
+				}
+			}
+		}.distinctBy { it.id to it.relationship }
+
+		val staffWorks = buildList {
+			if (included != null) {
+				for (i in 0 until included.length()) {
+					val item = included.optJSONObject(i) ?: continue
+					if (item.optString("type") != "mediaStaff") continue
+					val role = item.optJSONObject("attributes")?.getStringOrNull("role")
+					val mediaId = item.relationshipId("media") ?: continue
+					val media = mediaMap[mediaId] ?: continue
+					add(
+						media.toKitsuRelatedWork(
+							relationship = role?.takeIf { it.isNotBlank() } ?: "Staff",
+						) ?: continue,
+					)
+				}
+			}
+		}.distinctBy { it.id to it.relationship }
+
+		val extraSections = buildList {
+			if (voicedWorks.isNotEmpty()) {
+				add(
+					ScrobblerContentInfo.RelatedSection(
+						title = "配音作品",
+						items = voicedWorks,
+					),
+				)
+			}
+			if (staffWorks.isNotEmpty()) {
+				add(
+					ScrobblerContentInfo.RelatedSection(
+						title = "参与作品",
+						items = staffWorks,
+					),
+				)
+			}
+		}
+
+		return ScrobblerContentInfo(
+			id = id,
+			name = attrs.getStringOrNull("name").orEmpty().ifBlank { "Unknown" },
+			cover = attrs.optJSONObject("image").bestKitsuImage().orEmpty(),
+			url = "$BASE_WEB_URL/people/$id",
+			descriptionHtml = attrs.getStringOrNull("description")
+				?.takeIf { it.isNotBlank() && it != "Wikipedia" && it != "AniDB" }
+				?.replace("\n", "<br>")
+				.orEmpty(),
+			authors = authorAliases,
+			infoboxProperties = infobox,
+			extraSections = extraSections,
+			actions = listOf(
+				ScrobblerContentInfo.ExternalAction(
+					title = "人物主页",
+					url = "$BASE_WEB_URL/people/$id",
+				),
+			),
+		)
+	}
+
+	private suspend fun getCharacterInfo(id: Long): ScrobblerContentInfo {
+		val request = Request.Builder()
+			.get()
+			.url(
+				"$BASE_WEB_URL/api/edge/characters/$id" +
+					"?include=mediaCharacters.media,mediaCharacters.voices.person"
+			)
+		val json = okHttp.newCall(request.build()).await().parseJson().ensureSuccess()
+		val data = json.getJSONObject("data")
+		val attrs = data.getJSONObject("attributes")
+		val included = json.optJSONArray("included")
+
+		val mediaMap = included.buildIncludedMediaMap()
+		val peopleMap = included.buildIncludedPeopleMap()
+		val voiceMap = included.buildIncludedVoiceMap()
+
+		val relatedWorks = buildList {
+			if (included != null) {
+				for (i in 0 until included.length()) {
+					val item = included.optJSONObject(i) ?: continue
+					if (item.optString("type") != "mediaCharacters") continue
+					val role = item.optJSONObject("attributes")?.getStringOrNull("role")
+					val mediaId = item.relationshipId("media") ?: continue
+					val media = mediaMap[mediaId] ?: continue
+					add(media.toKitsuRelatedWork(role?.toKitsuCharacterRoleLabel()) ?: continue)
+				}
+			}
+		}.distinctBy { it.id }
+
+		val voiceActors = buildList {
+			if (included != null) {
+				for (i in 0 until included.length()) {
+					val item = included.optJSONObject(i) ?: continue
+					if (item.optString("type") != "mediaCharacters") continue
+					val voiceIds = item.optJSONObject("relationships")
+						?.optJSONObject("voices")
+						?.optJSONArray("data")
+						?: continue
+					for (j in 0 until voiceIds.length()) {
+						val voiceRef = voiceIds.optJSONObject(j) ?: continue
+						val voiceId = voiceRef.optString("id").takeIf { it.isNotBlank() } ?: continue
+						val voice = voiceMap[voiceId] ?: continue
+						val locale = voice.optJSONObject("attributes")?.getStringOrNull("locale")
+						if (locale != null && locale != "ja_jp") continue
+						val personId = voice.relationshipId("person") ?: continue
+						val person = peopleMap[personId] ?: continue
+						add(
+							ScrobblerContentInfo.RelatedWork(
+								id = person.optString("id").toLongOrNull() ?: continue,
+								title = person.displayEntityName(),
+								coverUrl = person.optJSONObject("attributes")?.optJSONObject("image").bestKitsuImage().orEmpty(),
+								relationship = locale?.toKitsuLocaleLabel(),
+								url = "$BASE_WEB_URL/people/$personId",
+							),
+						)
+					}
+				}
+			}
+		}.distinctBy { it.id }
+
+		val infobox = buildList {
+			attrs.optJSONObject("names")?.getStringOrNull("ja_jp")?.let {
+				add("日文名" to it)
+			}
+			attrs.optJSONArray("otherNames")?.toStringList()
+				?.takeIf { it.isNotEmpty() }
+				?.joinToString(" / ")
+				?.let { add("别名" to it) }
+		}
+
+		return ScrobblerContentInfo(
+			id = id,
+			name = attrs.getStringOrNull("canonicalName").orEmpty().ifBlank {
+				attrs.getStringOrNull("name").orEmpty().ifBlank { "Unknown" }
+			},
+			cover = attrs.optJSONObject("image").bestKitsuImage().orEmpty(),
+			url = "$BASE_WEB_URL/characters/${attrs.getStringOrNull("slug") ?: id}",
+			descriptionHtml = attrs.getStringOrNull("description")
+				?.replace("\n", "<br>")
+				.orEmpty(),
+			authors = voiceActors.map { it.title },
+			infoboxProperties = infobox,
+			relatedWorks = relatedWorks,
+			extraSections = listOfNotNull(
+				voiceActors.takeIf { it.isNotEmpty() }?.let {
+					ScrobblerContentInfo.RelatedSection(
+						title = "声优",
+						items = it,
+					)
+				},
+			),
+			actions = listOf(
+				ScrobblerContentInfo.ExternalAction(
+					title = "角色主页",
+					url = "$BASE_WEB_URL/characters/${attrs.getStringOrNull("slug") ?: id}",
+				),
+			),
+		)
+	}
+
 	private fun parseMediaReactionThreads(json: JSONObject): List<ScrobblerContentInfo.CommentThread> {
 		val users = json.buildUserLookup()
 		val data = json.optJSONArray("data") ?: return emptyList()
@@ -752,11 +973,154 @@ class KitsuRepository(
 		return result
 	}
 
+	private fun JSONArray.toStringList(): List<String> {
+		val result = ArrayList<String>(length())
+		for (i in 0 until length()) {
+			optString(i).takeIf { it.isNotBlank() }?.let(result::add)
+		}
+		return result
+	}
+
 	private inline fun JSONObject.putJO(name: String, init: JSONObject.() -> Unit) {
 		put(name, JSONObject().apply(init))
 	}
 
 	private fun JSONObject.toKitsuRequestBody() = toString().toRequestBody(VND_JSON.toMediaType())
+
+	private fun JSONArray?.buildIncludedMediaMap(): Map<String, JSONObject> {
+		if (this == null) return emptyMap()
+		return buildMap {
+			for (i in 0 until length()) {
+				val item = optJSONObject(i) ?: continue
+				val type = item.optString("type")
+				if (type != "anime" && type != "manga") continue
+				val id = item.optString("id").takeIf { it.isNotBlank() } ?: continue
+				put(id, item)
+			}
+		}
+	}
+
+	private fun JSONArray?.buildIncludedCharacterMap(): Map<String, JSONObject> {
+		if (this == null) return emptyMap()
+		return buildMap {
+			for (i in 0 until length()) {
+				val item = optJSONObject(i) ?: continue
+				if (item.optString("type") != "characters") continue
+				val id = item.optString("id").takeIf { it.isNotBlank() } ?: continue
+				put(id, item)
+			}
+		}
+	}
+
+	private fun JSONArray?.buildIncludedPeopleMap(): Map<String, JSONObject> {
+		if (this == null) return emptyMap()
+		return buildMap {
+			for (i in 0 until length()) {
+				val item = optJSONObject(i) ?: continue
+				if (item.optString("type") != "people") continue
+				val id = item.optString("id").takeIf { it.isNotBlank() } ?: continue
+				put(id, item)
+			}
+		}
+	}
+
+	private fun JSONArray?.buildIncludedMediaCharacterMap(): Map<String, JSONObject> {
+		if (this == null) return emptyMap()
+		return buildMap {
+			for (i in 0 until length()) {
+				val item = optJSONObject(i) ?: continue
+				if (item.optString("type") != "mediaCharacters") continue
+				val id = item.optString("id").takeIf { it.isNotBlank() } ?: continue
+				put(id, item)
+			}
+		}
+	}
+
+	private fun JSONArray?.buildIncludedVoiceMap(): Map<String, JSONObject> {
+		if (this == null) return emptyMap()
+		return buildMap {
+			for (i in 0 until length()) {
+				val item = optJSONObject(i) ?: continue
+				if (item.optString("type") != "characterVoices") continue
+				val id = item.optString("id").takeIf { it.isNotBlank() } ?: continue
+				put(id, item)
+			}
+		}
+	}
+
+	private fun JSONObject.relationshipId(name: String): String? {
+		return optJSONObject("relationships")
+			?.optJSONObject(name)
+			?.optJSONObject("data")
+			?.optString("id")
+			?.takeIf { it.isNotBlank() }
+	}
+
+	private fun JSONObject.bestKitsuImage(): String? {
+		return getStringOrNull("large")
+			?: getStringOrNull("medium")
+			?: getStringOrNull("small")
+			?: getStringOrNull("original")
+			?: getStringOrNull("tiny")
+	}
+
+	private fun JSONObject.displayEntityName(): String {
+		val attrs = optJSONObject("attributes")
+		return attrs?.getStringOrNull("canonicalName")
+			?: attrs?.getStringOrNull("name")
+			?: attrs?.optJSONObject("names")?.getStringOrNull("en")
+			?: attrs?.optJSONObject("names")?.getStringOrNull("ja_jp")
+			?: attrs?.optJSONObject("titles")?.getStringOrNull("en_jp")
+			?: attrs?.optJSONObject("titles")?.getStringOrNull("en")
+			?: attrs?.optJSONObject("titles")?.getStringOrNull("ja_jp")
+			?: attrs?.getStringOrNull("canonicalTitle")
+			?: optString("id")
+	}
+
+	private fun JSONObject.toKitsuRelatedWork(relationship: String? = null): ScrobblerContentInfo.RelatedWork? {
+		val id = optString("id").toLongOrNull() ?: return null
+		val attrs = optJSONObject("attributes") ?: return null
+		val type = optString("type").takeIf { it == "anime" || it == "manga" } ?: return null
+		val slug = attrs.getStringOrNull("slug") ?: return null
+		return ScrobblerContentInfo.RelatedWork(
+			id = id,
+			title = attrs.displayMediaTitle(),
+			coverUrl = attrs.optJSONObject("posterImage").bestKitsuImage().orEmpty(),
+			relationship = relationship,
+			url = "$BASE_WEB_URL/$type/$slug",
+		)
+	}
+
+	private fun JSONObject.displayMediaTitle(): String {
+		return getStringOrNull("canonicalTitle")
+			?: optJSONObject("titles")?.getStringOrNull("en_jp")
+			?: optJSONObject("titles")?.getStringOrNull("en")
+			?: optJSONObject("titles")?.getStringOrNull("ja_jp")
+			?: getStringOrNull("name")
+			?: "Unknown"
+	}
+
+	private fun String.toKitsuCharacterRoleLabel(): String {
+		return when (this.lowercase()) {
+			"main" -> "主角"
+			"supporting" -> "配角"
+			else -> this
+		}
+	}
+
+	private fun String.toKitsuLocaleLabel(): String {
+		return when (this.lowercase()) {
+			"ja_jp" -> "日配"
+			"en" -> "英配"
+			"pt_br" -> "葡配"
+			"es" -> "西配"
+			"fr" -> "法配"
+			"de" -> "德配"
+			"ko" -> "韩配"
+			"it" -> "意配"
+			else -> this
+		}
+	}
 
 	private suspend fun findExistingRate(scrobblerContentId: Long, isAnime: Boolean): JSONObject? {
 		val userId = (cachedUser ?: loadUser()).id

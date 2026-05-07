@@ -2362,6 +2362,7 @@
     <string name="entity_graph_section_voice_actors">Voice Actors</string>
     <string name="entity_graph_section_created_works">Created Works</string>
     <string name="entity_graph_section_voiced_characters">Voiced Characters</string>
+    <string name="entity_graph_section_voiced_works">Voiced Works</string>
     <string name="entity_graph_section_related_entities">Related Entities</string>
     <string name="you_may_like">You May Also Like</string>
     <string name="reverse_order">Reverse Order</string>

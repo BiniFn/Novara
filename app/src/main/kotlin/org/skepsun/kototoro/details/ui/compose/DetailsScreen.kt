@@ -783,7 +783,17 @@ fun DetailsScreen(
 							onOpenReadingSourceSheet = {
                                 if (!isTemporaryReadOnly) showReadingSourceDialog = true
                             },
-							onEntityClick = appRouter::openEntityDetails,
+                            onEntityClick = { item ->
+                                val entityId = item.entityId
+                                if (entityId != null) {
+                                    appRouter.openEntityDetails(
+                                        entityId = entityId,
+                                        service = item.trackingService,
+                                        remoteId = item.remoteId,
+                                        url = item.url,
+                                    )
+                                }
+                            },
 							onActionClick = handleActionClick,
 						)
                     }
@@ -930,7 +940,17 @@ fun DetailsScreen(
                                 onOpenReadingSourceSheet = {
                                     if (!isTemporaryReadOnly) showReadingSourceDialog = true
                                 },
-                                onEntityClick = appRouter::openEntityDetails,
+                                onEntityClick = { item ->
+                                    val entityId = item.entityId
+                                    if (entityId != null) {
+                                        appRouter.openEntityDetails(
+                                            entityId = entityId,
+                                            service = item.trackingService,
+                                            remoteId = item.remoteId,
+                                            url = item.url,
+                                        )
+                                    }
+                                },
                                 onActionClick = handleActionClick,
                             )
                         }
@@ -1692,7 +1712,7 @@ private fun DetailsScrollableContent(
     onSelectMetadataSource: (DetailsSourceOption) -> Unit,
     onOpenMetadataSourceSheet: () -> Unit,
     onOpenReadingSourceSheet: () -> Unit,
-    onEntityClick: (Long) -> Unit,
+    onEntityClick: (EntityRelationItem) -> Unit,
     onActionClick: (DetailsAction) -> Unit,
     sharedElementKey: String? = null,
 ) {
@@ -1826,7 +1846,9 @@ private fun DetailsScrollableContent(
             DetailsRelationSections(
                 sections = entityRelationSections,
                 onItemClick = { item ->
-                    item.entityId?.let(onEntityClick)
+                    if (item.entityId != null) {
+                        onEntityClick(item)
+                    }
                 },
             )
         }
@@ -3540,6 +3562,7 @@ private fun entityRelationSectionIconRes(titleRes: Int): Int = when (titleRes) {
     R.string.entity_graph_section_voice_actors -> R.drawable.ic_voice_input
     R.string.entity_graph_section_created_works -> R.drawable.ic_content_manga
     R.string.entity_graph_section_voiced_characters -> R.drawable.ic_user
+    R.string.entity_graph_section_voiced_works -> R.drawable.ic_content_manga
     R.string.entity_graph_section_related_entities -> R.drawable.ic_select_group
     else -> R.drawable.ic_select_group
 }

@@ -6,12 +6,15 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -87,7 +90,10 @@ fun KototoroContentListScreen(
     showInlineSelectionTopBar: Boolean = true,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
-    listHeader: (@Composable () -> Unit)? = null
+    listHeader: (@Composable () -> Unit)? = null,
+    gridState: LazyGridState? = null,
+    listState: LazyListState? = null,
+    detailedListState: LazyListState? = null,
 ) {
     val lastContentItem = items.lastOrNull { it is ContentListModel }
     val context = LocalContext.current
@@ -144,8 +150,10 @@ fun KototoroContentListScreen(
                 when (listMode) {
                     ListMode.GRID -> {
                         val posterStyle = compactPosterCardStyle(gridScale)
+                        val actualGridState = gridState ?: rememberLazyGridState()
                         LazyVerticalGrid(
                             columns = GridCells.Adaptive(minSize = posterStyle.itemWidth + 12.dp),
+                            state = actualGridState,
                             contentPadding = innerPadding,
                             modifier = Modifier.fillMaxSize()
                         ) {
@@ -204,14 +212,14 @@ fun KototoroContentListScreen(
                         }
                     }
                     ListMode.LIST -> {
-                        val listState = rememberLazyListState()
+                        val actualListState = listState ?: rememberLazyListState()
                         val scrollIntensity = if (isVerticalCardListAnimationEnabled) {
-                            rememberVerticalRailScrollIntensity(listState)
+                            rememberVerticalRailScrollIntensity(actualListState)
                         } else {
                             0f
                         }
                         LazyColumn(
-                            state = listState,
+                            state = actualListState,
                             contentPadding = innerPadding,
                             modifier = Modifier.fillMaxSize()
                         ) {
@@ -231,7 +239,7 @@ fun KototoroContentListScreen(
                                 VerticalRailAnimatedVisibility(
                                     animationKey = listModelComposeKey(listModel, index),
                                     index = index,
-                                    listState = listState,
+                                    listState = actualListState,
                                     isAnimationEnabled = isVerticalCardListAnimationEnabled,
                                     scrollIntensity = scrollIntensity,
                                 ) { animatedModifier ->
@@ -270,14 +278,14 @@ fun KototoroContentListScreen(
                         }
                     }
                     ListMode.DETAILED_LIST -> {
-                        val listState = rememberLazyListState()
+                        val actualListState = detailedListState ?: rememberLazyListState()
                         val scrollIntensity = if (isVerticalCardListAnimationEnabled) {
-                            rememberVerticalRailScrollIntensity(listState)
+                            rememberVerticalRailScrollIntensity(actualListState)
                         } else {
                             0f
                         }
                         LazyColumn(
-                            state = listState,
+                            state = actualListState,
                             contentPadding = innerPadding,
                             modifier = Modifier.fillMaxSize()
                         ) {
@@ -297,7 +305,7 @@ fun KototoroContentListScreen(
                                 VerticalRailAnimatedVisibility(
                                     animationKey = listModelComposeKey(listModel, index),
                                     index = index,
-                                    listState = listState,
+                                    listState = actualListState,
                                     isAnimationEnabled = isVerticalCardListAnimationEnabled,
                                     scrollIntensity = scrollIntensity,
                                 ) { animatedModifier ->

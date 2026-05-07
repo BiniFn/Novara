@@ -17,7 +17,12 @@ sealed interface DetailsOrigin : Parcelable {
     }
 
     @Parcelize
-    data class EntityGraph(val entityId: Long) : DetailsOrigin
+    data class EntityGraph(
+        val entityId: Long,
+        val serviceId: String? = null,
+        val remoteId: Long? = null,
+        val url: String? = null,
+    ) : DetailsOrigin
 
     @Parcelize
     data class TrackingItem(

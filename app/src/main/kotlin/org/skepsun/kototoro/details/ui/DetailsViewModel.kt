@@ -143,6 +143,23 @@ private data class TrackingCharacterPresentation(
 	val url: String?,
 )
 
+private data class PersonWorkPresentation(
+	val work: Entity,
+	val coverUrl: String?,
+	val subtitle: String?,
+	val supportingText: String?,
+	val detailLines: List<String>,
+	val trackingService: ScrobblerService? = null,
+	val remoteId: Long? = null,
+	val url: String? = null,
+)
+
+private data class EntityTrackingOrigin(
+	val service: ScrobblerService,
+	val remoteId: Long,
+	val url: String? = null,
+)
+
 data class DetailsSupplementUiState(
 	val metadataProperties: List<Pair<String, String>> = emptyList(),
 	val sections: List<EntityRelationSection> = emptyList(),
@@ -606,6 +623,7 @@ class DetailsViewModel @Inject constructor(
 	private val trackingMetadataCandidates = MutableStateFlow<List<TrackingMetadataCandidate>>(emptyList())
 	private val selectedMetadataSource = MutableStateFlow<MetadataSourceSelection>(initialMetadataSourceSelection())
 	private val cachedTrackingDetails = LinkedHashMap<String, org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails>()
+	private val cachedEntityTrackingDetails = LinkedHashMap<String, org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails>()
 
 	private sealed interface MetadataSourceSelection {
 		data object Base : MetadataSourceSelection
@@ -783,6 +801,7 @@ class DetailsViewModel @Inject constructor(
 		val source = syntheticSource("TRACKING_${details.service.name}", contentType, language)
 		val authors = resolveTrackingAuthors(details)
 		val chapters = trackingDetailsToSyntheticChapters(details, source).ifEmpty { null }
+		val normalizedCoverUrl = details.coverUrl.normalizedImageUrl()
 		return Content(
 			id = details.remoteId,
 			title = details.title,
@@ -791,7 +810,8 @@ class DetailsViewModel @Inject constructor(
 			publicUrl = details.url.orEmpty(),
 			rating = (details.score ?: 0f) / 10f,
 			contentRating = null,
-			coverUrl = details.coverUrl.normalizedImageUrl(),
+			coverUrl = normalizedCoverUrl,
+			largeCoverUrl = normalizedCoverUrl,
 			tags = details.tags.mapTo(linkedSetOf()) { tag ->
 				org.skepsun.kototoro.parsers.model.ContentTag(
 					title = tag,
@@ -1080,22 +1100,24 @@ class DetailsViewModel @Inject constructor(
 			launchJob(Dispatchers.IO) {
 				val graphGraphId = activeExternalOrigin.entityId
 				val entity = entityGraphRepository.getEntity(graphGraphId) ?: return@launchJob
-				val entityCoverUrl = resolveEntityCoverUrl(graphGraphId)
+				val entityTrackingDetails = loadEntityTrackingDetails(entity)
+				val entityCoverUrl = entityTrackingDetails?.coverUrl.normalizedImageUrl() ?: resolveEntityCoverUrl(graphGraphId)
 				
 				if (mangaDetails.value == null) {
 				    val syntheticContent = Content(
 				        id = graphGraphId,
 				        title = entity.primaryName,
-				        altTitles = emptySet(),
+				        altTitles = setOfNotNull(entityTrackingDetails?.altTitle?.takeIf { it.isNotBlank() }),
 				        url = "",
-				        publicUrl = "",
+				        publicUrl = entityTrackingDetails?.url.orEmpty(),
 				        rating = 0f,
 				        contentRating = null,
 				        coverUrl = entityCoverUrl,
+				        largeCoverUrl = entityCoverUrl,
 				        tags = emptySet(),
 				        state = null,
 				        authors = emptySet(),
-				        description = "",
+				        description = entityTrackingDetails?.description,
 				        chapters = null,
 				        source = syntheticSource("Entity Graph", ContentType.MANGA),
 				    )
@@ -1211,13 +1233,104 @@ class DetailsViewModel @Inject constructor(
 		return "${service.id}:$remoteId"
 	}
 
+	private fun entityTrackingKey(
+		entityType: EntityType,
+		service: ScrobblerService,
+		remoteId: Long,
+	): String {
+		return "${entityType.name}:${service.id}:$remoteId"
+	}
+
 	private fun cacheTrackingDetails(details: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails) {
 		cachedTrackingDetails[trackingMetadataKey(details.service, details.remoteId)] = details
+	}
+
+	private fun cacheEntityTrackingDetails(
+		entityType: EntityType,
+		details: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails,
+	) {
+		cachedEntityTrackingDetails[entityTrackingKey(entityType, details.service, details.remoteId)] = details
 	}
 
 	private fun currentTrackingMetadataDetails(): org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails? {
 		val selection = selectedMetadataSource.value as? MetadataSourceSelection.Tracking ?: return null
 		return cachedTrackingDetails[trackingMetadataKey(selection.service, selection.remoteId)]
+	}
+
+	private fun currentEntityTrackingOrigin(): EntityTrackingOrigin? {
+		val origin = activeExternalOrigin as? org.skepsun.kototoro.details.ui.model.DetailsOrigin.EntityGraph
+		val service = origin?.serviceId
+			?.toIntOrNull()
+			?.let { serviceId -> ScrobblerService.entries.firstOrNull { it.id == serviceId } }
+		val remoteId = origin?.remoteId
+		if (service != null && remoteId != null && remoteId > 0L) {
+			return EntityTrackingOrigin(
+				service = service,
+				remoteId = remoteId,
+				url = origin.url,
+			)
+		}
+		return null
+	}
+
+	private suspend fun loadEntityTrackingDetails(
+		entity: Entity,
+	): org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails? {
+		val origin = currentEntityTrackingOrigin()
+		val candidateOrigins = buildList {
+			origin?.takeIf { supportsEntityTrackingDetails(it.service, entity.type) }?.let(::add)
+			entityGraphRepository.getBindings(entity.id)
+				.mapNotNull { binding ->
+					val service = binding.source.toIntOrNull()?.let { id ->
+						ScrobblerService.entries.firstOrNull { it.id == id }
+					} ?: return@mapNotNull null
+					val remoteId = binding.externalId.toLongOrNull() ?: return@mapNotNull null
+					EntityTrackingOrigin(service = service, remoteId = remoteId)
+				}
+				.filter { candidate ->
+					(entity.type == EntityType.PERSON || entity.type == EntityType.CHARACTER) &&
+						supportsEntityTrackingDetails(candidate.service, entity.type)
+				}
+				.forEach(::add)
+		}.distinctBy { Triple(it.service, it.remoteId, it.url) }
+		for (candidate in candidateOrigins) {
+			val key = entityTrackingKey(entity.type, candidate.service, candidate.remoteId)
+			cachedEntityTrackingDetails[key]?.let { return it }
+			trackingSiteCacheRepository.readEntityDetails(candidate.service, entity.type, candidate.remoteId)?.let { cached ->
+				cacheEntityTrackingDetails(entity.type, cached)
+				return cached
+			}
+			val remote = runCatching {
+				trackingSiteDiscoveryService.getEntityDetails(
+					service = candidate.service,
+					entityType = entity.type,
+					remoteId = candidate.remoteId,
+					urlHint = candidate.url,
+				)
+			}.getOrNull()
+			if (remote != null) {
+				cacheEntityTrackingDetails(entity.type, remote)
+				return remote
+			}
+		}
+		return null
+	}
+
+	private fun supportsEntityTrackingDetails(
+		service: ScrobblerService,
+		entityType: EntityType,
+	): Boolean {
+		return when (service) {
+			ScrobblerService.ANILIST,
+			ScrobblerService.BANGUMI,
+			ScrobblerService.KITSU,
+			ScrobblerService.MAL,
+			ScrobblerService.SHIKIMORI,
+			-> entityType == EntityType.PERSON || entityType == EntityType.CHARACTER
+
+			ScrobblerService.MANGAUPDATES -> entityType == EntityType.PERSON
+			ScrobblerService.SIMKL -> false
+		}
 	}
 
 	private fun org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails.hasRichMetadata(): Boolean {
@@ -1344,6 +1457,9 @@ class DetailsViewModel @Inject constructor(
 			title = trackingContent.title.ifBlank { baseContent.title },
 			altTitles = (baseContent.altTitles + trackingContent.altTitles).toSet(),
 			coverUrl = trackingContent.coverUrl.normalizedImageUrl() ?: baseContent.coverUrl,
+			largeCoverUrl = trackingContent.largeCoverUrl.normalizedImageUrl()
+				?: trackingContent.coverUrl.normalizedImageUrl()
+				?: baseContent.largeCoverUrl,
 			rating = if (trackingContent.rating > 0f) trackingContent.rating else baseContent.rating,
 			tags = if (trackingContent.tags.isNotEmpty()) trackingContent.tags else baseContent.tags,
 			state = trackingContent.state ?: baseContent.state,
@@ -2049,16 +2165,17 @@ class DetailsViewModel @Inject constructor(
 
 	private suspend fun buildEntityRelationSections(entityId: Long): List<EntityRelationSection> {
 		val anchorEntity = entityGraphRepository.getEntity(entityId) ?: return emptyList()
+		val entityTrackingDetails = loadEntityTrackingDetails(anchorEntity)
 		val relations = entityGraphRepository.getRelations(entityId)
-		if (relations.isEmpty()) {
+		val trackingDetails = currentTrackingMetadataDetails()
+		if (relations.isEmpty() && entityTrackingDetails == null) {
 			return emptyList()
 		}
-		val trackingDetails = currentTrackingMetadataDetails()
 		val relatedIds = relations.mapNotNull { relation ->
 			relation.toEntityId.takeIf { it != entityId } ?: relation.fromEntityId.takeIf { it != entityId }
 		}.distinct()
 		val relatedEntities = entityGraphRepository.getEntitiesByIds(relatedIds).associateBy(Entity::id)
-		return relations.groupBy(Relation::type).mapNotNull { (relationType, typeRelations) ->
+		val relationSections = relations.groupBy(Relation::type).mapNotNull { (relationType, typeRelations) ->
 			if (anchorEntity.type == EntityType.WORK && relationType == RelationType.BELONGS_TO) {
 				return@mapNotNull null
 			}
@@ -2078,6 +2195,8 @@ class DetailsViewModel @Inject constructor(
 					subtitle = trackingCharacterPresentation?.role,
 					supportingText = trackingCharacterPresentation?.supportingText,
 					detailLines = trackingCharacterPresentation?.detailLines.orEmpty(),
+					trackingService = trackingDetails?.service,
+					remoteId = resolveTrackingEntityRemoteId(related, trackingDetails?.service),
 					url = trackingCharacterPresentation?.url,
 				)
 			}.distinctBy(EntityRelationItem::stableKey)
@@ -2089,7 +2208,269 @@ class DetailsViewModel @Inject constructor(
 				)
 			}
 		}
+		if (anchorEntity.type != EntityType.PERSON) {
+			return mergeEntityTrackingSections(
+				baseSections = relationSections,
+				entity = anchorEntity,
+				details = entityTrackingDetails,
+			)
+		}
+		val voicedWorks = buildPersonVoicedWorkItems(anchorEntity)
+		val merged = buildList {
+			addAll(relationSections)
+			if (voicedWorks.isNotEmpty()) {
+				add(
+					EntityRelationSection(
+						titleRes = R.string.entity_graph_section_voiced_works,
+						items = voicedWorks.map { presentation ->
+							EntityRelationItem(
+								stableKey = "entity:${presentation.work.id}:voiced-work",
+								entityId = presentation.work.id,
+								name = presentation.work.primaryName,
+								type = presentation.work.type,
+								coverUrl = presentation.coverUrl,
+								subtitle = presentation.subtitle,
+								supportingText = presentation.supportingText,
+								detailLines = presentation.detailLines,
+								trackingService = presentation.trackingService,
+								remoteId = presentation.remoteId,
+								url = presentation.url,
+							)
+						},
+					),
+				)
+			}
+		}
+		return mergeEntityTrackingSections(
+			baseSections = merged,
+			entity = anchorEntity,
+			details = entityTrackingDetails,
+		)
 	}
+
+	private suspend fun buildPersonVoicedWorkItems(
+		person: Entity,
+	): List<PersonWorkPresentation> {
+		val bindings = entityGraphRepository.getBindings(person.id)
+		val voicedCharacterIds = entityGraphRepository.getRelations(person.id)
+			.filter { it.type == RelationType.VOICED_BY }
+			.mapNotNull { it.relatedEntityId(person.id) }
+			.distinct()
+		if (voicedCharacterIds.isEmpty()) {
+			return emptyList()
+		}
+		val characters = entityGraphRepository.getEntitiesByIds(voicedCharacterIds).associateBy(Entity::id)
+		val workIds = linkedSetOf<Long>()
+		val characterIdsByWork = LinkedHashMap<Long, MutableList<Long>>()
+		voicedCharacterIds.forEach { characterId ->
+			entityGraphRepository.getRelations(characterId)
+				.filter { relation ->
+					relation.type == RelationType.BELONGS_TO || relation.type == RelationType.HAS_CHARACTER
+				}
+				.mapNotNull { it.relatedEntityId(characterId) }
+				.forEach { workId ->
+					workIds += workId
+					characterIdsByWork.getOrPut(workId) { mutableListOf() } += characterId
+				}
+		}
+		if (workIds.isEmpty()) {
+			return emptyList()
+		}
+		val works = entityGraphRepository.getEntitiesByIds(workIds).associateBy(Entity::id)
+		val detailsByWorkId = mutableMapOf<Long, List<TrackingSiteItemDetails>>()
+		return workIds.mapNotNull { workId ->
+			val work = works[workId]?.takeIf { it.type == EntityType.WORK } ?: return@mapNotNull null
+			val characterIds = characterIdsByWork[workId].orEmpty()
+			val relatedDetails = detailsByWorkId.getOrPut(workId) { readTrackingDetailsForRelatedWorks(workId) }
+			val characterPresentations = characterIds.mapNotNull { characterId ->
+				val character = characters[characterId] ?: return@mapNotNull null
+				resolveCharacterPresentationForPersonWork(
+					person = person,
+					personBindings = bindings,
+					character = character,
+					detailsList = relatedDetails,
+				)
+			}
+			val uniqueCharacterNames = characterPresentations.map { it.name }.distinct()
+			val voiceActorDetails = characterPresentations
+				.flatMap { it.detailLines }
+				.distinct()
+			val supportingText = when {
+				uniqueCharacterNames.isEmpty() -> null
+				uniqueCharacterNames.size == 1 -> uniqueCharacterNames.first()
+				else -> uniqueCharacterNames.take(2).joinToString(" / ")
+			}
+			val subtitle = characterPresentations
+				.mapNotNull { it.role }
+				.distinct()
+				.firstOrNull()
+			PersonWorkPresentation(
+				work = work,
+				coverUrl = resolveEntityCoverUrl(work.id),
+				subtitle = subtitle,
+				supportingText = supportingText,
+				detailLines = voiceActorDetails,
+				trackingService = relatedDetails.firstOrNull()?.service,
+				remoteId = relatedDetails.firstOrNull()?.remoteId,
+				url = relatedDetails.firstOrNull()?.url,
+			)
+		}
+	}
+
+	private fun mergeEntityTrackingSections(
+		baseSections: List<EntityRelationSection>,
+		entity: Entity,
+		details: TrackingSiteItemDetails?,
+	): List<EntityRelationSection> {
+		if (details == null) {
+			return baseSections
+		}
+		val extraSections = when (entity.type) {
+			EntityType.PERSON -> buildPersonEntityTrackingSections(details)
+			EntityType.CHARACTER -> buildCharacterEntityTrackingSections(details)
+			else -> emptyList()
+		}
+		if (extraSections.isEmpty()) {
+			return baseSections
+		}
+		val existingKeys = baseSections.map { it.titleRes to it.title.orEmpty() }.toSet()
+		return buildList {
+			addAll(baseSections)
+			extraSections.forEach { section ->
+				val key = section.titleRes to section.title.orEmpty()
+				val isDuplicate = key in existingKeys && baseSections.any { base ->
+					base.titleRes == section.titleRes &&
+						base.title == section.title &&
+						base.items.map(EntityRelationItem::stableKey).toSet() == section.items.map(EntityRelationItem::stableKey).toSet()
+				}
+				if (!isDuplicate) {
+					add(section)
+				}
+			}
+		}
+	}
+
+	private fun buildPersonEntityTrackingSections(
+		details: TrackingSiteItemDetails,
+	): List<EntityRelationSection> {
+		return details.extraSections.mapNotNull { section ->
+			section.items.takeIf { it.isNotEmpty() }?.let { works ->
+				val isCharacterLikeSection = section.title.contains("character", ignoreCase = true) ||
+					section.title.contains("角色")
+				EntityRelationSection(
+					title = section.title,
+					items = works.map { work ->
+						val supportsCharacterDetails = supportsEntityTrackingDetails(details.service, EntityType.CHARACTER)
+						EntityRelationItem(
+							stableKey = "tracking:${details.service.id}:${work.id}:entity-person",
+							name = work.title,
+							coverUrl = work.coverUrl.normalizedImageUrl(),
+							trackingService = when {
+								!isCharacterLikeSection -> details.service
+								supportsCharacterDetails && work.id > 0L -> details.service
+								else -> null
+							},
+							remoteId = when {
+								!isCharacterLikeSection -> work.id
+								supportsCharacterDetails && work.id > 0L -> work.id
+								else -> null
+							},
+							subtitle = work.relationship,
+							url = work.url,
+						)
+					},
+				)
+			}
+		}
+	}
+
+	private fun buildCharacterEntityTrackingSections(
+		details: TrackingSiteItemDetails,
+	): List<EntityRelationSection> {
+		val sections = mutableListOf<EntityRelationSection>()
+		details.extraSections
+			.firstOrNull {
+				it.title.contains("声优") ||
+					it.title.contains("配音") ||
+					it.title.contains("CV", ignoreCase = true) ||
+					it.title.contains("voice actor", ignoreCase = true)
+			}
+			?.items
+			?.takeIf { it.isNotEmpty() }
+			?.let { actors ->
+				sections += EntityRelationSection(
+					titleRes = R.string.entity_graph_section_voice_actors,
+					items = actors.mapIndexed { index, actor ->
+						EntityRelationItem(
+							stableKey = "tracking:${details.service.id}:character-actor:${actor.id}:$index",
+							name = actor.title,
+							coverUrl = actor.coverUrl.normalizedImageUrl(),
+							trackingService = details.service.takeIf { actor.id > 0L },
+							remoteId = actor.id.takeIf { it > 0L },
+							subtitle = actor.relationship,
+							url = actor.url,
+						)
+					},
+				)
+			}
+		details.relatedWorks
+			.takeIf { it.isNotEmpty() }
+			?.let { works ->
+				sections += EntityRelationSection(
+					titleRes = R.string.details_related_works,
+					items = works.map { work ->
+						EntityRelationItem(
+							stableKey = "tracking:${details.service.id}:${work.id}:entity-character",
+							name = work.title,
+							coverUrl = work.coverUrl.normalizedImageUrl(),
+							trackingService = details.service,
+							remoteId = work.id,
+							subtitle = work.relationship,
+							url = work.url,
+						)
+					},
+				)
+			}
+		return sections
+	}
+
+	private suspend fun resolveCharacterPresentationForPersonWork(
+		person: Entity,
+		personBindings: List<EntityBinding>,
+		character: Entity,
+		detailsList: List<TrackingSiteItemDetails>,
+	): CharacterPresentationForPersonWork? {
+		val characterBindings = entityGraphRepository.getBindings(character.id)
+		val remoteIdsByService = characterBindings.remoteIdsByService()
+		for (details in detailsList) {
+			val candidateIds = remoteIdsByService[details.service.id].orEmpty().toSet()
+			val matchedCharacter = details.characters.firstOrNull { it.id in candidateIds }
+				?: details.characters.firstOrNull { it.name.equals(character.primaryName, ignoreCase = true) }
+				?: continue
+			val matchedPerson = matchedCharacter.voiceActors.firstOrNull { actor ->
+				actor.matchesEntity(person, personBindings, details.service)
+			}
+			val detailLines = matchedCharacter.voiceActors
+				.mapNotNull { it.name.takeIf(String::isNotBlank) }
+				.distinct()
+			return CharacterPresentationForPersonWork(
+				name = matchedCharacter.name,
+				role = matchedCharacter.role?.takeIf { it.isNotBlank() },
+				detailLines = if (matchedPerson != null) detailLines else emptyList(),
+			)
+		}
+		return CharacterPresentationForPersonWork(
+			name = character.primaryName,
+			role = null,
+			detailLines = emptyList(),
+		)
+	}
+
+	private data class CharacterPresentationForPersonWork(
+		val name: String,
+		val role: String?,
+		val detailLines: List<String>,
+	)
 
 	private suspend fun resolveTrackingRelatedCoverUrl(
 		entity: Entity,
@@ -2103,6 +2484,19 @@ class DetailsViewModel @Inject constructor(
 		} ?: return null
 		val characterId = binding.externalId.toLongOrNull() ?: return null
 		return details.characters.firstOrNull { it.id == characterId }?.coverUrl.normalizedImageUrl()
+	}
+
+	private suspend fun resolveTrackingEntityRemoteId(
+		entity: Entity,
+		service: ScrobblerService?,
+	): Long? {
+		if (service == null) {
+			return null
+		}
+		return entityGraphRepository.getBindings(entity.id)
+			.firstOrNull { it.source == service.id.toString() }
+			?.externalId
+			?.toLongOrNull()
 	}
 
 	private suspend fun resolveTrackingCharacterPresentation(
@@ -2162,6 +2556,7 @@ class DetailsViewModel @Inject constructor(
 
 	private suspend fun resolveEntityCoverUrl(entityId: Long): String? {
 		val entity = entityGraphRepository.getEntity(entityId) ?: return null
+		loadEntityTrackingDetails(entity)?.coverUrl.normalizedImageUrl()?.let { return it }
 		val bindings = entityGraphRepository.getBindings(entityId)
 			.sortedWith(compareByDescending<EntityBinding> { it.isPrimary }.thenByDescending { it.confidence })
 		for (binding in bindings) {

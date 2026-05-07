@@ -38,6 +38,7 @@ import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.ContentTagGroup
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.SortOrder
+import org.skepsun.kototoro.entitygraph.domain.EntityType
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.roundToInt
@@ -542,6 +543,17 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 		)
 	}
 
+	suspend fun getEntityInfo(
+		entityType: EntityType,
+		id: Long,
+	): ScrobblerContentInfo? {
+		return when (entityType) {
+			EntityType.PERSON -> getPersonInfo(id)
+			EntityType.CHARACTER -> getCharacterInfo(id)
+			else -> null
+		}
+	}
+
 	private suspend fun getSubjectDetailsFromApi(id: Long): BangumiApiSubjectPayload {
 		val request = Request.Builder()
 			.url("${API_URL}v0/subjects/$id")
@@ -577,22 +589,147 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 		)
 	}
 
+	private suspend fun getPersonInfo(id: Long): ScrobblerContentInfo {
+		val doc = loadBangumiDocument("https://bangumi.tv/person/$id")
+		val voiceWorksDoc = runCatching {
+			loadBangumiDocument("https://bangumi.tv/person/$id/works/voice")
+		}.getOrNull()
+		val worksDoc = runCatching {
+			loadBangumiDocument("https://bangumi.tv/person/$id/works")
+		}.getOrNull()
+
+		val title = doc.selectFirst("#headerSubject .nameSingle a, #headerSubject h1 a, h1.nameSingle a")
+			?.text()
+			?.trim()
+			.orEmpty()
+		val altTitle = doc.selectFirst("#headerSubject .nameSingle small, h1.nameSingle small")
+			?.text()
+			?.trim()
+			.takeIf { !it.isNullOrBlank() }
+		val avatarUrl = doc.selectFirst("a.cover img.cover, .infobox_container img.cover, #columnA img.cover")
+			?.attr("src")
+			?.normalizeBangumiImageUrl()
+			.orEmpty()
+		val summary = doc.selectFirst("#subject_summary, #subject_summary .inner")?.html().orEmpty()
+		val infoboxProperties = parseBangumiInfoboxProperties(doc)
+		val aliases = infoboxProperties
+			.filter { (key, _) ->
+				key.contains("别名") || key.contains("中文名") || key.contains("日文名") || key.contains("英文名")
+			}
+			.flatMap { (_, value) -> splitBangumiNames(value) }
+			.distinct()
+		val voiceWorks = parseBangumiPersonVoiceWorks(voiceWorksDoc ?: doc)
+		val generalWorks = parseBangumiSectionWorks(worksDoc ?: doc)
+		val extraSections = buildList {
+			if (voiceWorks.isNotEmpty()) {
+				add(
+					ScrobblerContentInfo.RelatedSection(
+						title = "配音作品",
+						items = voiceWorks.map { it.work },
+					),
+				)
+			}
+			if (generalWorks.isNotEmpty()) {
+				add(
+					ScrobblerContentInfo.RelatedSection(
+						title = "参与作品",
+						items = generalWorks,
+					),
+				)
+			}
+		}
+		val authoredWorks = voiceWorks.mapNotNull { item ->
+			val role = item.characterName?.takeIf { it.isNotBlank() }
+			val work = item.work
+			role?.let {
+				"${work.title} ($it)"
+			} ?: work.title
+		}
+		return ScrobblerContentInfo(
+			id = id,
+			name = title.ifBlank { altTitle ?: "Unknown" },
+			cover = avatarUrl,
+			url = "https://bangumi.tv/person/$id",
+			descriptionHtml = summary,
+			contentType = null,
+			authors = (authoredWorks + aliases).distinct(),
+			infoboxProperties = infoboxProperties,
+			extraSections = extraSections,
+			actions = listOfNotNull(
+				ScrobblerContentInfo.ExternalAction(
+					title = "角色作品",
+					url = "https://bangumi.tv/person/$id/works/voice",
+				),
+				worksDoc?.let {
+					ScrobblerContentInfo.ExternalAction(
+						title = "参与作品",
+						url = "https://bangumi.tv/person/$id/works",
+					)
+				},
+			),
+		)
+	}
+
+	private suspend fun getCharacterInfo(id: Long): ScrobblerContentInfo {
+		val doc = loadBangumiDocument("https://bangumi.tv/character/$id")
+		val title = doc.selectFirst("#headerSubject .nameSingle a, #headerSubject h1 a, h1.nameSingle a")
+			?.text()
+			?.trim()
+			.orEmpty()
+		val altTitle = doc.selectFirst("#headerSubject .nameSingle small, h1.nameSingle small")
+			?.text()
+			?.trim()
+			.takeIf { !it.isNullOrBlank() }
+		val cover = doc.selectFirst("a.cover img.cover, .infobox_container img.cover, #columnA img.cover")
+			?.attr("src")
+			?.normalizeBangumiImageUrl()
+			.orEmpty()
+		val summary = doc.selectFirst("#subject_summary, #subject_summary .inner")?.html().orEmpty()
+		val infoboxProperties = parseBangumiInfoboxProperties(doc)
+		val relatedWorks = parseBangumiCharacterRelatedWorks(doc)
+		val voiceActors = parseBangumiCharacterVoiceActors(doc)
+		return ScrobblerContentInfo(
+			id = id,
+			name = title.ifBlank { altTitle ?: "Unknown" },
+			cover = cover,
+			url = "https://bangumi.tv/character/$id",
+			descriptionHtml = summary,
+			contentType = null,
+			authors = voiceActors.map { it.name },
+			infoboxProperties = infoboxProperties,
+			relatedWorks = relatedWorks,
+			extraSections = listOfNotNull(
+				voiceActors.takeIf { it.isNotEmpty() }?.let { actors ->
+					ScrobblerContentInfo.RelatedSection(
+						title = "声优",
+						items = actors.mapIndexed { index, actor ->
+							ScrobblerContentInfo.RelatedWork(
+								id = actor.id ?: -(index + 1).toLong(),
+								title = actor.name,
+								coverUrl = actor.avatarUrl.orEmpty(),
+								url = actor.url.orEmpty(),
+							)
+						},
+					)
+				},
+			),
+			actions = listOf(
+				ScrobblerContentInfo.ExternalAction(
+					title = "角色主页",
+					url = "https://bangumi.tv/character/$id",
+				),
+			),
+		)
+	}
+
 	private suspend fun getSubjectDetailsFromHtml(id: Long): BangumiHtmlSubjectPayload {
-		val request = Request.Builder()
-			.url("https://bangumi.tv/subject/$id")
-			.get()
-			.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36")
-			.addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-			
-		val responseHtml = okHttp.newCall(request.build()).await().body?.string().orEmpty()
-		val doc = Jsoup.parse(responseHtml)
+		val doc = loadBangumiDocument("https://bangumi.tv/subject/$id")
 
 		val nameNative = doc.selectFirst("#headerSubject .nameSingle > a")?.text().orEmpty()
 		val nameCn = doc.selectFirst("#headerSubject .nameSingle > a")?.attr("title").orEmpty()
 		val finalName = if (nameCn.isNotBlank()) nameCn else nameNative
 		
-		val coverUrl = doc.selectFirst("img.cover")?.attr("src")?.replace("/c/", "/l/").orEmpty()
-		val cover = if (coverUrl.startsWith("//")) "https:$coverUrl" else coverUrl
+		val cover = doc.selectFirst("img.cover")?.attr("src")?.normalizeBangumiImageUrl().orEmpty()
 
 		val summary = doc.selectFirst("#subject_summary")?.html().orEmpty()
 		
@@ -604,20 +741,7 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 		}
 		
 		// Infobox properties as key-value pairs
-		val infoboxProperties = mutableListOf<Pair<String, String>>()
-		doc.select("#infobox > li").forEach { li ->
-			val tip = li.selectFirst("span.tip")?.text()?.trimEnd() ?: ""
-			val value = li.text().removePrefix(tip).trim()
-			if (tip.isNotBlank() && value.isNotBlank()) {
-				infoboxProperties.add(tip.trimEnd(':').trimEnd(':', ' ') to value)
-			} else if (li.text().isNotBlank()) {
-				val text = li.text()
-				val colonIdx = text.indexOf(':')
-				if (colonIdx > 0) {
-					infoboxProperties.add(text.substring(0, colonIdx).trim() to text.substring(colonIdx + 1).trim())
-				}
-			}
-		}
+		val infoboxProperties = parseBangumiInfoboxProperties(doc)
 		
 		// Episodes from prg_list
 		val episodes = mutableListOf<ScrobblerContentInfo.EpisodeInfo>()
@@ -786,6 +910,101 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 		}.distinctBy { it.id }
 	}
 
+	private fun parseBangumiPersonVoiceWorks(
+		doc: org.jsoup.nodes.Document,
+	): List<BangumiPersonVoiceWorkItem> {
+		return doc.select("#browserItemList > li.item, ul.browserFull > li.item, ul#browserItemList > li.item")
+			.mapNotNull { item ->
+				val subjectLink = item.selectFirst("a.l[href*=/subject/], a.title[href*=/subject/], h3 a[href*=/subject/]")
+					?: return@mapNotNull null
+				val subjectHref = subjectLink.attr("href").trim()
+				val subjectId = subjectHref.substringAfter("/subject/").substringBefore('/').toLongOrNull()
+					?: return@mapNotNull null
+				val subjectTitle = subjectLink.attr("title").takeIf { it.isNotBlank() }
+					?: subjectLink.text().trim()
+				if (subjectTitle.isBlank()) {
+					return@mapNotNull null
+				}
+				val coverUrl = item.selectFirst("img.cover, .avatarCover img, .subjectCover img")
+					?.attr("src")
+					?.normalizeBangumiImageUrl()
+					.orEmpty()
+				val characterLink = item.selectFirst("a[href*=/character/]")
+				val characterName = characterLink?.attr("title")?.takeIf { it.isNotBlank() }
+					?: characterLink?.text()?.trim()
+				val relationship = item.selectFirst("small.grey, span.tip_j")?.text()?.trim().takeUnless { it.isNullOrBlank() }
+				BangumiPersonVoiceWorkItem(
+					work = ScrobblerContentInfo.RelatedWork(
+						id = subjectId,
+						title = subjectTitle,
+						coverUrl = coverUrl,
+						relationship = relationship,
+						url = subjectLink.absUrl("href").ifBlank {
+							if (subjectHref.startsWith("/")) "$BASE_URL${subjectHref.removePrefix("/")}" else subjectHref
+						},
+					),
+					characterName = characterName?.takeIf { it.isNotBlank() },
+				)
+			}
+			.distinctBy { it.work.id to it.characterName }
+	}
+
+	private fun parseBangumiCharacterVoiceActors(
+		doc: org.jsoup.nodes.Document,
+	): List<ScrobblerContentInfo.PersonInfo> {
+		val actors = mutableListOf<ScrobblerContentInfo.PersonInfo>()
+		doc.select("a[href*=/person/]").forEach { actorLink ->
+			val href = actorLink.attr("href").trim()
+			if (!href.contains("/person/")) {
+				return@forEach
+			}
+			val id = href.substringAfter("/person/").substringBefore('/').toLongOrNull()
+			val name = actorLink.attr("title").takeIf { it.isNotBlank() }
+				?: actorLink.text().trim()
+			if (name.isBlank()) {
+				return@forEach
+			}
+			val avatarUrl = actorLink.selectFirst("img")?.attr("src")?.normalizeBangumiImageUrl()
+				?: actorLink.parent()?.selectFirst("img")?.attr("src")?.normalizeBangumiImageUrl()
+			actors += ScrobblerContentInfo.PersonInfo(
+				id = id,
+				name = name,
+				avatarUrl = avatarUrl,
+				url = actorLink.absUrl("href").ifBlank {
+					if (href.startsWith("/")) "$BASE_URL${href.removePrefix("/")}" else href
+				},
+			)
+		}
+		return actors.distinctBy { it.id ?: it.name }
+	}
+
+	private fun parseBangumiCharacterRelatedWorks(
+		doc: org.jsoup.nodes.Document,
+	): List<ScrobblerContentInfo.RelatedWork> {
+		val directSections = doc.select(".subject_section")
+			.firstOrNull { section ->
+				val title = section.selectFirst("h2.subtitle")?.text().orEmpty()
+				title.contains("出演作品") || title.contains("相关作品") || title.contains("所属作品")
+			}
+		val directItems = directSections?.let(::parseBangumiSectionWorks).orEmpty()
+		if (directItems.isNotEmpty()) {
+			return directItems
+		}
+		return doc.select("#infobox a[href*=/subject/]").mapNotNull { link ->
+			val href = link.attr("href").trim()
+			val id = href.substringAfter("/subject/").substringBefore('/').toLongOrNull() ?: return@mapNotNull null
+			val title = link.text().trim().takeIf { it.isNotBlank() } ?: return@mapNotNull null
+			ScrobblerContentInfo.RelatedWork(
+				id = id,
+				title = title,
+				coverUrl = "",
+				url = link.absUrl("href").ifBlank {
+					if (href.startsWith("/")) "$BASE_URL${href.removePrefix("/")}" else href
+				},
+			)
+		}.distinctBy { it.id }
+	}
+
 	private fun parseBangumiCommentThreads(
 		doc: org.jsoup.nodes.Document,
 	): List<ScrobblerContentInfo.CommentThread> {
@@ -931,6 +1150,54 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 			}
 		}
 		return items.distinctBy { it.id }
+	}
+
+	private fun parseBangumiInfoboxProperties(
+		doc: org.jsoup.nodes.Document,
+	): List<Pair<String, String>> {
+		val infoboxProperties = mutableListOf<Pair<String, String>>()
+		doc.select("#infobox > li").forEach { li ->
+			val tip = li.selectFirst("span.tip")?.text()?.trimEnd() ?: ""
+			val value = li.text().removePrefix(tip).trim()
+			if (tip.isNotBlank() && value.isNotBlank()) {
+				infoboxProperties.add(tip.trimEnd(':').trimEnd(':', ' ') to value)
+			} else if (li.text().isNotBlank()) {
+				val text = li.text()
+				val colonIdx = text.indexOf(':')
+				if (colonIdx > 0) {
+					infoboxProperties.add(text.substring(0, colonIdx).trim() to text.substring(colonIdx + 1).trim())
+				}
+			}
+		}
+		return infoboxProperties
+	}
+
+	private fun splitBangumiNames(raw: String): List<String> {
+		return raw.split('/', '／', ',', '，', ';', '；', '\n')
+			.map { it.trim() }
+			.filter { it.isNotBlank() }
+	}
+
+	private suspend fun loadBangumiDocument(url: String): org.jsoup.nodes.Document {
+		val request = Request.Builder()
+			.url(url)
+			.get()
+			.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36")
+			.addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+			.build()
+		return Jsoup.parse(okHttp.newCall(request).await().body?.string().orEmpty())
+	}
+
+	private fun String.normalizeBangumiImageUrl(): String {
+		if (isBlank()) {
+			return this
+		}
+		val normalized = replace(Regex("/r/\\d+x\\d+/"), "/")
+			.replace("/g/", "/l/")
+			.replace("/s/", "/l/")
+			.replace("/m/", "/l/")
+			.replace("/c/", "/l/")
+		return if (normalized.startsWith("//")) "https:$normalized" else normalized
 	}
 
 	private fun mergeBangumiInfoboxProperties(
@@ -1111,6 +1378,11 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 
 	private data class BangumiBrowserFilters(
 		val groups: List<BangumiBrowserFilterGroup>,
+	)
+
+	private data class BangumiPersonVoiceWorkItem(
+		val work: ScrobblerContentInfo.RelatedWork,
+		val characterName: String?,
 	)
 
 	private data class BangumiBrowserFilterGroup(

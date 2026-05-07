@@ -9,10 +9,14 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
+import org.jsoup.nodes.Node
 import org.json.JSONObject
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.model.getContentType
+import org.skepsun.kototoro.entitygraph.domain.EntityType
 import org.skepsun.kototoro.parsers.util.await
 import org.skepsun.kototoro.parsers.util.json.getStringOrNull
 import org.skepsun.kototoro.parsers.util.json.mapJSONNotNull
@@ -306,6 +310,17 @@ class MALRepository @Inject constructor(
 		return buildContentInfo(response, ANIME_ENDPOINT)
 	}
 
+	suspend fun getEntityInfo(
+		entityType: EntityType,
+		id: Long,
+	): ScrobblerContentInfo? {
+		return when (entityType) {
+			EntityType.PERSON -> getPersonInfo(id)
+			EntityType.CHARACTER -> getCharacterInfo(id)
+			else -> null
+		}
+	}
+
 	private suspend fun buildContentInfo(json: JSONObject, mediaType: String): ScrobblerContentInfo {
 		val baseInfo = ScrobblerContentInfo(json, mediaType)
 		val supplemental = fetchSupplementalContent(baseInfo.url)
@@ -547,6 +562,372 @@ class MALRepository @Inject constructor(
 				reviews = reviews,
 			)
 		}.getOrDefault(MalSupplementalContent())
+	}
+
+	private suspend fun getCharacterInfo(id: Long): ScrobblerContentInfo {
+		val url = "$BASE_WEB_URL/character/$id"
+		val doc = fetchHtmlDocument(url)
+		val detailsHeader = doc.selectFirst("h2.normal_header")
+		val title = detailsHeader?.ownText()?.trim()
+			?: doc.selectFirst("meta[property=og:title]")?.attr("content").orEmpty()
+		val nativeName = detailsHeader?.selectFirst("small")?.text()?.trim()
+		val cover = doc.selectFirst("td[width=225] img")
+			?.extractMalImageUrl(doc)
+			.orEmpty()
+		val description = detailsHeader
+			?.collectHtmlUntilNextSectionHeader()
+			.orEmpty()
+		val infoProperties = parseCharacterInfoProperties(doc)
+		val relatedAnime = parseCharacterMediaSection(doc, "Animeography")
+		val relatedManga = parseCharacterMediaSection(doc, "Mangaography")
+		val voiceActors = parseCharacterVoiceActors(doc)
+		return ScrobblerContentInfo(
+			id = id,
+			name = title.ifBlank { nativeName ?: "Unknown" },
+			cover = cover,
+			url = doc.selectFirst("link[rel=canonical]")?.attr("href").orEmpty().ifBlank { url },
+			descriptionHtml = description,
+			authors = voiceActors.map { it.name },
+			infoboxProperties = infoProperties,
+			relatedWorks = relatedAnime + relatedManga,
+			extraSections = listOfNotNull(
+				relatedAnime.takeIf { it.isNotEmpty() }?.let {
+					ScrobblerContentInfo.RelatedSection(
+						title = "Animeography",
+						items = it,
+					)
+				},
+				relatedManga.takeIf { it.isNotEmpty() }?.let {
+					ScrobblerContentInfo.RelatedSection(
+						title = "Mangaography",
+						items = it,
+					)
+				},
+				voiceActors.takeIf { it.isNotEmpty() }?.let { actors ->
+					ScrobblerContentInfo.RelatedSection(
+						title = "Voice Actors",
+						items = actors.mapIndexed { index, actor ->
+							ScrobblerContentInfo.RelatedWork(
+								id = actor.id ?: -(index + 1).toLong(),
+								title = actor.name,
+								coverUrl = actor.avatarUrl.orEmpty(),
+								relationship = actor.url?.let { parseLastPathSegment(it) },
+								url = actor.url.orEmpty(),
+							)
+						},
+					)
+				},
+			),
+		)
+	}
+
+	private suspend fun getPersonInfo(id: Long): ScrobblerContentInfo {
+		val url = "$BASE_WEB_URL/people/$id"
+		val doc = fetchHtmlDocument(url)
+		val canonicalUrl = doc.selectFirst("link[rel=canonical]")?.attr("href").orEmpty().ifBlank { url }
+		val title = doc.selectFirst("h1.title-name strong")?.text()?.trim()
+			?: doc.selectFirst("meta[property=og:title]")?.attr("content").orEmpty()
+		val cover = doc.selectFirst("td[width=225] img")
+			?.extractMalImageUrl(doc)
+			.orEmpty()
+		val infoProperties = parsePersonInfoProperties(doc)
+		val moreHtml = doc.selectFirst(".people-informantion-more")?.html().orEmpty()
+		val voiceRoles = parsePersonVoiceActingRoles(doc)
+		val staffWorks = parsePeopleWorksTable(doc, "Anime Staff Positions", ".js-table-people-staff")
+		val publishedManga = parsePeopleWorksTable(doc, "Published Manga")
+		val voicedWorks = voiceRoles.map { it.work }.distinctBy { it.id.takeIf { idValue -> idValue > 0 } ?: it.url }
+		val voicedCharacters = voiceRoles.map { role ->
+			ScrobblerContentInfo.RelatedWork(
+				id = role.character.id,
+				title = role.character.title,
+				coverUrl = role.character.coverUrl,
+				relationship = listOfNotNull(
+					role.work.title.takeIf { it.isNotBlank() },
+					role.character.relationship,
+				).joinToString(" · ").ifBlank { null },
+				url = role.character.url,
+			)
+		}.distinctBy { it.id.takeIf { idValue -> idValue > 0 } ?: it.url }
+		return ScrobblerContentInfo(
+			id = id,
+			name = title.ifBlank { "Unknown" },
+			cover = cover,
+			url = canonicalUrl,
+			descriptionHtml = moreHtml,
+			authors = voiceRoles.mapNotNull { role ->
+				role.character.relationship?.takeIf { it.isNotBlank() }?.let { relation ->
+					"${role.character.title} ($relation)"
+				} ?: role.character.title.takeIf { it.isNotBlank() }
+			}.distinct(),
+			infoboxProperties = infoProperties,
+			extraSections = listOfNotNull(
+				voicedWorks.takeIf { it.isNotEmpty() }?.let {
+					ScrobblerContentInfo.RelatedSection(
+						title = "Voiced Works",
+						items = it.map { work ->
+							val voiceRole = voiceRoles.firstOrNull { role -> role.work.id == work.id && role.work.url == work.url }
+							work.copy(
+								relationship = listOfNotNull(
+									voiceRole?.character?.title?.takeIf { characterName -> characterName.isNotBlank() },
+									voiceRole?.character?.relationship,
+								).joinToString(" · ").ifBlank { work.relationship },
+							)
+						},
+					)
+				},
+				voicedCharacters.takeIf { it.isNotEmpty() }?.let {
+					ScrobblerContentInfo.RelatedSection(
+						title = "Voiced Characters",
+						items = it,
+					)
+				},
+				staffWorks.takeIf { it.isNotEmpty() }?.let {
+					ScrobblerContentInfo.RelatedSection(
+						title = "Anime Staff Positions",
+						items = it,
+					)
+				},
+				publishedManga.takeIf { it.isNotEmpty() }?.let {
+					ScrobblerContentInfo.RelatedSection(
+						title = "Published Manga",
+						items = it,
+					)
+				},
+			),
+		)
+	}
+
+	private suspend fun fetchHtmlDocument(url: String): Document {
+		val request = Request.Builder()
+			.get()
+			.url(url)
+			.build()
+		val html = okHttp.newCall(request).await().body?.string().orEmpty()
+		return Jsoup.parse(html, url)
+	}
+
+	private fun parseCharacterInfoProperties(doc: Document): List<Pair<String, String>> {
+		val header = doc.selectFirst("h2.normal_header") ?: return emptyList()
+		return buildList {
+			header.collectHtmlUntilNextSectionHeader()
+				.split("<br />", "<br>", "<br/>")
+				.map { Jsoup.parseBodyFragment(it).text().trim() }
+				.forEach { line ->
+					val key = line.substringBefore(':').trim()
+					val value = line.substringAfter(':', "").trim()
+					if (key.isNotBlank() && value.isNotBlank()) {
+						add(key to value)
+					}
+				}
+		}.distinct()
+	}
+
+	private fun parsePersonInfoProperties(doc: Document): List<Pair<String, String>> {
+		val root = doc.selectFirst("#profileRows")?.parent() ?: return emptyList()
+		return buildList {
+			root.select("span.dark_text").forEach { label ->
+				val key = label.text().removeSuffix(":").trim()
+				val container = label.parent()
+				val value = container?.text()
+					?.substringAfter(label.text(), "")
+					?.trim()
+					?.takeIf { it.isNotBlank() }
+					?: label.nextSibling()?.outerHtml()?.let { Jsoup.parse(it).text().trim() }
+				if (key.isNotBlank() && !value.isNullOrBlank()) {
+					add(key to value)
+				}
+			}
+			doc.selectFirst(".people-informantion-more")
+				?.html()
+				?.split("<br />", "<br>")
+				?.map { Jsoup.parse(it).text().trim() }
+				?.forEach { line ->
+					val key = line.substringBefore(':').trim()
+					val value = line.substringAfter(':', "").trim()
+					if (key.isNotBlank() && value.isNotBlank()) {
+						add(key to value)
+					}
+				}
+		}.distinct()
+	}
+
+	private fun parseCharacterMediaSection(
+		doc: Document,
+		headerTitle: String,
+	): List<ScrobblerContentInfo.RelatedWork> {
+		val header = doc.select(".normal_header").firstOrNull { it.text().trim() == headerTitle } ?: return emptyList()
+		val table = header.nextElementSibling()?.takeIf { it.tagName() == "table" } ?: return emptyList()
+		return table.select("tr").mapNotNull { row ->
+			val titleLink = row.selectFirst("td:nth-child(2) > a[href*=/anime/], td:nth-child(2) > a[href*=/manga/]")
+				?: return@mapNotNull null
+			val url = titleLink.absUrl("href").ifBlank { titleLink.attr("href") }
+			val id = parseMalNumericId(url)
+			ScrobblerContentInfo.RelatedWork(
+				id = id,
+				title = titleLink.text().trim(),
+				coverUrl = row.selectFirst("td:first-child img")?.extractMalImageUrl(doc).orEmpty(),
+				relationship = row.selectFirst("small")?.text()?.trim()?.takeIf { it.isNotBlank() },
+				url = url,
+			)
+		}
+	}
+
+	private fun parseCharacterVoiceActors(doc: Document): List<ScrobblerContentInfo.PersonInfo> {
+		val header = doc.select(".normal_header").firstOrNull { it.text().trim() == "Voice Actors" } ?: return emptyList()
+		return header.parent()
+			?.children()
+			?.dropWhile { it !== header }
+			?.drop(1)
+			?.takeWhile { element -> !(element.hasClass("normal_header") && element.text().isNotBlank()) }
+			?.filter { it.tagName() == "table" }
+			?.mapNotNull { table ->
+				val link = table.selectFirst("a[href*=/people/]") ?: return@mapNotNull null
+				val url = link.absUrl("href").ifBlank { link.attr("href") }
+				ScrobblerContentInfo.PersonInfo(
+					id = parseMalNumericId(url).takeIf { it > 0 },
+					name = link.text().trim(),
+					avatarUrl = table.selectFirst("img")?.extractMalImageUrl(doc),
+					url = url,
+				)
+			}
+			.orEmpty()
+	}
+
+	private fun parsePersonVoiceActingRoles(doc: Document): List<MalVoiceActingRole> {
+		val table = findSectionTable(doc, "Voice Acting Roles", ".js-table-people-character") ?: return emptyList()
+		return table.select("tr.js-people-character").mapNotNull { row ->
+			val workLink = row.selectFirst("a.js-people-title, td:nth-child(2) a[href*=/anime/], td:nth-child(2) a[href*=/manga/]")
+				?: return@mapNotNull null
+			val workUrl = workLink.absUrl("href").ifBlank { workLink.attr("href") }
+			val characterLink = row.selectFirst("td:nth-child(3) a[href*=/character/]") ?: return@mapNotNull null
+			val characterUrl = characterLink.absUrl("href").ifBlank { characterLink.attr("href") }
+			val work = ScrobblerContentInfo.RelatedWork(
+				id = parseMalNumericId(workUrl),
+				title = workLink.text().trim(),
+				coverUrl = row.selectFirst("td:first-child img")?.extractMalImageUrl(doc).orEmpty(),
+				relationship = buildString {
+					append(characterLink.text().trim())
+					row.select("td:nth-child(3) .spaceit_pad").getOrNull(1)?.text()?.trim()?.takeIf { it.isNotBlank() }?.let {
+						append(" · ")
+						append(it)
+					}
+				}.ifBlank { null },
+				url = workUrl,
+			)
+			val character = ScrobblerContentInfo.RelatedWork(
+				id = parseMalNumericId(characterUrl),
+				title = characterLink.text().trim(),
+				coverUrl = row.selectFirst("td:nth-child(4) img")?.extractMalImageUrl(doc).orEmpty(),
+				relationship = row.select("td:nth-child(3) .spaceit_pad").getOrNull(1)?.text()?.trim()?.takeIf { it.isNotBlank() },
+				url = characterUrl,
+			)
+			MalVoiceActingRole(
+				work = work,
+				character = character,
+			)
+		}
+	}
+
+	private fun parsePeopleWorksTable(
+		doc: Document,
+		headerTitle: String,
+		tableSelector: String? = null,
+	): List<ScrobblerContentInfo.RelatedWork> {
+		val table = findSectionTable(doc, headerTitle, tableSelector) ?: return emptyList()
+		return table.select("tr").mapNotNull { row ->
+			val titleLink = row.selectFirst("a.js-people-title, td:nth-child(2) a[href*=/anime/], td:nth-child(2) a[href*=/manga/]")
+				?: return@mapNotNull null
+			val url = titleLink.absUrl("href").ifBlank { titleLink.attr("href") }
+			ScrobblerContentInfo.RelatedWork(
+				id = parseMalNumericId(url),
+				title = titleLink.text().trim(),
+				coverUrl = row.selectFirst("td:first-child img")?.extractMalImageUrl(doc).orEmpty(),
+				relationship = row.selectFirst("td:nth-child(2) small")?.text()?.trim()?.takeIf { it.isNotBlank() },
+				url = url,
+			)
+		}
+	}
+
+	private fun findSectionTable(
+		doc: Document,
+		headerTitle: String,
+		tableSelector: String? = null,
+	): Element? {
+		val header = doc.select(".normal_header").firstOrNull {
+			it.text().contains(headerTitle, ignoreCase = true)
+		} ?: return null
+		var sibling = header.nextElementSibling()
+		while (sibling != null) {
+			if (sibling.hasClass("normal_header")) {
+				return null
+			}
+			if (sibling.tagName() == "table" && (tableSelector == null || sibling.`is`(tableSelector))) {
+				return sibling
+			}
+			sibling = sibling.nextElementSibling()
+		}
+		return null
+	}
+
+	private fun Element.extractMalImageUrl(doc: Document): String? {
+		return sequenceOf(
+			absUrl("data-src"),
+			absUrl("src"),
+			absUrl("data-srcset").substringBefore(' ').trim(),
+			absUrl("srcset").substringBefore(' ').trim(),
+			attr("data-src"),
+			attr("src"),
+			attr("data-srcset").substringBefore(' ').trim(),
+			attr("srcset").substringBefore(' ').trim(),
+		).firstOrNull { it.isNotBlank() }
+			?.let { raw ->
+				when {
+					raw.startsWith("//") -> "https:$raw"
+					raw.startsWith("/") -> "${doc.location().toHttpUrl().scheme}://${doc.location().toHttpUrl().host}$raw"
+					else -> raw
+				}
+			}
+			?.takeUnless { it.contains("questionmark_", ignoreCase = true) }
+	}
+
+	private fun Element.collectHtmlUntilNextSectionHeader(): String {
+		val html = StringBuilder()
+		var sibling: Node? = nextSibling()
+		while (sibling != null) {
+			val element = sibling as? Element
+			if (element?.hasClass("normal_header") == true) {
+				break
+			}
+			html.append(sibling.outerHtml())
+			sibling = sibling.nextSibling()
+		}
+		return html.toString().trim()
+	}
+
+	private fun parseMalNumericId(url: String): Long {
+		return url.trimEnd('/')
+			.substringAfterLast('/')
+			.toLongOrNull()
+			?: url.substringAfter("/anime/", "")
+				.substringBefore('/')
+				.toLongOrNull()
+			?: url.substringAfter("/manga/", "")
+				.substringBefore('/')
+				.toLongOrNull()
+			?: url.substringAfter("/people/", "")
+				.substringBefore('/')
+				.toLongOrNull()
+			?: url.substringAfter("/character/", "")
+				.substringBefore('/')
+				.toLongOrNull()
+			?: 0L
+	}
+
+	private fun parseLastPathSegment(url: String): String? {
+		return url.trimEnd('/')
+			.substringAfterLast('/')
+			.replace('_', ' ')
+			.takeIf { it.isNotBlank() }
 	}
 
 	private fun parseMalReviews(doc: org.jsoup.nodes.Document): List<ScrobblerContentInfo.ReviewEntry> {
@@ -872,5 +1253,10 @@ class MALRepository @Inject constructor(
 		val title: String,
 		val url: String,
 		val replyCount: Int?,
+	)
+
+	private data class MalVoiceActingRole(
+		val work: ScrobblerContentInfo.RelatedWork,
+		val character: ScrobblerContentInfo.RelatedWork,
 	)
 }

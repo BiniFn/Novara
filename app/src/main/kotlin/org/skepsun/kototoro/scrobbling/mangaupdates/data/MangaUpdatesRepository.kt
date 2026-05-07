@@ -18,6 +18,7 @@ import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.entitygraph.domain.EntityType
 import org.skepsun.kototoro.parsers.util.await
 import org.skepsun.kototoro.parsers.util.json.getStringOrNull
 import org.skepsun.kototoro.parsers.util.parseJson
@@ -156,6 +157,17 @@ class MangaUpdatesRepository(
 		
 		val response = okHttp.newCall(request.build()).await().parseJson()
 		return parseSeriesDetails(response)
+	}
+
+	suspend fun getEntityInfo(
+		entityType: EntityType,
+		id: Long,
+		urlHint: String? = null,
+	): ScrobblerContentInfo? {
+		return when (entityType) {
+			EntityType.PERSON -> getAuthorInfo(id = id, urlHint = urlHint)
+			else -> null
+		}
 	}
 
 	suspend fun getRankings(
@@ -302,6 +314,106 @@ class MangaUpdatesRepository(
 				?.optJSONObject("url")
 				?.getStringOrNull("original")
 		}.getOrNull()
+	}
+
+	private suspend fun getAuthorInfo(
+		id: Long,
+		urlHint: String? = null,
+	): ScrobblerContentInfo? {
+		val authorUrl = urlHint?.takeIf { it.contains("/author/") } ?: return null
+		val html = Request.Builder()
+			.get()
+			.url(authorUrl)
+			.build()
+			.let { okHttp.newCall(it).await().parseRaw() }
+		val doc = Jsoup.parse(html, authorUrl)
+		val title = doc.selectFirst(".tabletitle")?.text()?.trim()
+			?: doc.selectFirst("meta[property=og:title]")?.attr("content")?.trim()
+			?: return null
+		val infoProperties = doc.select("div[data-cy^=info-box-]")
+			.mapNotNull { section ->
+				val key = section.attr("data-cy")
+					.substringAfter("info-box-")
+					.substringBefore("-header")
+					.takeIf { section.selectFirst("b") != null }
+					?.let { section.selectFirst("b")?.text()?.trim() }
+					?: return@mapNotNull null
+				val value = section.nextElementSibling()
+					?.takeIf { it.attr("data-cy").startsWith("info-box-") }
+					?.text()
+					?.normalizeWhitespace()
+					?.takeIf { it.isNotBlank() && !it.equals("N/A", ignoreCase = true) }
+					?: return@mapNotNull null
+				key to value
+			}
+			.distinct()
+		val cover = doc.selectFirst("meta[property=og:image]")?.attr("content")
+			?.trim()
+			?.takeIf { it.isNotBlank() }
+			.orEmpty()
+		val descriptionHtml = doc.selectFirst("[data-cy=info-box-comments]")
+			?.html()
+			?.takeIf { !Jsoup.parse(it).text().equals("N/A", ignoreCase = true) }
+			.orEmpty()
+		val relatedWorks = doc.select("[data-cy=author-series] a[href*=/series/]")
+			.mapNotNull { link ->
+				val url = link.absUrl("href").normalizeBlank() ?: return@mapNotNull null
+				val titleText = link.text().trim().takeIf { it.isNotBlank() } ?: return@mapNotNull null
+				val row = link.parents().firstOrNull { it.hasClass("row") } ?: return@mapNotNull null
+				val columns = row.children()
+				val genre = columns.getOrNull(1)?.text()?.normalizeWhitespace()?.takeIf { it.isNotBlank() }
+				ScrobblerContentInfo.RelatedWork(
+					id = 0L,
+					title = titleText,
+					coverUrl = "",
+					relationship = genre,
+					url = url,
+				)
+			}
+			.distinctBy { it.url }
+		val tags = buildList {
+			doc.select("[data-cy=info-box-genres] a").forEach { anchor ->
+				anchor.text().trim().takeIf { it.isNotBlank() }?.let(::add)
+			}
+		}
+		val actions = listOfNotNull(
+			doc.selectFirst("[data-cy=info-box-social.twitter] a[href]")
+				?.absUrl("href")
+				?.normalizeBlank()
+				?.let { twitterUrl ->
+					ScrobblerContentInfo.ExternalAction(
+						title = "Twitter",
+						url = twitterUrl,
+					)
+				},
+			doc.selectFirst("[data-cy=info-box-social\\.officialsite] a[href]")
+				?.absUrl("href")
+				?.normalizeBlank()
+				?.let { siteUrl ->
+					ScrobblerContentInfo.ExternalAction(
+						title = "Official Website",
+						url = siteUrl,
+					)
+				},
+		)
+		return ScrobblerContentInfo(
+			id = id,
+			name = title,
+			cover = cover,
+			url = authorUrl,
+			descriptionHtml = descriptionHtml,
+			tags = tags,
+			infoboxProperties = infoProperties,
+			extraSections = listOfNotNull(
+				relatedWorks.takeIf { it.isNotEmpty() }?.let {
+					ScrobblerContentInfo.RelatedSection(
+						title = "Participated Works",
+						items = it,
+					)
+				},
+			),
+			actions = actions,
+		)
 	}
 
 	private suspend fun parseSeriesDetails(response: JSONObject): ScrobblerContentInfo {

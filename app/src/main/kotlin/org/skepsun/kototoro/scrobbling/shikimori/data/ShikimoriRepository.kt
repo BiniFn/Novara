@@ -13,9 +13,11 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.util.ext.toRequestBody
+import org.skepsun.kototoro.entitygraph.domain.EntityType
 import org.skepsun.kototoro.parsers.util.await
 import org.skepsun.kototoro.parsers.util.json.getStringOrNull
 import org.skepsun.kototoro.parsers.util.json.mapJSON
+import org.skepsun.kototoro.parsers.util.json.mapJSONNotNull
 import org.skepsun.kototoro.parsers.util.parseJson
 import org.skepsun.kototoro.parsers.util.parseJsonArray
 import org.skepsun.kototoro.parsers.util.toAbsoluteUrl
@@ -217,6 +219,17 @@ class ShikimoriRepository @Inject constructor(
 		return parseDetailJson(response, related, discussion)
 	}
 
+	suspend fun getEntityInfo(
+		entityType: EntityType,
+		id: Long,
+	): ScrobblerContentInfo? {
+		return when (entityType) {
+			EntityType.PERSON -> getPersonInfo(id)
+			EntityType.CHARACTER -> getCharacterInfo(id)
+			else -> null
+		}
+	}
+
 	/**
 	 * Sync all manga rates from Shikimori to local database.
 	 * Uses Shikimori API: GET /api/v2/user_rates?user_id={id}&target_type=Content
@@ -376,6 +389,169 @@ class ShikimoriRepository @Inject constructor(
 			contentUrl = response.getString("url").toAbsoluteUrl(DOMAIN),
 		)
 		return parseDetailJson(response, related, discussion)
+	}
+
+	private suspend fun getPersonInfo(id: Long): ScrobblerContentInfo {
+		val request = Request.Builder()
+			.get()
+			.url("${BASE_URL}api/people/$id")
+		val json = okHttp.newCall(request.build()).await().parseJson()
+		val voiceRoles = json.optJSONArray("roles")?.mapJSON { role ->
+			ShikimoriVoiceRole(
+				characters = role.optJSONArray("characters")
+					?.mapJSONNotNull { item -> parseShikimoriRelatedWork(item) }
+					.orEmpty(),
+				works = buildList {
+					role.optJSONArray("animes")
+						?.mapJSONNotNull { item -> parseShikimoriRelatedWork(item) }
+						?.let(::addAll)
+					role.optJSONArray("mangas")
+						?.mapJSONNotNull { item -> parseShikimoriRelatedWork(item) }
+						?.let(::addAll)
+				},
+			)
+		}.orEmpty()
+		val voicedWorks = voiceRoles
+			.flatMap { role ->
+				val characterLabel = role.characters.joinToString(", ") { it.title }
+				role.works.map { work ->
+					work.copy(
+						relationship = characterLabel.ifBlank { work.relationship },
+					)
+				}
+			}
+			.distinctBy { it.id }
+		val voicedCharacters = voiceRoles
+			.flatMap { role ->
+				val workLabel = role.works.joinToString(", ") { it.title }
+				role.characters.map { character ->
+					character.copy(
+						relationship = workLabel.ifBlank { character.relationship },
+					)
+				}
+			}
+			.distinctBy { it.id }
+		val staffWorks = json.optJSONArray("works")?.mapJSONNotNull { work ->
+			val media = work.optJSONObject("anime") ?: work.optJSONObject("manga") ?: return@mapJSONNotNull null
+			parseShikimoriRelatedWork(media)?.copy(
+				relationship = work.getStringOrNull("role")?.takeIf { it.isNotBlank() },
+			)
+		}.orEmpty()
+		val infobox = buildList {
+			json.getStringOrNull("japanese")?.takeIf { it.isNotBlank() }?.let { add("Japanese" to it) }
+			json.getStringOrNull("russian")?.takeIf { it.isNotBlank() }?.let { add("Russian" to it) }
+			json.getStringOrNull("job_title")?.takeIf { it.isNotBlank() }?.let { add("Job" to it) }
+			formatShikimoriBirthday(json.optJSONObject("birthday") ?: json.optJSONObject("birth_on"))
+				?.let { add("Birthday" to it) }
+			json.getStringOrNull("website")?.takeIf { it.isNotBlank() }?.let { add("Website" to it) }
+			json.optJSONArray("groupped_roles")?.let { grouped ->
+				for (i in 0 until grouped.length()) {
+					val entry = grouped.optJSONArray(i) ?: continue
+					val name = entry.optString(0).takeIf { it.isNotBlank() } ?: continue
+					val count = entry.optInt(1, 0).takeIf { it > 0 } ?: continue
+					add(name to count.toString())
+				}
+			}
+		}
+		return ScrobblerContentInfo(
+			id = json.getLong("id"),
+			name = json.getString("name"),
+			cover = parseShikimoriImage(json.optJSONObject("image")).orEmpty(),
+			url = json.getString("url").toAbsoluteUrl(DOMAIN),
+			descriptionHtml = "",
+			authors = voicedCharacters.map { it.title }.distinct(),
+			infoboxProperties = infobox,
+			extraSections = listOfNotNull(
+				voicedWorks.takeIf { it.isNotEmpty() }?.let {
+					ScrobblerContentInfo.RelatedSection(
+						title = "Voiced Works",
+						items = it,
+					)
+				},
+				voicedCharacters.takeIf { it.isNotEmpty() }?.let {
+					ScrobblerContentInfo.RelatedSection(
+						title = "Voiced Characters",
+						items = it,
+					)
+				},
+				staffWorks.takeIf { it.isNotEmpty() }?.let {
+					ScrobblerContentInfo.RelatedSection(
+						title = "Participated Works",
+						items = it,
+					)
+				},
+			),
+			actions = listOfNotNull(
+				json.optLong("topic_id", 0L).takeIf { it > 0 }?.let { topicId ->
+					ScrobblerContentInfo.ExternalAction(
+						title = "Discussion",
+						url = "${BASE_URL}forum/topics/$topicId",
+					)
+				},
+			),
+		)
+	}
+
+	private suspend fun getCharacterInfo(id: Long): ScrobblerContentInfo {
+		val request = Request.Builder()
+			.get()
+			.url("${BASE_URL}api/characters/$id")
+		val json = okHttp.newCall(request.build()).await().parseJson()
+		val relatedWorks = buildList {
+			json.optJSONArray("animes")
+				?.mapJSONNotNull { item -> parseShikimoriRelatedWork(item) }
+				?.let(::addAll)
+			json.optJSONArray("mangas")
+				?.mapJSONNotNull { item -> parseShikimoriRelatedWork(item) }
+				?.let(::addAll)
+		}.distinctBy { it.id }
+		val voiceActors = json.optJSONArray("seyu")?.mapJSON { actor ->
+			val url = actor.getString("url").toAbsoluteUrl(DOMAIN)
+			ScrobblerContentInfo.PersonInfo(
+				id = actor.getLong("id"),
+				name = actor.getString("name"),
+				avatarUrl = parseShikimoriImage(actor.optJSONObject("image")),
+				url = url,
+			)
+		}.orEmpty()
+		val infobox = buildList {
+			json.getStringOrNull("altname")?.takeIf { it.isNotBlank() }?.let { add("Alt name" to it) }
+			json.getStringOrNull("japanese")?.takeIf { it.isNotBlank() }?.let { add("Japanese" to it) }
+			json.getStringOrNull("description_source")?.takeIf { it.isNotBlank() }?.let { add("Source" to it) }
+		}
+		return ScrobblerContentInfo(
+			id = json.getLong("id"),
+			name = json.getString("name"),
+			cover = parseShikimoriImage(json.optJSONObject("image")).orEmpty(),
+			url = json.getString("url").toAbsoluteUrl(DOMAIN),
+			descriptionHtml = json.optString("description_html", ""),
+			authors = voiceActors.map { it.name },
+			infoboxProperties = infobox,
+			relatedWorks = relatedWorks,
+			extraSections = listOfNotNull(
+				voiceActors.takeIf { it.isNotEmpty() }?.let { actors ->
+					ScrobblerContentInfo.RelatedSection(
+						title = "Voice Actors",
+						items = actors.map { actor ->
+							ScrobblerContentInfo.RelatedWork(
+								id = actor.id ?: 0L,
+								title = actor.name,
+								coverUrl = actor.avatarUrl.orEmpty(),
+								url = actor.url.orEmpty(),
+							)
+						},
+					)
+				},
+			),
+			actions = listOfNotNull(
+				json.optLong("topic_id", 0L).takeIf { it > 0 }?.let { topicId ->
+					ScrobblerContentInfo.ExternalAction(
+						title = "Discussion",
+						url = "${BASE_URL}forum/topics/$topicId",
+					)
+				},
+			),
+		)
 	}
 
 	private suspend fun fetchDiscussionPayload(
@@ -636,6 +812,45 @@ class ShikimoriRepository @Inject constructor(
 		)
 	}
 
+	private fun parseShikimoriRelatedWork(json: JSONObject): ScrobblerContentInfo.RelatedWork? {
+		val id = json.optLong("id", 0L)
+		if (id <= 0L) {
+			return null
+		}
+		return ScrobblerContentInfo.RelatedWork(
+			id = id,
+			title = json.getString("name"),
+			coverUrl = parseShikimoriImage(json.optJSONObject("image")).orEmpty(),
+			relationship = json.getStringOrNull("role")?.takeIf { it.isNotBlank() },
+			url = json.getString("url").toAbsoluteUrl(DOMAIN),
+		)
+	}
+
+	private fun parseShikimoriImage(json: JSONObject?): String? {
+		return sequenceOf(
+			json?.getStringOrNull("original"),
+			json?.getStringOrNull("preview"),
+			json?.getStringOrNull("x96"),
+			json?.getStringOrNull("x48"),
+		).filterNotNull()
+			.firstOrNull { it.isNotBlank() && !it.contains("/assets/globals/missing_", ignoreCase = true) }
+			?.toAbsoluteUrl(DOMAIN)
+	}
+
+	private fun formatShikimoriBirthday(json: JSONObject?): String? {
+		if (json == null) {
+			return null
+		}
+		val year = json.optInt("year", 0).takeIf { it > 0 }
+		val month = json.optInt("month", 0).takeIf { it > 0 }
+		val day = json.optInt("day", 0).takeIf { it > 0 }
+		return listOfNotNull(
+			year?.toString(),
+			month?.toString()?.padStart(2, '0'),
+			day?.toString()?.padStart(2, '0'),
+		).takeIf { it.isNotEmpty() }?.joinToString("-")
+	}
+
 	private fun String.htmlToPlainText(): String {
 		return Jsoup.parse(this)
 			.text()
@@ -726,5 +941,10 @@ class ShikimoriRepository @Inject constructor(
 	private data class ShikimoriDiscussionPayload(
 		val commentThreads: List<ScrobblerContentInfo.CommentThread> = emptyList(),
 		val reviews: List<ScrobblerContentInfo.ReviewEntry> = emptyList(),
+	)
+
+	private data class ShikimoriVoiceRole(
+		val characters: List<ScrobblerContentInfo.RelatedWork>,
+		val works: List<ScrobblerContentInfo.RelatedWork>,
 	)
 }

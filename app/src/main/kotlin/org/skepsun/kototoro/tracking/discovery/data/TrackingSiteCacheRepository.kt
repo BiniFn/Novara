@@ -13,6 +13,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.db.entity.TrackingSiteItemEntity
+import org.skepsun.kototoro.entitygraph.domain.EntityType
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItem
@@ -110,6 +111,24 @@ class TrackingSiteCacheRepository @Inject constructor(
 		}
 		persistDetailsPayload(details)
 		detailsUpdates.tryEmit(now)
+	}
+
+	fun readEntityDetails(
+		service: ScrobblerService,
+		entityType: EntityType,
+		remoteId: Long,
+	): TrackingSiteItemDetails? {
+		return readPersistedEntityDetailsPayload(service, entityType, remoteId)
+			?.let(::entityPayloadToTrackingDetails)
+	}
+
+	fun saveEntityDetails(
+		service: ScrobblerService,
+		entityType: EntityType,
+		details: TrackingSiteItemDetails,
+	) {
+		persistEntityDetailsPayload(service, entityType, details)
+		detailsUpdates.tryEmit(System.currentTimeMillis())
 	}
 
 	fun observeDetailsUpdates(): Flow<Long> = detailsUpdates.asSharedFlow()
@@ -413,6 +432,65 @@ class TrackingSiteCacheRepository @Inject constructor(
 		return runCatching { JSONObject(raw) }.getOrNull()
 	}
 
+	private fun persistEntityDetailsPayload(
+		service: ScrobblerService,
+		entityType: EntityType,
+		details: TrackingSiteItemDetails,
+	) {
+		val payload = details.toPersistedPayload().toString()
+		prefs.edit()
+			.putString(entityDetailsPayloadKey(service, entityType, details.remoteId), payload)
+			.apply()
+	}
+
+	private fun readPersistedEntityDetailsPayload(
+		service: ScrobblerService,
+		entityType: EntityType,
+		remoteId: Long,
+	): JSONObject? {
+		val raw = prefs.getString(entityDetailsPayloadKey(service, entityType, remoteId), null)
+			?.takeIf { it.isNotBlank() }
+			?: return null
+		return runCatching { JSONObject(raw) }.getOrNull()
+	}
+
+	private fun entityPayloadToTrackingDetails(payload: JSONObject): TrackingSiteItemDetails? {
+		val serviceId = payload.optInt("service", -1)
+		val service = ScrobblerService.entries.firstOrNull { it.id == serviceId } ?: return null
+		val remoteId = payload.optLong("remoteId", -1L)
+		val title = payload.optString("title").trim()
+		if (remoteId <= 0L || title.isEmpty()) {
+			return null
+		}
+		return TrackingSiteItemDetails(
+			service = service,
+			remoteId = remoteId,
+			title = title,
+			altTitle = payload.optString("altTitle").nullIfBlank(),
+			coverUrl = payload.optString("coverUrl").nullIfBlank(),
+			contentType = payload.optString("contentType").takeIf { it.isNotBlank() }?.let {
+				runCatching { ContentType.valueOf(it) }.getOrNull()
+			},
+			description = payload.optString("description").nullIfBlank(),
+			score = payload.takeIf { it.has("score") }?.optDouble("score")?.toFloat(),
+			rank = payload.takeIf { it.has("rank") }?.optInt("rank"),
+			tags = payload.optJSONArray("tags")?.toSimpleStringList().orEmpty(),
+			authors = payload.optJSONArray("authors")?.toSimpleStringList().orEmpty(),
+			year = payload.takeIf { it.has("year") }?.optInt("year"),
+			totalEpisodes = payload.takeIf { it.has("totalEpisodes") }?.optInt("totalEpisodes"),
+			url = payload.optString("url").nullIfBlank(),
+			infoboxProperties = payload.optJSONArray("infoboxProperties")?.toStringPairs().orEmpty(),
+			episodes = payload.optJSONArray("episodes")?.toEpisodes().orEmpty(),
+			characters = payload.optJSONArray("characters")?.toCharacters().orEmpty(),
+			commentThreads = payload.optJSONArray("commentThreads")?.toCommentThreads().orEmpty(),
+			reviews = payload.optJSONArray("reviews")?.toReviews().orEmpty(),
+			relatedWorks = payload.optJSONArray("relatedWorks")?.toRelatedWorks().orEmpty(),
+			recommendations = payload.optJSONArray("recommendations")?.toRelatedWorks().orEmpty(),
+			extraSections = payload.optJSONArray("extraSections")?.toRelatedSections().orEmpty(),
+			actions = payload.optJSONArray("actions")?.toExternalActions().orEmpty(),
+		)
+	}
+
 	private fun List<TrackingSiteItemDetails.RelatedWork>.toJsonArray(): JSONArray = JSONArray().apply {
 		forEach { item ->
 			put(
@@ -435,6 +513,12 @@ class TrackingSiteCacheRepository @Inject constructor(
 			if (key.isNotEmpty() && value.isNotEmpty()) {
 				add(key to value)
 			}
+		}
+	}
+
+	private fun JSONArray.toSimpleStringList(): List<String> = buildList(length()) {
+		for (index in 0 until length()) {
+			optString(index).trim().takeIf { it.isNotEmpty() }?.let(::add)
 		}
 	}
 
@@ -695,6 +779,146 @@ class TrackingSiteCacheRepository @Inject constructor(
 	private fun categoryCacheTimestampKey(key: String): String = "category_timestamp_$key"
 
 	private fun detailsPayloadKey(service: ScrobblerService, remoteId: Long): String = "details_payload_${service.id}_$remoteId"
+
+	private fun entityDetailsPayloadKey(
+		service: ScrobblerService,
+		entityType: EntityType,
+		remoteId: Long,
+	): String = "entity_details_payload_${service.id}_${entityType.name}_$remoteId"
+
+	private fun TrackingSiteItemDetails.toPersistedPayload(): JSONObject {
+		return JSONObject().apply {
+			put("service", service.id)
+			put("remoteId", remoteId)
+			put("title", title)
+			put("altTitle", altTitle)
+			put("coverUrl", coverUrl)
+			contentType?.let { put("contentType", it.name) }
+			put("description", description)
+			score?.let { put("score", it.toDouble()) }
+			rank?.let { put("rank", it) }
+			put("tags", JSONArray(tags))
+			put("authors", JSONArray(authors))
+			year?.let { put("year", it) }
+			totalEpisodes?.let { put("totalEpisodes", it) }
+			put("url", url)
+			put("infoboxProperties", JSONArray().apply {
+				this@toPersistedPayload.infoboxProperties.forEach { (key, value) ->
+					put(
+						JSONObject().apply {
+							put("key", key)
+							put("value", value)
+						},
+					)
+				}
+			})
+			put("episodes", JSONArray().apply {
+				this@toPersistedPayload.episodes.forEach { episode ->
+					put(
+						JSONObject().apply {
+							put("number", episode.number)
+							put("title", episode.title)
+							put("url", episode.url)
+						},
+					)
+				}
+			})
+			put("characters", JSONArray().apply {
+				this@toPersistedPayload.characters.forEach { character ->
+					put(
+						JSONObject().apply {
+							put("id", character.id)
+							put("name", character.name)
+							put("coverUrl", character.coverUrl)
+							put("role", character.role)
+							put("url", character.url)
+							put("voiceActors", JSONArray().apply {
+								character.voiceActors.forEach { actor ->
+									put(
+										JSONObject().apply {
+											actor.id?.let { put("id", it) }
+											put("name", actor.name)
+											put("avatarUrl", actor.avatarUrl)
+											put("url", actor.url)
+										},
+									)
+								}
+							})
+						},
+					)
+				}
+			})
+			put("commentThreads", JSONArray().apply {
+				this@toPersistedPayload.commentThreads.forEach { thread ->
+					put(
+						JSONObject().apply {
+							put("id", thread.id)
+							put("userName", thread.userName)
+							put("userUrl", thread.userUrl)
+							put("avatarUrl", thread.avatarUrl)
+							thread.rating?.let { put("rating", it.toDouble()) }
+							put("status", thread.status)
+							put("postedAt", thread.postedAt)
+							put("content", thread.content)
+							put("replies", JSONArray().apply {
+								thread.replies.forEach { reply ->
+									put(
+										JSONObject().apply {
+											put("id", reply.id)
+											put("userName", reply.userName)
+											put("userUrl", reply.userUrl)
+											put("avatarUrl", reply.avatarUrl)
+											put("postedAt", reply.postedAt)
+											put("content", reply.content)
+										},
+									)
+								}
+							})
+						},
+					)
+				}
+			})
+			put("reviews", JSONArray().apply {
+				this@toPersistedPayload.reviews.forEach { review ->
+					put(
+						JSONObject().apply {
+							put("id", review.id)
+							put("title", review.title)
+							put("authorName", review.authorName)
+							put("authorUrl", review.authorUrl)
+							put("avatarUrl", review.avatarUrl)
+							put("postedAt", review.postedAt)
+							put("excerpt", review.excerpt)
+							put("url", review.url)
+							review.repliesCount?.let { put("repliesCount", it) }
+						},
+					)
+				}
+			})
+			put("relatedWorks", this@toPersistedPayload.relatedWorks.toJsonArray())
+			put("recommendations", this@toPersistedPayload.recommendations.toJsonArray())
+			put("extraSections", JSONArray().apply {
+				this@toPersistedPayload.extraSections.forEach { section ->
+					put(
+						JSONObject().apply {
+							put("title", section.title)
+							put("items", section.items.toJsonArray())
+						},
+					)
+				}
+			})
+			put("actions", JSONArray().apply {
+				this@toPersistedPayload.actions.forEach { action ->
+					put(
+						JSONObject().apply {
+							put("title", action.title)
+							put("url", action.url)
+						},
+					)
+				}
+			})
+		}
+	}
 
 	private fun String.nullIfBlank(): String? = takeIf { it.isNotBlank() }
 

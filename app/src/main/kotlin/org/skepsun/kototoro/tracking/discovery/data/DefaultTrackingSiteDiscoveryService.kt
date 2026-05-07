@@ -13,6 +13,7 @@ import org.skepsun.kototoro.scrobbling.common.domain.ScrobblerRepositoryMap
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
+import org.skepsun.kototoro.entitygraph.domain.EntityType
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCapabilities
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteCatalog
@@ -796,6 +797,35 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 		)
 	}
 
+	override suspend fun getEntityDetails(
+		service: ScrobblerService,
+		entityType: EntityType,
+		remoteId: Long,
+		urlHint: String?,
+	): TrackingSiteItemDetails? {
+		cacheRepository.readEntityDetails(service, entityType, remoteId)?.let { cached ->
+			if (cached.hasEntityRichMetadata()) {
+				return cached
+			}
+		}
+		val resolved = when (service) {
+			ScrobblerService.ANILIST -> aniListRepository.getEntityInfo(entityType, remoteId)
+			ScrobblerService.BANGUMI -> bangumiRepository.getEntityInfo(entityType, remoteId)
+			ScrobblerService.KITSU -> kitsuRepository.getEntityInfo(entityType, remoteId)
+			ScrobblerService.MAL -> malRepository.getEntityInfo(entityType, remoteId)
+			ScrobblerService.MANGAUPDATES -> mangaUpdatesRepository.getEntityInfo(entityType, remoteId, urlHint)
+			ScrobblerService.SHIKIMORI -> shikimoriRepository.getEntityInfo(entityType, remoteId)
+			else -> null
+		}?.toTrackingDetails(service = service, contentType = null)
+			?.let { details ->
+				details.copy(url = urlHint ?: details.url)
+			}
+		if (resolved != null) {
+			cacheRepository.saveEntityDetails(service, entityType, resolved)
+		}
+		return resolved
+	}
+
 	private suspend fun getMalDetails(remoteId: Long, urlHint: String?): TrackingSiteItemDetails {
 		// Use URL hint from the intent, or fall back to cached URL
 		val url = urlHint ?: runCatching {
@@ -1055,5 +1085,14 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 				)
 			},
 		)
+	}
+
+	private fun TrackingSiteItemDetails.hasEntityRichMetadata(): Boolean {
+		return coverUrl != null ||
+			description != null ||
+			infoboxProperties.isNotEmpty() ||
+			relatedWorks.isNotEmpty() ||
+			extraSections.isNotEmpty() ||
+			actions.isNotEmpty()
 	}
 }

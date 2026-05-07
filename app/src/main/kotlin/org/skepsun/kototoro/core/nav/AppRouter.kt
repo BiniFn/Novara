@@ -216,8 +216,23 @@ class AppRouter private constructor(
         )
     }
 
-    fun openEntityDetails(entityId: Long) {
-        startActivity(detailsIntent(contextOrNull() ?: return, DetailsOrigin.EntityGraph(entityId)))
+    fun openEntityDetails(
+        entityId: Long,
+        service: ScrobblerService? = null,
+        remoteId: Long? = null,
+        url: String? = null,
+    ) {
+        startActivity(
+            detailsIntent(
+                contextOrNull() ?: return,
+                DetailsOrigin.EntityGraph(
+                    entityId = entityId,
+                    serviceId = service?.id?.toString(),
+                    remoteId = remoteId,
+                    url = url,
+                ),
+            ),
+        )
     }
 
     fun openTrackingSiteDetails(service: ScrobblerService, remoteId: Long, url: String? = null) {
