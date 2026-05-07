@@ -7,6 +7,8 @@ import androidx.compose.ui.platform.LocalView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.activity.compose.BackHandler
+import kotlinx.coroutines.launch
+import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
@@ -20,6 +22,7 @@ import org.skepsun.kototoro.core.util.ShareHelper
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
 import org.skepsun.kototoro.list.ui.model.ContentListModel
+import org.skepsun.kototoro.list.ui.model.ErrorState
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.main.ui.compose.ContentSelectionTopBarOverrideState
 import org.skepsun.kototoro.main.ui.compose.TopBarOverrideState
@@ -81,6 +84,8 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     val context = LocalContext.current
     val rootView = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val coroutineScope = rememberCoroutineScope()
+    val exceptionResolver = (activity as? BaseActivity<*>)?.exceptionResolver
     val selectionModels = remember(items, composeSelectionIds) {
         prepareContentSelectionModels(items, composeSelectionIds)
     }
@@ -277,6 +282,19 @@ fun <VM : ContentListViewModel> AppContentListRoute(
         }
     }
 
+    fun resolveCloudflareAndRetry() {
+        val cfError = items.filterIsInstance<ErrorState>().firstOrNull { it.exception is CloudFlareProtectedException }
+        if (cfError != null && exceptionResolver != null) {
+            coroutineScope.launch {
+                if (exceptionResolver.resolve(cfError.exception)) {
+                    viewModel.onRetry()
+                }
+            }
+        } else {
+            viewModel.onRetry()
+        }
+    }
+
     KototoroContentListScreen(
         contentPadding = contentPadding,
         items = items,
@@ -332,9 +350,13 @@ fun <VM : ContentListViewModel> AppContentListRoute(
             (viewModel as? org.skepsun.kototoro.list.domain.QuickFilterListener)?.toggleFilterOption(option)
         },
         onEmptyActionClick = {
-            onEmptyActionClick?.invoke() ?: viewModel.onRetry()
+            if (onEmptyActionClick != null) {
+                onEmptyActionClick.invoke()
+            } else {
+                resolveCloudflareAndRetry()
+            }
         },
-        onRetry = viewModel::onRetry,
+        onRetry = ::resolveCloudflareAndRetry,
         showInlineSelectionTopBar = false,
         listHeader = listHeader,
     )

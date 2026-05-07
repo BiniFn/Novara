@@ -307,11 +307,6 @@ fun KototoroApp(
         animationSpec = tween(durationMillis = 120),
         label = "chrome_alpha",
     )
-    val animatedBottomNavOffset by animateFloatAsState(
-        targetValue = bottomNavOffset,
-        animationSpec = tween(durationMillis = 300, easing = LinearEasing),
-        label = "bottom_nav_offset",
-    )
     val showBrowseSourceSettingsEntry = currentDestination?.let {
         it.hasRoute<ExploreRoute>() || it.hasRoute<DiscoverRoute>()
     } == true
@@ -414,6 +409,8 @@ fun KototoroApp(
                             navController = navController,
                             startDestination = startDestination,
                             contentPadding = contentPadding,
+                            bottomBarOffsetPx = bottomNavOffset,
+                            bottomBarHeightPx = bottomNavHeightPx,
                             pageSaveHelper = pageSaveHelper,
                             onExploreSourceSelectionTopBarChanged = { topBarOverrideState = it },
                             onOpenSearch = { request ->
@@ -570,15 +567,15 @@ fun KototoroApp(
                     }
 
                     Box(
-                        modifier = Modifier
-                            .align(if (isLandscapeNavigation) Alignment.CenterStart else Alignment.BottomCenter)
-                            .offset {
-                                if (isLandscapeNavigation) {
-                                    androidx.compose.ui.unit.IntOffset((-animatedBottomNavOffset).toInt(), 0)
-                                } else {
-                                    androidx.compose.ui.unit.IntOffset(0, animatedBottomNavOffset.toInt())
-                                }
-                            }
+                                modifier = Modifier
+                                    .align(if (isLandscapeNavigation) Alignment.CenterStart else Alignment.BottomCenter)
+                                    .offset {
+                                        if (isLandscapeNavigation) {
+                                    androidx.compose.ui.unit.IntOffset((-bottomNavOffset).toInt(), 0)
+                                        } else {
+                                    androidx.compose.ui.unit.IntOffset(0, bottomNavOffset.toInt())
+                                        }
+                                    }
                             .onGloballyPositioned { coords ->
                                 val newHeight = if (isLandscapeNavigation) coords.size.width else coords.size.height
                                 if (bottomNavHeightPx != newHeight) {

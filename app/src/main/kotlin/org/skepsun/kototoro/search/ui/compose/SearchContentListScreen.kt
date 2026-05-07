@@ -5,6 +5,7 @@ import android.content.res.Configuration
 import android.view.inputmethod.EditorInfo
 import androidx.core.text.HtmlCompat
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -97,7 +98,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.browser.cloudflare.CloudFlareActivity
+import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
 import org.skepsun.kototoro.core.model.titleResId
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.nav.AppRouter
@@ -109,6 +113,7 @@ import org.skepsun.kototoro.core.ui.dialog.setEditText
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.ui.model.titleRes
 import org.skepsun.kototoro.core.util.ShareHelper
+import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
 import org.skepsun.kototoro.list.ui.compose.KototoroSelectionTopBar
 import org.skepsun.kototoro.list.ui.compose.SelectionAction
 
@@ -116,6 +121,7 @@ import org.skepsun.kototoro.filter.ui.model.UiTagGroup
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.list.ui.compose.KototoroContentListScreen
 import org.skepsun.kototoro.list.ui.model.ContentListModel
+import org.skepsun.kototoro.list.ui.model.ErrorState
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.QuickFilter
 import org.skepsun.kototoro.remotelist.ui.RemoteListViewModel
@@ -194,6 +200,11 @@ fun AppSearchContentListRoute(
     val quickFilter = preparedItems.quickFilter
     val contentItems = preparedItems.contentItems
     val contentListItems = preparedItems.contentListItems
+    val cloudflareLauncher = rememberLauncherForActivityResult(CloudFlareActivity.Contract()) { resolved ->
+        if (resolved) {
+            viewModel.onRetry()
+        }
+    }
 
     var searchMode by rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf(filterSnapshot.listFilter.query.orEmpty()) }
@@ -276,6 +287,18 @@ fun AppSearchContentListRoute(
                 collapseOffsetPx = newOffset
                 return Offset(x = 0f, y = -consumed)
             }
+        }
+    }
+
+    fun resolveCloudflareAndRetry() {
+        val cfError = items
+            .filterIsInstance<ErrorState>()
+            .firstOrNull { it.exception is CloudFlareProtectedException }
+            ?.exception as? CloudFlareProtectedException
+        if (cfError != null) {
+            cloudflareLauncher.launch(cfError)
+        } else {
+            viewModel.onRetry()
         }
     }
 
@@ -438,7 +461,7 @@ fun AppSearchContentListRoute(
                         },
                         selectedItemsIds = selectedItemsIds,
                         showInlineSelectionTopBar = false,
-                        onRetry = viewModel::onRetry,
+                        onRetry = ::resolveCloudflareAndRetry,
                     )
                 }
                 Box(
@@ -552,7 +575,7 @@ fun AppSearchContentListRoute(
                 },
                 selectedItemsIds = selectedItemsIds,
                 showInlineSelectionTopBar = false,
-                onRetry = viewModel::onRetry,
+                onRetry = ::resolveCloudflareAndRetry,
             )
         }
 
@@ -614,6 +637,13 @@ private fun SearchPreviewPane(
 ) {
     val scrollState = rememberScrollState()
     val sourceTitle = rememberResolvedSourceTitle(content.source)
+    val context = LocalContext.current
+    val coverRequest = remember(content.id, content.largeCoverUrl, content.coverUrl, content.source) {
+        ImageRequest.Builder(context)
+            .data(content.largeCoverUrl ?: content.coverUrl)
+            .mangaSourceExtra(content.source)
+            .build()
+    }
     val description = remember(content.description) {
         HtmlCompat.fromHtml(content.description.orEmpty(), HtmlCompat.FROM_HTML_MODE_COMPACT)
             .toString()
@@ -659,7 +689,7 @@ private fun SearchPreviewPane(
         }
 
         AsyncImage(
-            model = content.largeCoverUrl ?: content.coverUrl,
+            model = coverRequest,
             contentDescription = content.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier

@@ -59,6 +59,8 @@ fun AppNavGraph(
     navController: NavHostController,
     startDestination: Any = HomeRoute,
     contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp),
+    bottomBarOffsetPx: Float = 0f,
+    bottomBarHeightPx: Int = 0,
     pageSaveHelper: org.skepsun.kototoro.reader.ui.PageSaveHelper? = null,
     modifier: Modifier = Modifier,
     onExploreSourceSelectionTopBarChanged: (TopBarOverrideState?) -> Unit = {},
@@ -433,6 +435,8 @@ fun AppNavGraph(
                     onStatsClick = { appRouter.openStatistic() },
                     onContinueReadingClick = { viewModel.openLastReader() },
                     showContinueReadingButton = isResumeEnabled,
+                    bottomBarOffsetPx = bottomBarOffsetPx,
+                    bottomBarHeightPx = bottomBarHeightPx,
                     showInlineSelectionTopBar = false,
                 )
 

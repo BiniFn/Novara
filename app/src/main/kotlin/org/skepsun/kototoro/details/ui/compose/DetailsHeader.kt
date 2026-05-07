@@ -104,6 +104,7 @@ import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
 import org.skepsun.kototoro.core.util.ext.mangaExtra
+import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
 import org.skepsun.kototoro.core.util.ext.toLocaleOrNull
 import org.skepsun.kototoro.details.data.ContentDetails
 import org.skepsun.kototoro.discover.ui.details.LocalSearchState
@@ -1620,6 +1621,13 @@ private fun ReadingSearchResultRow(
     onClick: () -> Unit,
 ) {
     val latestChapterInfo = remember(item) { item.readingSearchLatestChapterInfo() }
+    val context = LocalContext.current
+    val coverRequest = remember(item.id, item.coverUrl, item.source) {
+        ImageRequest.Builder(context)
+            .data(item.coverUrl)
+            .mangaSourceExtra(item.source)
+            .build()
+    }
     GlassSurface(
         modifier = Modifier.fillMaxWidth(),
         style = GlassDefaults.subtleStyle(),
@@ -1634,7 +1642,7 @@ private fun ReadingSearchResultRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             AsyncImage(
-                model = item.coverUrl,
+                model = coverRequest,
                 contentDescription = item.title,
                 modifier = Modifier
                     .width(42.dp)
@@ -1696,6 +1704,13 @@ private fun ReadingSearchResultCard(
     modifier: Modifier = Modifier,
 ) {
     val latestChapterInfo = remember(item) { item.readingSearchLatestChapterInfo() }
+    val context = LocalContext.current
+    val coverRequest = remember(item.id, item.coverUrl, item.source) {
+        ImageRequest.Builder(context)
+            .data(item.coverUrl)
+            .mangaSourceExtra(item.source)
+            .build()
+    }
     GlassSurface(
         modifier = modifier.width(108.dp),
         style = GlassDefaults.subtleStyle(),
@@ -1712,7 +1727,7 @@ private fun ReadingSearchResultCard(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             AsyncImage(
-                model = item.coverUrl,
+                model = coverRequest,
                 contentDescription = item.title,
                 modifier = Modifier
                     .fillMaxWidth()

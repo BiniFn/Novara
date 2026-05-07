@@ -14,13 +14,9 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,43 +50,22 @@ fun HistoryScreen(
     onStatsClick: () -> Unit,
     onContinueReadingClick: () -> Unit,
     showContinueReadingButton: Boolean,
+    bottomBarOffsetPx: Float = 0f,
+    bottomBarHeightPx: Int = 0,
     showInlineSelectionTopBar: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
     val detailedListState = rememberLazyListState()
     val gridState = rememberLazyGridState()
-    var isFabExpanded by remember { mutableStateOf(true) }
-
-    LaunchedEffect(listMode, listState, detailedListState, gridState) {
-        var lastPosition = 0
-        when (listMode) {
-            ListMode.GRID -> {
-                snapshotFlow {
-                    (gridState.firstVisibleItemIndex * 10_000) + gridState.firstVisibleItemScrollOffset
-                }.collect { currentPosition ->
-                    isFabExpanded = currentPosition <= lastPosition || currentPosition < 24
-                    lastPosition = currentPosition
-                }
-            }
-            ListMode.DETAILED_LIST -> {
-                snapshotFlow {
-                    (detailedListState.firstVisibleItemIndex * 10_000) + detailedListState.firstVisibleItemScrollOffset
-                }.collect { currentPosition ->
-                    isFabExpanded = currentPosition <= lastPosition || currentPosition < 24
-                    lastPosition = currentPosition
-                }
-            }
-            else -> {
-                snapshotFlow {
-                    (listState.firstVisibleItemIndex * 10_000) + listState.firstVisibleItemScrollOffset
-                }.collect { currentPosition ->
-                    isFabExpanded = currentPosition <= lastPosition || currentPosition < 24
-                    lastPosition = currentPosition
-                }
-            }
+    val fabCollapseProgress = remember(bottomBarOffsetPx, bottomBarHeightPx) {
+        if (bottomBarHeightPx <= 0) {
+            0f
+        } else {
+            (bottomBarOffsetPx / bottomBarHeightPx.toFloat()).coerceIn(0f, 1f)
         }
     }
+    val isFabExpanded = fabCollapseProgress < 0.5f
     val listContentPadding = remember(contentPadding, showContinueReadingButton) {
         PaddingValues(
             start = contentPadding.calculateLeftPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),

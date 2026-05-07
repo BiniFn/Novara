@@ -96,6 +96,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
     private var searchQuery by mutableStateOf("")
     private var isResumeEnabledState by androidx.compose.runtime.mutableStateOf(false)
 
+    private val activeFilterCallbacks = LinkedHashSet<SearchBarFilterViewController.Callback>()
     private var currentFilterCallback: SearchBarFilterViewController.Callback? = null
     private var activeFilterContentType by mutableStateOf<ContentType?>(null)
     private var activeFilterSourceTags by mutableStateOf<Set<SourceTag>>(emptySet())
@@ -106,13 +107,20 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
     private var enabledSourceTags by mutableStateOf(SourceTag.quickFilterEntries.toSet())
     private var enabledContentTypes by mutableStateOf(allTopBarContentTypes())
 
+
     fun setActiveFilterCallback(callback: SearchBarFilterViewController.Callback) {
+        activeFilterCallbacks.remove(callback)
+        activeFilterCallbacks.add(callback)
         currentFilterCallback = callback
         refreshFilters()
     }
 
     fun clearActiveFilterCallback(callback: SearchBarFilterViewController.Callback) {
-        if (currentFilterCallback == callback) {
+        activeFilterCallbacks.remove(callback)
+        currentFilterCallback = activeFilterCallbacks.lastOrNull()
+        if (currentFilterCallback != null) {
+            refreshFilters()
+        } else {
             clearActiveFilters()
         }
     }
@@ -449,6 +457,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
     }
 
     private fun clearActiveFilters() {
+        activeFilterCallbacks.clear()
         currentFilterCallback = null
         activeFilterContentType = if (settings.isShowContentTypeFilter) {
             null

@@ -254,7 +254,7 @@ data class BottomNavState(
     val selectedItemId: Int = 0,
     val labelVisibilityMode: Int = NavigationBarView.LABEL_VISIBILITY_AUTO,
     val badges: Map<Int, BadgeInfo> = emptyMap(),
-    val itemVisibility: Map<Int, Boolean> = emptyMap()
+    val itemVisibility: Map<Int, Boolean> = emptyMap(),
 )
 
 // A dummy implementation of MenuItem so we can pass IDs back to the NavigationBarView.OnItemSelectedListener.
