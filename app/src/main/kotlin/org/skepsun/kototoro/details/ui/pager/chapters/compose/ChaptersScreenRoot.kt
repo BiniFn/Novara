@@ -221,15 +221,15 @@ fun ChaptersScreenRoot(
 		)
 	}
 
-	ChaptersScreen(
-		items = collapsedChapters,
-		isGridView = isGridView,
-        isScrollEnabled = isScrollEnabled,
-        detailsPaneState = detailsPaneState,
-		gridSpanCount = 2,
-		selectedItemIds = selectedIds,
-		filterChips = emptyList(),
-		isLoading = isLoading,
+		ChaptersScreen(
+			items = collapsedChapters,
+			isGridView = isGridView,
+			isScrollEnabled = isScrollEnabled,
+			detailsPaneState = detailsPaneState,
+			gridSpanCount = 2,
+			selectedItemIds = selectedIds,
+			filterChips = quickFilter,
+			isLoading = isLoading,
 		emptyMessageResId = emptyReason?.msgResId,
 		onItemClick = { item ->
 			if (selectedIds.isNotEmpty()) {

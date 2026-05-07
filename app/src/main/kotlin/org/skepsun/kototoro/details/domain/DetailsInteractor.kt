@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.details.domain
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.filterNotNull
@@ -49,9 +50,13 @@ class DetailsInteractor @Inject constructor(
 	}
 
 	fun observeScrobblingInfo(mangaId: Long): Flow<List<ScrobblingInfo>> {
-		return combine(
-			scrobblers.map { it.observeScrobblingInfo(mangaId) },
-		) { scrobblingInfo ->
+		val flows = scrobblers.map { scrobbler ->
+			scrobbler.observeScrobblingInfo(mangaId).catch { emit(null) }
+		}
+		if (flows.isEmpty()) {
+			return flowOf(emptyList())
+		}
+		return combine(flows) { scrobblingInfo ->
 			scrobblingInfo.filterNotNull()
 		}
 	}

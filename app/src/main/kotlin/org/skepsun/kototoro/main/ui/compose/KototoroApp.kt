@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.statusBars
@@ -227,6 +228,9 @@ fun KototoroApp(
     val statusBarHeightPx = with(density) {
         WindowInsets.statusBars.asPaddingValues().calculateTopPadding().roundToPx()
     }
+    val navigationBarHeightPx = with(density) {
+        WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding().roundToPx()
+    }
 
     val nestedScrollConnection = remember(
         isNavBarPinned,
@@ -360,14 +364,15 @@ fun KototoroApp(
     val extraPinnedBottomInsetPx = with(density) {
         if (isNavBarPinned && !isFloating) 12.dp.roundToPx() else 0
     }
-    val contentBottomInsetPx = if (!shouldShowChrome) {
-        0
-    } else if (isLandscapeNavigation) {
-        0
-    } else if (!isNavBarPinned && isFloating) {
+    val visibleBottomNavInsetPx = if (!isNavBarPinned && isFloating) {
         0
     } else {
         (bottomNavHeightPx - bottomNavOffset).coerceAtLeast(0f).toInt() + extraPinnedBottomInsetPx
+    }
+    val contentBottomInsetPx = if (!shouldShowChrome || isLandscapeNavigation) {
+        0
+    } else {
+        maxOf(visibleBottomNavInsetPx, navigationBarHeightPx)
     }
     val visibleStartInsetDp = with(density) {
         if (isLandscapeNavigation && isChromeVisible) {

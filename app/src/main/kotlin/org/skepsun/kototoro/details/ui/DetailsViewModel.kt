@@ -757,8 +757,26 @@ class DetailsViewModel @Inject constructor(
 	}
 
 	private fun refreshReadingSearchSources() {
-		val filtered = allEnabledSourceInfos.value.filter { info ->
-			isReadingSearchSourceMatch(info.mangaSource, currentDetailsContentType())
+		val contentType = currentDetailsContentType()
+		val currentSource = (baseLoadedDetails?.toContent() ?: mangaDetails.value?.toContent() ?: originContent ?: intent.manga)
+			?.source
+			?.takeIf { source -> isReadingSearchSourceMatch(source, contentType) }
+			?.let { source ->
+				ContentSourceInfo(
+					mangaSource = source,
+					isEnabled = true,
+					isPinned = false,
+				)
+			}
+		val filtered = buildList {
+			currentSource?.let(::add)
+			allEnabledSourceInfos.value
+				.filter { info -> isReadingSearchSourceMatch(info.mangaSource, contentType) }
+				.forEach { info ->
+					if (none { it.mangaSource.name == info.mangaSource.name }) {
+						add(info)
+					}
+				}
 		}
 		readingSearchSources.value = filtered
 		if (selectedReadingSearchSource.value !in filtered.map { it.mangaSource.name }.toSet()) {
@@ -1534,7 +1552,8 @@ class DetailsViewModel @Inject constructor(
 
 	private fun updateSourceOptions() {
 		val selection = selectedMetadataSource.value
-		val baseSource = baseLoadedDetails?.toContent()?.source ?: originContent?.source ?: intent.manga?.source
+		val baseContent = baseLoadedDetails?.toContent() ?: originContent ?: intent.manga
+		val baseSource = baseContent?.source
 		val baseLooksLikeTracking = baseSource?.name?.startsWith("TRACKING_") == true
 		val metadata = buildList {
 			if (baseSource != null && !baseLooksLikeTracking) {
@@ -1542,17 +1561,23 @@ class DetailsViewModel @Inject constructor(
 					DetailsSourceOption(
 						key = "base:${baseSource.name}",
 						source = baseSource,
+						title = baseContent?.title,
+						coverUrl = baseContent?.coverUrl.normalizedImageUrl(),
 						isSelected = selection == MetadataSourceSelection.Base,
 					),
 				)
 			}
 			addAll(
 				trackingMetadataCandidates.value.map { candidate ->
+					val cached = cachedTrackingDetails[trackingMetadataKey(candidate.service, candidate.remoteId)]
 					DetailsSourceOption(
 						key = trackingMetadataKey(candidate.service, candidate.remoteId),
 						trackingService = candidate.service,
 						remoteId = candidate.remoteId,
 						url = candidate.url,
+						title = cached?.title ?: contentTitleFallback(candidate.service),
+						subtitle = contentTitleFallback(candidate.service),
+						coverUrl = cached?.coverUrl.normalizedImageUrl(),
 						isSelected = selection is MetadataSourceSelection.Tracking &&
 							selection.service == candidate.service &&
 							selection.remoteId == candidate.remoteId,
@@ -1564,6 +1589,8 @@ class DetailsViewModel @Inject constructor(
 					DetailsSourceOption(
 						key = "base:${baseSource.name}",
 						source = baseSource,
+						title = baseContent?.title,
+						coverUrl = baseContent?.coverUrl.normalizedImageUrl(),
 						isSelected = true,
 					),
 				)
@@ -1578,6 +1605,7 @@ class DetailsViewModel @Inject constructor(
 					key = "reading:${option.mangaId}",
 					source = option.source,
 					targetMangaId = option.mangaId,
+					title = option.title,
 					isSelected = option.isActive,
 				)
 			}
@@ -1600,6 +1628,8 @@ class DetailsViewModel @Inject constructor(
 					DetailsSourceOption(
 						key = "reading:${it.name}",
 						source = it,
+						title = baseContent?.title,
+						coverUrl = baseContent?.coverUrl.normalizedImageUrl(),
 						isSelected = true,
 					),
 				)
@@ -2918,6 +2948,32 @@ class DetailsViewModel @Inject constructor(
 		readingSearchQuery.value = query
 	}
 
+	private fun List<Content>.withCurrentReadingSourceResult(
+		currentContent: Content?,
+		sourceInfo: ContentSourceInfo,
+		query: String,
+	): List<Content> {
+		if (currentContent == null || currentContent.source.name != sourceInfo.mangaSource.name) {
+			return this
+		}
+		val normalizedQuery = query.trim()
+		val matchesQuery = normalizedQuery.isBlank() ||
+			currentContent.title.contains(normalizedQuery, ignoreCase = true) ||
+			normalizedQuery.contains(currentContent.title, ignoreCase = true)
+		if (!matchesQuery || any { it.id == currentContent.id || it.url == currentContent.url }) {
+			return this
+		}
+		return listOf(currentContent) + this
+	}
+
+	private fun org.skepsun.kototoro.core.parser.ContentRepository.resolveReadingSearchSortOrder(): SortOrder {
+		return if (SortOrder.RELEVANCE in sortOrders) {
+			SortOrder.RELEVANCE
+		} else {
+			defaultSortOrder
+		}
+	}
+
 	fun searchReadingBindings() {
 		val sources = readingSearchSources.value
 		if (sources.isEmpty()) {
@@ -2928,22 +2984,27 @@ class DetailsViewModel @Inject constructor(
 			return
 		}
 		val query = readingSearchQuery.value.trim().ifBlank { currentDetailsTitle() }
+		val currentContent = (baseLoadedDetails?.toContent() ?: mangaDetails.value?.toContent() ?: originContent ?: intent.manga)
+			?.takeUnless { it.source.name.startsWith("TRACKING_") }
 		launchJob(Dispatchers.IO) {
 			readingSearchLoading.value = true
 			readingSearchHasSearched.value = false
 			readingSearchState.value = LocalSearchState.Loading
-			readingSearchSections.value = sources.map { sourceInfo ->
-				ReadingSearchSectionUiState(source = sourceInfo, isLoading = true)
-			}
-			supervisorScope {
-				sources.map { sourceInfo ->
-					async {
-						val section = runCatchingCancellable {
-							withTimeout(SOURCE_SEARCH_TIMEOUT_MS) {
+				readingSearchSections.value = sources.map { sourceInfo ->
+					ReadingSearchSectionUiState(source = sourceInfo, isLoading = true)
+				}
+				supervisorScope {
+					sources.mapIndexed { sourceIndex, sourceInfo ->
+						async {
+							val section = runCatchingCancellable {
+								withTimeout(SOURCE_SEARCH_TIMEOUT_MS) {
 								val repository = mangaRepositoryFactory.create(sourceInfo.mangaSource)
+								if (!repository.filterCapabilities.isSearchSupported) {
+									return@withTimeout emptyList()
+								}
 								repository.getList(
 									offset = 0,
-									order = SortOrder.RELEVANCE,
+									order = repository.resolveReadingSearchSortOrder(),
 									filter = ContentListFilter(query = query),
 								).take(20).map { content ->
 									runCatchingCancellable {
@@ -2951,14 +3012,14 @@ class DetailsViewModel @Inject constructor(
 									}.getOrDefault(content)
 								}
 							}
-						}.fold(
-							onSuccess = { items ->
-								ReadingSearchSectionUiState(
-									source = sourceInfo,
-									items = items,
-									isLoading = false,
-								)
-							},
+							}.fold(
+								onSuccess = { items ->
+									ReadingSearchSectionUiState(
+										source = sourceInfo,
+										items = items.withCurrentReadingSourceResult(currentContent, sourceInfo, query),
+										isLoading = false,
+									)
+								},
 							onFailure = { throwable ->
 								ReadingSearchSectionUiState(
 									source = sourceInfo,
@@ -2966,13 +3027,17 @@ class DetailsViewModel @Inject constructor(
 									errorMessage = throwable.localizedMessage ?: throwable.javaClass.simpleName,
 								)
 							},
-						)
-						readingSearchSections.update { sections ->
-							sections.map { existing ->
-								if (existing.source.mangaSource.name == sourceInfo.mangaSource.name) section else existing
+							)
+							readingSearchSections.update { sections ->
+								sections.mapIndexed { index, existing ->
+									if (index == sourceIndex) {
+										section
+									} else {
+										existing
+									}
+								}
 							}
 						}
-					}
 				}.awaitAll()
 			}
 			readingSearchLoading.value = false

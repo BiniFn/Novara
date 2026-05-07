@@ -101,20 +101,41 @@ fun DetailsCoverFrame(
                         shape = MaterialTheme.shapes.medium,
                     ),
             )
-            AsyncImage(
-                model = coverModel,
-                contentDescription = contentDescription,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(13f / 18f)
-                    .clip(MaterialTheme.shapes.medium)
-                    .background(
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
-                        shape = MaterialTheme.shapes.medium,
-                ),
-                contentScale = ContentScale.Crop,
-                onState = { state -> onState?.invoke(state) },
-            )
+            if (coverModel == null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(13f / 18f)
+                        .clip(MaterialTheme.shapes.medium)
+                        .background(
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
+                            shape = MaterialTheme.shapes.medium,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = rememberSafePainter(R.drawable.ic_placeholder),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(32.dp),
+                    )
+                }
+            } else {
+                AsyncImage(
+                    model = coverModel,
+                    contentDescription = contentDescription,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(13f / 18f)
+                        .clip(MaterialTheme.shapes.medium)
+                        .background(
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
+                            shape = MaterialTheme.shapes.medium,
+                        ),
+                    contentScale = ContentScale.Crop,
+                    onState = { state -> onState?.invoke(state) },
+                )
+            }
             if (!topBadgeText.isNullOrBlank()) {
                 val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
                 val badgeContainerColor = if (isDarkTheme) {

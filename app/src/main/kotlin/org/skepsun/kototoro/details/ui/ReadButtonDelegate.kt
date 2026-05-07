@@ -56,10 +56,13 @@ internal fun openDetailsReader(
 		val contentType = source.getContentType()
 
 		if ((contentType == ContentType.VIDEO || contentType == ContentType.HENTAI_VIDEO) && !manga.chapters.isNullOrEmpty()) {
-			val state = if (history != null) {
+			val selectedBranch = viewModel.selectedBranchValue
+			val historyMatchesSelectedBranch = history != null &&
+				manga.chapters?.find { it.id == history.chapterId }?.branch == selectedBranch
+			val state = if (history != null && historyMatchesSelectedBranch) {
 				ReaderState(history)
 			} else {
-				ReaderState(manga, viewModel.selectedBranchValue)
+				ReaderState(manga, selectedBranch)
 			}
 			intentBuilder.state(state)
 		} else if (history != null && !manga.chapters.isNullOrEmpty()) {

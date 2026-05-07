@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -105,20 +106,33 @@ fun ChaptersScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             if (filterChips.isNotEmpty()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    filterChips.forEach { chip ->
+                    items(
+                        items = filterChips,
+                        key = { chip ->
+                            val branch = chip.data as? org.skepsun.kototoro.list.domain.ListFilterOption.Branch
+                            branch?.titleText ?: chip.title ?: chip.titleResId
+                        },
+                    ) { chip ->
                         FilterChip(
-                            selected = false,
+                            selected = chip.isChecked,
                             onClick = { onFilterChipClick(chip) },
                             label = {
                                 Text(
-                                    chip.title?.toString()
-                                        ?: if (chip.titleResId != 0) stringResource(chip.titleResId) else "",
+                                    buildString {
+                                        append(
+                                            chip.title?.toString()
+                                                ?: if (chip.titleResId != 0) stringResource(chip.titleResId) else "",
+                                        )
+                                        if (chip.counter > 0) {
+                                            append(" · ")
+                                            append(chip.counter)
+                                        }
+                                    },
                                 )
                             },
                         )

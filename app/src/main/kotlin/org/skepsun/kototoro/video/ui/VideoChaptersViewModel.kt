@@ -14,6 +14,7 @@ import kotlinx.coroutines.plus
 import org.skepsun.kototoro.bookmarks.domain.BookmarksRepository
 import org.skepsun.kototoro.core.model.getPreferredBranch
 import org.skepsun.kototoro.core.nav.ContentIntent
+import org.skepsun.kototoro.core.nav.ReaderIntent
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.details.data.ContentDetails
 import org.skepsun.kototoro.details.domain.DetailsInteractor
@@ -58,12 +59,20 @@ class VideoChaptersViewModel @Inject constructor(
     private val intent = ContentIntent(savedStateHandle)
     private var loadingJob: Job? = null
     private val mangaId = intent.mangaId
+    private val requestedState = savedStateHandle.get<ReaderState>(ReaderIntent.EXTRA_STATE)
 
     init {
         mangaDetails.value = intent.manga?.let { ContentDetails(it) }
+        if (requestedState != null) {
+            readingState.value = requestedState
+        }
 
         historyRepository.observeOne(mangaId)
-            .onEach { h -> readingState.value = h?.let(::ReaderState) }
+            .onEach { h ->
+                if (requestedState == null) {
+                    readingState.value = h?.let(::ReaderState)
+                }
+            }
             .withErrorHandling()
             .stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, null)
 
@@ -88,7 +97,9 @@ class VideoChaptersViewModel @Inject constructor(
             if (details.allChapters.isNotEmpty()) {
                 val manga = details.toContent()
                 val hist = historyRepository.getOne(manga)
-                selectedBranch.value = manga.getPreferredBranch(hist)
+                selectedBranch.value = requestedState
+                    ?.let { state -> manga.findChapterById(state.chapterId)?.branch }
+                    ?: manga.getPreferredBranch(hist)
             }
         }
     }

@@ -56,11 +56,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.ContentSourceInfo
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
+import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
 import org.skepsun.kototoro.parsers.model.Content
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -291,6 +293,16 @@ private fun TrackingCandidateCard(
     onMigrateClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    val coverUrl = content.coverUrl?.takeIf { it.isNotBlank() }
+    val coverRequest = remember(content.id, coverUrl, content.source) {
+        coverUrl?.let {
+            ImageRequest.Builder(context)
+                .data(it)
+                .mangaSourceExtra(content.source)
+                .build()
+        }
+    }
     Column(
         modifier = modifier
             .width(108.dp)
@@ -300,16 +312,30 @@ private fun TrackingCandidateCard(
             ),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        AsyncImage(
-            model = content.coverUrl,
-            contentDescription = content.title,
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(152.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentScale = ContentScale.Crop,
-        )
+            contentAlignment = Alignment.Center,
+        ) {
+            if (coverRequest == null) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_placeholder),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp),
+                )
+            } else {
+                AsyncImage(
+                    model = coverRequest,
+                    contentDescription = content.title,
+                    modifier = Modifier.fillMaxWidth().height(152.dp),
+                    contentScale = ContentScale.Crop,
+                )
+            }
+        }
         Text(
             text = content.title,
             style = MaterialTheme.typography.labelSmall,

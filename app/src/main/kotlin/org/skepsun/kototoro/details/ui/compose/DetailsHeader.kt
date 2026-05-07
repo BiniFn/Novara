@@ -5,6 +5,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -47,18 +49,17 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -69,6 +70,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -81,8 +83,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import android.widget.Toast
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
@@ -90,6 +95,7 @@ import coil3.request.crossfade
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.iconResId
 import org.skepsun.kototoro.core.model.containsAdultTagKeyword
+import org.skepsun.kototoro.core.model.getOriginLabel
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.titleResId
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -100,6 +106,8 @@ import org.skepsun.kototoro.core.model.ContentSourceInfo
 import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
 import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
 import org.skepsun.kototoro.core.ui.compose.KototoroLinearProgressIndicator
+import org.skepsun.kototoro.core.ui.compose.iconResForUi
+import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
@@ -257,11 +265,13 @@ fun DetailsHeader(
     val canExpandDescription = description.length > 200
 
     val coverModel = remember(content?.source?.name, content?.url, currentCoverUrl) {
-        ImageRequest.Builder(context)
-            .data(currentCoverUrl)
-            .crossfade(sharedElementKey == null)
-            .apply { content?.let { mangaExtra(it) } }
-            .build()
+        currentCoverUrl?.let {
+            ImageRequest.Builder(context)
+                .data(it)
+                .crossfade(sharedElementKey == null)
+                .apply { content?.let { mangaExtra(it) } }
+                .build()
+        }
     }
     val isNsfw = content?.isNsfw() == true
     val infoItems = buildList {
@@ -669,7 +679,7 @@ private fun TrackingSuggestionCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    painter = painterResource(match.service.iconResId),
+                    painter = rememberSafePainter(match.service.iconResId),
                     contentDescription = null,
                     tint = Color.Unspecified,
                     modifier = Modifier.size(18.dp),
@@ -811,7 +821,7 @@ private fun DetailsSourceSelectorButton(
                         }
                         currentOption?.trackingService != null -> {
                             Icon(
-                                painter = painterResource(currentOption.trackingService.iconResId),
+                                painter = rememberSafePainter(currentOption.trackingService.iconResId),
                                 contentDescription = null,
                                 tint = Color.Unspecified,
                                 modifier = Modifier.size(14.dp),
@@ -876,10 +886,159 @@ private fun detailsSourceOptionTitle(
     option: DetailsSourceOption?,
     unavailableText: String,
 ): String {
+    val context = LocalContext.current
     return when {
-        option?.source != null -> rememberResolvedSourceTitle(option.source)
+        option?.source != null -> resolveSourceDisplayTitle(context, option.source)
         option?.trackingService != null -> stringResource(option.trackingService.titleResId)
+        !option?.subtitle.isNullOrBlank() -> option?.subtitle.orEmpty()
+        !option?.title.isNullOrBlank() -> option?.title.orEmpty()
         else -> unavailableText
+    }
+}
+
+private fun resolveSourceDisplayTitle(
+    context: android.content.Context,
+    source: ContentSource,
+): String {
+    return source.getTitle(context)
+        .takeIf { it.isNotBlank() && !it.startsWith("Loading ", ignoreCase = true) }
+        ?: source.getOriginLabel(context)
+        ?: source.name
+}
+
+private data class SourceOptionDisplayModel(
+    val title: String,
+    val subtitle: String,
+    val coverUrl: String?,
+    val source: ContentSource?,
+    val trackingService: ScrobblerService?,
+    val isSelected: Boolean,
+)
+
+@Composable
+private fun DetailsSourceOption.resolveDisplayModel(
+    context: android.content.Context,
+    currentContent: Content?,
+    linkedTrackingItem: LinkedTrackingItemUiModel?,
+    isSelected: Boolean,
+): SourceOptionDisplayModel {
+    val sourceTitle = source?.let { resolveSourceDisplayTitle(context, it) }.orEmpty()
+    val trackingTitle = trackingService?.let { stringResource(it.titleResId) }.orEmpty()
+    val title = when {
+        !this.title.isNullOrBlank() -> this.title.orEmpty()
+        source != null && currentContent != null && currentContent.source.name == source.name -> currentContent.title
+        sourceTitle.isNotBlank() -> sourceTitle
+        linkedTrackingItem?.title?.isNotBlank() == true -> linkedTrackingItem.title
+        trackingTitle.isNotBlank() -> trackingTitle
+        else -> key
+    }
+    val subtitle = when {
+        !this.subtitle.isNullOrBlank() -> this.subtitle.orEmpty()
+        trackingTitle.isNotBlank() -> trackingTitle
+        source != null -> sourceTitle
+        remoteId != null -> "#$remoteId"
+        else -> ""
+    }
+    val coverUrl = coverUrl
+        ?: linkedTrackingItem?.coverUrl
+        ?: currentContent?.coverUrl?.takeIf { source != null && currentContent.source.name == source.name }
+    return SourceOptionDisplayModel(
+        title = title,
+        subtitle = subtitle,
+        coverUrl = coverUrl,
+        source = source,
+        trackingService = trackingService,
+        isSelected = isSelected,
+    )
+}
+
+@Composable
+private fun SourceOptionCard(
+    displayModel: SourceOptionDisplayModel,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier
+            .width(112.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        color = if (displayModel.isSelected)
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+        else
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+        border = if (displayModel.isSelected)
+            BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+        else null,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(8.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp, 80.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                when {
+                    !displayModel.coverUrl.isNullOrBlank() -> {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(displayModel.coverUrl)
+                                .apply { displayModel.source?.let(::mangaSourceExtra) }
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = displayModel.title,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                    displayModel.trackingService != null -> {
+                        Icon(
+                            painter = rememberSafePainter(displayModel.trackingService.iconResId),
+                            contentDescription = null,
+                            tint = Color.Unspecified,
+                            modifier = Modifier.size(28.dp),
+                        )
+                    }
+                    displayModel.source != null -> {
+                        Icon(
+                            painter = rememberSafePainter(displayModel.source.iconResForUi()),
+                            contentDescription = null,
+                            tint = Color.Unspecified,
+                            modifier = Modifier.size(28.dp),
+                        )
+                    }
+                    else -> {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_extension),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(28.dp),
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = displayModel.title,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = displayModel.subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 
@@ -894,6 +1053,7 @@ fun MetadataSourceSheet(
     searchSections: List<org.skepsun.kototoro.details.ui.MetadataSearchSectionUiState>,
     isLoading: Boolean,
     hasSearched: Boolean,
+    currentContent: Content?,
     unavailableText: String,
     linkedTrackingItems: List<LinkedTrackingItemUiModel> = emptyList(),
     onDismissRequest: () -> Unit,
@@ -901,8 +1061,10 @@ fun MetadataSourceSheet(
     onSearchQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
     onBindResult: (TrackingSiteItem) -> Unit,
+    onOpenResult: (TrackingSiteItem) -> Unit,
     onOpenLinkedTracking: (LinkedTrackingItemUiModel) -> Unit = {},
 ) {
+    var pendingBindTarget by remember { mutableStateOf<TrackingSiteItem?>(null) }
     val visibleSections = remember(searchServices, searchSections) {
         if (searchSections.isNotEmpty()) {
             searchSections
@@ -912,155 +1074,68 @@ fun MetadataSourceSheet(
             }
         }
     }
-    DetailsSourceOverlayDialog(
-        onDismissRequest = onDismissRequest,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.details_metadata_source),
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            val detailContext = LocalContext.current
-            if (currentOptions.isNotEmpty()) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(
-                        items = currentOptions,
-                        key = { it.key },
-                    ) { option ->
-                        val linked = option.trackingService?.let { svc ->
-                            linkedTrackingItems.firstOrNull { it.service == svc && it.remoteId == option.remoteId }
-                        }
-                        val isSelected = option == selectedOption || option.isSelected
-                        val label = when {
-                            option.trackingService != null -> stringResource(option.trackingService.titleResId)
-                            option.source != null -> rememberResolvedSourceTitle(option.source)
-                            else -> ""
-                        }
-                        val title = when {
-                            option.source != null -> option.source.getTitle(detailContext)
-                            !linked?.title.isNullOrBlank() -> linked?.title.orEmpty()
-                            option.trackingService != null -> stringResource(option.trackingService.titleResId)
-                            else -> option.key
-                        }
-                        val subtitle = when {
-                            !linked?.title.isNullOrBlank() && linked.title != title -> linked.title
-                            option.remoteId != null -> "#${option.remoteId}"
-                            else -> label
-                        }
-                        val coverUrl = linked?.coverUrl
-                        Surface(
-                            modifier = Modifier
-                                .width(112.dp)
-                                .clickable {
-                                    onDismissRequest()
-                                    onSelectOption(option)
-                                },
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isSelected)
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
-                            else
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                            border = if (isSelected)
-                                BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
-                            else null,
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(8.dp),
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(56.dp, 80.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    if (!coverUrl.isNullOrBlank()) {
-                                        AsyncImage(
-                                            model = ImageRequest.Builder(LocalContext.current)
-                                                .data(coverUrl)
-                                                .crossfade(true)
-                                                .build(),
-                                            contentDescription = title,
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize(),
-                                        )
-                                    } else if (option.trackingService != null) {
-                                        Icon(
-                                            painter = painterResource(option.trackingService.iconResId),
-                                            contentDescription = null,
-                                            tint = Color.Unspecified,
-                                            modifier = Modifier.size(28.dp),
-                                        )
-                                    } else {
-                                        Icon(
-                                            painter = painterResource(R.drawable.ic_extension),
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(28.dp),
-                                        )
-                                    }
-                                }
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    text = title,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    textAlign = TextAlign.Center,
-                                )
-                                Text(
-                                    text = subtitle,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    textAlign = TextAlign.Center,
-                                )
-                            }
-                        }
-                    }
-                }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-            }
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = onSearchQueryChange,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = { Text(stringResource(R.string.search)) },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Filled.Search,
-                        contentDescription = null,
-                    )
-                },
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                    imeAction = androidx.compose.ui.text.input.ImeAction.Search,
-                ),
-                keyboardActions = androidx.compose.foundation.text.KeyboardActions(
-                    onSearch = { onSearch() },
-                ),
-            )
-            searchServices
-                .filter { it !in authorizedServices }
-                .takeIf { it.isNotEmpty() }
-                ?.let {
-                    Text(
-                        text = stringResource(R.string.details_metadata_source_login_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            Box(
-                modifier = Modifier
+    val context = LocalContext.current
+	    DetailsSourceOverlayDialog(
+	        onDismissRequest = onDismissRequest,
+	    ) { panelDragModifier ->
+	        Column(
+	            modifier = Modifier
+	                .fillMaxWidth()
+	                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+	            verticalArrangement = Arrangement.spacedBy(12.dp),
+	        ) {
+	            Column(
+	                modifier = panelDragModifier.fillMaxWidth(),
+	                verticalArrangement = Arrangement.spacedBy(10.dp),
+	            ) {
+	                Text(
+	                    text = stringResource(R.string.details_metadata_source),
+	                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+	                    color = MaterialTheme.colorScheme.onSurface,
+	                )
+	                if (currentOptions.isNotEmpty()) {
+	                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+	                    itemsIndexed(
+	                        items = currentOptions,
+	                        key = { index, option -> "${option.key}:$index" },
+	                    ) { _, option ->
+	                            val linked = option.trackingService?.let { svc ->
+	                                linkedTrackingItems.firstOrNull { it.service == svc && it.remoteId == option.remoteId }
+	                            }
+	                            SourceOptionCard(
+	                                displayModel = option.resolveDisplayModel(
+	                                    context = context,
+	                                    currentContent = currentContent,
+	                                    linkedTrackingItem = linked,
+	                                    isSelected = option == selectedOption || option.isSelected,
+	                                ),
+	                                onClick = {
+	                                    onDismissRequest()
+	                                    onSelectOption(option)
+	                                },
+	                            )
+	                        }
+	                    }
+	                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+	                }
+	                SourceSearchField(
+	                    value = searchQuery,
+	                    onValueChange = onSearchQueryChange,
+	                    onSearch = onSearch,
+	                )
+	                searchServices
+	                    .filter { it !in authorizedServices }
+	                    .takeIf { it.isNotEmpty() }
+	                    ?.let {
+	                        Text(
+	                            text = stringResource(R.string.details_metadata_source_login_hint),
+	                            style = MaterialTheme.typography.bodySmall,
+	                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+	                        )
+	                    }
+	            }
+	            Box(
+	                modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f, fill = true),
             ) {
@@ -1082,18 +1157,18 @@ fun MetadataSourceSheet(
                             modifier = Modifier.fillMaxSize(),
                             verticalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
-                            items(
-                                items = visibleSections,
-                                key = { it.service.id },
-                            ) { section ->
+	                            itemsIndexed(
+	                                items = visibleSections,
+	                                key = { index, section -> "metadata_section:${section.service.id}:$index" },
+	                            ) { _, section ->
                                 MetadataSearchSection(
                                     section = section,
                                     isAuthorized = section.service in authorizedServices,
-                                    hasSearched = hasSearched,
-                                    onItemClick = { item ->
-                                        onDismissRequest()
-                                        onBindResult(item)
-                                    },
+	                                    hasSearched = hasSearched,
+	                                    onItemClick = { item ->
+	                                        onOpenResult(item)
+	                                    },
+                                    onBindClick = { item -> pendingBindTarget = item },
                                 )
                             }
                         }
@@ -1101,6 +1176,39 @@ fun MetadataSourceSheet(
                 }
             }
         }
+    }
+    pendingBindTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { pendingBindTarget = null },
+            title = { Text(stringResource(R.string.details_metadata_source)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.migrate_confirmation,
+                        currentContent?.title.orEmpty(),
+                        currentContent?.source?.getTitle(context).orEmpty(),
+                        target.title,
+                        stringResource(target.service.titleResId),
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingBindTarget = null
+                        onDismissRequest()
+                        onBindResult(target)
+                    },
+                ) {
+                    Text(stringResource(R.string.migrate))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingBindTarget = null }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            },
+        )
     }
 }
 
@@ -1134,60 +1242,54 @@ fun ReadingSourceSheet(
             }
         }
     }
-    DetailsSourceOverlayDialog(
-        onDismissRequest = onDismissRequest,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            if (currentOptions.isNotEmpty()) {
-                Column(
-                    modifier = Modifier.heightIn(max = 180.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    currentOptions.forEach { option ->
-                        SourceOptionSheetRow(
-                            title = detailsSourceOptionTitle(option, unavailableText),
-                            subtitle = stringResource(R.string.source),
-                            isSelected = option == selectedOption || option.isSelected,
-                            onClick = {
-                                onDismissRequest()
-                                onSelectOption(option)
-                            },
-                        )
-                    }
-                }
-            }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = onSearchQueryChange,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = { Text(stringResource(R.string.search)) },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Filled.Search,
-                        contentDescription = null,
-                    )
-                },
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                    imeAction = androidx.compose.ui.text.input.ImeAction.Search,
-                ),
-                keyboardActions = androidx.compose.foundation.text.KeyboardActions(
-                    onSearch = { onSearch() },
-                ),
-            )
-            Box(
-                modifier = Modifier
+	    DetailsSourceOverlayDialog(
+	        onDismissRequest = onDismissRequest,
+	    ) { panelDragModifier ->
+	        Column(
+	            modifier = Modifier
+	                .fillMaxWidth()
+	                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+	            verticalArrangement = Arrangement.spacedBy(12.dp),
+	        ) {
+	            Column(
+	                modifier = panelDragModifier.fillMaxWidth(),
+	                verticalArrangement = Arrangement.spacedBy(10.dp),
+	            ) {
+	                Text(
+	                    text = label,
+	                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+	                    color = MaterialTheme.colorScheme.onSurface,
+	                )
+	                if (currentOptions.isNotEmpty()) {
+	                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+	                    itemsIndexed(
+	                        items = currentOptions,
+	                        key = { index, option -> "${option.key}:$index" },
+	                    ) { _, option ->
+	                            SourceOptionCard(
+	                                displayModel = option.resolveDisplayModel(
+	                                    context = context,
+	                                    currentContent = currentContent,
+	                                    linkedTrackingItem = null,
+	                                    isSelected = option == selectedOption || option.isSelected,
+	                                ),
+	                                onClick = {
+	                                    onDismissRequest()
+	                                    onSelectOption(option)
+	                                },
+	                            )
+	                        }
+	                    }
+	                }
+	                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+	                SourceSearchField(
+	                    value = searchQuery,
+	                    onValueChange = onSearchQueryChange,
+	                    onSearch = onSearch,
+	                )
+	            }
+	            Box(
+	                modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f, fill = true),
             ) {
@@ -1209,10 +1311,10 @@ fun ReadingSourceSheet(
                             modifier = Modifier.fillMaxSize(),
                             verticalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
-                            items(
-                                items = visibleSections,
-                                key = { it.source.mangaSource.name },
-                            ) { section ->
+	                            itemsIndexed(
+	                                items = visibleSections,
+	                                key = { index, section -> "reading_section:${section.source.mangaSource.name}:$index" },
+	                            ) { _, section ->
                                 ReadingSearchSection(
                                     section = section,
                                     hasSearched = hasSearched,
@@ -1262,45 +1364,124 @@ fun ReadingSourceSheet(
                 }
             },
         )
+	}
+}
+
+@Composable
+private fun SourceSearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyMedium,
+            placeholder = {
+                Text(
+                    text = stringResource(R.string.search),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Filled.Search,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+            },
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                imeAction = androidx.compose.ui.text.input.ImeAction.Search,
+            ),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                onSearch = { onSearch() },
+            ),
+        )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DetailsSourceOverlayDialog(
     onDismissRequest: () -> Unit,
-    content: @Composable () -> Unit,
+    content: @Composable (panelDragModifier: Modifier) -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
-    ModalBottomSheet(
+    var panelOffsetY by remember { mutableFloatStateOf(0f) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val dismissThresholdPx = remember(density) {
+        with(density) { 96.dp.toPx() }
+    }
+    val panelDragModifier = Modifier.pointerInput(dismissThresholdPx, onDismissRequest) {
+        detectVerticalDragGestures(
+            onVerticalDrag = { change, dragAmount ->
+                change.consume()
+                panelOffsetY = (panelOffsetY + dragAmount).coerceAtLeast(0f)
+            },
+            onDragCancel = {
+                panelOffsetY = 0f
+            },
+            onDragEnd = {
+                if (panelOffsetY > dismissThresholdPx) {
+                    onDismissRequest()
+                } else {
+                    panelOffsetY = 0f
+                }
+            },
+        )
+    }
+    Dialog(
         onDismissRequest = onDismissRequest,
-        sheetState = sheetState,
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .padding(top = 8.dp)
-                    .width(36.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)),
-            )
-        },
-        containerColor = Color.Transparent,
-        scrimColor = Color.Black.copy(alpha = 0.18f),
-        tonalElevation = 0.dp,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        GlassSurface(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.92f),
-            style = GlassDefaults.prominentStyle().copy(
-                containerAlpha = 0.84f,
-                borderAlpha = 0.20f,
-                shadowElevation = 0.dp,
-            ),
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.18f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismissRequest,
+                ),
+            contentAlignment = Alignment.BottomCenter,
         ) {
-            content()
+            GlassSurface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.92f)
+                    .offset { IntOffset(0, panelOffsetY.roundToInt()) }
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {},
+                    ),
+                style = GlassDefaults.prominentStyle().copy(
+                    containerAlpha = 0.84f,
+                    borderAlpha = 0.20f,
+                    shadowElevation = 0.dp,
+                ),
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .then(panelDragModifier)
+                            .padding(top = 8.dp)
+                            .width(36.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
+                            .align(Alignment.CenterHorizontally),
+                    )
+                    Box(modifier = Modifier.weight(1f)) {
+                        content(panelDragModifier)
+                    }
+                }
+            }
         }
     }
 }
@@ -1311,6 +1492,7 @@ private fun MetadataSearchSection(
     isAuthorized: Boolean,
     hasSearched: Boolean,
     onItemClick: (TrackingSiteItem) -> Unit,
+    onBindClick: (TrackingSiteItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -1346,13 +1528,14 @@ private fun MetadataSearchSection(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(horizontal = 2.dp),
             ) {
-                items(
+                itemsIndexed(
                     items = section.items,
-                    key = { "${it.service.id}:${it.remoteId}" },
-                ) { item ->
+                    key = { index, item -> "${item.service.id}:${item.remoteId}:$index" },
+                ) { _, item ->
                     TrackingSearchResultCard(
                         item = item,
                         onClick = { onItemClick(item) },
+                        onBindClick = { onBindClick(item) },
                     )
                 }
             }
@@ -1411,10 +1594,10 @@ private fun ReadingSearchSection(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(horizontal = 2.dp),
             ) {
-                items(
+                itemsIndexed(
                     items = section.items,
-                    key = { it.id },
-                ) { item ->
+                    key = { index, item -> "${item.id}:${item.source.name}:$index" },
+                ) { _, item ->
                     ReadingSearchResultCard(
                         item = item,
                         onClick = { onItemClick(item) },
@@ -1511,14 +1694,13 @@ private fun TrackingSearchResultRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AsyncImage(
-                model = item.coverUrl,
+            TrackingCoverImage(
+                coverUrl = item.coverUrl,
                 contentDescription = item.title,
                 modifier = Modifier
                     .width(42.dp)
                     .height(58.dp)
                     .clip(RoundedCornerShape(12.dp)),
-                contentScale = ContentScale.Crop,
             )
             Column(
                 modifier = Modifier.weight(1f),
@@ -1554,6 +1736,7 @@ private fun TrackingSearchResultRow(
 private fun TrackingSearchResultCard(
     item: TrackingSiteItem,
     onClick: () -> Unit,
+    onBindClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     GlassSurface(
@@ -1564,18 +1747,20 @@ private fun TrackingSearchResultCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onBindClick,
+                )
                 .padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            AsyncImage(
-                model = item.coverUrl,
+            TrackingCoverImage(
+                coverUrl = item.coverUrl,
                 contentDescription = item.title,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(142.dp)
                     .clip(RoundedCornerShape(14.dp)),
-                contentScale = ContentScale.Crop,
             )
             Text(
                 text = item.title,
@@ -1611,6 +1796,63 @@ private fun TrackingSearchResultCard(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            FilledTonalButton(
+                onClick = onBindClick,
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_replace),
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = stringResource(R.string.migrate),
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrackingCoverImage(
+    coverUrl: String?,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+) {
+    SourceCoverImage(
+        model = coverUrl?.takeIf { it.isNotBlank() },
+        contentDescription = contentDescription,
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun SourceCoverImage(
+    model: Any?,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (model == null) {
+            Icon(
+                painter = rememberSafePainter(R.drawable.ic_placeholder),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp),
+            )
+        } else {
+            AsyncImage(
+                model = model,
+                contentDescription = contentDescription,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
         }
     }
 }
@@ -1622,11 +1864,14 @@ private fun ReadingSearchResultRow(
 ) {
     val latestChapterInfo = remember(item) { item.readingSearchLatestChapterInfo() }
     val context = LocalContext.current
-    val coverRequest = remember(item.id, item.coverUrl, item.source) {
-        ImageRequest.Builder(context)
-            .data(item.coverUrl)
-            .mangaSourceExtra(item.source)
-            .build()
+    val coverUrl = item.coverUrl?.takeIf { it.isNotBlank() }
+    val coverRequest = remember(item.id, coverUrl, item.source) {
+        coverUrl?.let {
+            ImageRequest.Builder(context)
+                .data(it)
+                .mangaSourceExtra(item.source)
+                .build()
+        }
     }
     GlassSurface(
         modifier = Modifier.fillMaxWidth(),
@@ -1641,14 +1886,13 @@ private fun ReadingSearchResultRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AsyncImage(
+            SourceCoverImage(
                 model = coverRequest,
                 contentDescription = item.title,
                 modifier = Modifier
                     .width(42.dp)
                     .height(58.dp)
                     .clip(RoundedCornerShape(12.dp)),
-                contentScale = ContentScale.Crop,
             )
             Column(
                 modifier = Modifier.weight(1f),
@@ -1705,11 +1949,14 @@ private fun ReadingSearchResultCard(
 ) {
     val latestChapterInfo = remember(item) { item.readingSearchLatestChapterInfo() }
     val context = LocalContext.current
-    val coverRequest = remember(item.id, item.coverUrl, item.source) {
-        ImageRequest.Builder(context)
-            .data(item.coverUrl)
-            .mangaSourceExtra(item.source)
-            .build()
+    val coverUrl = item.coverUrl?.takeIf { it.isNotBlank() }
+    val coverRequest = remember(item.id, coverUrl, item.source) {
+        coverUrl?.let {
+            ImageRequest.Builder(context)
+                .data(it)
+                .mangaSourceExtra(item.source)
+                .build()
+        }
     }
     GlassSurface(
         modifier = modifier.width(108.dp),
@@ -1726,14 +1973,13 @@ private fun ReadingSearchResultCard(
                 .padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            AsyncImage(
+            SourceCoverImage(
                 model = coverRequest,
                 contentDescription = item.title,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(142.dp)
                     .clip(RoundedCornerShape(14.dp)),
-                contentScale = ContentScale.Crop,
             )
             Text(
                 text = item.title,

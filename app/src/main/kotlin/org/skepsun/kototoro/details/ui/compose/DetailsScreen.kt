@@ -580,23 +580,25 @@ fun DetailsScreen(
                     val panoramaCoverUrl = mangaDetails?.coverUrl?.takeIf { it.isNotBlank() }
                         ?: content?.largeCoverUrl?.takeIf { it.isNotBlank() }
                         ?: content?.coverUrl?.takeIf { it.isNotBlank() }
-                    val request = remember(content?.source?.name, content?.url, panoramaCoverUrl) {
-                        ImageRequest.Builder(context)
-                            .data(panoramaCoverUrl)
-                            .apply { content?.let { mangaExtra(it) } }
-                            .build()
+                    if (panoramaCoverUrl != null) {
+                        val request = remember(content?.source?.name, content?.url, panoramaCoverUrl) {
+                            ImageRequest.Builder(context)
+                                .data(panoramaCoverUrl)
+                                .apply { content?.let { mangaExtra(it) } }
+                                .build()
+                        }
+                        AnimatedPanoramaBackdrop(
+                            prefs = panoramaPrefs,
+                            model = request,
+                            contentAlpha = 0.6f,
+                            contentAlphaProvider = {
+                                0.6f * (1f - compactCollapseProgressProvider())
+                            },
+                            backgroundColor = MaterialTheme.colorScheme.surface,
+                            crossfadeEnabled = sharedElementKey == null,
+                            modifier = Modifier.fillMaxSize(),
+                        )
                     }
-                    AnimatedPanoramaBackdrop(
-                        prefs = panoramaPrefs,
-                        model = request,
-                        contentAlpha = 0.6f,
-                        contentAlphaProvider = {
-                            0.6f * (1f - compactCollapseProgressProvider())
-                        },
-                        backgroundColor = MaterialTheme.colorScheme.surface,
-                        crossfadeEnabled = sharedElementKey == null,
-                        modifier = Modifier.fillMaxSize(),
-                    )
                 }
             }
 
@@ -1142,6 +1144,7 @@ fun DetailsScreen(
                     searchSections = metadataSearchSections,
                     isLoading = metadataSearchLoading,
                     hasSearched = metadataSearchHasSearched,
+                    currentContent = content,
                     unavailableText = stringResource(R.string.details_reading_source_unavailable),
                     linkedTrackingItems = linkedTrackingItems,
                     onDismissRequest = { showMetadataSourceDialog = false },
@@ -1149,6 +1152,9 @@ fun DetailsScreen(
                     onSearchQueryChange = viewModel::updateMetadataSearchQuery,
                     onSearch = viewModel::searchMetadataBindings,
                     onBindResult = viewModel::bindMetadataSource,
+                    onOpenResult = { item ->
+                        onActionClick(DetailsAction.OpenTrackingDetails(item.service, item.remoteId, item.url))
+                    },
                     onOpenLinkedTracking = { linked ->
                         onActionClick(DetailsAction.OpenTrackingDetails(linked.service, linked.remoteId, linked.url))
                     },

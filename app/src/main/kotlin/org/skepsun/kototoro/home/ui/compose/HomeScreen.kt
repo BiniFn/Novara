@@ -211,6 +211,11 @@ fun HomeScreen(
         HomeQuickAction(stringResource(R.string.settings), R.drawable.ic_settings, actions.onSettingsClick),
     )
     val topInset = contentPadding.calculateTopPadding()
+    val scrollTopInset = if (heroEntries.isEmpty()) {
+        maxOf(topInset, systemBarsPadding.calculateTopPadding()) + 8.dp
+    } else {
+        0.dp
+    }
     val estimatedHeroPx = with(density) { (340.dp + topInset).roundToPx() }
     var heroPx by rememberSaveable { mutableIntStateOf(estimatedHeroPx) }
     val heroHeightDp by remember(heroPx, density) {
@@ -231,6 +236,7 @@ fun HomeScreen(
                 .verticalScroll(scrollState)
                 .padding(
                     start = systemBarsPadding.calculateLeftPadding(layoutDirection) + 8.dp,
+                    top = scrollTopInset,
                     end = systemBarsPadding.calculateRightPadding(layoutDirection) + 8.dp,
                     bottom = contentPadding.calculateBottomPadding(),
                 )
