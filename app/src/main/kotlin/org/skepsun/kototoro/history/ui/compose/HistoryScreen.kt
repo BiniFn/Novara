@@ -99,6 +99,9 @@ fun HistoryScreen(
             bottom = contentPadding.calculateBottomPadding() + if (showContinueReadingButton) 88.dp else 0.dp,
         )
     }
+    val fabBottomPadding = remember(contentPadding) {
+        contentPadding.calculateBottomPadding() + 28.dp
+    }
     Box(
         modifier = modifier.fillMaxSize()
     ) {
@@ -172,7 +175,7 @@ fun HistoryScreen(
                 expanded = isFabExpanded,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 16.dp, bottom = 16.dp),
+                    .padding(end = 16.dp, bottom = fabBottomPadding),
             )
         }
     }
