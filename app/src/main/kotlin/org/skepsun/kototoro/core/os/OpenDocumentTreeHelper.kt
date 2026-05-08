@@ -62,8 +62,28 @@ class OpenDocumentTreeHelper(
 	override val contract: ActivityResultContract<Uri?, *>
 		get() = pickFileTreeLauncherPrimaryStorage?.contract ?: pickFileTreeLauncherDefault.contract
 
-	private open class OpenDocumentTreeContractDefault(
-		private val flags: Int,
+	open class OpenDocumentTreeContract(
+		private val flags: Int = 0,
+	) : ActivityResultContracts.OpenDocumentTree() {
+
+		override fun createIntent(context: Context, input: Uri?): Intent {
+			val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+				(context.getSystemService(Context.STORAGE_SERVICE) as? StorageManager)
+					?.primaryStorageVolume
+					?.createOpenDocumentTreeIntent()
+			} else {
+				null
+			} ?: super.createIntent(context, input)
+			intent.addFlags(flags)
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && input != null) {
+				intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, input)
+			}
+			return intent
+		}
+	}
+
+	open class OpenDocumentTreeContractDefault(
+		private val flags: Int = 0,
 	) : ActivityResultContracts.OpenDocumentTree() {
 
 		override fun createIntent(context: Context, input: Uri?): Intent {
@@ -74,8 +94,8 @@ class OpenDocumentTreeHelper(
 	}
 
 	@RequiresApi(Build.VERSION_CODES.Q)
-	private class OpenDocumentTreeContractPrimaryStorage(
-		private val flags: Int,
+	class OpenDocumentTreeContractPrimaryStorage(
+		private val flags: Int = 0,
 	) : OpenDocumentTreeContractDefault(flags) {
 
 		override fun createIntent(context: Context, input: Uri?): Intent {

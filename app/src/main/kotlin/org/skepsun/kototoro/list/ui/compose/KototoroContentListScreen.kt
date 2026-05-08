@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import kotlin.math.floor
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
@@ -73,6 +74,7 @@ fun KototoroContentListScreen(
     items: List<ListModel>,
     listMode: ListMode,
     isRefreshing: Boolean,
+    pullRefreshEnabled: Boolean = true,
     showRemoveOption: Boolean = false,
     sharedTransitionEnabled: Boolean = true,
     onRefresh: () -> Unit,
@@ -137,6 +139,7 @@ fun KototoroContentListScreen(
             isRefreshing = isRefreshing,
             onRefresh = onRefresh,
             modifier = Modifier.fillMaxSize(),
+            enabled = pullRefreshEnabled,
             indicatorTopInset = innerPadding,
         ) {
             if (items.isEmpty() && !isRefreshing) {
@@ -151,61 +154,81 @@ fun KototoroContentListScreen(
                     ListMode.GRID -> {
                         val posterStyle = compactPosterCardStyle(gridScale)
                         val actualGridState = gridState ?: rememberLazyGridState()
-                        LazyVerticalGrid(
-                            columns = GridCells.Adaptive(minSize = posterStyle.itemWidth + 12.dp),
-                            state = actualGridState,
-                            contentPadding = innerPadding,
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            if (listHeader != null) {
-                                item(span = { GridItemSpan(maxLineSpan) }) {
-                                    listHeader()
-                                }
+                        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                            val horizontalPadding = innerPadding.calculateLeftPadding(LayoutDirection.Ltr) +
+                                innerPadding.calculateRightPadding(LayoutDirection.Ltr)
+                            val availableWidth = (maxWidth - horizontalPadding).coerceAtLeast(posterStyle.itemWidth)
+                            val gridSpacing = 6.dp
+                            val gridColumns = remember(availableWidth, posterStyle.itemWidth, gridSpacing) {
+                                floor(
+                                    ((availableWidth + gridSpacing) / (posterStyle.itemWidth + gridSpacing)).toDouble(),
+                                ).toInt().coerceAtLeast(1)
                             }
-                            items(
-                                count = items.size,
-                                key = { index -> listModelComposeKey(items[index], index) },
-                                span = { index ->
-                                    val listModel = items[index]
-                                    if (listModel is ContentGridModel) {
-                                        GridItemSpan(1)
-                                    } else {
-                                        GridItemSpan(maxLineSpan)
+
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(gridColumns),
+                                state = actualGridState,
+                                contentPadding = innerPadding,
+                                horizontalArrangement = Arrangement.spacedBy(gridSpacing),
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                if (listHeader != null) {
+                                    item(span = { GridItemSpan(maxLineSpan) }) {
+                                        listHeader()
                                     }
-                                },
-                                contentType = { index ->
-                                    if (items[index] is ContentGridModel) "grid_card" else "supplementary"
-                                },
-                            ) { index ->
-                                val listModel = items[index]
-                                if (listModel is ContentGridModel) {
-                                    KototoroContentCardGrid(
-                                        item = listModel,
-                                        isSelected = listModel.id in selectedItemsIds,
-                                        onClick = { coverBounds ->
-                                            onPrepareItemTransition(listModel, coverBounds)
-                                            onItemClick(listModel)
-                                        },
-                                        onLongClick = { onItemLongClick(listModel) },
-                                        sharedTransitionEnabled = sharedTransitionEnabled,
-                                        showSourceInfo = showSourceOnCards,
-                                        gridScale = gridScale,
-                                        uiPrefs = cardUiPrefs,
-                                    )
-                                } else {
-                                    SupplementaryListItem(
-                                        item = listModel,
-                                        listMode = listMode,
-                                        gridScale = gridScale,
-                                        onQuickFilterOptionClick = onQuickFilterOptionClick,
-                                        onEmptyActionClick = onEmptyActionClick,
-                                        onRetry = onRetry,
-                                    )
                                 }
 
-                                if (listModel == lastContentItem) {
-                                    LaunchedEffect(listModel) {
-                                        onLoadMore()
+                                items(
+                                    count = items.size,
+                                    key = { index -> listModelComposeKey(items[index], index) },
+                                    span = { index ->
+                                        val listModel = items[index]
+                                        if (listModel is ContentGridModel) {
+                                            GridItemSpan(1)
+                                        } else {
+                                            GridItemSpan(maxLineSpan)
+                                        }
+                                    },
+                                    contentType = { index ->
+                                        if (items[index] is ContentGridModel) "grid_card" else "supplementary"
+                                    },
+                                ) { index ->
+                                    val listModel = items[index]
+                                    if (listModel is ContentGridModel) {
+                                        Box(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            contentAlignment = Alignment.TopCenter,
+                                        ) {
+                                            KototoroContentCardGrid(
+                                                item = listModel,
+                                                isSelected = listModel.id in selectedItemsIds,
+                                                onClick = { coverBounds ->
+                                                    onPrepareItemTransition(listModel, coverBounds)
+                                                    onItemClick(listModel)
+                                                },
+                                                onLongClick = { onItemLongClick(listModel) },
+                                                sharedTransitionEnabled = sharedTransitionEnabled,
+                                                showSourceInfo = showSourceOnCards,
+                                                gridScale = gridScale,
+                                                uiPrefs = cardUiPrefs,
+                                                modifier = Modifier.width(posterStyle.itemWidth),
+                                            )
+                                        }
+                                    } else {
+                                        SupplementaryListItem(
+                                            item = listModel,
+                                            listMode = listMode,
+                                            gridScale = gridScale,
+                                            onQuickFilterOptionClick = onQuickFilterOptionClick,
+                                            onEmptyActionClick = onEmptyActionClick,
+                                            onRetry = onRetry,
+                                        )
+                                    }
+
+                                    if (listModel == lastContentItem) {
+                                        LaunchedEffect(listModel) {
+                                            onLoadMore()
+                                        }
                                     }
                                 }
                             }

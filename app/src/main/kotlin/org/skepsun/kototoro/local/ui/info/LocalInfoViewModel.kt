@@ -11,11 +11,11 @@ import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.computeSize
-import org.skepsun.kototoro.core.util.ext.require
 import org.skepsun.kototoro.core.util.ext.toFileOrNull
 import org.skepsun.kototoro.local.data.LocalMangaRepository
 import org.skepsun.kototoro.local.data.LocalStorageManager
 import org.skepsun.kototoro.local.domain.DeleteReadChaptersUseCase
+import org.skepsun.kototoro.parsers.model.Content
 import javax.inject.Inject
 
 @HiltViewModel
@@ -26,7 +26,11 @@ class LocalInfoViewModel @Inject constructor(
 	private val deleteReadChaptersUseCase: DeleteReadChaptersUseCase,
 ) : BaseViewModel() {
 
-	private val manga = savedStateHandle.require<ParcelableContent>(AppRouter.KEY_MANGA).manga
+	private var mangaState: Content? = savedStateHandle.get<ParcelableContent>(AppRouter.KEY_MANGA)?.manga
+	private val manga: Content
+		get() = checkNotNull(mangaState) {
+			"LocalInfoViewModel is not initialized with content"
+		}
 
 	val isCleaningUp = MutableStateFlow(false)
 	val onCleanedUp = MutableEventFlow<Pair<Int, Long>>()
@@ -36,6 +40,19 @@ class LocalInfoViewModel @Inject constructor(
 	val availableSize = MutableStateFlow(-1L)
 
 	init {
+		if (mangaState != null) {
+			computeSize()
+		}
+	}
+
+	fun initialize(manga: Content) {
+		if (mangaState?.id == manga.id && path.value != null) {
+			return
+		}
+		mangaState = manga
+		path.value = null
+		size.value = -1L
+		availableSize.value = -1L
 		computeSize()
 	}
 

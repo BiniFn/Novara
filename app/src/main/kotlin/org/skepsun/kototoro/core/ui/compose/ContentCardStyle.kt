@@ -11,8 +11,8 @@ data class CompactPosterCardStyle(
 
 fun compactPosterCardStyle(gridScale: Float): CompactPosterCardStyle {
     val normalizedScale = gridScale.coerceIn(0.5f, 1.4f)
-    val width = (88f * normalizedScale).dp.coerceIn(44.dp, 116.dp)
-    val height = (124f * normalizedScale).dp.coerceIn(62.dp, 164.dp)
+    val width = (96f * normalizedScale).dp.coerceIn(48.dp, 134.dp)
+    val height = (136f * normalizedScale).dp.coerceIn(68.dp, 190.dp)
     return CompactPosterCardStyle(
         itemWidth = width,
         posterHeight = height,

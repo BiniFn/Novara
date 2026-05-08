@@ -15,12 +15,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -41,11 +45,44 @@ import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.model.DateTimeAgo
 import org.skepsun.kototoro.core.util.KototoroColors
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.util.format
 import org.skepsun.kototoro.stats.ui.sheet.ContentStatsViewModel
 import androidx.collection.IntList
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 
 private fun IntList.toList(): List<Int> = buildList { this@toList.forEach { add(it) } }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ContentStatsRoute(
+    manga: Content,
+    onOpenDetails: () -> Unit,
+    onDismissRequest: () -> Unit,
+    viewModel: ContentStatsViewModel = hiltViewModel(key = "content-stats-${manga.id}"),
+) {
+    LaunchedEffect(manga) {
+        viewModel.initialize(manga)
+    }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = sheetState,
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = stringResource(R.string.reading_stats),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            )
+            ContentStatsSheetContent(
+                viewModel = viewModel,
+                onOpenDetails = onOpenDetails,
+                modifier = Modifier,
+            )
+        }
+    }
+}
 
 @Composable
 fun ContentStatsDialog(

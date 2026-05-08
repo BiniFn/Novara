@@ -30,6 +30,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.list.domain.ListSortOrder
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,6 +41,13 @@ fun DisplayOptionsSheet(
     supportsGridSizeSlider: Boolean,
     gridSize: Int,
     onGridSizeChange: (Int) -> Unit,
+    sortOrders: List<ListSortOrder> = emptyList(),
+    selectedSortOrder: ListSortOrder? = null,
+    onSortOrderSelected: (ListSortOrder) -> Unit = {},
+    supportsGrouping: Boolean = false,
+    isGroupingAvailable: Boolean = false,
+    isGroupingEnabled: Boolean = false,
+    onGroupingEnabledChange: (Boolean) -> Unit = {},
     extraContent: (@Composable () -> Unit)? = null,
     onDismissRequest: () -> Unit,
 ) {
@@ -115,7 +123,29 @@ fun DisplayOptionsSheet(
                 )
             }
 
-            if (supportsDisplayModeMenu || supportsGridSizeSlider) {
+            if (sortOrders.isNotEmpty()) {
+                if (supportsDisplayModeMenu || supportsGridSizeSlider) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                }
+                SortOrderSection(
+                    sortOrders = sortOrders,
+                    selectedSortOrder = selectedSortOrder,
+                    onSortOrderSelected = onSortOrderSelected,
+                )
+            }
+
+            if (supportsGrouping) {
+                if (supportsDisplayModeMenu || supportsGridSizeSlider || sortOrders.isNotEmpty()) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                }
+                GroupingSection(
+                    enabled = isGroupingEnabled,
+                    available = isGroupingAvailable,
+                    onEnabledChange = onGroupingEnabledChange,
+                )
+            }
+
+            if (supportsDisplayModeMenu || supportsGridSizeSlider || sortOrders.isNotEmpty() || supportsGrouping) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
             }
             Row(
@@ -142,12 +172,80 @@ fun DisplayOptionsSheet(
             }
 
             extraContent?.let {
-                if (supportsDisplayModeMenu || supportsGridSizeSlider) {
+                if (supportsDisplayModeMenu || supportsGridSizeSlider || sortOrders.isNotEmpty() || supportsGrouping) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                 }
                 it()
             }
         }
+    }
+}
+
+@Composable
+private fun SortOrderSection(
+    sortOrders: List<ListSortOrder>,
+    selectedSortOrder: ListSortOrder?,
+    onSortOrderSelected: (ListSortOrder) -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.sort_order),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            sortOrders.chunked(2).forEach { rowItems ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    rowItems.forEach { order ->
+                        DisplayModeChip(
+                            iconRes = R.drawable.ic_sort,
+                            label = stringResource(order.titleResId),
+                            selected = order == selectedSortOrder,
+                            onClick = { onSortOrderSelected(order) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (rowItems.size == 1) {
+                        androidx.compose.foundation.layout.Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupingSection(
+    enabled: Boolean,
+    available: Boolean,
+    onEnabledChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.group_by),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (available) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(
+            checked = enabled,
+            enabled = available,
+            onCheckedChange = onEnabledChange,
+        )
     }
 }
 

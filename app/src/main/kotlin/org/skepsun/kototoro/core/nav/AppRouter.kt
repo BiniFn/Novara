@@ -30,6 +30,7 @@ import dagger.hilt.android.EntryPointAccessors
 import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.alternatives.ui.AlternativesSheet
+import org.skepsun.kototoro.alternatives.ui.compose.AlternativesSheetRoute
 import org.skepsun.kototoro.backups.ui.backup.BackupDialogFragment
 import org.skepsun.kototoro.backups.ui.restore.RestoreDialogFragment
 import org.skepsun.kototoro.browser.BrowserActivity
@@ -53,6 +54,7 @@ import org.skepsun.kototoro.core.parser.external.ExternalContentSource
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ReaderMode
 import org.skepsun.kototoro.core.prefs.TriStateOption
+import org.skepsun.kototoro.core.ui.BaseComposeActivity
 import org.skepsun.kototoro.core.ui.dialog.BigButtonsAlertDialog
 import org.skepsun.kototoro.core.ui.dialog.ErrorDetailsDialog
 import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
@@ -69,23 +71,30 @@ import org.skepsun.kototoro.details.ui.DetailsActivity
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet
 import org.skepsun.kototoro.details.ui.related.RelatedContentActivity
 import org.skepsun.kototoro.details.ui.scrobbling.ScrobblingInfoSheet
+import org.skepsun.kototoro.download.ui.compose.DownloadDialog
 import org.skepsun.kototoro.download.ui.dialog.DownloadDialogFragment
 import org.skepsun.kototoro.download.ui.list.DownloadsActivity
 import org.skepsun.kototoro.favourites.ui.FavouritesActivity
 import org.skepsun.kototoro.favourites.ui.categories.FavouriteCategoriesActivity
 import org.skepsun.kototoro.favourites.ui.categories.edit.FavouritesCategoryEditActivity
 import org.skepsun.kototoro.favourites.ui.categories.select.FavoriteDialog
+import org.skepsun.kototoro.favourites.ui.categories.select.compose.FavoriteCategoryDialogRoute
 import org.skepsun.kototoro.filter.ui.FilterCoordinator
+import org.skepsun.kototoro.filter.ui.sheet.FilterSheetRoute
 import org.skepsun.kototoro.filter.ui.sheet.FilterSheetFragment
+import org.skepsun.kototoro.filter.ui.tags.TagsCatalogRoute
 import org.skepsun.kototoro.filter.ui.tags.TagsCatalogSheet
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.preset.SourcePresetListActivity
 import org.skepsun.kototoro.history.ui.HistoryActivity
 import org.skepsun.kototoro.image.ui.ImageActivity
 import org.skepsun.kototoro.list.ui.config.ListConfigBottomSheet
+import org.skepsun.kototoro.list.ui.config.ListConfigRoute
 import org.skepsun.kototoro.list.ui.config.ListConfigSection
 import org.skepsun.kototoro.local.ui.ImportDialogFragment
+import org.skepsun.kototoro.local.ui.compose.ImportDialog
 import org.skepsun.kototoro.local.ui.info.LocalInfoDialog
+import org.skepsun.kototoro.local.ui.info.compose.LocalInfoDialogRoute
 import org.skepsun.kototoro.main.ui.MainActivity
 import org.skepsun.kototoro.main.ui.welcome.WelcomeSheet
 import org.skepsun.kototoro.parsers.model.Content
@@ -125,6 +134,7 @@ import org.skepsun.kototoro.settings.storage.directories.ContentDirectoriesActiv
 import org.skepsun.kototoro.settings.tracker.categories.TrackerCategoriesConfigSheet
 import org.skepsun.kototoro.stats.ui.StatsActivity
 import org.skepsun.kototoro.stats.ui.sheet.ContentStatsSheet
+import org.skepsun.kototoro.stats.ui.sheet.compose.ContentStatsRoute
 
 import java.io.File
 import androidx.appcompat.R as appcompatR
@@ -445,6 +455,23 @@ class AppRouter private constructor(
     }
 
     fun openAlternatives(manga: Content) {
+        val composeActivity = activity as? BaseComposeActivity
+        if (composeActivity != null) {
+            composeActivity.showComposeModal {
+                AlternativesSheetRoute(
+                    manga = manga,
+                    onOpenDetails = {
+                        composeActivity.dismissComposeModal()
+                        openDetails(it)
+                    },
+                    onOpenSourceSearch = { source, query ->
+                        openSearch(source, query)
+                    },
+                    onDismissRequest = composeActivity::dismissComposeModal,
+                )
+            }
+            return
+        }
         AlternativesSheet().withArgs(1) {
             putParcelable(KEY_MANGA, ParcelableContent(manga))
         }.showDistinct()
@@ -688,10 +715,23 @@ class AppRouter private constructor(
 
     /** Dialogs **/
 
-    fun showDownloadDialog(manga: Content, snackbarHost: View?) = showDownloadDialog(setOf(manga), snackbarHost)
+    fun showDownloadDialog(manga: Content, snackbarHost: View? = null) = showDownloadDialog(setOf(manga), snackbarHost)
 
-    fun showDownloadDialog(manga: Collection<Content>, snackbarHost: View?) {
+    fun showDownloadDialog(manga: Collection<Content>, snackbarHost: View? = null) {
         if (manga.isEmpty()) {
+            return
+        }
+        val composeActivity = activity as? BaseComposeActivity
+        if (composeActivity != null) {
+            val mangaList = manga.toList()
+            composeActivity.showComposeModal {
+                DownloadDialog(
+                    mangaList = mangaList,
+                    snackbarHostState = composeActivity.snackbarHostState,
+                    onOpenDownloads = ::openDownloads,
+                    onDismiss = composeActivity::dismissComposeModal,
+                )
+            }
             return
         }
         val fm = getFragmentManager() ?: return
@@ -708,6 +748,16 @@ class AppRouter private constructor(
     }
 
     fun showLocalInfoDialog(manga: Content) {
+        val composeActivity = activity as? BaseComposeActivity
+        if (composeActivity != null) {
+            composeActivity.showComposeModal {
+                LocalInfoDialogRoute(
+                    manga = manga,
+                    onDismissRequest = composeActivity::dismissComposeModal,
+                )
+            }
+            return
+        }
         LocalInfoDialog().withArgs(1) {
             putParcelable(KEY_MANGA, ParcelableContent(manga))
         }.showDistinct()
@@ -721,6 +771,18 @@ class AppRouter private constructor(
 
     fun showFavoriteDialog(manga: Collection<Content>) {
         if (manga.isEmpty()) {
+            return
+        }
+        val composeActivity = activity as? BaseComposeActivity
+        if (composeActivity != null) {
+            val mangaList = manga.toList()
+            composeActivity.showComposeModal {
+                FavoriteCategoryDialogRoute(
+                    manga = mangaList,
+                    onManageCategories = ::openFavoriteCategories,
+                    onDismiss = composeActivity::dismissComposeModal,
+                )
+            }
             return
         }
         FavoriteDialog().withArgs(1) {
@@ -822,17 +884,55 @@ class AppRouter private constructor(
     }
 
     fun showImportDialog() {
+        val composeActivity = activity as? BaseComposeActivity
+        if (composeActivity != null) {
+            composeActivity.showComposeModal {
+                ImportDialog(
+                    onDismissRequest = composeActivity::dismissComposeModal,
+                )
+            }
+            return
+        }
         ImportDialogFragment().showDistinct()
     }
 
-    fun showFilterSheet(): Boolean = if (isFilterSupported()) {
-        FilterSheetFragment().showDistinct()
-    } else {
-        false
+    fun showFilterSheet(): Boolean {
+        if (!isFilterSupported()) {
+            return false
+        }
+        val composeActivity = activity as? BaseComposeActivity
+        val filterOwner = activity as? FilterCoordinator.Owner
+        if (composeActivity != null && filterOwner != null) {
+            composeActivity.showComposeModal {
+                FilterSheetRoute(
+                    filter = filterOwner.filterCoordinator,
+                    isEmbedded = false,
+                    onDismiss = composeActivity::dismissComposeModal,
+                    onOpenTagCatalog = { groupTitle, excludeMode ->
+                        showTagsCatalogSheet(excludeMode = excludeMode, groupTitle = groupTitle)
+                    },
+                )
+            }
+            return true
+        }
+        return FilterSheetFragment().showDistinct()
     }
 
     fun showTagsCatalogSheet(excludeMode: Boolean, groupTitle: String? = null) {
         if (!isFilterSupported()) {
+            return
+        }
+        val composeActivity = activity as? BaseComposeActivity
+        val filterOwner = activity as? FilterCoordinator.Owner
+        if (composeActivity != null && filterOwner != null) {
+            composeActivity.showComposeModal {
+                TagsCatalogRoute(
+                    filter = filterOwner.filterCoordinator,
+                    isExcludeTag = excludeMode,
+                    groupTitle = groupTitle,
+                    onDismiss = composeActivity::dismissComposeModal,
+                )
+            }
             return
         }
         TagsCatalogSheet().withArgs(2) {
@@ -842,12 +942,36 @@ class AppRouter private constructor(
     }
 
     fun showListConfigSheet(section: ListConfigSection) {
+        val composeActivity = activity as? BaseComposeActivity
+        if (composeActivity != null) {
+            composeActivity.showComposeModal {
+                ListConfigRoute(
+                    section = section,
+                    onDismissRequest = composeActivity::dismissComposeModal,
+                )
+            }
+            return
+        }
         ListConfigBottomSheet().withArgs(1) {
             putParcelable(KEY_LIST_SECTION, section)
         }.showDistinct()
     }
 
     fun showStatisticSheet(manga: Content) {
+        val composeActivity = activity as? BaseComposeActivity
+        if (composeActivity != null) {
+            composeActivity.showComposeModal {
+                ContentStatsRoute(
+                    manga = manga,
+                    onOpenDetails = {
+                        composeActivity.dismissComposeModal()
+                        openDetails(manga)
+                    },
+                    onDismissRequest = composeActivity::dismissComposeModal,
+                )
+            }
+            return
+        }
         ContentStatsSheet().withArgs(1) {
             putParcelable(KEY_MANGA, ParcelableContent(manga))
         }.showDistinct()

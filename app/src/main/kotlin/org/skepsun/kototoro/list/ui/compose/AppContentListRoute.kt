@@ -1,22 +1,26 @@
 package org.skepsun.kototoro.list.ui.compose
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
+import android.widget.Toast
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.FlowCollector
 import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
-import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 import org.skepsun.kototoro.list.ui.ContentListViewModel
 import org.skepsun.kototoro.main.ui.MainActivity
 import androidx.compose.runtime.saveable.rememberSaveable
 import org.skepsun.kototoro.core.ui.BaseActivity
-import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
+import org.skepsun.kototoro.core.ui.BaseComposeActivity
 import org.skepsun.kototoro.alternatives.ui.AutoFixService
 import org.skepsun.kototoro.core.util.ShareHelper
 import org.skepsun.kototoro.core.model.isLocal
@@ -26,6 +30,11 @@ import org.skepsun.kototoro.list.ui.model.ErrorState
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.main.ui.compose.ContentSelectionTopBarOverrideState
 import org.skepsun.kototoro.main.ui.compose.TopBarOverrideState
+import org.skepsun.kototoro.core.util.ext.getDisplayMessage
+
+private fun <T> eventCollector(block: suspend (T) -> Unit): FlowCollector<T> = FlowCollector { value ->
+    block(value)
+}
 
 private data class ContentSelectionModels(
     val allContentIds: Set<Long>,
@@ -67,7 +76,11 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     onShareSelection: ((Set<Long>) -> Unit)? = null,
     onPinSelection: ((Set<Long>) -> Unit)? = null,
     onMarkAsCompletedSelection: ((List<ContentListModel>) -> Unit)? = null,
+    preferredSelectionInlineActions: List<SelectionAction>? = null,
+    removeSelectionActionIconRes: Int? = null,
+    removeSelectionActionTitleRes: Int? = null,
     onEmptyActionClick: (() -> Unit)? = null,
+    pullRefreshEnabled: Boolean = true,
     onLoadMore: () -> Unit = {},
     onNavigateToDetails: ((org.skepsun.kototoro.parsers.model.Content, String?) -> Unit)? = null,
     onAddMenuProvider: ((androidx.activity.ComponentActivity, VM, androidx.lifecycle.LifecycleOwner) -> androidx.core.view.MenuProvider?)? = null,
@@ -79,13 +92,18 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     val isRefreshing by viewModel.isLoading.collectAsStateWithLifecycle(initialValue = false)
 
     var composeSelectionIds by rememberSaveable { mutableStateOf(emptySet<Long>()) }
+    var pendingFixIds by remember { mutableStateOf<Set<Long>?>(null) }
+    var pendingMarkAsCompletedItems by remember { mutableStateOf<List<ContentListModel>?>(null) }
 
     val activity = LocalContext.current as? androidx.activity.ComponentActivity
     val context = LocalContext.current
-    val rootView = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
-    val exceptionResolver = (activity as? BaseActivity<*>)?.exceptionResolver
+    val exceptionResolver = when (activity) {
+        is BaseActivity<*> -> activity.exceptionResolver
+        is BaseComposeActivity -> activity.exceptionResolver
+        else -> null
+    }
     val selectionModels = remember(items, composeSelectionIds) {
         prepareContentSelectionModels(items, composeSelectionIds)
     }
@@ -121,6 +139,9 @@ fun <VM : ContentListViewModel> AppContentListRoute(
                     showRemoveOption = showRemoveOption,
                     supportedActions = supportedActions,
                     allPinned = selectedModels.all { it.isPinned },
+                    preferredInlineActions = preferredSelectionInlineActions,
+                    removeActionIconRes = removeSelectionActionIconRes,
+                    removeActionTitleRes = removeSelectionActionTitleRes,
                     onClearSelection = { composeSelectionIds = emptySet() },
                     onActionClick = { action ->
                         when (action) {
@@ -148,7 +169,7 @@ fun <VM : ContentListViewModel> AppContentListRoute(
                             }
 
                             SelectionAction.SAVE -> {
-                                appRouter.showDownloadDialog(selectedModels.map { it.manga }, rootView)
+                                appRouter.showDownloadDialog(selectedModels.map { it.manga })
                                 composeSelectionIds = emptySet()
                             }
 
@@ -158,14 +179,7 @@ fun <VM : ContentListViewModel> AppContentListRoute(
                             }
 
                             SelectionAction.FIX -> {
-                                buildAlertDialog(context, isCentered = true) {
-                                    setTitle(org.skepsun.kototoro.R.string.fix)
-                                    setMessage(org.skepsun.kototoro.R.string.manga_fix_prompt)
-                                    setNegativeButton(android.R.string.cancel, null)
-                                    setPositiveButton(org.skepsun.kototoro.R.string.fix) { _, _ ->
-                                        AutoFixService.start(context, composeSelectionIds)
-                                    }
-                                }.show()
+                                pendingFixIds = composeSelectionIds
                             }
 
                             SelectionAction.PIN -> {
@@ -174,15 +188,7 @@ fun <VM : ContentListViewModel> AppContentListRoute(
                             }
 
                             SelectionAction.MARK_AS_COMPLETED -> {
-                                val itemsToMark = selectedModels
-                                buildAlertDialog(context, isCentered = true) {
-                                    setTitle(org.skepsun.kototoro.R.string.mark_as_completed)
-                                    setMessage(org.skepsun.kototoro.R.string.mark_as_completed_prompt)
-                                    setNegativeButton(android.R.string.cancel, null)
-                                    setPositiveButton(android.R.string.ok) { _, _ ->
-                                        onMarkAsCompletedSelection?.invoke(itemsToMark)
-                                    }
-                                }.show()
+                                pendingMarkAsCompletedItems = selectedModels
                                 composeSelectionIds = emptySet()
                             }
                         }
@@ -194,6 +200,52 @@ fun <VM : ContentListViewModel> AppContentListRoute(
         }
     }
 
+    pendingFixIds?.let { ids ->
+        AlertDialog(
+            onDismissRequest = { pendingFixIds = null },
+            title = { Text(text = stringResource(org.skepsun.kototoro.R.string.fix)) },
+            text = { Text(text = stringResource(org.skepsun.kototoro.R.string.manga_fix_prompt)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        AutoFixService.start(context, ids)
+                        pendingFixIds = null
+                    },
+                ) {
+                    Text(text = stringResource(org.skepsun.kototoro.R.string.fix))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingFixIds = null }) {
+                    Text(text = stringResource(android.R.string.cancel))
+                }
+            },
+        )
+    }
+
+    pendingMarkAsCompletedItems?.let { itemsToMark ->
+        AlertDialog(
+            onDismissRequest = { pendingMarkAsCompletedItems = null },
+            title = { Text(text = stringResource(org.skepsun.kototoro.R.string.mark_as_completed)) },
+            text = { Text(text = stringResource(org.skepsun.kototoro.R.string.mark_as_completed_prompt)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onMarkAsCompletedSelection?.invoke(itemsToMark)
+                        pendingMarkAsCompletedItems = null
+                    },
+                ) {
+                    Text(text = stringResource(android.R.string.ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingMarkAsCompletedItems = null }) {
+                    Text(text = stringResource(android.R.string.cancel))
+                }
+            },
+        )
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             onTopBarOverrideChanged(null)
@@ -202,13 +254,22 @@ fun <VM : ContentListViewModel> AppContentListRoute(
 
     // Error observation
     LaunchedEffect(viewModel.onError) {
-        val host = activity?.window?.decorView?.rootView ?: return@LaunchedEffect
-        val resolver = (activity as? BaseActivity<*>)?.exceptionResolver
-        val observer = SnackbarErrorObserver(host, null, resolver) { resolved ->
-            if (resolved) viewModel.onRetry()
-        }
         viewModel.onError.collect { event ->
-            event?.consume(observer)
+            event?.consume(eventCollector { error ->
+                Toast.makeText(context, error.getDisplayMessage(context.resources), Toast.LENGTH_SHORT).show()
+                val resolver = when (activity) {
+                    is BaseActivity<*> -> activity.exceptionResolver
+                    is BaseComposeActivity -> activity.exceptionResolver
+                    else -> null
+                }
+                if (resolver != null && org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver.canResolve(error)) {
+                    coroutineScope.launch {
+                        if (resolver.resolve(error)) {
+                            viewModel.onRetry()
+                        }
+                    }
+                }
+            })
         }
     }
 
@@ -300,6 +361,7 @@ fun <VM : ContentListViewModel> AppContentListRoute(
         items = items,
         listMode = listMode,
         isRefreshing = isRefreshing,
+        pullRefreshEnabled = pullRefreshEnabled,
         showRemoveOption = showRemoveOption,
         sharedTransitionEnabled = sharedTransitionEnabled,
         onRefresh = { viewModel.onRefresh() },
@@ -317,7 +379,7 @@ fun <VM : ContentListViewModel> AppContentListRoute(
                 if (onNavigateToDetails != null) {
                     onNavigateToDetails(content, sharedElementKey)
                 } else {
-                    appRouter.openDetails(content, rootView)
+                    appRouter.openDetails(content)
                 }
             }
         },

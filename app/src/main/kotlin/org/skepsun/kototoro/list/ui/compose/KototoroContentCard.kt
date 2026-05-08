@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -225,6 +224,9 @@ fun KototoroContentCardGrid(
         )
     }
     val posterStyle = cardStyle ?: compactPosterCardStyle(gridScale)
+    val posterAspectRatio = remember(posterStyle.itemWidth, posterStyle.posterHeight) {
+        posterStyle.itemWidth.value / posterStyle.posterHeight.value
+    }
     var coverBounds by remember { mutableStateOf<Rect?>(null) }
     val badgeMetrics = remember(posterStyle.itemWidth) { contentCardBadgeMetricsFor(posterStyle.itemWidth) }
     val sharedTransitionScope = LocalSharedTransitionScope.current
@@ -250,9 +252,8 @@ fun KototoroContentCardGrid(
     ) {
         Box(
             modifier = Modifier
-                .widthIn(max = posterStyle.itemWidth)
                 .fillMaxWidth()
-                .height(posterStyle.posterHeight)
+                .aspectRatio(posterAspectRatio)
                 .then(
                     if (sharedTransitionEnabled) {
                         Modifier.onGloballyPositioned { coordinates ->
@@ -376,7 +377,6 @@ fun KototoroContentCardGrid(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
-                .widthIn(max = posterStyle.itemWidth)
                 .fillMaxWidth()
                 .padding(top = 8.dp)
         )
@@ -392,7 +392,6 @@ fun KototoroContentCardGrid(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
-                    .widthIn(max = posterStyle.itemWidth)
                     .fillMaxWidth()
                     .padding(top = 2.dp),
             )
@@ -406,7 +405,6 @@ fun KototoroContentCardGrid(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
-                    .widthIn(max = posterStyle.itemWidth)
                     .fillMaxWidth()
                     .padding(top = 2.dp)
             )

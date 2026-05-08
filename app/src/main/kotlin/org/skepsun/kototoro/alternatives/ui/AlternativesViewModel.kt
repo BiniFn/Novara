@@ -24,7 +24,6 @@ import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.append
 import org.skepsun.kototoro.core.util.ext.call
-import org.skepsun.kototoro.core.util.ext.require
 import org.skepsun.kototoro.list.domain.ContentListMapper
 import org.skepsun.kototoro.list.ui.model.ButtonFooter
 import org.skepsun.kototoro.list.ui.model.EmptyState
@@ -33,8 +32,6 @@ import org.skepsun.kototoro.list.ui.model.LoadingFooter
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.list.ui.model.ContentGridModel
 import org.skepsun.kototoro.parsers.model.Content
-import org.skepsun.kototoro.parsers.util.suspendlazy.getOrDefault
-import org.skepsun.kototoro.parsers.util.suspendlazy.suspendLazy
 import javax.inject.Inject
 
 @HiltViewModel
@@ -46,10 +43,15 @@ class AlternativesViewModel @Inject constructor(
 	private val mangaListMapper: ContentListMapper,
 ) : BaseViewModel() {
 
-	val manga = savedStateHandle.require<ParcelableContent>(AppRouter.KEY_MANGA).manga
+	private val mangaState = MutableStateFlow(savedStateHandle.get<ParcelableContent>(AppRouter.KEY_MANGA)?.manga)
+	val manga: Content
+		get() = checkNotNull(mangaState.value) {
+			"AlternativesViewModel is not initialized with content"
+		}
 
 	private var includeDisabledSources = MutableStateFlow(false)
 	private var isPinnedOnly = MutableStateFlow(false)
+	val pinnedOnly: StateFlow<Boolean> = isPinnedOnly
 	
 	val isPinnedOnlySelected: Boolean
 		get() = isPinnedOnly.value
@@ -59,18 +61,16 @@ class AlternativesViewModel @Inject constructor(
 	private var migrationJob: Job? = null
 	private var searchJob: Job? = null
 
-	private val mangaDetails = suspendLazy {
-		mangaRepositoryFactory.create(manga.source).getDetails(manga)
-	}
-
 	val onMigrated = MutableEventFlow<Content>()
 
 	val list: StateFlow<List<ListModel>> = combine(
 		results,
 		isLoading,
 		includeDisabledSources,
-	) { list, loading, includeDisabled ->
+		mangaState,
+	) { list, loading, includeDisabled, manga ->
 		when {
+			manga == null -> listOf(LoadingState)
 			list.isEmpty() -> listOf(
 				when {
 					loading -> LoadingState
@@ -90,6 +90,21 @@ class AlternativesViewModel @Inject constructor(
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, listOf(LoadingState))
 
 	init {
+		if (mangaState.value != null) {
+			doSearch(throughDisabledSources = false)
+		}
+	}
+
+	fun initialize(manga: Content) {
+		if (mangaState.value?.id == manga.id) {
+			return
+		}
+		searchJob?.cancel()
+		migrationJob?.cancel()
+		mangaState.value = manga
+		results.value = emptyList()
+		includeDisabledSources.value = false
+		isPinnedOnly.value = false
 		doSearch(throughDisabledSources = false)
 	}
 
@@ -133,7 +148,10 @@ class AlternativesViewModel @Inject constructor(
 		val prevJob = searchJob
 		searchJob = launchLoadingJob(Dispatchers.Default) {
 			prevJob?.cancelAndJoin()
-			val ref = mangaDetails.getOrDefault(manga)
+			val sourceManga = manga
+			val ref = runCatching {
+				mangaRepositoryFactory.create(sourceManga.source).getDetails(sourceManga)
+			}.getOrDefault(sourceManga)
 			val refCount = ref.chaptersCount()
 			alternativesUseCase.invoke(ref, throughDisabledSources, pinnedOnly = isPinnedOnly.value)
 				.collect {

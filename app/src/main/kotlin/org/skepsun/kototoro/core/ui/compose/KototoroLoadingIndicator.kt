@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.core.ui.compose
 
 import android.view.ContextThemeWrapper
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -116,11 +117,21 @@ fun KototoroPullToRefreshBox(
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     state: PullToRefreshState = rememberPullToRefreshState(),
     indicatorTopInset: PaddingValues = PaddingValues(0.dp),
     contentAlignment: Alignment = Alignment.TopStart,
     content: @Composable BoxScope.() -> Unit,
 ) {
+    if (!enabled) {
+        Box(
+            modifier = modifier,
+            contentAlignment = contentAlignment,
+            content = content,
+        )
+        return
+    }
+
     // Defer isRefreshing activation to avoid race condition where PullToRefreshModifierNode
     // tries to read CompositionLocal before it is fully attached.
     var deferredRefreshing by remember { mutableStateOf(false) }

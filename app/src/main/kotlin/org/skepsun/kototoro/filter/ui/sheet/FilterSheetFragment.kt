@@ -1,12 +1,9 @@
 package org.skepsun.kototoro.filter.ui.sheet
 
 import android.os.Bundle
-import android.text.InputFilter
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.inputmethod.EditorInfo
-import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +27,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -45,6 +43,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -64,8 +63,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.titleResId
-import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
-import org.skepsun.kototoro.core.ui.dialog.setEditText
 import org.skepsun.kototoro.core.ui.model.titleRes
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.ui.sheet.BaseAdaptiveSheet
@@ -86,7 +83,6 @@ import org.skepsun.kototoro.parsers.model.Demographic
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.model.YEAR_MIN
 import org.skepsun.kototoro.parsers.model.YEAR_UNKNOWN
-import org.skepsun.kototoro.parsers.util.mapToSet
 import java.util.Locale
 import java.util.TreeSet
 
@@ -109,196 +105,301 @@ class FilterSheetFragment : BaseAdaptiveSheet<FilterSheetComposeBinding>() {
         binding.composeView.setContent {
             KototoroTheme {
                 FilterSheetRoute(
-                    fragment = this,
+                    filter = FilterCoordinator.require(this),
                     isEmbedded = dialog == null,
                     onDismiss = ::dismiss,
+                    onOpenTagCatalog = { groupTitle, excludeMode ->
+                        router.showTagsCatalogSheet(
+                            excludeMode = excludeMode,
+                            groupTitle = groupTitle,
+                        )
+                    },
                 )
             }
         }
     }
 
     override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat = insets
+}
 
-    private fun onSaveFilterClick(name: String) {
-        val filter = FilterCoordinator.require(this)
-        val existingNames = filter.savedFilters.value.availableItems
-            .mapTo(TreeSet(AlphanumComparator()), PersistableFilter::name)
-        buildAlertDialog(context ?: return) {
-            val input = setEditText(
-                entries = existingNames.toList(),
-                inputType = EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_FLAG_CAP_SENTENCES,
-                singleLine = true,
-            )
-            input.setHint(R.string.enter_name)
-            input.setText(name)
-            input.filters += InputFilter.LengthFilter(MAX_TITLE_LENGTH)
-            setTitle(R.string.save_filter)
-            setPositiveButton(R.string.save) { _, _ ->
-                val text = input.text?.toString()?.trim()
-                if (text.isNullOrEmpty()) {
-                    Toast.makeText(context, R.string.invalid_value_message, Toast.LENGTH_SHORT).show()
-                    onSaveFilterClick("")
-                } else if (text in existingNames) {
-                    askForFilterOverwrite(filter, text)
-                } else {
-                    filter.saveCurrentFilter(text)
-                }
-            }
-            setNegativeButton(android.R.string.cancel, null)
-        }.show()
-    }
+@Composable
+fun FilterSheetRoute(
+    filter: FilterCoordinator,
+    isEmbedded: Boolean,
+    onDismiss: () -> Unit,
+    onOpenTagCatalog: (groupTitle: String?, excludeMode: Boolean) -> Unit,
+) {
+    val snapshot by filter.observe().collectAsStateWithLifecycle(initialValue = filter.snapshot())
+    val sortOrderProperty by filter.sortOrder.collectAsStateWithLifecycle()
+    val savedFiltersProperty by filter.savedFilters.collectAsStateWithLifecycle()
+    val localeProperty by filter.locale.collectAsStateWithLifecycle()
+    val originalLocaleProperty by filter.originalLocale.collectAsStateWithLifecycle()
+    val tagsProperty by filter.tags.collectAsStateWithLifecycle()
+    val tagsExcludedProperty by filter.tagsExcluded.collectAsStateWithLifecycle()
+    val authorsProperty by filter.authors.collectAsStateWithLifecycle()
+    val statesProperty by filter.states.collectAsStateWithLifecycle()
+    val contentTypesProperty by filter.contentTypes.collectAsStateWithLifecycle()
+    val contentRatingProperty by filter.contentRating.collectAsStateWithLifecycle()
+    val demographicsProperty by filter.demographics.collectAsStateWithLifecycle()
+    val yearProperty by filter.year.collectAsStateWithLifecycle()
+    val yearRangeProperty by filter.yearRange.collectAsStateWithLifecycle()
+    var pendingSaveName by remember { mutableStateOf<String?>(null) }
+    var pendingRenameFilter by remember { mutableStateOf<PersistableFilter?>(null) }
+    var pendingOverwriteName by remember { mutableStateOf<String?>(null) }
+    var pendingTextInputTag by remember { mutableStateOf<ContentTag?>(null) }
+    val context = LocalContext.current
+    val resources = context.resources
 
-    private fun onRenameFilterClick(preset: PersistableFilter) {
-        val filter = FilterCoordinator.require(this)
-        val existingNames = filter.savedFilters.value.availableItems.mapToSet { it.name }
-        buildAlertDialog(context ?: return) {
-            val input = setEditText(
-                inputType = EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_FLAG_CAP_SENTENCES,
-                singleLine = true,
-            )
-            input.filters += InputFilter.LengthFilter(MAX_TITLE_LENGTH)
-            input.setHint(R.string.enter_name)
-            input.setText(preset.name)
-            setTitle(R.string.rename)
-            setPositiveButton(R.string.save) { _, _ ->
-                val text = input.text?.toString()?.trim()
-                if (text.isNullOrEmpty() || text in existingNames) {
-                    Toast.makeText(context, R.string.invalid_value_message, Toast.LENGTH_SHORT).show()
-                } else {
-                    filter.renameSavedFilter(preset.id, text)
-                }
+    FilterSheetContent(
+        sourceName = filter.mangaSource.name,
+        sortOrderProperty = sortOrderProperty,
+        savedFiltersProperty = savedFiltersProperty,
+        localeProperty = localeProperty,
+        originalLocaleProperty = originalLocaleProperty,
+        tagsProperty = tagsProperty,
+        tagsExcludedProperty = tagsExcludedProperty,
+        authorsProperty = authorsProperty,
+        statesProperty = statesProperty,
+        contentTypesProperty = contentTypesProperty,
+        contentRatingProperty = contentRatingProperty,
+        demographicsProperty = demographicsProperty,
+        yearProperty = yearProperty,
+        yearRangeProperty = yearRangeProperty,
+        isSaveEnabled = snapshot.listFilter.isNotEmpty() && savedFiltersProperty.selectedItems.isEmpty(),
+        isEmbedded = isEmbedded,
+        onDismiss = onDismiss,
+        onReset = filter::reset,
+        onSave = { pendingSaveName = "" },
+        onSortOrderChange = filter::setSortOrder,
+        onLocaleChange = filter::setLocale,
+        onOriginalLocaleChange = filter::setOriginalLocale,
+        onAuthorChange = filter::setAuthor,
+        onToggleState = filter::toggleState,
+        onToggleContentType = filter::toggleContentType,
+        onToggleContentRating = filter::toggleContentRating,
+        onToggleDemographic = filter::toggleDemographic,
+        onToggleTag = { tag, selected, excludeMode ->
+            if (filter.isTextInputTag(tag)) {
+                pendingTextInputTag = tag
+            } else if (excludeMode) {
+                filter.toggleTagExclude(tag, selected)
+            } else {
+                filter.toggleTag(tag, selected)
             }
-            setNegativeButton(android.R.string.cancel, null)
-        }.show()
-    }
+        },
+        onSetYear = filter::setYear,
+        onSetYearRange = filter::setYearRange,
+        onToggleSavedFilter = filter::toggleSavedFilter,
+        onRenameSavedFilter = { pendingRenameFilter = it },
+        onDeleteSavedFilter = { filter.deleteSavedFilter(it.id) },
+        onTextInputTagClick = { pendingTextInputTag = it },
+        onOpenTagCatalog = onOpenTagCatalog,
+        resolveSortOrderLabel = { sourceName, order ->
+            resolveSortOrderLabel(sourceName, order, context::getString)
+        },
+        resolveErrorMessage = { error -> error?.getDisplayMessage(resources) },
+        resolveLocaleLabel = { locale -> locale.getDisplayName(context) },
+        textInputValue = filter::getTextInputValue,
+        textInputLabel = filter::getTextInputLabel,
+    )
 
-    private fun askForFilterOverwrite(filter: FilterCoordinator, name: String) {
-        buildAlertDialog(context ?: return) {
-            setTitle(R.string.save_filter)
-            setMessage(getString(R.string.filter_overwrite_confirm, name))
-            setPositiveButton(R.string.overwrite) { _, _ ->
-                filter.saveCurrentFilter(name)
-            }
-            setNegativeButton(android.R.string.cancel) { _, _ ->
-                onSaveFilterClick(name)
-            }
-        }.show()
-    }
-
-    private fun showTextInputDialog(filter: FilterCoordinator, tag: ContentTag) {
-        val currentValue = filter.getTextInputValue(tag) ?: ""
-        val label = filter.getTextInputLabel(tag)
-        buildAlertDialog(context ?: return) {
-            val input = setEditText(
-                inputType = EditorInfo.TYPE_CLASS_TEXT,
-                singleLine = true,
-            )
-            input.hint = label
-            input.setText(currentValue)
-            setTitle(label)
-            setPositiveButton(android.R.string.ok) { _, _ ->
-                val value = input.text?.toString()?.trim() ?: ""
-                filter.setTextInputValue(tag, value)
-            }
-            setNegativeButton(android.R.string.cancel, null)
-            setNeutralButton(R.string.clear) { _, _ ->
-                filter.setTextInputValue(tag, "")
-            }
-        }.show()
-    }
-
-    private fun resolveSortOrderLabel(sourceName: String, order: SortOrder): String {
-        if (sourceName.startsWith("TRACKING_BANGUMI_")) {
-            return when (order) {
-                SortOrder.RATING -> getString(R.string.sort_by_ranking)
-                SortOrder.POPULARITY -> getString(R.string.sort_by_popularity_label)
-                SortOrder.ADDED -> getString(R.string.sort_by_collection)
-                SortOrder.NEWEST -> getString(R.string.sort_by_date_label)
-                SortOrder.ALPHABETICAL -> getString(R.string.sort_by_name_label)
-                else -> getString(order.titleRes)
-            }
+    pendingSaveName?.let { initialName ->
+        val existingNames = remember(savedFiltersProperty.availableItems) {
+            savedFiltersProperty.availableItems.mapTo(TreeSet(AlphanumComparator()), PersistableFilter::name)
         }
-        return getString(order.titleRes)
-    }
-
-    @Composable
-    private fun FilterSheetRoute(
-        fragment: FilterSheetFragment,
-        isEmbedded: Boolean,
-        onDismiss: () -> Unit,
-    ) {
-        val filter = remember(fragment) { FilterCoordinator.require(fragment) }
-        val snapshot by filter.observe().collectAsStateWithLifecycle(initialValue = filter.snapshot())
-        val sortOrderProperty by filter.sortOrder.collectAsStateWithLifecycle()
-        val savedFiltersProperty by filter.savedFilters.collectAsStateWithLifecycle()
-        val localeProperty by filter.locale.collectAsStateWithLifecycle()
-        val originalLocaleProperty by filter.originalLocale.collectAsStateWithLifecycle()
-        val tagsProperty by filter.tags.collectAsStateWithLifecycle()
-        val tagsExcludedProperty by filter.tagsExcluded.collectAsStateWithLifecycle()
-        val authorsProperty by filter.authors.collectAsStateWithLifecycle()
-        val statesProperty by filter.states.collectAsStateWithLifecycle()
-        val contentTypesProperty by filter.contentTypes.collectAsStateWithLifecycle()
-        val contentRatingProperty by filter.contentRating.collectAsStateWithLifecycle()
-        val demographicsProperty by filter.demographics.collectAsStateWithLifecycle()
-        val yearProperty by filter.year.collectAsStateWithLifecycle()
-        val yearRangeProperty by filter.yearRange.collectAsStateWithLifecycle()
-
-        FilterSheetContent(
-            sourceName = filter.mangaSource.name,
-            sortOrderProperty = sortOrderProperty,
-            savedFiltersProperty = savedFiltersProperty,
-            localeProperty = localeProperty,
-            originalLocaleProperty = originalLocaleProperty,
-            tagsProperty = tagsProperty,
-            tagsExcludedProperty = tagsExcludedProperty,
-            authorsProperty = authorsProperty,
-            statesProperty = statesProperty,
-            contentTypesProperty = contentTypesProperty,
-            contentRatingProperty = contentRatingProperty,
-            demographicsProperty = demographicsProperty,
-            yearProperty = yearProperty,
-            yearRangeProperty = yearRangeProperty,
-            isSaveEnabled = snapshot.listFilter.isNotEmpty() && savedFiltersProperty.selectedItems.isEmpty(),
-            isEmbedded = isEmbedded,
-            onDismiss = onDismiss,
-            onReset = filter::reset,
-            onSave = { onSaveFilterClick("") },
-            onSortOrderChange = filter::setSortOrder,
-            onLocaleChange = filter::setLocale,
-            onOriginalLocaleChange = filter::setOriginalLocale,
-            onAuthorChange = filter::setAuthor,
-            onToggleState = filter::toggleState,
-            onToggleContentType = filter::toggleContentType,
-            onToggleContentRating = filter::toggleContentRating,
-            onToggleDemographic = filter::toggleDemographic,
-            onToggleTag = { tag, selected, excludeMode ->
-                if (filter.isTextInputTag(tag)) {
-                    showTextInputDialog(filter, tag)
-                } else if (excludeMode) {
-                    filter.toggleTagExclude(tag, selected)
+        FilterNameInputDialog(
+            title = context.getString(R.string.save_filter),
+            initialValue = initialName,
+            existingNames = existingNames,
+            rejectExistingName = false,
+            confirmText = context.getString(R.string.save),
+            onDismiss = { pendingSaveName = null },
+            onConfirm = { name ->
+                pendingSaveName = null
+                if (name in existingNames) {
+                    pendingOverwriteName = name
                 } else {
-                    filter.toggleTag(tag, selected)
+                    filter.saveCurrentFilter(name)
                 }
             },
-            onSetYear = filter::setYear,
-            onSetYearRange = filter::setYearRange,
-            onToggleSavedFilter = filter::toggleSavedFilter,
-            onRenameSavedFilter = ::onRenameFilterClick,
-            onDeleteSavedFilter = { filter.deleteSavedFilter(it.id) },
-            onTextInputTagClick = { showTextInputDialog(filter, it) },
-            onOpenTagCatalog = { groupTitle, excludeMode ->
-                fragment.router.showTagsCatalogSheet(
-                    excludeMode = excludeMode,
-                    groupTitle = groupTitle,
-                )
-            },
-            resolveSortOrderLabel = ::resolveSortOrderLabel,
-            resolveErrorMessage = { error -> error?.getDisplayMessage(resources) },
-            resolveLocaleLabel = { locale -> locale.getDisplayName(requireContext()) },
-            textInputValue = filter::getTextInputValue,
-            textInputLabel = filter::getTextInputLabel,
         )
     }
+
+    pendingRenameFilter?.let { preset ->
+        val existingNames = remember(savedFiltersProperty.availableItems, preset.name) {
+            savedFiltersProperty.availableItems
+                .mapTo(TreeSet(AlphanumComparator()), PersistableFilter::name)
+                .apply { remove(preset.name) }
+        }
+        FilterNameInputDialog(
+            title = context.getString(R.string.rename),
+            initialValue = preset.name,
+            existingNames = existingNames,
+            rejectExistingName = true,
+            confirmText = context.getString(R.string.save),
+            onDismiss = { pendingRenameFilter = null },
+            onConfirm = { name ->
+                pendingRenameFilter = null
+                filter.renameSavedFilter(preset.id, name)
+            },
+        )
+    }
+
+    pendingOverwriteName?.let { name ->
+        AlertDialog(
+            onDismissRequest = { pendingOverwriteName = null },
+            title = { Text(context.getString(R.string.save_filter)) },
+            text = { Text(context.getString(R.string.filter_overwrite_confirm, name)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingOverwriteName = null
+                        filter.saveCurrentFilter(name)
+                    },
+                ) {
+                    Text(context.getString(R.string.overwrite))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        pendingOverwriteName = null
+                        pendingSaveName = name
+                    },
+                ) {
+                    Text(context.getString(android.R.string.cancel))
+                }
+            },
+        )
+    }
+
+    pendingTextInputTag?.let { tag ->
+        TextInputTagDialog(
+            title = filter.getTextInputLabel(tag),
+            initialValue = filter.getTextInputValue(tag).orEmpty(),
+            onDismiss = { pendingTextInputTag = null },
+            onClear = {
+                pendingTextInputTag = null
+                filter.setTextInputValue(tag, "")
+            },
+            onConfirm = { value ->
+                pendingTextInputTag = null
+                filter.setTextInputValue(tag, value)
+            },
+        )
+    }
+}
+
+@Composable
+private fun FilterNameInputDialog(
+    title: String,
+    initialValue: String,
+    existingNames: Set<String>,
+    rejectExistingName: Boolean,
+    confirmText: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    var value by remember(initialValue) { mutableStateOf(initialValue) }
+    val trimmed = value.trim()
+    val hasError = trimmed.isEmpty() || (rejectExistingName && trimmed in existingNames)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextField(
+                    value = value,
+                    onValueChange = { value = it.take(MAX_TITLE_LENGTH) },
+                    label = { Text(context.getString(R.string.enter_name)) },
+                    singleLine = true,
+                    isError = hasError,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (hasError) {
+                    Text(
+                        text = context.getString(R.string.invalid_value_message),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !hasError,
+                onClick = { onConfirm(trimmed) },
+            ) {
+                Text(confirmText)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(context.getString(android.R.string.cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun TextInputTagDialog(
+    title: String,
+    initialValue: String,
+    onDismiss: () -> Unit,
+    onClear: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    var value by remember(initialValue) { mutableStateOf(initialValue) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            TextField(
+                value = value,
+                onValueChange = { value = it },
+                label = { Text(title) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(value.trim()) }) {
+                Text(context.getString(android.R.string.ok))
+            }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = onClear) {
+                    Text(context.getString(R.string.clear))
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(context.getString(android.R.string.cancel))
+                }
+            }
+        },
+    )
+}
+
+private fun resolveSortOrderLabel(
+    sourceName: String,
+    order: SortOrder,
+    getString: (Int) -> String,
+): String {
+    if (sourceName.startsWith("TRACKING_BANGUMI_")) {
+        return when (order) {
+            SortOrder.RATING -> getString(R.string.sort_by_ranking)
+            SortOrder.POPULARITY -> getString(R.string.sort_by_popularity_label)
+            SortOrder.ADDED -> getString(R.string.sort_by_collection)
+            SortOrder.NEWEST -> getString(R.string.sort_by_date_label)
+            SortOrder.ALPHABETICAL -> getString(R.string.sort_by_name_label)
+            else -> getString(order.titleRes)
+        }
+    }
+    return getString(order.titleRes)
 }
 
 @Composable

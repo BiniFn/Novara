@@ -43,11 +43,13 @@ import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
 import org.skepsun.kototoro.list.ui.model.ContentDetailedListModel
 import org.skepsun.kototoro.list.ui.model.ContentGridModel
+import org.skepsun.kototoro.tracker.work.TrackWorker
 import java.time.Instant
 
 @HiltViewModel
 class UpdatesViewModel @Inject constructor(
 	private val repository: TrackingRepository,
+	private val scheduler: TrackWorker.Scheduler,
 	settings: AppSettings,
 	private val mangaListMapper: ContentListMapper,
 	private val quickFilter: UpdatesListQuickFilter,
@@ -138,6 +140,7 @@ class UpdatesViewModel @Inject constructor(
 	}
 
 	override fun onRefresh() {
+		scheduler.startNow()
 		refreshTrigger.value = Any()
 	}
 

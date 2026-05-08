@@ -1,8 +1,6 @@
 package org.skepsun.kototoro.search.ui.compose
 
-import android.app.Activity
 import android.content.res.Configuration
-import android.view.inputmethod.EditorInfo
 import androidx.core.text.HtmlCompat
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -46,6 +44,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -63,6 +62,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -86,7 +86,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -108,8 +107,6 @@ import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.observeAsState
-import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
-import org.skepsun.kototoro.core.ui.dialog.setEditText
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.ui.model.titleRes
 import org.skepsun.kototoro.core.util.ShareHelper
@@ -170,6 +167,7 @@ private fun prepareSearchContentItems(items: List<ListModel>): SearchContentPrep
 @Composable
 fun AppSearchContentListRoute(
     appRouter: AppRouter,
+    onBackClick: () -> Unit,
     viewModel: RemoteListViewModel = hiltViewModel(),
 ) {
     val items by viewModel.content.collectAsStateWithLifecycle(emptyList())
@@ -187,7 +185,6 @@ fun AppSearchContentListRoute(
     val authorsProperty by viewModel.filterCoordinator.authors.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
-    val rootView = LocalView.current
     val configuration = LocalConfiguration.current
     val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
     val gridSize = settings.observeAsState(AppSettings.KEY_GRID_SIZE) { gridSize }.value
@@ -236,7 +233,7 @@ fun AppSearchContentListRoute(
     LaunchedEffect(viewModel.onOpenContent) {
         viewModel.onOpenContent.collect { event ->
             event?.consume { content ->
-                appRouter.openDetails(content, rootView)
+                appRouter.openDetails(content)
             }
         }
     }
@@ -326,7 +323,7 @@ fun AppSearchContentListRoute(
                         }
                         SelectionAction.SAVE -> {
                             if (isAllNonLocal) {
-                                appRouter.showDownloadDialog(selectedItems, rootView)
+                                appRouter.showDownloadDialog(selectedItems)
                                 selectedItemsIds = emptySet()
                             }
                         }
@@ -359,7 +356,7 @@ fun AppSearchContentListRoute(
                 topActionsHeight = SearchTopActionsHeight,
                 collapseOffsetPx = collapseOffsetPx,
                 isRandomLoading = isRandomLoading,
-                onBackClick = { (context as? Activity)?.finish() },
+                onBackClick = onBackClick,
                 onRandomClick = viewModel::openRandom,
                 onFilterClick = {
                     if (isWideAdaptiveLayout) {
@@ -377,8 +374,8 @@ fun AppSearchContentListRoute(
                 onResetFilterClick = viewModel.filterCoordinator::reset,
                 onSettingsClick = { appRouter.openSourceSettings(viewModel.source) },
                 onListModeChange = { settings.listMode = it },
-                onGridSizeChange = { delta ->
-                    settings.gridSize = (settings.gridSize + delta).coerceIn(50, 150)
+                onGridSizeChange = { size ->
+                    settings.gridSize = size.coerceIn(50, 150)
                 },
                 onQuickFilterOptionClick = { option ->
                     (viewModel as? org.skepsun.kototoro.list.domain.QuickFilterListener)?.toggleFilterOption(option)
@@ -448,7 +445,7 @@ fun AppSearchContentListRoute(
 
                                 SelectionAction.SAVE -> {
                                     if (isAllNonLocal) {
-                                        appRouter.showDownloadDialog(selectedItems, rootView)
+                                        appRouter.showDownloadDialog(selectedItems)
                                         selectedItemsIds = emptySet()
                                         true
                                     } else {
@@ -479,7 +476,7 @@ fun AppSearchContentListRoute(
                         SearchPreviewPane(
                             content = requireNotNull(previewContent),
                             onBackToFilters = { sidePaneMode = SearchSidePaneMode.Filter },
-                            onOpenDetails = { appRouter.openDetails(requireNotNull(previewContent), rootView) },
+                            onOpenDetails = { appRouter.openDetails(requireNotNull(previewContent)) },
                         )
                     } else {
                         SearchFilterPanel(
@@ -537,7 +534,7 @@ fun AppSearchContentListRoute(
                     if (selectedItemsIds.isNotEmpty()) {
                         selectedItemsIds = if (item.id in selectedItemsIds) selectedItemsIds - item.id else selectedItemsIds + item.id
                     } else {
-                        appRouter.openDetails(item.manga, rootView)
+                        appRouter.openDetails(item.manga)
                     }
                 },
                 onItemLongClick = { item ->
@@ -562,7 +559,7 @@ fun AppSearchContentListRoute(
 
                         SelectionAction.SAVE -> {
                             if (isAllNonLocal) {
-                                appRouter.showDownloadDialog(selectedItems, rootView)
+                                appRouter.showDownloadDialog(selectedItems)
                                 selectedItemsIds = emptySet()
                                 true
                             } else {
@@ -1416,9 +1413,9 @@ private fun SearchFilterPanel(
     onOpenTagCatalog: (String?, Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
     val scrollState = rememberScrollState()
     var sortExpanded by rememberSaveable { mutableStateOf(false) }
+    var textInputDialog by remember { mutableStateOf<ContentTag?>(null) }
 
     Column(
         modifier = modifier
@@ -1537,25 +1534,7 @@ private fun SearchFilterPanel(
             textInputValue = textInputValue,
             textInputLabel = textInputLabel,
             onToggleTag = onToggleTag,
-            onTextInputTagClick = { tag ->
-                val currentValue = textInputValue(tag).orEmpty()
-                buildAlertDialog(context) {
-                    val input = setEditText(
-                        inputType = EditorInfo.TYPE_CLASS_TEXT,
-                        singleLine = true,
-                    )
-                    input.hint = textInputLabel(tag)
-                    input.setText(currentValue)
-                    setTitle(textInputLabel(tag))
-                    setPositiveButton(android.R.string.ok) { _, _ ->
-                        onSetTextInputValue(tag, input.text?.toString()?.trim().orEmpty())
-                    }
-                    setNegativeButton(android.R.string.cancel, null)
-                    setNeutralButton(R.string.clear) { _, _ ->
-                        onSetTextInputValue(tag, "")
-                    }
-                }.show()
-            },
+            onTextInputTagClick = { tag -> textInputDialog = tag },
             onOpenTagCatalog = onOpenTagCatalog,
         )
 
@@ -1568,29 +1547,67 @@ private fun SearchFilterPanel(
                 textInputValue = textInputValue,
                 textInputLabel = textInputLabel,
                 onToggleTag = onToggleTag,
-                onTextInputTagClick = { tag ->
-                    val currentValue = textInputValue(tag).orEmpty()
-                    buildAlertDialog(context) {
-                        val input = setEditText(
-                            inputType = EditorInfo.TYPE_CLASS_TEXT,
-                            singleLine = true,
-                        )
-                        input.hint = textInputLabel(tag)
-                        input.setText(currentValue)
-                        setTitle(textInputLabel(tag))
-                        setPositiveButton(android.R.string.ok) { _, _ ->
-                            onSetTextInputValue(tag, input.text?.toString()?.trim().orEmpty())
-                        }
-                        setNegativeButton(android.R.string.cancel, null)
-                        setNeutralButton(R.string.clear) { _, _ ->
-                            onSetTextInputValue(tag, "")
-                        }
-                    }.show()
-                },
+                onTextInputTagClick = { tag -> textInputDialog = tag },
                 onOpenTagCatalog = onOpenTagCatalog,
             )
         }
     }
+
+    textInputDialog?.let { tag ->
+        TextInputTagDialog(
+            title = textInputLabel(tag),
+            initialValue = textInputValue(tag).orEmpty(),
+            onConfirm = { value ->
+                onSetTextInputValue(tag, value.trim())
+                textInputDialog = null
+            },
+            onClear = {
+                onSetTextInputValue(tag, "")
+                textInputDialog = null
+            },
+            onDismissRequest = { textInputDialog = null },
+        )
+    }
+}
+
+@Composable
+private fun TextInputTagDialog(
+    title: String,
+    initialValue: String,
+    onConfirm: (String) -> Unit,
+    onClear: () -> Unit,
+    onDismissRequest: () -> Unit,
+) {
+    var value by remember(initialValue) { mutableStateOf(initialValue) }
+
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = { Text(text = title) },
+        text = {
+            OutlinedTextField(
+                value = value,
+                onValueChange = { value = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text(text = title) },
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(value) }) {
+                Text(text = stringResource(android.R.string.ok))
+            }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = onClear) {
+                    Text(text = stringResource(R.string.clear))
+                }
+                TextButton(onClick = onDismissRequest) {
+                    Text(text = stringResource(android.R.string.cancel))
+                }
+            }
+        },
+    )
 }
 
 @Composable

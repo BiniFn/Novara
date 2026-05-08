@@ -237,10 +237,10 @@ private fun sourceQuickAccessMetrics(gridScale: Float): SourceQuickAccessMetrics
     val interpolatedColumns = 5f + ((3f - 5f) * normalized)
     return SourceQuickAccessMetrics(
         columns = interpolatedColumns.toInt().coerceIn(3, 5),
-        cardHeight = lerp(90.dp, 80.dp, normalized),
-        gridSpacing = lerp(8.dp, 6.dp, normalized),
-        iconContainerSize = lerp(44.dp, 36.dp, normalized),
-        iconSize = lerp(34.dp, 28.dp, normalized),
+        cardHeight = lerp(92.dp, 134.dp, normalized),
+        gridSpacing = lerp(2.dp, 0.dp, normalized),
+        iconContainerSize = lerp(56.dp, 88.dp, normalized),
+        iconSize = lerp(46.dp, 72.dp, normalized),
     )
 }
 

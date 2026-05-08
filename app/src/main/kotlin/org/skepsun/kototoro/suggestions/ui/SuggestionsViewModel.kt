@@ -147,7 +147,9 @@ class SuggestionsViewModel @Inject constructor(
 		emit(listOf<ListModel>(it.toErrorState(canRetry = false)))
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, listOf(LoadingState))
 
-	override fun onRefresh() = Unit
+	override fun onRefresh() {
+		updateSuggestions()
+	}
 
 	override fun onRetry() = Unit
 

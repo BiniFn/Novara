@@ -671,6 +671,7 @@
     <string name="available">Available</string>
     <string name="memory_usage_pattern" translatable="false">%1$s - %2$s</string>
     <string name="removed_from_favourites">Removed from favorites</string>
+    <string name="remove_from_favourites">Remove from favorites</string>
     <string name="options">Options</string>
     <string name="not_found_404">Content not found or removed</string>
     <string name="download_summary_pattern" translatable="false">%1$s · %2$s</string>

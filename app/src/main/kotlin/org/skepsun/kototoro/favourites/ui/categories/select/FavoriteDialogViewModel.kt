@@ -11,6 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
@@ -23,13 +25,13 @@ import org.skepsun.kototoro.core.model.getOriginLabel
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsFlow
 import org.skepsun.kototoro.core.ui.BaseViewModel
-import org.skepsun.kototoro.core.util.ext.require
 import org.skepsun.kototoro.core.LocalizedAppContext
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
 import org.skepsun.kototoro.favourites.ui.categories.select.model.ContentCategoryItem
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
+import org.skepsun.kototoro.parsers.model.Content
 import javax.inject.Inject
 
 @HiltViewModel
@@ -40,33 +42,59 @@ class FavoriteDialogViewModel @Inject constructor(
 	@LocalizedAppContext private val context: Context,
 ) : BaseViewModel() {
 
-	val manga = savedStateHandle.require<List<ParcelableContent>>(AppRouter.KEY_MANGA_LIST).map {
-		it.manga
-	}
+	private val mangaState = MutableStateFlow(
+		savedStateHandle.get<List<ParcelableContent>>(AppRouter.KEY_MANGA_LIST)?.map {
+			it.manga
+		}.orEmpty(),
+	)
+
+	val manga: List<Content>
+		get() = mangaState.value
 
 	private val refreshTrigger = MutableStateFlow(Any())
-	val content = combine(
-		favouritesRepository.observeCategories(),
-		refreshTrigger,
-		settings.observeAsFlow(AppSettings.KEY_TRACKER_ENABLED) { isTrackerEnabled },
-	) { categories, _, tracker ->
-		mapList(categories, tracker)
+	val content = mangaState.flatMapLatest { currentManga ->
+		if (currentManga.isEmpty()) {
+			flowOf(listOf(LoadingState))
+		} else {
+			combine(
+				favouritesRepository.observeCategories(),
+				refreshTrigger,
+				settings.observeAsFlow(AppSettings.KEY_TRACKER_ENABLED) { isTrackerEnabled },
+			) { categories, _, tracker ->
+				mapList(currentManga, categories, tracker)
+			}
+		}
 	}.withErrorHandling()
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, listOf(LoadingState))
 
+	fun initialize(manga: Collection<Content>) {
+		if (manga.isEmpty() || mangaState.value == manga) {
+			return
+		}
+		mangaState.value = manga.toList()
+	}
+
 	fun setChecked(categoryId: Long, isChecked: Boolean) {
+		val snapshot = mangaState.value
+		if (snapshot.isEmpty()) {
+			return
+		}
 		launchJob(Dispatchers.Default) {
 			if (isChecked) {
-				favouritesRepository.addToCategory(categoryId, manga)
+				favouritesRepository.addToCategory(categoryId, snapshot)
 			} else {
-				favouritesRepository.removeFromCategory(categoryId, manga.ids())
+				favouritesRepository.removeFromCategory(categoryId, snapshot.ids())
 			}
 			refreshTrigger.value = Any()
 		}
 	}
 
 
-	private suspend fun mapList(categories: List<FavouriteCategory>, tracker: Boolean): List<ListModel> {
+	private suspend fun mapList(
+		manga: List<Content>,
+		categories: List<FavouriteCategory>,
+		tracker: Boolean,
+	): List<ListModel> {
 		if (categories.isEmpty()) {
 			return listOf(
 				EmptyState(
