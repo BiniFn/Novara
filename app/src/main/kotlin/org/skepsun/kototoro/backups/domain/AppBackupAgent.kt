@@ -40,9 +40,10 @@ class AppBackupAgent : BackupAgent() {
 	override fun onFullBackup(data: FullBackupDataOutput) {
 		super.onFullBackup(data)
 		val db = MangaDatabase(context = applicationContext)
+		val appSettings = AppSettings(applicationContext)
 		val jsonSourceManager = org.skepsun.kototoro.core.jsonsource.JsonSourceManager(
 			jsonSourceDao = db.getJsonSourceDao(),
-			appSettings = AppSettings(applicationContext),
+			appSettings = appSettings,
 		)
 		val sourceTypeIdentifier = org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier()
 		val json = Json { ignoreUnknownKeys = true }
@@ -56,12 +57,12 @@ class AppBackupAgent : BackupAgent() {
 			BackupRepository(
 				appContext = applicationContext,
 				database = db,
-				settings = AppSettings(applicationContext),
+				settings = appSettings,
 				tapGridSettings = TapGridSettings(applicationContext),
 				mangaSourcesRepository = ContentSourcesRepository(
 					context = applicationContext,
 					db = db,
-					settings = AppSettings(applicationContext),
+					settings = appSettings,
 					jsonSourceManager = jsonSourceManager,
 					sourceTypeIdentifier = sourceTypeIdentifier,
 					sourceGroupManager = sourceGroupManager,
@@ -76,6 +77,7 @@ class AppBackupAgent : BackupAgent() {
 									cookieJar = org.skepsun.kototoro.core.network.cookies.AndroidCookieJar(),
 								)
 							},
+							settings = appSettings,
 						),
 					),
 					aniyomiExtensionManager = org.skepsun.kototoro.aniyomi.AniyomiExtensionManager(
@@ -90,7 +92,8 @@ class AppBackupAgent : BackupAgent() {
 										cookieJar = org.skepsun.kototoro.core.network.cookies.AndroidCookieJar(),
 									)
 								)
-							}
+							},
+							settings = appSettings,
 						)
 					),
 					ireaderExtensionManager = org.skepsun.kototoro.ireader.IReaderExtensionManager(
@@ -98,6 +101,7 @@ class AppBackupAgent : BackupAgent() {
 						loader = org.skepsun.kototoro.ireader.IReaderExtensionLoader(
 							applicationContext = applicationContext,
 							httpClient = okhttp3.OkHttpClient(),
+							settings = appSettings,
 						),
 					),
 				),
@@ -123,9 +127,10 @@ class AppBackupAgent : BackupAgent() {
 	) {
 		if (destination?.name?.endsWith(".bk.zip") == true) {
 			val db = MangaDatabase(applicationContext)
+			val appSettings = AppSettings(applicationContext)
 			val jsonSourceManager = org.skepsun.kototoro.core.jsonsource.JsonSourceManager(
 				jsonSourceDao = db.getJsonSourceDao(),
-				appSettings = AppSettings(applicationContext),
+				appSettings = appSettings,
 			)
 			val sourceTypeIdentifier = org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier()
 			val json = Json { ignoreUnknownKeys = true }
@@ -140,12 +145,12 @@ class AppBackupAgent : BackupAgent() {
 				BackupRepository(
 					appContext = applicationContext,
 					database = db,
-					settings = AppSettings(applicationContext),
+					settings = appSettings,
 					tapGridSettings = TapGridSettings(applicationContext),
 					mangaSourcesRepository = ContentSourcesRepository(
 						context = applicationContext,
 						db = db,
-						settings = AppSettings(applicationContext),
+						settings = appSettings,
 						jsonSourceManager = jsonSourceManager,
 						sourceTypeIdentifier = sourceTypeIdentifier,
 						sourceGroupManager = sourceGroupManager,
@@ -160,6 +165,7 @@ class AppBackupAgent : BackupAgent() {
 										cookieJar = org.skepsun.kototoro.core.network.cookies.AndroidCookieJar(),
 									)
 								},
+								settings = appSettings,
 							),
 						),
 						aniyomiExtensionManager = org.skepsun.kototoro.aniyomi.AniyomiExtensionManager(
@@ -174,14 +180,16 @@ class AppBackupAgent : BackupAgent() {
 											cookieJar = org.skepsun.kototoro.core.network.cookies.AndroidCookieJar(),
 										)
 									)
-								}
+								},
+								settings = appSettings,
 							)
 						),
 						ireaderExtensionManager = org.skepsun.kototoro.ireader.IReaderExtensionManager(
 							context = applicationContext,
-						loader = org.skepsun.kototoro.ireader.IReaderExtensionLoader(
+							loader = org.skepsun.kototoro.ireader.IReaderExtensionLoader(
 								applicationContext = applicationContext,
 								httpClient = okhttp3.OkHttpClient(),
+								settings = appSettings,
 							),
 						),
 					),

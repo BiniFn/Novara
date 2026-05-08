@@ -36,14 +36,19 @@ import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
+import org.skepsun.kototoro.extensions.runtime.LocalApkExtensionSupport
 import org.skepsun.kototoro.extensions.install.ExtensionInstallDownloadState
+import org.skepsun.kototoro.extensions.install.ExtensionInstallResult
 import org.skepsun.kototoro.extensions.install.ExtensionInstallService
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepo
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepoRepository
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
 import org.skepsun.kototoro.extensions.repo.InstalledExtensionSignatureValidator
 import org.skepsun.kototoro.extensions.repo.RepoAvailableExtension
+import org.skepsun.kototoro.mihon.MihonExtensionManager
+import org.skepsun.kototoro.aniyomi.AniyomiExtensionManager
 import org.skepsun.kototoro.parsers.model.ContentType
+import org.skepsun.kototoro.ireader.IReaderExtensionManager
 import org.skepsun.kototoro.settings.sources.extensions.ExtensionBatchUpdateStateMachine
 import org.skepsun.kototoro.settings.sources.extensions.normalizeExtensionLanguageCode
 import org.skepsun.kototoro.settings.sources.extensions.normalizePackageNameForMatching
@@ -64,6 +69,9 @@ class UnifiedSourcesViewModel @Inject constructor(
 	private val installService: ExtensionInstallService,
 	private val signatureValidator: InstalledExtensionSignatureValidator,
 	private val settings: AppSettings,
+	private val mihonExtensionManager: MihonExtensionManager,
+	private val aniyomiExtensionManager: AniyomiExtensionManager,
+	private val ireaderExtensionManager: IReaderExtensionManager,
 ) : BaseViewModel() {
 
 	private val availableExternalExtensions = MutableStateFlow<List<RepoAvailableExtension>>(emptyList())
@@ -254,6 +262,23 @@ class UnifiedSourcesViewModel @Inject constructor(
 			GlobalExtensionManager.initialize(appContext)
 			viewModelScope.launch { emitMessage(appContext.getString(R.string.removal_completed)) }
 			return
+		}
+
+		val ecosystem = item.kind.toLocalApkEcosystem()
+		if (ecosystem != null) {
+			val deleted = LocalApkExtensionSupport.deleteManagedLocalPackage(
+				context = appContext,
+				ecosystem = ecosystem,
+				packageName = packageName,
+			)
+			if (deleted) {
+				viewModelScope.launch(Dispatchers.IO) {
+					reloadExternalExtensionManagers()
+					refreshPackages(refreshRepositories = false, showLoading = false)
+					emitMessage(appContext.getString(R.string.removal_completed))
+				}
+				return
+			}
 		}
 
 		val uninstallPkg = if (item.kind == UnifiedSourceKind.IREADER && packageName.startsWith("ireader-")) {
@@ -502,16 +527,15 @@ class UnifiedSourcesViewModel @Inject constructor(
 		}
 		launchLoadingJob(Dispatchers.IO) {
 			try {
-				val intent = installService.createInstallIntent(extension)
-				if (fromBatch) {
-					batchUpdateState.markInstallerIntentDispatched()
-				}
-				if (intent != null) {
-					_events.emit(UnifiedSourcesEvent.StartInstall(intent))
-				} else {
-					emitMessage(appContext.getString(R.string.unified_sources_package_installed))
-					if (fromBatch) {
-						handleBatchNextAction(batchUpdateState.onInstallActivityResult())
+				when (val result = installService.install(extension)) {
+					is ExtensionInstallResult.RequiresInstaller -> {
+						if (fromBatch) {
+							batchUpdateState.markInstallerIntentDispatched()
+						}
+						_events.emit(UnifiedSourcesEvent.StartInstall(result.intent))
+					}
+					ExtensionInstallResult.Completed -> {
+						onPackageInstallCompleted(item, fromBatch)
 					}
 				}
 			} catch (e: CancellationException) {
@@ -528,6 +552,20 @@ class UnifiedSourcesViewModel @Inject constructor(
 					handleBatchNextAction(batchUpdateState.onInstallInterrupted())
 				}
 			}
+		}
+	}
+
+	private suspend fun onPackageInstallCompleted(
+		item: UnifiedSourcePackageItem,
+		fromBatch: Boolean,
+	) {
+		if (item.kind.isHotReloadableExternalKind()) {
+			reloadExternalExtensionManagers()
+			refreshPackages(refreshRepositories = false, showLoading = false)
+		}
+		emitMessage(appContext.getString(R.string.unified_sources_package_installed))
+		if (fromBatch) {
+			handleBatchNextAction(batchUpdateState.onInstallInterrupted())
 		}
 	}
 
@@ -778,6 +816,12 @@ class UnifiedSourcesViewModel @Inject constructor(
 				}
 		}
 		availableLnReaderPlugins.value = plugins.distinctBy { it.repoUrl to it.plugin.id }
+	}
+
+	private suspend fun reloadExternalExtensionManagers() {
+		mihonExtensionManager.loadExtensions()
+		aniyomiExtensionManager.loadExtensions()
+		ireaderExtensionManager.loadExtensions()
 	}
 
 	private fun UnifiedSourceCatalogState.withAvailableExternalPackages(
@@ -1114,6 +1158,19 @@ private fun UnifiedSourceKind.isExternalExtensionKind(): Boolean {
 		UnifiedSourceKind.IREADER -> true
 		else -> false
 	}
+}
+
+private fun UnifiedSourceKind.toLocalApkEcosystem(): String? {
+	return when (this) {
+		UnifiedSourceKind.MIHON -> "mihon"
+		UnifiedSourceKind.ANIYOMI -> "aniyomi"
+		UnifiedSourceKind.IREADER -> "ireader"
+		else -> null
+	}
+}
+
+private fun UnifiedSourceKind.isHotReloadableExternalKind(): Boolean {
+	return toLocalApkEcosystem() != null
 }
 
 private val UnifiedSourcePackageState.sortOrder: Int

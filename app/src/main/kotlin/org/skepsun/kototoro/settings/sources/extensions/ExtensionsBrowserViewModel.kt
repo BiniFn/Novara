@@ -24,6 +24,7 @@ import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.require
+import org.skepsun.kototoro.extensions.install.ExtensionInstallResult
 import org.skepsun.kototoro.extensions.install.ExtensionInstallService
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepoRepository
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
@@ -279,12 +280,20 @@ class ExtensionsBrowserViewModel @Inject constructor(
 		}
 		launchLoadingJob(Dispatchers.IO) {
 			try {
-				val intent = installService.createInstallIntent(item.extension)
-				if (fromBatch) {
-					batchUpdateState.markInstallerIntentDispatched()
-				}
-				if (intent != null) {
-					onInstallIntent.call(intent)
+				when (val result = installService.install(item.extension)) {
+					is ExtensionInstallResult.RequiresInstaller -> {
+						if (fromBatch) {
+							batchUpdateState.markInstallerIntentDispatched()
+						}
+						onInstallIntent.call(result.intent)
+					}
+					ExtensionInstallResult.Completed -> {
+						refresh()
+						onMessage.call(appContext.getString(R.string.unified_sources_package_installed))
+						if (fromBatch) {
+							handleBatchNextAction(batchUpdateState.onInstallInterrupted())
+						}
+					}
 				}
 			} catch (e: CancellationException) {
 				if (!fromBatch) {

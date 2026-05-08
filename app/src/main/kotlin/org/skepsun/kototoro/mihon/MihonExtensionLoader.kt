@@ -15,7 +15,9 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.extensions.runtime.ExternalExtensionLoaderSupport
 import org.skepsun.kototoro.extensions.runtime.ExternalExtensionMetadataSupport
+import org.skepsun.kototoro.extensions.runtime.LocalApkExtensionSupport
 import org.skepsun.kototoro.extensions.runtime.ExternalExtensionSourceLoaderSupport
+import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.mihon.compat.KotoInjektBridge
 import org.skepsun.kototoro.mihon.model.MihonExtensionInfo
 import org.skepsun.kototoro.mihon.model.MihonLoadResult
@@ -32,9 +34,11 @@ import javax.inject.Singleton
 class MihonExtensionLoader @Inject constructor(
     @ApplicationContext private val applicationContext: Context,
     private val injektBridge: dagger.Lazy<KotoInjektBridge>,
+    private val settings: AppSettings,
 ) {
     companion object {
         private const val TAG = "MihonExtensionLoader"
+        private const val ECOSYSTEM_DIR = "mihon"
         
         // Feature that marks an APK as a Mihon/Tachiyomi extension
         private const val EXTENSION_FEATURE = "tachiyomi.extension"
@@ -65,16 +69,17 @@ class MihonExtensionLoader @Inject constructor(
             
             // Get all installed packages
             val installedPkgs = ExternalExtensionLoaderSupport.getInstalledPackages(pkgManager)
+            val localPkgs = LocalApkExtensionSupport.getLocalArchivePackages(context, pkgManager, ECOSYSTEM_DIR)
             android.util.Log.d(TAG, "Filtering ${installedPkgs.size} packages...")
             
             // Filter to only extension packages
-            val extPkgs = installedPkgs.filter { pkg: PackageInfo ->
+            val extPkgs = (installedPkgs + localPkgs).filter { pkg: PackageInfo ->
                 val isExt = isPackageAnExtension(pkg)
                 if (pkg.packageName.contains("coomer", ignoreCase = true)) {
                     android.util.Log.d(TAG, "!!! COOMER CHECK !!!: ${pkg.packageName}, isExt: $isExt")
                 }
                 isExt
-            }
+            }.distinctBy { it.packageName }
             
             if (extPkgs.isEmpty()) {
                 android.util.Log.d(TAG, "No Mihon extensions found")
@@ -101,6 +106,7 @@ class MihonExtensionLoader @Inject constructor(
         
         val pkgManager = context.packageManager
         val pkgInfo = ExternalExtensionLoaderSupport.getPackageInfoOrNull(pkgManager, packageName)
+            ?: LocalApkExtensionSupport.getLocalArchivePackageInfoOrNull(context, pkgManager, ECOSYSTEM_DIR, packageName)
             ?: return@withContext null
         
         if (!isPackageAnExtension(pkgInfo)) {
@@ -116,9 +122,11 @@ class MihonExtensionLoader @Inject constructor(
     fun getInstalledExtensions(context: Context): List<MihonExtensionInfo> {
         val pkgManager = context.packageManager
         val installedPkgs = ExternalExtensionLoaderSupport.getInstalledPackages(pkgManager)
+        val localPkgs = LocalApkExtensionSupport.getLocalArchivePackages(context, pkgManager, ECOSYSTEM_DIR)
         
-        return installedPkgs
+        return (installedPkgs + localPkgs)
             .filter { isPackageAnExtension(it) }
+            .distinctBy { it.packageName }
             .mapNotNull { extractExtensionInfo(it) }
     }
     
@@ -277,8 +285,14 @@ class MihonExtensionLoader @Inject constructor(
         
         // Create ClassLoader for this extension
         val classLoader = try {
+            val dexPath = LocalApkExtensionSupport.prepareLoadableApkPath(
+                context = context,
+                ecosystem = ECOSYSTEM_DIR,
+                pkgName = pkgName,
+                sourcePath = appInfo.sourceDir,
+            )
             ChildFirstPathClassLoader(
-                appInfo.sourceDir,
+                dexPath,
                 appInfo.nativeLibraryDir,
                 context.classLoader
             )

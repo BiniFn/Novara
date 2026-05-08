@@ -226,6 +226,11 @@
     <string name="use_setup_wizard_languages">使用向导语言</string>
     <string name="show_extensions_in_grid">插件以双列显示</string>
     <string name="show_extensions_in_list">插件以单列显示</string>
+    <string name="local_apk_hot_reload">本地 APK 热加载</string>
+    <string name="extension_install_mode_system">安装模式：系统安装</string>
+    <string name="extension_install_mode_local_apk">安装模式：本地 APK</string>
+    <string name="sideload_extension">侧载</string>
+    <string name="update_sideload_extension">更新侧载</string>
     <string name="selected_content_languages">已选内容语言</string>
     <string name="no_available_extensions_language_filtered_text">当前语言过滤条件下没有匹配的插件。</string>
     <string name="multi_language_short">多语</string>

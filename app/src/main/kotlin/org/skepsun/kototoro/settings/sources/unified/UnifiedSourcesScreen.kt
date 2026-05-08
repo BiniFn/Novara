@@ -1027,13 +1027,13 @@ fun UnifiedSourcesScreen(
 								packages = state.packages,
 								updateAllInProgress = updateAllInProgress,
 								onRefreshPackages = onRefreshPackages,
-								onUpdateAllPackages = onUpdateAllPackages,
-								onPackagePrimaryAction = onPackagePrimaryAction,
-								onPackageUninstall = onPackageUninstall,
-								onPackageCancelInstall = onPackageCancelInstall,
-								onImportLocalJar = onImportLocalJar,
-							)
-						}
+						onUpdateAllPackages = onUpdateAllPackages,
+						onPackagePrimaryAction = onPackagePrimaryAction,
+						onPackageUninstall = onPackageUninstall,
+						onPackageCancelInstall = onPackageCancelInstall,
+						onImportLocalJar = onImportLocalJar,
+					)
+				}
 					}
 				}
 			}
@@ -1494,7 +1494,7 @@ private fun UnifiedPackageRow(
 					UnifiedSourcePackageState.INCOMPATIBLE -> {
 						CompactActionChip(
 							onClick = onPrimaryAction,
-							label = { Text(item.state.primaryActionLabel()) },
+							label = { Text(item.primaryActionLabel()) },
 						)
 					}
 						UnifiedSourcePackageState.INSTALLING -> {
@@ -1624,10 +1624,14 @@ private val UnifiedSourcePackageState.isWarning: Boolean
 	get() = this == UnifiedSourcePackageState.UNTRUSTED || this == UnifiedSourcePackageState.INCOMPATIBLE
 
 @Composable
-private fun UnifiedSourcePackageState.primaryActionLabel(): String {
-	return when (this) {
-		UnifiedSourcePackageState.AVAILABLE -> stringResource(R.string.install_extension)
-		UnifiedSourcePackageState.UPDATE_AVAILABLE -> stringResource(R.string.update_extension)
+private fun UnifiedSourcePackageItem.primaryActionLabel(): String {
+	return when (state) {
+		UnifiedSourcePackageState.AVAILABLE -> stringResource(
+			if (kind.isSideloadKind()) R.string.sideload_extension else R.string.install_extension,
+		)
+		UnifiedSourcePackageState.UPDATE_AVAILABLE -> stringResource(
+			if (kind.isSideloadKind()) R.string.update_sideload_extension else R.string.update_extension,
+		)
 		UnifiedSourcePackageState.UNTRUSTED,
 		UnifiedSourcePackageState.INCOMPATIBLE -> stringResource(R.string.details)
 		UnifiedSourcePackageState.INSTALLING,
@@ -1719,6 +1723,15 @@ private fun UnifiedSourceKind.supportsJsonImport(): Boolean {
 		UnifiedSourceKind.TVBOX,
 		UnifiedSourceKind.JS,
 		UnifiedSourceKind.LNREADER -> true
+		else -> false
+	}
+}
+
+private fun UnifiedSourceKind.isSideloadKind(): Boolean {
+	return when (this) {
+		UnifiedSourceKind.MIHON,
+		UnifiedSourceKind.ANIYOMI,
+		UnifiedSourceKind.IREADER -> true
 		else -> false
 	}
 }

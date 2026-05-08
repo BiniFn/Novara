@@ -15,7 +15,9 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.extensions.runtime.ExternalExtensionLoaderSupport
 import org.skepsun.kototoro.extensions.runtime.ExternalExtensionMetadataSupport
+import org.skepsun.kototoro.extensions.runtime.LocalApkExtensionSupport
 import org.skepsun.kototoro.extensions.runtime.ExternalExtensionSourceLoaderSupport
+import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.aniyomi.compat.KotoAniyomiInjektBridge
 import org.skepsun.kototoro.aniyomi.model.AniyomiExtensionInfo
 import org.skepsun.kototoro.aniyomi.model.AniyomiLoadResult
@@ -32,9 +34,11 @@ import javax.inject.Singleton
 class AniyomiExtensionLoader @Inject constructor(
     @ApplicationContext private val applicationContext: Context,
     private val injektBridge: dagger.Lazy<KotoAniyomiInjektBridge>,
+    private val settings: AppSettings,
 ) {
     companion object {
         private const val TAG = "AniyomiExtensionLoader"
+        private const val ECOSYSTEM_DIR = "aniyomi"
         
         // Feature that marks an APK as an Aniyomi anime extension
         private const val EXTENSION_FEATURE = "tachiyomi.animeextension"
@@ -62,10 +66,13 @@ class AniyomiExtensionLoader @Inject constructor(
             
             // Get all installed packages
             val installedPkgs = ExternalExtensionLoaderSupport.getInstalledPackages(pkgManager)
+            val localPkgs = LocalApkExtensionSupport.getLocalArchivePackages(context, pkgManager, ECOSYSTEM_DIR)
             android.util.Log.d(TAG, "Filtering ${installedPkgs.size} packages...")
             
             // Filter to only extension packages
-            val extPkgs = installedPkgs.filter { pkgInfo: PackageInfo -> isPackageAnExtension(pkgInfo) }
+            val extPkgs = (installedPkgs + localPkgs)
+                .filter { pkgInfo: PackageInfo -> isPackageAnExtension(pkgInfo) }
+                .distinctBy { it.packageName }
             
             if (extPkgs.isEmpty()) {
                 android.util.Log.d(TAG, "No Aniyomi extensions found")
@@ -92,6 +99,7 @@ class AniyomiExtensionLoader @Inject constructor(
         
         val pkgManager = context.packageManager
         val pkgInfo = ExternalExtensionLoaderSupport.getPackageInfoOrNull(pkgManager, packageName)
+            ?: LocalApkExtensionSupport.getLocalArchivePackageInfoOrNull(context, pkgManager, ECOSYSTEM_DIR, packageName)
             ?: return@withContext null
         
         if (!isPackageAnExtension(pkgInfo)) {
@@ -107,9 +115,11 @@ class AniyomiExtensionLoader @Inject constructor(
     fun getInstalledExtensions(context: Context): List<AniyomiExtensionInfo> {
         val pkgManager = context.packageManager
         val installedPkgs = ExternalExtensionLoaderSupport.getInstalledPackages(pkgManager)
+        val localPkgs = LocalApkExtensionSupport.getLocalArchivePackages(context, pkgManager, ECOSYSTEM_DIR)
         
-        return installedPkgs
+        return (installedPkgs + localPkgs)
             .filter { isPackageAnExtension(it) }
+            .distinctBy { it.packageName }
             .mapNotNull { extractExtensionInfo(it) }
     }
     
@@ -254,8 +264,15 @@ class AniyomiExtensionLoader @Inject constructor(
                 android.util.Log.e(TAG, "Extension APK file is missing or not readable!")
             }
 
+            val dexPath = LocalApkExtensionSupport.prepareLoadableApkPath(
+                context = context,
+                ecosystem = ECOSYSTEM_DIR,
+                pkgName = pkgName,
+                sourcePath = appInfo.sourceDir,
+            )
+
             ChildFirstPathClassLoader(
-                appInfo.sourceDir,
+                dexPath,
                 appInfo.nativeLibraryDir,
                 context.classLoader
             )

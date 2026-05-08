@@ -2003,6 +2003,11 @@
     <string name="update_all_packages">Update all</string>
     <string name="cancel_update_all_packages">Cancel update all</string>
     <string name="import_local_jar">Import local JAR</string>
+    <string name="local_apk_hot_reload">Local APK hot reload</string>
+    <string name="extension_install_mode_system">Install mode: system</string>
+    <string name="extension_install_mode_local_apk">Install mode: local APK</string>
+    <string name="sideload_extension">Sideload</string>
+    <string name="update_sideload_extension">Update sideload</string>
     <string name="search_sources_packages_repositories">Search sources, packages, repositories</string>
     <string name="package_download_progress">Downloading %1$d%%</string>
     <string name="sources_tab_title">Sources (%1$d)</string>

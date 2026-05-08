@@ -3030,9 +3030,31 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             try {
                 val repo = mangaRepositoryFactory.create(manga.source)
                 var resolved = false
+                val resetChapterState = {
+                    readerState = ReaderState(chapter.id, 0, 0)
+                    hasSkippedIntro = false
+                    hasTriggeredOutro = false
+                    hasRestoredProgress = false
+                    updateChapterNavButtons()
+                }
+
+                val localUrl = resolveLocalVideoUrl(manga, ReaderState(chapter.id, 0, 0), chapter.url)
+                if (localUrl != null) {
+                    availableVideos = emptyList()
+                    currentVideoIndex = 0
+                    updateQualityButtonVisibility()
+                    currentVideoSource = manga.source
+                    pendingExternalSubtitles = emptyList()
+                    pendingExternalAudio = emptyList()
+                    resetChapterState()
+                    prepareAndPlay(localUrl, manga.source, headers = null)
+                    updateTitleAndSubtitle()
+                    saveHistoryProgressAsync()
+                    resolved = true
+                }
                 
                 // Try AniyomiAnimeRepository first (most video sources)
-                if (repo is AniyomiAnimeRepository) {
+                if (!resolved && repo is AniyomiAnimeRepository) {
                     val videos = runCatching {
                         repo.getVideoListForChapter(chapter)
                             .filter { it.videoUrl.isNotBlank() }
@@ -3049,12 +3071,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                         pendingExternalSubtitles = selected.subtitleTracks
                         pendingExternalAudio = selected.audioTracks
                         
-                        // Update ReaderState with new chapter
-                        readerState = ReaderState(chapter.id, 0, 0)
-                        hasSkippedIntro = false
-                        hasTriggeredOutro = false
-                        hasRestoredProgress = false
-                        updateChapterNavButtons()
+                        resetChapterState()
                         
                         startMpvPlayback(selected.videoUrl, manga.source, mergedHeaders)
                         updateTitleAndSubtitle()
@@ -3076,11 +3093,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                         updateQualityButtonVisibility()
                         currentVideoSource = manga.source
                         
-                        readerState = ReaderState(chapter.id, 0, 0)
-                        hasSkippedIntro = false
-                        hasTriggeredOutro = false
-                        hasRestoredProgress = false
-                        updateChapterNavButtons()
+                        resetChapterState()
                         
                         prepareAndPlay(streamUrl, manga.source, streamHeaders)
                         updateTitleAndSubtitle()

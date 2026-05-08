@@ -42,6 +42,23 @@ object ExternalExtensionLoaderSupport {
 		}
 	}
 
+	fun getPackageArchiveInfoOrNull(pkgManager: PackageManager, apkFile: java.io.File): PackageInfo? {
+		return try {
+			val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+				pkgManager.getPackageArchiveInfo(
+					apkFile.absolutePath,
+					PackageManager.PackageInfoFlags.of(packageQueryFlags.toLong()),
+				)
+			} else {
+				@Suppress("DEPRECATION")
+				pkgManager.getPackageArchiveInfo(apkFile.absolutePath, packageQueryFlags)
+			}
+			packageInfo?.applyArchiveSourcePaths(apkFile.absolutePath)
+		} catch (_: Exception) {
+			null
+		}
+	}
+
 	fun getPackageInfoOrNull(pkgManager: PackageManager, packageName: String): PackageInfo? {
 		return try {
 			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -82,5 +99,13 @@ object ExternalExtensionLoaderSupport {
 		} else {
 			"all"
 		}
+	}
+
+	private fun PackageInfo.applyArchiveSourcePaths(apkPath: String): PackageInfo {
+		applicationInfo?.apply {
+			sourceDir = apkPath
+			publicSourceDir = apkPath
+		}
+		return this
 	}
 }

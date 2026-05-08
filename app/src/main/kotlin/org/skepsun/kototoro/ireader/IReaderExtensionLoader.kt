@@ -11,6 +11,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.extensions.runtime.ExternalExtensionLoaderSupport
 import org.skepsun.kototoro.extensions.runtime.ExternalExtensionMetadataSupport
+import org.skepsun.kototoro.extensions.runtime.LocalApkExtensionSupport
 import org.skepsun.kototoro.ireader.model.IReaderExtensionInfo
 import org.skepsun.kototoro.ireader.model.IReaderLoadResult
 import org.skepsun.kototoro.ireader.model.IReaderMangaSource
@@ -18,15 +19,18 @@ import org.skepsun.kototoro.mihon.util.ChildFirstPathClassLoader
 import javax.inject.Inject
 import javax.inject.Singleton
 import org.skepsun.kototoro.core.network.ContentHttpClient
+import org.skepsun.kototoro.core.prefs.AppSettings
 import okhttp3.OkHttpClient
 
 @Singleton
 class IReaderExtensionLoader @Inject constructor(
     @ApplicationContext private val applicationContext: Context,
     @ContentHttpClient private val httpClient: OkHttpClient,
+    private val settings: AppSettings,
 ) {
     companion object {
         private const val TAG = "IReaderExtensionLoader"
+        private const val ECOSYSTEM_DIR = "ireader"
 
         private const val EXTENSION_FEATURE = "ireader"
         private const val METADATA_SOURCE_CLASS = "source.class"
@@ -42,8 +46,11 @@ class IReaderExtensionLoader @Inject constructor(
         try {
             val pkgManager = context.packageManager
             val installedPkgs = ExternalExtensionLoaderSupport.getInstalledPackages(pkgManager)
+            val localPkgs = LocalApkExtensionSupport.getLocalArchivePackages(context, pkgManager, ECOSYSTEM_DIR)
             
-            val extPkgs = installedPkgs.filter { isPackageAnExtension(it) }
+            val extPkgs = (installedPkgs + localPkgs)
+                .filter { isPackageAnExtension(it) }
+                .distinctBy { it.packageName }
 
             if (extPkgs.isEmpty()) {
                 return@withContext emptyList()
@@ -61,6 +68,7 @@ class IReaderExtensionLoader @Inject constructor(
     suspend fun loadExtension(context: Context, packageName: String): IReaderLoadResult? = withContext(Dispatchers.IO) {
         val pkgManager = context.packageManager
         val pkgInfo = ExternalExtensionLoaderSupport.getPackageInfoOrNull(pkgManager, packageName)
+            ?: LocalApkExtensionSupport.getLocalArchivePackageInfoOrNull(context, pkgManager, ECOSYSTEM_DIR, packageName)
             ?: return@withContext null
 
         if (!isPackageAnExtension(pkgInfo)) {
@@ -73,9 +81,11 @@ class IReaderExtensionLoader @Inject constructor(
     fun getInstalledExtensions(context: Context): List<IReaderExtensionInfo> {
         val pkgManager = context.packageManager
         val installedPkgs = ExternalExtensionLoaderSupport.getInstalledPackages(pkgManager)
+        val localPkgs = LocalApkExtensionSupport.getLocalArchivePackages(context, pkgManager, ECOSYSTEM_DIR)
 
-        return installedPkgs
+        return (installedPkgs + localPkgs)
             .filter { isPackageAnExtension(it) }
+            .distinctBy { it.packageName }
             .mapNotNull { extractExtensionInfo(it) }
     }
 
@@ -134,7 +144,13 @@ class IReaderExtensionLoader @Inject constructor(
         val appName = ExternalExtensionLoaderSupport.getAppLabel(context, appInfo).removePrefix("IReader: ").trim()
 
         val classLoader = try {
-            ChildFirstPathClassLoader(appInfo.sourceDir, appInfo.nativeLibraryDir, context.classLoader)
+            val dexPath = LocalApkExtensionSupport.prepareLoadableApkPath(
+                context = context,
+                ecosystem = ECOSYSTEM_DIR,
+                pkgName = pkgName,
+                sourcePath = appInfo.sourceDir,
+            )
+            ChildFirstPathClassLoader(dexPath, appInfo.nativeLibraryDir, context.classLoader)
         } catch (e: Throwable) {
             return IReaderLoadResult.Error(pkgName, "Failed to create ClassLoader", e)
         }

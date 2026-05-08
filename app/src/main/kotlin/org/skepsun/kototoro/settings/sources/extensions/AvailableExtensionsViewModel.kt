@@ -1,9 +1,11 @@
 package org.skepsun.kototoro.settings.sources.extensions
 
+import android.content.Context
 import android.content.Intent
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -12,10 +14,12 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import org.skepsun.kototoro.aniyomi.AniyomiExtensionManager
+import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.require
+import org.skepsun.kototoro.extensions.install.ExtensionInstallResult
 import org.skepsun.kototoro.extensions.install.ExtensionInstallService
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepoRepository
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
@@ -28,6 +32,7 @@ import javax.inject.Inject
 @HiltViewModel
 class AvailableExtensionsViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle,
+	@ApplicationContext private val appContext: Context,
 	private val repoRepository: ExternalExtensionRepoRepository,
 	private val installService: ExtensionInstallService,
 	private val mihonExtensionManager: MihonExtensionManager,
@@ -98,11 +103,12 @@ class AvailableExtensionsViewModel @Inject constructor(
 		}
 		launchLoadingJob(Dispatchers.IO) {
 			try {
-				val intent = installService.createInstallIntent(extension)
-				if (intent != null) {
-					onInstallIntent.call(intent)
-				} else {
-					refresh()
+				when (val result = installService.install(extension)) {
+					is ExtensionInstallResult.RequiresInstaller -> onInstallIntent.call(result.intent)
+					ExtensionInstallResult.Completed -> {
+						refresh()
+						onMessage.call(appContext.getString(R.string.unified_sources_package_installed))
+					}
 				}
 			} catch (e: Throwable) {
 				errorEvent.call(e)

@@ -17,6 +17,8 @@ import okhttp3.OkHttpClient
 import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.extensions.repo.RepoAvailableExtension
+import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
+import org.skepsun.kototoro.extensions.runtime.LocalApkExtensionSupport
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
@@ -49,7 +51,7 @@ class ExtensionInstallService @Inject constructor(
 
 	val downloadStates: StateFlow<Map<String, ExtensionInstallDownloadState>> = _downloadStates.asStateFlow()
 
-	suspend fun createInstallIntent(extension: RepoAvailableExtension): Intent? {
+	suspend fun install(extension: RepoAvailableExtension): ExtensionInstallResult {
 		val apkUrl = applyMirror("${extension.repoUrl}/apk/${extension.apkName}")
 		val outputDir = File(context.cacheDir, "extension-installs").apply { mkdirs() }
 		val outputFile = File(outputDir, "${extension.pkgName}-${extension.versionCode}.apk")
@@ -87,16 +89,30 @@ class ExtensionInstallService @Inject constructor(
 				.putLong(extension.pkgName, extension.versionCode)
 				.apply()
 			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.initialize(context)
-			return null
+			return ExtensionInstallResult.Completed
 		}
-		
+
+		val ecosystem = extension.type.toLocalApkEcosystem()
+		if (ecosystem != null) {
+			LocalApkExtensionSupport.storeManagedApk(
+				context = context,
+				ecosystem = ecosystem,
+				packageName = extension.pkgName,
+				sourceFile = outputFile,
+			)
+			outputFile.delete()
+			return ExtensionInstallResult.Completed
+		}
+
 		val uri = FileProvider.getUriForFile(context, "${BuildConfig.APPLICATION_ID}.files", outputFile)
-		return Intent(Intent.ACTION_VIEW).apply {
-			setDataAndType(uri, "application/vnd.android.package-archive")
-			addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-			addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-			putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
-		}
+		return ExtensionInstallResult.RequiresInstaller(
+			Intent(Intent.ACTION_VIEW).apply {
+				setDataAndType(uri, "application/vnd.android.package-archive")
+				addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+				addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+				putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
+			},
+		)
 	}
 
 	fun cancelDownload(packageName: String) {
@@ -116,6 +132,20 @@ class ExtensionInstallService @Inject constructor(
 		override fun update(bytesRead: Long, contentLength: Long, done: Boolean) {
 			updateDownloadState(packageName, bytesRead, contentLength)
 		}
+	}
+}
+
+sealed interface ExtensionInstallResult {
+	data object Completed : ExtensionInstallResult
+	data class RequiresInstaller(val intent: Intent) : ExtensionInstallResult
+}
+
+private fun ExternalExtensionType.toLocalApkEcosystem(): String? {
+	return when (this) {
+		ExternalExtensionType.MIHON -> "mihon"
+		ExternalExtensionType.ANIYOMI -> "aniyomi"
+		ExternalExtensionType.IREADER -> "ireader"
+		ExternalExtensionType.JAR -> null
 	}
 }
 

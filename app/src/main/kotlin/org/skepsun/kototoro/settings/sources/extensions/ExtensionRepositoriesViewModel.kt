@@ -25,6 +25,7 @@ import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepoRepository
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
 import org.skepsun.kototoro.extensions.repo.ExtensionRepoService
 import org.skepsun.kototoro.extensions.repo.RepoAvailableExtension
+import org.skepsun.kototoro.extensions.install.ExtensionInstallResult
 import org.skepsun.kototoro.extensions.install.ExtensionInstallService
 import javax.inject.Inject
 
@@ -60,10 +61,15 @@ class ExtensionRepositoriesViewModel @Inject constructor(
 		val updateExtension = _updatesAvailable.value[repo.baseUrl] ?: return
 		launchLoadingJob(Dispatchers.IO) {
 			try {
-				installService.createInstallIntent(updateExtension)
-				onMessage.call("Updating plugin...")
-				// Refresh to remove the update badge after install
-				refresh()
+				when (installService.install(updateExtension)) {
+					is ExtensionInstallResult.RequiresInstaller -> {
+						onMessage.call(appContext.getString(R.string.unified_sources_repository_manual_refresh_only))
+					}
+					ExtensionInstallResult.Completed -> {
+						onMessage.call(appContext.getString(R.string.unified_sources_package_installed))
+						refresh()
+					}
+				}
 			} catch (e: Exception) {
 				onMessage.call("Update failed: ${e.message}")
 			}

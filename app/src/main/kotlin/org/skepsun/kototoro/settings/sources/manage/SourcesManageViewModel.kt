@@ -77,7 +77,7 @@ class SourcesManageViewModel @Inject constructor(
 		launchJob(Dispatchers.IO) {
 			try {
 				updates.forEach { extension ->
-					installService.createInstallIntent(extension)
+					installService.install(extension)
 				}
 			} catch (e: Exception) {
 				// Ignore errors per plugin, allow continuation

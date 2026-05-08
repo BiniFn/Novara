@@ -7,9 +7,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
@@ -138,8 +138,16 @@ fun KototoroPullToRefreshBox(
     LaunchedEffect(isRefreshing) {
         if (isRefreshing) {
             kotlinx.coroutines.delay(50)
+            deferredRefreshing = true
+            return@LaunchedEffect
         }
         deferredRefreshing = isRefreshing
+        if (!isRefreshing && (state.distanceFraction > 0f || state.isAnimating)) {
+            runCatching { state.animateToHidden() }
+            if (state.distanceFraction > 0f) {
+                runCatching { state.snapTo(0f) }
+            }
+        }
     }
     DisposableEffect(Unit) {
         onDispose {
@@ -153,13 +161,14 @@ fun KototoroPullToRefreshBox(
         state = state,
         contentAlignment = contentAlignment,
         indicator = {
-            PullToRefreshDefaults.Indicator(
-                state = state,
-                isRefreshing = deferredRefreshing,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = indicatorTopInset.calculateTopPadding()),
-            )
+            if (deferredRefreshing) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .offset(y = indicatorTopInset.calculateTopPadding() + 12.dp),
+                    strokeWidth = 2.5.dp,
+                )
+            }
         },
         content = content,
     )

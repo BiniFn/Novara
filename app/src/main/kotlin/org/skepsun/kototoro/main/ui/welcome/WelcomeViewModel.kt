@@ -25,6 +25,7 @@ import javax.inject.Inject
 
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepoRepository
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
+import org.skepsun.kototoro.extensions.install.ExtensionInstallResult
 import org.skepsun.kototoro.extensions.install.ExtensionInstallService
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -176,8 +177,10 @@ class WelcomeViewModel @Inject constructor(
 				var newlyInstalledCount = 0
 				for (extension in available) {
 					if (extension.versionCode > jarVersions.getLong(extension.pkgName, -1L)) {
-						installService.createInstallIntent(extension)
-						newlyInstalledCount++
+						when (installService.install(extension)) {
+							is ExtensionInstallResult.RequiresInstaller -> Unit
+							ExtensionInstallResult.Completed -> newlyInstalledCount++
+						}
 					}
 				}
 				android.util.Log.d("KototoroInit", "All background initialization work scheduled successfully.")
