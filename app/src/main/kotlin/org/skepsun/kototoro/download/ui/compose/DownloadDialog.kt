@@ -2,6 +2,7 @@ package org.skepsun.kototoro.download.ui.compose
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Column
@@ -44,9 +45,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
@@ -54,15 +57,18 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.getSaveTitleResId
 import org.skepsun.kototoro.core.model.getWholeWorkOptionResId
+import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.prefs.DownloadFormat
-import org.skepsun.kototoro.core.util.ext.joinToStringWithLimit
 import org.skepsun.kototoro.core.util.ext.findActivity
+import org.skepsun.kototoro.core.util.ext.joinToStringWithLimit
 import org.skepsun.kototoro.download.ui.dialog.ChapterSelectOptions
 import org.skepsun.kototoro.download.ui.dialog.DownloadDialogViewModel
 import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.util.format
+import org.skepsun.kototoro.settings.storage.DirectoryModel
+import kotlin.math.roundToInt
 
 private enum class SelectedMode {
     WHOLE_MANGA, WHOLE_BRANCH, FIRST_CHAPTERS, UNREAD_CHAPTERS
@@ -74,7 +80,7 @@ fun DownloadDialog(
     snackbarHostState: SnackbarHostState? = null,
     snackbarHostView: android.view.View? = null,
     onOpenDownloads: (() -> Unit)? = null,
-    viewModel: DownloadDialogViewModel = hiltViewModel(),
+    viewModel: DownloadDialogViewModel = hiltViewModel(key = "download-dialog-${mangaList.hashCode()}"),
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -123,9 +129,34 @@ fun DownloadDialog(
     var startNow by remember { mutableStateOf(true) }
     var selectedMode by remember { mutableStateOf(SelectedMode.WHOLE_MANGA) }
     var isAlignReader by remember { mutableStateOf(viewModel.isDownloadAlignedWithReader()) }
+    var isAutoRetry by remember { mutableStateOf(viewModel.isDownloadAutoRetryEnabled()) }
+    var chapterDelaySeconds by remember { mutableStateOf(viewModel.getChapterDownloadDelay()) }
+    var threads by remember { mutableStateOf(viewModel.getDownloadThreads()) }
+    var requestDelayMs by remember { mutableStateOf(viewModel.getDownloadRequestDelayMs()) }
+    var retryCount by remember { mutableStateOf(viewModel.getDownloadRetryCount()) }
+    var retryDelayMs by remember { mutableStateOf(viewModel.getDownloadRetryDelayMs()) }
+    var selectedFormat by remember { mutableStateOf<DownloadFormat?>(null) }
+    var selectedDestination by remember { mutableStateOf<DirectoryModel?>(null) }
+    var selectedVideoQuality by remember { mutableStateOf<String?>(null) }
+    var showDestinationMenu by remember { mutableStateOf(false) }
+    var showFormatMenu by remember { mutableStateOf(false) }
+    var showVideoQualityMenu by remember { mutableStateOf(false) }
     var showWholeBranchMenu by remember { mutableStateOf(false) }
     var showFirstChaptersMenu by remember { mutableStateOf(false) }
     var showUnreadChaptersMenu by remember { mutableStateOf(false) }
+
+    LaunchedEffect(defaultFormat) {
+        selectedFormat = defaultFormat
+    }
+    LaunchedEffect(availableDestinations) {
+        selectedDestination = availableDestinations.firstOrNull { it.isChecked }
+            ?: availableDestinations.firstOrNull()
+    }
+    LaunchedEffect(videoQualities, isVideoContent) {
+        if (!isVideoContent || selectedVideoQuality !in videoQualities.orEmpty()) {
+            selectedVideoQuality = null
+        }
+    }
 
     val firstManga = mangaList.firstOrNull()
     val contentType = firstManga?.source?.getContentType() ?: ContentType.MANGA
@@ -315,11 +346,34 @@ fun DownloadDialog(
                 // Video Quality
                 if (isVideoContent) {
                     Text(text = stringResource(id = R.string.video_quality), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
-                    OutlinedCard(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                        Text(
-                            text = if (isVideoQualitiesLoading) stringResource(id = R.string.fetching_video_quality) else "System Default",
-                            modifier = Modifier.padding(16.dp)
+                    SelectableValueCard(
+                        value = if (isVideoQualitiesLoading) {
+                            stringResource(id = R.string.fetching_video_quality)
+                        } else {
+                            selectedVideoQuality ?: stringResource(id = R.string.system_default)
+                        },
+                        expanded = showVideoQualityMenu,
+                        enabled = !isVideoQualitiesLoading,
+                        onClick = { showVideoQualityMenu = true },
+                        onDismissRequest = { showVideoQualityMenu = false },
+                        modifier = Modifier.padding(top = 8.dp),
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(text = stringResource(id = R.string.system_default)) },
+                            onClick = {
+                                selectedVideoQuality = null
+                                showVideoQualityMenu = false
+                            },
                         )
+                        videoQualities.orEmpty().forEach { quality ->
+                            DropdownMenuItem(
+                                text = { Text(text = quality) },
+                                onClick = {
+                                    selectedVideoQuality = quality
+                                    showVideoQualityMenu = false
+                                },
+                            )
+                        }
                     }
                 }
 
@@ -339,14 +393,46 @@ fun DownloadDialog(
                     Column(modifier = Modifier.fillMaxWidth()) {
                         // Destinations
                         Text(text = stringResource(id = R.string.destination_directory), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
-                        OutlinedCard(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                            Text(text = availableDestinations.firstOrNull { it.isChecked }?.title ?: "Default", modifier = Modifier.padding(16.dp))
+                        SelectableValueCard(
+                            value = selectedDestination?.displayTitle() ?: stringResource(id = R.string.system_default),
+                            expanded = showDestinationMenu,
+                            enabled = availableDestinations.isNotEmpty(),
+                            onClick = { showDestinationMenu = true },
+                            onDismissRequest = { showDestinationMenu = false },
+                            modifier = Modifier.padding(top = 8.dp),
+                        ) {
+                            availableDestinations.forEach { destination ->
+                                DropdownMenuItem(
+                                    text = {
+                                        DestinationMenuItem(destination = destination)
+                                    },
+                                    onClick = {
+                                        selectedDestination = destination
+                                        showDestinationMenu = false
+                                    },
+                                )
+                            }
                         }
 
                         // Format
                         Text(text = stringResource(id = R.string.preferred_download_format), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
-                        OutlinedCard(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                            Text(text = defaultFormat?.name ?: "Default", modifier = Modifier.padding(16.dp))
+                        val formatLabels = stringArrayResource(id = R.array.download_formats)
+                        SelectableValueCard(
+                            value = selectedFormat.formatTitle(formatLabels),
+                            expanded = showFormatMenu,
+                            onClick = { showFormatMenu = true },
+                            onDismissRequest = { showFormatMenu = false },
+                            modifier = Modifier.padding(top = 8.dp),
+                        ) {
+                            DownloadFormat.entries.forEach { format ->
+                                DropdownMenuItem(
+                                    text = { Text(text = format.formatTitle(formatLabels)) },
+                                    onClick = {
+                                        selectedFormat = format
+                                        showFormatMenu = false
+                                    },
+                                )
+                            }
                         }
 
                         // Align reader
@@ -365,7 +451,6 @@ fun DownloadDialog(
                         }
 
                         // Auto retry
-                        var isAutoRetry by remember { mutableStateOf(viewModel.isDownloadAutoRetryEnabled()) }
                         Row(modifier = Modifier.fillMaxWidth().padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(text = stringResource(id = R.string.download_auto_retry_summary), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
                             Switch(
@@ -378,19 +463,69 @@ fun DownloadDialog(
                         }
 
                         // Threads
-                        var threads by remember { mutableStateOf(viewModel.getDownloadThreads().toFloat()) }
-                        Text(text = stringResource(id = R.string.download_threads), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Slider(
-                                value = threads,
-                                onValueChange = { threads = it; viewModel.setDownloadThreads(it.toInt()) },
-                                valueRange = 1f..10f,
-                                steps = 9,
-                                enabled = !isAlignReader,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(text = threads.toInt().toString(), modifier = Modifier.padding(start = 16.dp), style = MaterialTheme.typography.bodyMedium)
-                        }
+                        DownloadIntSlider(
+                            title = stringResource(id = R.string.download_threads),
+                            value = threads,
+                            valueText = threads.toString(),
+                            valueRange = 1..10,
+                            steps = 8,
+                            enabled = !isAlignReader,
+                            onValueChange = {
+                                threads = it
+                                viewModel.setDownloadThreads(it)
+                            },
+                        )
+
+                        DownloadIntSlider(
+                            title = stringResource(id = R.string.download_request_delay),
+                            value = requestDelayMs,
+                            valueText = "${requestDelayMs}ms",
+                            valueRange = 0..5000,
+                            steps = 49,
+                            stepSize = 100,
+                            enabled = !isAlignReader,
+                            onValueChange = {
+                                requestDelayMs = it
+                                viewModel.setDownloadRequestDelayMs(it)
+                            },
+                        )
+
+                        DownloadIntSlider(
+                            title = stringResource(id = R.string.download_retry_count),
+                            value = retryCount,
+                            valueText = retryCount.toString(),
+                            valueRange = 1..10,
+                            steps = 8,
+                            onValueChange = {
+                                retryCount = it
+                                viewModel.setDownloadRetryCount(it)
+                            },
+                        )
+
+                        DownloadIntSlider(
+                            title = stringResource(id = R.string.download_retry_delay),
+                            value = retryDelayMs,
+                            valueText = "${retryDelayMs}ms",
+                            valueRange = 500..10000,
+                            steps = 18,
+                            stepSize = 500,
+                            onValueChange = {
+                                retryDelayMs = it
+                                viewModel.setDownloadRetryDelayMs(it)
+                            },
+                        )
+
+                        DownloadIntSlider(
+                            title = stringResource(id = R.string.chapter_download_delay),
+                            value = chapterDelaySeconds,
+                            valueText = "${chapterDelaySeconds}s",
+                            valueRange = 0..10,
+                            steps = 9,
+                            onValueChange = {
+                                chapterDelaySeconds = it
+                                viewModel.setChapterDownloadDelay(it)
+                            },
+                        )
                     }
                 }
             }
@@ -399,19 +534,28 @@ fun DownloadDialog(
             Button(
                 enabled = !isOptionsLoading,
                 onClick = {
-                    viewModel.confirm(
-                        startNow = startNow,
-                        chaptersMacro = when (selectedMode) {
-                            SelectedMode.WHOLE_MANGA -> chaptersSelectOptions.wholeContent
-                            SelectedMode.WHOLE_BRANCH -> chaptersSelectOptions.wholeBranch!!
-                            SelectedMode.FIRST_CHAPTERS -> chaptersSelectOptions.firstChapters!!
-                            SelectedMode.UNREAD_CHAPTERS -> chaptersSelectOptions.unreadChapters!!
-                        },
-                        format = DownloadFormat.entries.getOrNull(0), // Needs fix for real mapping
-                        destination = availableDestinations.firstOrNull { it.isChecked },
-                        allowMetered = true,
-                        preferredQuality = null
-                    )
+                    val chaptersMacro = when (selectedMode) {
+                        SelectedMode.WHOLE_MANGA -> chaptersSelectOptions.wholeContent
+                        SelectedMode.WHOLE_BRANCH -> chaptersSelectOptions.wholeBranch ?: return@Button
+                        SelectedMode.FIRST_CHAPTERS -> chaptersSelectOptions.firstChapters ?: return@Button
+                        SelectedMode.UNREAD_CHAPTERS -> chaptersSelectOptions.unreadChapters ?: return@Button
+                    }
+                    val schedule: (Boolean) -> Unit = { allowMetered ->
+                        viewModel.confirm(
+                            startNow = startNow,
+                            chaptersMacro = chaptersMacro,
+                            format = selectedFormat,
+                            destination = selectedDestination,
+                            allowMetered = allowMetered,
+                            preferredQuality = selectedVideoQuality,
+                        )
+                    }
+                    val activity = context.findActivity() as? FragmentActivity
+                    if (activity != null) {
+                        activity.router.askForDownloadOverMeteredNetwork(schedule)
+                    } else {
+                        schedule(true)
+                    }
                 }
             ) {
                 Text(text = stringResource(id = R.string.save))
@@ -423,6 +567,99 @@ fun DownloadDialog(
             }
         }
     )
+}
+
+@Composable
+private fun SelectableValueCard(
+    value: String,
+    expanded: Boolean,
+    onClick: () -> Unit,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    dropdownContent: @Composable ColumnScope.() -> Unit,
+) {
+    Box(
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        OutlinedCard(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = enabled, onClick = onClick),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = value,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = null,
+                )
+            }
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = onDismissRequest,
+            content = dropdownContent,
+        )
+    }
+}
+
+@Composable
+private fun DownloadIntSlider(
+    title: String,
+    value: Int,
+    valueText: String,
+    valueRange: IntRange,
+    steps: Int,
+    onValueChange: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    stepSize: Int = 1,
+    enabled: Boolean = true,
+) {
+    Column(modifier = modifier.fillMaxWidth().padding(top = 16.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            color = if (enabled) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+            },
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Slider(
+                value = value.toFloat(),
+                onValueChange = { rawValue ->
+                    val snappedValue = (rawValue / stepSize).roundToInt() * stepSize
+                    onValueChange(snappedValue.coerceIn(valueRange.first, valueRange.last))
+                },
+                valueRange = valueRange.first.toFloat()..valueRange.last.toFloat(),
+                steps = steps,
+                enabled = enabled,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = valueText,
+                modifier = Modifier.padding(start = 16.dp).width(64.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (enabled) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                },
+            )
+        }
+    }
 }
 
 @Composable
@@ -509,6 +746,37 @@ private fun showDownloadResultSnackbar(
             setAction(R.string.downloads) { onOpenDownloads() }
         }
     }.show()
+}
+
+@Composable
+private fun DirectoryModel.displayTitle(): String {
+    return title ?: stringResource(id = titleRes.takeIf { it != 0 } ?: R.string.system_default)
+}
+
+@Composable
+private fun DestinationMenuItem(destination: DirectoryModel) {
+    Column {
+        Text(
+            text = destination.displayTitle(),
+            style = MaterialTheme.typography.bodyLarge,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        destination.file?.path?.let { path ->
+            Text(
+                text = path,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DownloadFormat?.formatTitle(formatLabels: Array<String>): String {
+    return formatLabels.getOrNull(this?.ordinal ?: 0) ?: stringResource(id = R.string.system_default)
 }
 
 @Composable
