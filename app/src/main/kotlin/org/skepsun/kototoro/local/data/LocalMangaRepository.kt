@@ -216,8 +216,8 @@ class LocalMangaRepository @Inject constructor(
 			}
 		}
 		LocalContentUtil(subject.manga, subject.file).deleteChapters(ids)
-		val updated = getDetails(subject.manga)
-		localStorageChanges.emit(org.skepsun.kototoro.local.domain.model.LocalContent(updated))
+		val updated = LocalContentParser(subject.file).getContent(withDetails = true)
+		localStorageChanges.emit(updated)
 	}
 
 	suspend fun getRemoteContent(localContent: Content): Content? {

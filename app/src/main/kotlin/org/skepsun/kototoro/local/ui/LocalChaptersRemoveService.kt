@@ -10,7 +10,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.MutableSharedFlow
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ErrorReporterReceiver
 import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
@@ -20,8 +19,6 @@ import org.skepsun.kototoro.core.util.ext.getParcelableExtraCompat
 import org.skepsun.kototoro.core.util.ext.powerManager
 import org.skepsun.kototoro.core.util.ext.withPartialWakeLock
 import org.skepsun.kototoro.local.data.LocalMangaRepository
-import org.skepsun.kototoro.local.data.LocalStorageChanges
-import org.skepsun.kototoro.local.domain.model.LocalContent
 import org.skepsun.kototoro.parsers.model.Content
 import javax.inject.Inject
 
@@ -30,10 +27,6 @@ class LocalChaptersRemoveService : CoroutineIntentService() {
 
 	@Inject
 	lateinit var localContentRepository: LocalMangaRepository
-
-	@Inject
-	@LocalStorageChanges
-	lateinit var localStorageChanges: MutableSharedFlow<LocalContent?>
 
 	override fun onCreate() {
 		super.onCreate()
@@ -50,9 +43,7 @@ class LocalChaptersRemoveService : CoroutineIntentService() {
 		val manga = intent.getParcelableExtraCompat<ParcelableContent>(EXTRA_MANGA)?.manga ?: return
 		val chaptersIds = intent.getLongArrayExtra(EXTRA_CHAPTERS_IDS)?.toSet() ?: return
 		powerManager.withPartialWakeLock(TAG) {
-			val mangaWithChapters = localContentRepository.getDetails(manga)
-			localContentRepository.deleteChapters(mangaWithChapters, chaptersIds)
-			localStorageChanges.emit(LocalContent(localContentRepository.getDetails(manga)))
+			localContentRepository.deleteChapters(manga, chaptersIds)
 		}
 	}
 

@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.core.exceptions.resolve
 
 import android.view.View
+import android.widget.Toast
 import androidx.core.util.Consumer
 import androidx.fragment.app.Fragment
 import com.google.android.material.snackbar.Snackbar
@@ -24,7 +25,13 @@ class SnackbarErrorObserver(
 	) : this(host, fragment, null, null)
 
 	override suspend fun emit(value: Throwable) {
-		val snackbar = Snackbar.make(host, value.getDisplayMessage(host.context.resources), Snackbar.LENGTH_SHORT)
+		val message = value.getDisplayMessage(host.context.resources)
+		val snackbar = try {
+			Snackbar.make(host, message, Snackbar.LENGTH_SHORT)
+		} catch (_: IllegalArgumentException) {
+			Toast.makeText(host.context, message, Toast.LENGTH_SHORT).show()
+			return
+		}
 		when (activity) {
 			is BottomNavOwner -> snackbar.anchorView = activity.bottomNav
 			is BottomSheetOwner -> snackbar.anchorView = activity.bottomSheet
