@@ -729,14 +729,22 @@ fun AppNavGraph(
                         val content = item.toContentWithOverride()
                         navigateToDetailsWithContent(
                             content,
-                            contentCoverSharedKey(content.source.name, content.coverUrl.orEmpty()),
+                            contentCoverSharedKey(
+                                item.manga.source.name,
+                                item.imageUrl.orEmpty(),
+                                instanceKey = "feed_${item.id}",
+                            ),
                         )
                     },
                     onUpdatedContentItemClick = { contentItem, coverBounds ->
                         val content = contentItem.toContentWithOverride()
                         navigateToDetailsWithContent(
                             content,
-                            contentCoverSharedKey(content.source.name, content.coverUrl.orEmpty()),
+                            contentCoverSharedKey(
+                                contentItem.manga.source.name,
+                                contentItem.coverUrl.orEmpty(),
+                                instanceKey = "feed_updated_${contentItem.id}",
+                            ),
                         )
                     },
                     onUpdatedContentMoreClick = {

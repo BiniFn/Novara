@@ -231,6 +231,9 @@ fun KototoroContentCardGrid(
     val badgeMetrics = remember(posterStyle.itemWidth) { contentCardBadgeMetricsFor(posterStyle.itemWidth) }
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
+    val sharedKey = remember(manga.source.name, item.coverUrl) {
+        contentCoverSharedKey(manga.source.name, item.coverUrl.orEmpty())
+    }
     
     val cardShape = MaterialTheme.shapes.medium
     val cardRadius = (cardShape as? RoundedCornerShape)?.topStart?.toPx(
@@ -266,7 +269,7 @@ fun KototoroContentCardGrid(
                         with(sharedTransitionScope) {
                             Modifier.sharedElement(
                                 rememberSharedContentState(
-                                    key = contentCoverSharedKey(manga.source.name, item.coverUrl.orEmpty()),
+                                    key = sharedKey,
                                 ),
                                 animatedVisibilityScope = animatedVisibilityScope,
                             )
@@ -509,6 +512,9 @@ fun KototoroContentCardList(
     val badgeMetrics = remember { contentCardBadgeMetricsFor(48.dp) }
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
+    val sharedKey = remember(item.manga.source.name, item.coverUrl) {
+        contentCoverSharedKey(item.manga.source.name, item.coverUrl.orEmpty())
+    }
     val effectiveTopRightBadges = remember(resolvedUiPrefs.badgesTopRight, item.counter, item.scoreText) {
         buildSet {
             addAll(resolvedUiPrefs.badgesTopRight)
@@ -524,7 +530,10 @@ fun KototoroContentCardList(
         modifier = modifier
             .fillMaxWidth()
             .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else Color.Transparent)
-            .combinedClickable(onClick = { onClick(coverBounds) }, onLongClick = onLongClick)
+            .combinedClickable(
+                onClick = { onClick(coverBounds) },
+                onLongClick = onLongClick,
+            )
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -543,7 +552,7 @@ fun KototoroContentCardList(
                         with(sharedTransitionScope) {
                             Modifier.sharedElement(
                                 rememberSharedContentState(
-                                    key = contentCoverSharedKey(item.manga.source.name, item.coverUrl.orEmpty()),
+                                    key = sharedKey,
                                 ),
                                 animatedVisibilityScope = animatedVisibilityScope,
                             )
@@ -827,6 +836,9 @@ fun KototoroContentCardDetailedList(
     val badgeMetrics = remember { contentCardBadgeMetricsFor(80.dp) }
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
+    val sharedKey = remember(item.manga.source.name, item.coverUrl) {
+        contentCoverSharedKey(item.manga.source.name, item.coverUrl.orEmpty())
+    }
     val effectiveTopRightBadges = remember(resolvedUiPrefs.badgesTopRight, item.counter, item.scoreText) {
         buildSet {
             addAll(resolvedUiPrefs.badgesTopRight)
@@ -842,7 +854,10 @@ fun KototoroContentCardDetailedList(
         modifier = modifier
             .fillMaxWidth()
             .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else Color.Transparent)
-            .combinedClickable(onClick = { onClick(coverBounds) }, onLongClick = onLongClick)
+            .combinedClickable(
+                onClick = { onClick(coverBounds) },
+                onLongClick = onLongClick,
+            )
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
         Box(
@@ -860,7 +875,7 @@ fun KototoroContentCardDetailedList(
                         with(sharedTransitionScope) {
                             Modifier.sharedElement(
                                 rememberSharedContentState(
-                                    key = contentCoverSharedKey(item.manga.source.name, item.coverUrl.orEmpty()),
+                                    key = sharedKey,
                                 ),
                                 animatedVisibilityScope = animatedVisibilityScope,
                             )

@@ -107,6 +107,7 @@ import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.ui.model.titleRes
 import org.skepsun.kototoro.core.util.ShareHelper
@@ -168,6 +169,8 @@ private fun prepareSearchContentItems(items: List<ListModel>): SearchContentPrep
 fun AppSearchContentListRoute(
     appRouter: AppRouter,
     onBackClick: () -> Unit,
+    onOpenDetails: (Content, String?) -> Unit = { content, _ -> appRouter.openDetails(content) },
+    sharedTransitionEnabled: Boolean = true,
     viewModel: RemoteListViewModel = hiltViewModel(),
 ) {
     val items by viewModel.content.collectAsStateWithLifecycle(emptyList())
@@ -233,7 +236,10 @@ fun AppSearchContentListRoute(
     LaunchedEffect(viewModel.onOpenContent) {
         viewModel.onOpenContent.collect { event ->
             event?.consume { content ->
-                appRouter.openDetails(content)
+                onOpenDetails(
+                    content,
+                    contentCoverSharedKey(content.source.name, content.coverUrl.orEmpty()),
+                )
             }
         }
     }
@@ -411,6 +417,7 @@ fun AppSearchContentListRoute(
                         listMode = listMode,
                         isRefreshing = false,
                         contentPadding = PaddingValues(0.dp),
+                        sharedTransitionEnabled = sharedTransitionEnabled,
                         modifier = Modifier
                             .weight(1f)
                             .nestedScroll(nestedScrollConnection),
@@ -476,7 +483,15 @@ fun AppSearchContentListRoute(
                         SearchPreviewPane(
                             content = requireNotNull(previewContent),
                             onBackToFilters = { sidePaneMode = SearchSidePaneMode.Filter },
-                            onOpenDetails = { appRouter.openDetails(requireNotNull(previewContent)) },
+                            onOpenDetails = {
+                                val content = requireNotNull(previewContent)
+                                val sharedElementKey =
+                                    contentCoverSharedKey(content.source.name, content.coverUrl.orEmpty())
+                                onOpenDetails(
+                                    content,
+                                    sharedElementKey,
+                                )
+                            },
                         )
                     } else {
                         SearchFilterPanel(
@@ -528,13 +543,19 @@ fun AppSearchContentListRoute(
                 listMode = listMode,
                 isRefreshing = false,
                 contentPadding = paddingValues,
+                sharedTransitionEnabled = sharedTransitionEnabled,
                 modifier = Modifier.nestedScroll(nestedScrollConnection),
                 onPrepareItemTransition = { _, _ -> },
                 onItemClick = { item ->
                     if (selectedItemsIds.isNotEmpty()) {
                         selectedItemsIds = if (item.id in selectedItemsIds) selectedItemsIds - item.id else selectedItemsIds + item.id
                     } else {
-                        appRouter.openDetails(item.manga)
+                        val content = item.toContentWithOverride()
+                        val sharedElementKey = contentCoverSharedKey(item.source.name, item.coverUrl.orEmpty())
+                        onOpenDetails(
+                            content,
+                            sharedElementKey,
+                        )
                     }
                 },
                 onItemLongClick = { item ->

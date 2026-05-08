@@ -70,12 +70,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest.Builder
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.ContentSourceInfo
 import org.skepsun.kototoro.core.model.getLocale
@@ -263,10 +268,16 @@ fun KototoroExploreHostRoute(
     val listState = rememberSaveable(saver = LazyListState.Saver) {
         LazyListState()
     }
+    var savedBrowseListIndex by rememberSaveable { mutableIntStateOf(0) }
+    var savedBrowseListOffset by rememberSaveable { mutableIntStateOf(0) }
+    var shouldRestoreBrowseScrollAfterDetails by rememberSaveable { mutableStateOf(false) }
+    var hasLeftBrowseForDetails by rememberSaveable { mutableStateOf(false) }
+    var canRestoreBrowseScrollAfterDetails by rememberSaveable { mutableStateOf(false) }
     val verticalScrollIntensity = rememberVerticalRailScrollIntensity(listState)
     var heroPx by rememberSaveable { mutableIntStateOf(0) }
     val density = LocalDensity.current
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val activity = context as? androidx.activity.ComponentActivity
     val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
     val screenPrefs by settings.observeAsState(
@@ -312,6 +323,10 @@ fun KototoroExploreHostRoute(
     val showcaseRows = if (isBrowseTrackingRecommendationsEnabled) browseDiscoverItems.showcaseRows else emptyList()
     val popularItems = if (isBrowseTrackingRecommendationsEnabled) browseDiscoverItems.popularItems else emptyList()
     val isLoadingOnly = browseDiscoverItems.isLoadingOnly
+    val isBrowseContentReady = sources.isNotEmpty() ||
+        heroItems.isNotEmpty() ||
+        showcaseRows.isNotEmpty() ||
+        popularItems.isNotEmpty()
     val heroOverlapDp = if (sources.isNotEmpty() || isLoadingOnly) BrowseHeroContentOverlap else 0.dp
     val heroHeightDp by remember(heroPx, density, heroOverlapDp) {
         derivedStateOf {
@@ -391,7 +406,72 @@ fun KototoroExploreHostRoute(
         }
     }
 
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE,
+                Lifecycle.Event.ON_STOP -> {
+                    if (shouldRestoreBrowseScrollAfterDetails) {
+                        hasLeftBrowseForDetails = true
+                        canRestoreBrowseScrollAfterDetails = false
+                    }
+                }
+                Lifecycle.Event.ON_START,
+                Lifecycle.Event.ON_RESUME -> {
+                    if (shouldRestoreBrowseScrollAfterDetails && hasLeftBrowseForDetails) {
+                        canRestoreBrowseScrollAfterDetails = true
+                    }
+                }
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     val currentDiscoverLoading = androidx.compose.runtime.rememberUpdatedState(isDiscoverLoading)
+
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+            .distinctUntilChanged()
+            .collect { (index, offset) ->
+                val isAtTop = index == 0 && offset == 0
+                val hasSavedScroll = savedBrowseListIndex != 0 || savedBrowseListOffset != 0
+                if (!(shouldRestoreBrowseScrollAfterDetails && hasSavedScroll && isAtTop)) {
+                    savedBrowseListIndex = index
+                    savedBrowseListOffset = offset
+                }
+            }
+    }
+
+    LaunchedEffect(
+        isBrowseContentReady,
+        shouldRestoreBrowseScrollAfterDetails,
+        canRestoreBrowseScrollAfterDetails,
+        savedBrowseListIndex,
+        savedBrowseListOffset,
+    ) {
+        if (!shouldRestoreBrowseScrollAfterDetails || !canRestoreBrowseScrollAfterDetails || !isBrowseContentReady) {
+            return@LaunchedEffect
+        }
+        val targetIndex = savedBrowseListIndex.coerceAtLeast(0)
+        val totalItems = snapshotFlow { listState.layoutInfo.totalItemsCount }
+            .filter { it > targetIndex }
+            .first()
+        val hasSavedScroll = savedBrowseListIndex != 0 || savedBrowseListOffset != 0
+        if (hasSavedScroll) {
+            listState.scrollToItem(
+                index = targetIndex.coerceAtMost(totalItems - 1),
+                scrollOffset = savedBrowseListOffset,
+            )
+        }
+        shouldRestoreBrowseScrollAfterDetails = false
+        hasLeftBrowseForDetails = false
+        canRestoreBrowseScrollAfterDetails = false
+    }
+
     LaunchedEffect(listState, query, popularItems.size) {
         if (query.isNotBlank() || popularItems.isEmpty()) {
             return@LaunchedEffect
@@ -401,6 +481,14 @@ fun KototoroExploreHostRoute(
             isLoading = { currentDiscoverLoading.value },
             onLoadMore = discoverViewModel::loadNextPage,
         )
+    }
+
+    fun markBrowseDetailsNavigation() {
+        savedBrowseListIndex = listState.firstVisibleItemIndex
+        savedBrowseListOffset = listState.firstVisibleItemScrollOffset
+        shouldRestoreBrowseScrollAfterDetails = true
+        hasLeftBrowseForDetails = false
+        canRestoreBrowseScrollAfterDetails = false
     }
 
     KototoroPullToRefreshBox(
@@ -458,23 +546,24 @@ fun KototoroExploreHostRoute(
                     val row = showcaseRow.row
                     if (showcaseRow.items.isNotEmpty()) {
                         TrackingCategoryRow(
+                            rowKey = row.category.id,
                             title = stringResource(row.category.nameResId),
                             items = showcaseRow.items,
                             posterStyle = posterStyle,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp),
-                            onItemClick = { item ->
-                                openTrackingItem(
+                            onItemClick = { item, sharedElementKey ->
+                                markBrowseDetailsNavigation()
+                                val didNavigate = openTrackingItem(
                                     appRouter = appRouter,
                                     discoverViewModel = discoverViewModel,
                                     availableServices = availableServices,
                                     item = item,
-                                    sharedElementKey = contentCoverSharedKey(
-                                        item.manga.source.name,
-                                        item.manga.coverUrl.orEmpty(),
-                                        instanceKey = "explore_showcase_${row.category.id}_${item.id}",
-                                    ),
+                                    sharedElementKey = sharedElementKey,
                                     onNavigateToDetails = onNavigateToDetails,
                                 )
+                                if (!didNavigate) {
+                                    shouldRestoreBrowseScrollAfterDetails = false
+                                }
                             },
                             onMoreClick = {
                                 activeService?.let { service ->
@@ -517,7 +606,8 @@ fun KototoroExploreHostRoute(
                                 panoramaCoverBlur = panoramaCoverBlur,
                                 modifier = animatedModifier.padding(horizontal = 16.dp, vertical = 5.dp),
                                 onClick = {
-                                    openTrackingItem(
+                                    markBrowseDetailsNavigation()
+                                    val didNavigate = openTrackingItem(
                                         appRouter = appRouter,
                                         discoverViewModel = discoverViewModel,
                                         availableServices = availableServices,
@@ -525,6 +615,9 @@ fun KototoroExploreHostRoute(
                                         sharedElementKey = sharedElementKey,
                                         onNavigateToDetails = onNavigateToDetails,
                                     )
+                                    if (!didNavigate) {
+                                        shouldRestoreBrowseScrollAfterDetails = false
+                                    }
                                 },
                             )
                         }
@@ -567,7 +660,8 @@ fun KototoroExploreHostRoute(
                     }
                 },
                 onHeroItemClick = { item, sharedElementKey ->
-                    openTrackingItem(
+                    markBrowseDetailsNavigation()
+                    val didNavigate = openTrackingItem(
                         appRouter = appRouter,
                         discoverViewModel = discoverViewModel,
                         availableServices = availableServices,
@@ -575,6 +669,9 @@ fun KototoroExploreHostRoute(
                         sharedElementKey = sharedElementKey,
                         onNavigateToDetails = onNavigateToDetails,
                     )
+                    if (!didNavigate) {
+                        shouldRestoreBrowseScrollAfterDetails = false
+                    }
                 },
                 sharedElementKeyForItem = { item, _ ->
                     contentCoverSharedKey(
@@ -615,9 +712,9 @@ private fun openTrackingItem(
     item: ContentListModel,
     sharedElementKey: String? = null,
     onNavigateToDetails: ((DetailsOrigin, String?) -> Unit)? = null,
-) {
+) : Boolean {
     val serviceName = item.manga.source.name.removePrefix("TRACKING_")
-    val trackingService = availableServices.find { it.name == serviceName } ?: return
+    val trackingService = availableServices.find { it.name == serviceName } ?: return false
     if (discoverViewModel.supportsDetails(trackingService)) {
         if (onNavigateToDetails != null) {
             onNavigateToDetails(
@@ -631,12 +728,15 @@ private fun openTrackingItem(
         } else {
             appRouter.openTrackingSiteDetails(trackingService, item.manga.id, item.manga.publicUrl)
         }
+        return true
     } else {
         val url = item.manga.url ?: item.manga.publicUrl
         if (!url.isNullOrBlank()) {
             appRouter.openExternalBrowser(url)
+            return true
         }
     }
+    return false
 }
 
 @Composable
@@ -1171,15 +1271,18 @@ private fun List<SourceQuickAccessGroup>.takeVisibleSourceGroups(
 
 @Composable
 private fun TrackingCategoryRow(
+    rowKey: String,
     title: String,
     items: List<ContentListModel>,
     posterStyle: org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle,
-    onItemClick: (ContentListModel) -> Unit,
+    onItemClick: (ContentListModel, String) -> Unit,
     onMoreClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (items.isEmpty()) return
-    val rowState = rememberLazyListState()
+    val rowState = rememberSaveable(rowKey, saver = LazyListState.Saver) {
+        LazyListState()
+    }
     val scrollIntensity = rememberHorizontalRailScrollIntensity(rowState)
 
     Column(
@@ -1222,15 +1325,16 @@ private fun TrackingCategoryRow(
                     animationFactor = railAnimationFactor,
                     enableScrollLinkedAnimation = false,
                 ) { animatedModifier ->
+                    val sharedElementKey = contentCoverSharedKey(
+                        item.manga.source.name,
+                        item.manga.coverUrl.orEmpty(),
+                        instanceKey = "explore_row_${title}_${item.id}_$index",
+                    )
                     TrackingCompactPoster(
                         item = item,
                         posterStyle = posterStyle,
-                        sharedElementKey = contentCoverSharedKey(
-                            item.manga.source.name,
-                            item.manga.coverUrl.orEmpty(),
-                            instanceKey = "explore_row_${title}_${item.id}_$index",
-                        ),
-                        onClick = { onItemClick(item) },
+                        sharedElementKey = sharedElementKey,
+                        onClick = { onItemClick(item, sharedElementKey) },
                         modifier = animatedModifier,
                     )
                 }
