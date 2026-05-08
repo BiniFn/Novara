@@ -68,6 +68,11 @@ private val CollapsedSearchBarHeight = 48.dp
 private val CompactTopBarActionSize = 40.dp
 private val CompactTopBarIconSize = 20.dp
 
+data class KototoroTopBarMenuAction(
+    val titleRes: Int,
+    val onClick: () -> Unit,
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KototoroTopBar(
@@ -76,6 +81,7 @@ fun KototoroTopBar(
     onOpenListOptions: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onSourceSettingsClick: () -> Unit = {},
+    onManageSourcesClick: () -> Unit = onSourceSettingsClick,
     isAppUpdateAvailable: Boolean = false,
     onAppUpdateClick: () -> Unit = {},
     isLanguagePresetFilterVisible: Boolean = false,
@@ -102,6 +108,7 @@ fun KototoroTopBar(
     isBrowseTrackingRecommendationsEnabled: Boolean? = null,
     onBrowseTrackingRecommendationsChange: ((Boolean) -> Unit)? = null,
     showSourceSettingsEntry: Boolean = false,
+    contextualMenuActions: List<KototoroTopBarMenuAction> = emptyList(),
     isIncognitoModeEnabled: Boolean = false,
     onIncognitoToggle: () -> Unit = {},
     isCollapsedFullyTransparent: Boolean = false,
@@ -225,12 +232,31 @@ fun KototoroTopBar(
                                 }
                                 if (showSourceSettingsEntry) {
                                     DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.manage_sources)) },
+                                        text = { Text(stringResource(R.string.extension_management)) },
                                         onClick = {
                                             isMoreMenuExpanded = false
                                             onSourceSettingsClick()
                                         },
                                     )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.manage_sources)) },
+                                        onClick = {
+                                            isMoreMenuExpanded = false
+                                            onManageSourcesClick()
+                                        },
+                                    )
+                                    HorizontalDivider()
+                                }
+                                contextualMenuActions.forEach { action ->
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(action.titleRes)) },
+                                        onClick = {
+                                            isMoreMenuExpanded = false
+                                            action.onClick()
+                                        },
+                                    )
+                                }
+                                if (contextualMenuActions.isNotEmpty()) {
                                     HorizontalDivider()
                                 }
                                 DropdownMenuItem(

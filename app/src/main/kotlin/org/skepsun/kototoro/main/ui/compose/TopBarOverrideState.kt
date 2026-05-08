@@ -11,6 +11,9 @@ data class ContentSelectionTopBarOverrideState(
     val showRemoveOption: Boolean = false,
     val supportedActions: Set<SelectionAction>,
     val allPinned: Boolean = false,
+    val preferredInlineActions: List<SelectionAction>? = null,
+    val removeActionIconRes: Int? = null,
+    val removeActionTitleRes: Int? = null,
     val onClearSelection: () -> Unit,
     val onActionClick: (SelectionAction) -> Unit,
 ) : TopBarOverrideState

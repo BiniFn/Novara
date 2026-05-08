@@ -1,21 +1,30 @@
 package org.skepsun.kototoro.core.ui.widgets
 
 import android.content.res.Configuration
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.StateFlow
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.NavItem
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.BaseActivityEntryPoint
 import org.skepsun.kototoro.core.ui.glass.GlassBottomBarContainer
@@ -38,6 +47,7 @@ fun KototoroBottomNav(
     onItemReselected: (Int) -> Unit
 ) {
     val navState by state.collectAsState()
+    val clickPulses = remember { mutableStateMapOf<Int, Int>() }
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val layoutDirection = LocalLayoutDirection.current
@@ -74,7 +84,7 @@ fun KototoroBottomNav(
     val targetAlpha = 0.84f
 
     val horizontalPadding by androidx.compose.animation.core.animateDpAsState(
-        if (isFloating && !useNavigationRail) 24.dp else 0.dp,
+        if (isFloating && !useNavigationRail) 12.dp else 0.dp,
     )
     val verticalPadding by androidx.compose.animation.core.animateDpAsState(
         if (isFloating && !useNavigationRail) 16.dp else 0.dp,
@@ -106,9 +116,9 @@ fun KototoroBottomNav(
         )
 
     val currentExplicitHeight by androidx.compose.animation.core.animateDpAsState(
-        if (isFloating) navFloatingHeight.dp else navHeight.dp
+        if (isFloating && !useNavigationRail) (navFloatingHeight + 4).dp else navHeight.dp
     )
-    val railWidth = if (isFloating) 88.dp else 84.dp
+    val railWidth = if (isFloating) 96.dp else 84.dp
 
     val navContainerStyle = if (isFloating) {
         GlassDefaults.prominentStyle().copy(
@@ -133,7 +143,11 @@ fun KototoroBottomNav(
                 containerColor = Color.Transparent,
                 modifier = Modifier
                     .fillMaxHeight()
-                    .width(railWidth),
+                    .width(railWidth)
+                    .padding(
+                        horizontal = if (isFloating) 6.dp else 0.dp,
+                        vertical = if (isFloating) 10.dp else 0.dp,
+                    ),
                 windowInsets = WindowInsets(0),
             ) {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -144,25 +158,21 @@ fun KototoroBottomNav(
                     NavigationRailItem(
                         selected = isSelected,
                         onClick = {
-                            if (isSelected) onItemReselected(item.id) else onItemSelected(item.id)
+                            if (isSelected) {
+                                onItemReselected(item.id)
+                            } else {
+                                clickPulses[item.id] = (clickPulses[item.id] ?: 0) + 1
+                                onItemSelected(item.id)
+                            }
                         },
                         icon = {
-                            BadgedBox(
-                                badge = {
-                                    if (badge?.isVisible == true) {
-                                        if (badge.number > 0) {
-                                            Badge { Text(badge.number.toString()) }
-                                        } else {
-                                            Badge()
-                                        }
-                                    }
-                                },
-                            ) {
-                                Icon(
-                                    painter = getPremiumPainter(item.id, isSelected),
-                                    contentDescription = stringResource(item.title),
-                                )
-                            }
+                            PremiumNavigationIcon(
+                                itemId = item.id,
+                                isSelected = isSelected,
+                                clickPulse = clickPulses[item.id] ?: 0,
+                                badge = badge,
+                                contentDescription = stringResource(item.title),
+                            )
                         },
                         label = if (isLabelsVisible) {
                             { Text(stringResource(item.title)) }
@@ -187,55 +197,19 @@ fun KototoroBottomNav(
             modifier = navBarModifier,
             style = navContainerStyle,
         ) {
-            NavigationBar(
-                containerColor = Color.Transparent,
-                tonalElevation = 0.dp,
+            FloatingBottomNavRow(
+                items = activeItems,
+                selectedItemId = navState.selectedItemId,
+                badges = navState.badges,
+                isLabelsVisible = isLabelsVisible,
+                clickPulses = clickPulses,
+                onItemSelected = onItemSelected,
+                onItemReselected = onItemReselected,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(currentExplicitHeight),
-                windowInsets = WindowInsets(0),
-            ) {
-                activeItems.forEach { item ->
-                    val isSelected = navState.selectedItemId == item.id
-                    val badge = navState.badges[item.id]
-
-                    NavigationBarItem(
-                        selected = isSelected,
-                        onClick = {
-                            if (isSelected) onItemReselected(item.id) else onItemSelected(item.id)
-                        },
-                        icon = {
-                            BadgedBox(
-                                badge = {
-                                    if (badge?.isVisible == true) {
-                                        if (badge.number > 0) {
-                                            Badge { Text(badge.number.toString()) }
-                                        } else {
-                                            Badge()
-                                        }
-                                    }
-                                },
-                            ) {
-                                Icon(
-                                    painter = getPremiumPainter(item.id, isSelected),
-                                    contentDescription = stringResource(item.title),
-                                )
-                            }
-                        },
-                        label = if (isLabelsVisible) {
-                            { Text(stringResource(item.title)) }
-                        } else null,
-                        alwaysShowLabel = isLabelsVisible,
-                        colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
-                            selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                            selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        ),
-                    )
-                }
-            }
+                    .height(currentExplicitHeight)
+                    .padding(horizontal = 4.dp),
+            )
         }
     } else {
         GlassSurface(
@@ -264,25 +238,21 @@ fun KototoroBottomNav(
                         NavigationBarItem(
                             selected = isSelected,
                             onClick = {
-                                if (isSelected) onItemReselected(item.id) else onItemSelected(item.id)
+                                if (isSelected) {
+                                    onItemReselected(item.id)
+                                } else {
+                                    clickPulses[item.id] = (clickPulses[item.id] ?: 0) + 1
+                                    onItemSelected(item.id)
+                                }
                             },
                             icon = {
-                                BadgedBox(
-                                    badge = {
-                                        if (badge?.isVisible == true) {
-                                            if (badge.number > 0) {
-                                                Badge { Text(badge.number.toString()) }
-                                            } else {
-                                                Badge()
-                                            }
-                                        }
-                                    },
-                                ) {
-                                    Icon(
-                                        painter = getPremiumPainter(item.id, isSelected),
-                                        contentDescription = stringResource(item.title),
-                                    )
-                                }
+                                PremiumNavigationIcon(
+                                    itemId = item.id,
+                                    isSelected = isSelected,
+                                    clickPulse = clickPulses[item.id] ?: 0,
+                                    badge = badge,
+                                    contentDescription = stringResource(item.title),
+                                )
                             },
                             label = if (isLabelsVisible) {
                                 { Text(stringResource(item.title)) }
@@ -305,9 +275,160 @@ fun KototoroBottomNav(
 }
 
 @Composable
-private fun getPremiumPainter(itemId: Int, isSelected: Boolean): Painter {
-    val resId = when (itemId) {
-        R.id.nav_home -> R.drawable.ic_home
+private fun FloatingBottomNavRow(
+    items: List<NavItem>,
+    selectedItemId: Int,
+    badges: Map<Int, BadgeInfo>,
+    isLabelsVisible: Boolean,
+    clickPulses: MutableMap<Int, Int>,
+    onItemSelected: (Int) -> Unit,
+    onItemReselected: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        items.forEach { item ->
+            val isSelected = selectedItemId == item.id
+            val interactionSource = remember(item.id) { MutableInteractionSource() }
+            val contentColor = if (isSelected) {
+                MaterialTheme.colorScheme.onSecondaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
+            CompositionLocalProvider(LocalContentColor provides contentColor) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = null,
+                            onClick = {
+                                if (isSelected) {
+                                    onItemReselected(item.id)
+                                } else {
+                                    clickPulses[item.id] = (clickPulses[item.id] ?: 0) + 1
+                                    onItemSelected(item.id)
+                                }
+                            },
+                        )
+                        .padding(horizontal = 2.dp, vertical = if (isLabelsVisible) 6.dp else 0.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 64.dp, height = 32.dp)
+                            .background(
+                                color = if (isSelected) {
+                                    MaterialTheme.colorScheme.secondaryContainer
+                                } else {
+                                    Color.Transparent
+                                },
+                                shape = RoundedCornerShape(percent = 50),
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        PremiumNavigationIcon(
+                            itemId = item.id,
+                            isSelected = isSelected,
+                            clickPulse = clickPulses[item.id] ?: 0,
+                            badge = badges[item.id],
+                            contentDescription = stringResource(item.title),
+                        )
+                    }
+                    if (isLabelsVisible) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = stringResource(item.title),
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PremiumNavigationIcon(
+    itemId: Int,
+    isSelected: Boolean,
+    clickPulse: Int,
+    badge: BadgeInfo?,
+    contentDescription: String,
+) {
+    BadgedBox(
+        badge = {
+            if (badge?.isVisible == true) {
+                if (badge.number > 0) {
+                    Badge { Text(badge.number.toString()) }
+                } else {
+                    Badge()
+                }
+            }
+        },
+    ) {
+        AnimatedNavigationIcon(
+            itemId = itemId,
+            isSelected = isSelected,
+            clickPulse = clickPulse,
+            contentDescription = contentDescription,
+        )
+    }
+}
+
+@Composable
+private fun AnimatedNavigationIcon(
+    itemId: Int,
+    isSelected: Boolean,
+    clickPulse: Int,
+    contentDescription: String,
+) {
+    val animatedResId = remember(itemId) { navEnterAnimationResId(itemId) }
+    val staticResId = remember(itemId, isSelected) { premiumIconResId(itemId, isSelected) }
+    val enterAnimationResId = if (isSelected && clickPulse > 0) animatedResId else null
+    val tint = lerp(
+        MaterialTheme.colorScheme.onSurfaceVariant,
+        MaterialTheme.colorScheme.onSecondaryContainer,
+        if (isSelected) 1f else 0f,
+    )
+
+    if (enterAnimationResId != null) {
+        key(clickPulse) {
+            AndroidView(
+                modifier = Modifier.size(24.dp),
+                factory = { context ->
+                    android.widget.ImageView(context).apply {
+                        scaleType = android.widget.ImageView.ScaleType.CENTER
+                        setColorFilter(tint.toArgb())
+                        this.contentDescription = contentDescription
+                    }
+                },
+                update = { view ->
+                    view.contentDescription = contentDescription
+                    view.setColorFilter(tint.toArgb())
+                    view.setImageDrawable(ContextCompat.getDrawable(view.context, enterAnimationResId)?.mutate())
+                    (view.drawable as? android.graphics.drawable.Animatable)?.start()
+                },
+            )
+        }
+    } else {
+        Icon(
+            painter = painterResource(staticResId),
+            contentDescription = contentDescription,
+            modifier = Modifier.size(24.dp),
+        )
+    }
+}
+
+private fun premiumIconResId(itemId: Int, isSelected: Boolean): Int {
+    return when (itemId) {
+        R.id.nav_home -> if (isSelected) R.drawable.ic_home_filled else R.drawable.ic_home
         R.id.nav_history -> R.drawable.ic_history
         R.id.nav_favorites -> if (isSelected) R.drawable.ic_heart else R.drawable.ic_heart_outline
         R.id.nav_explore -> if (isSelected) R.drawable.ic_explore_checked else R.drawable.ic_explore_normal
@@ -319,5 +440,14 @@ private fun getPremiumPainter(itemId: Int, isSelected: Boolean): Painter {
         R.id.nav_local -> if (isSelected) R.drawable.ic_storage_checked else R.drawable.ic_storage
         else -> R.drawable.ic_home // fallback
     }
-    return painterResource(id = resId)
+}
+
+private fun navEnterAnimationResId(itemId: Int): Int? {
+    return when (itemId) {
+        R.id.nav_history -> R.drawable.avd_history_enter
+        R.id.nav_feed -> R.drawable.avd_feed_enter
+        R.id.nav_explore -> R.drawable.avd_explore_enter
+        R.id.nav_favorites -> R.drawable.avd_favourites_enter
+        else -> null
+    }
 }

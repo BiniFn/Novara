@@ -50,6 +50,12 @@ class ComposeAppNavBarDelegator(
         }
     }
 
+    fun syncSelectedItem(id: Int) {
+        if (stateFlow.value.selectedItemId != id) {
+            stateFlow.value = stateFlow.value.copy(selectedItemId = id)
+        }
+    }
+
     override fun isMenuEmpty(): Boolean = stateFlow.value.items.isEmpty()
 
     override fun setupMenu(items: List<NavItem>) {
@@ -73,7 +79,7 @@ class ComposeAppNavBarDelegator(
     override fun clearBadge(itemId: Int) {
         val badges = stateFlow.value.badges.toMutableMap()
         val current = badges[itemId] ?: BadgeInfo()
-        badges[itemId] = current.copy(number = 0, isVisible = true)
+        badges[itemId] = current.copy(number = 0, isVisible = false)
         stateFlow.value = stateFlow.value.copy(badges = badges)
     }
 

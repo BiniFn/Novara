@@ -50,17 +50,37 @@ fun KototoroSelectionTopBar(
     showRemoveOption: Boolean = false,
     supportedActions: Set<SelectionAction>? = null,
     allPinned: Boolean = false,
+    preferredInlineActions: List<SelectionAction>? = null,
+    removeActionIconRes: Int? = null,
+    removeActionTitleRes: Int? = null,
     onClearSelection: () -> Unit,
     onActionClick: (SelectionAction) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showOverflowMenu by remember { mutableStateOf(false) }
 
-    val allActions = supportedActions
-    val inlineActions = allActions?.take(4).orEmpty()
-    val overflowActions = allActions?.drop(4).orEmpty().toMutableSet()
-    if (isAllNonLocal) overflowActions += SelectionAction.FIX
-    if (isSingleSelection) overflowActions += SelectionAction.EDIT_OVERRIDE
+    val allActions = supportedActions?.toList() ?: defaultSelectionActions(showRemoveOption)
+    val inlineActions = preferredInlineActions
+        ?.filter { action -> action in allActions }
+        ?: defaultInlineSelectionActions(
+            allActions = allActions,
+            supportedActions = supportedActions,
+            showRemoveOption = showRemoveOption,
+        )
+    val overflowActions = if (supportedActions == null) {
+        mutableListOf()
+    } else {
+        allActions.filterTo(mutableListOf()) { it !in inlineActions }
+    }
+    if (isAllNonLocal && SelectionAction.FIX !in inlineActions && SelectionAction.FIX !in overflowActions) {
+        overflowActions += SelectionAction.FIX
+    }
+    if (isSingleSelection &&
+        SelectionAction.EDIT_OVERRIDE !in inlineActions &&
+        SelectionAction.EDIT_OVERRIDE !in overflowActions
+    ) {
+        overflowActions += SelectionAction.EDIT_OVERRIDE
+    }
 
     TopAppBar(
         title = { Text(text = selectedCount.toString()) },
@@ -70,45 +90,15 @@ fun KototoroSelectionTopBar(
             }
         },
         actions = {
-            if (supportedActions == null || SelectionAction.SELECT_ALL in inlineActions) {
-                IconButton(onClick = { onActionClick(SelectionAction.SELECT_ALL) }) {
-                    Icon(painter = painterResource(id = R.drawable.ic_select_all), contentDescription = "Select All")
-                }
-            }
-            if (supportedActions == null || SelectionAction.PIN in inlineActions) {
-                IconButton(onClick = { onActionClick(SelectionAction.PIN) }) {
-                    Icon(
-                        painter = painterResource(id = if (allPinned) R.drawable.ic_unpin else R.drawable.ic_pin),
-                        contentDescription = if (allPinned) stringResource(R.string.unpin) else stringResource(R.string.pin),
+            inlineActions.forEach { action ->
+                if (action != SelectionAction.SAVE || isAllNonLocal) {
+                    SelectionActionIconButton(
+                        action = action,
+                        allPinned = allPinned,
+                        removeActionIconRes = removeActionIconRes,
+                        removeActionTitleRes = removeActionTitleRes,
+                        onClick = { onActionClick(action) },
                     )
-                }
-            }
-            if (showRemoveOption || (supportedActions != null && SelectionAction.REMOVE in inlineActions)) {
-                IconButton(onClick = { onActionClick(SelectionAction.REMOVE) }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Remove")
-                }
-            }
-            if (isAllNonLocal || (supportedActions != null && SelectionAction.SAVE in inlineActions)) {
-                IconButton(onClick = { onActionClick(SelectionAction.SAVE) }) {
-                    Icon(painter = painterResource(id = R.drawable.ic_download), contentDescription = "Download/Save")
-                }
-            }
-            if (supportedActions == null || SelectionAction.FAVOURITE in allActions.orEmpty()) {
-                IconButton(onClick = { onActionClick(SelectionAction.FAVOURITE) }) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_heart_outline),
-                        contentDescription = stringResource(R.string.categories),
-                    )
-                }
-            }
-            if (supportedActions == null || SelectionAction.SHARE in inlineActions) {
-                IconButton(onClick = { onActionClick(SelectionAction.SHARE) }) {
-                    Icon(Icons.Default.Share, contentDescription = "Share")
-                }
-            }
-            if (supportedActions == null || SelectionAction.MARK_AS_COMPLETED in inlineActions) {
-                IconButton(onClick = { onActionClick(SelectionAction.MARK_AS_COMPLETED) }) {
-                    Icon(painter = painterResource(id = R.drawable.ic_eye_check), contentDescription = "Mark as Completed")
                 }
             }
 
@@ -126,34 +116,21 @@ fun KototoroSelectionTopBar(
                         containerColor = MaterialTheme.colorScheme.surface,
                         tonalElevation = 0.dp,
                     ) {
-                        if (SelectionAction.SHARE in overflowActions) {
+                        overflowActions.forEach { action ->
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.share)) },
-                                onClick = { showOverflowMenu = false; onActionClick(SelectionAction.SHARE) }
-                            )
-                        }
-                        if (SelectionAction.PIN in overflowActions) {
-                            DropdownMenuItem(
-                                text = { Text(if (allPinned) stringResource(R.string.unpin) else stringResource(R.string.pin)) },
-                                onClick = { showOverflowMenu = false; onActionClick(SelectionAction.PIN) }
-                            )
-                        }
-                        if (SelectionAction.MARK_AS_COMPLETED in overflowActions) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.mark_as_completed)) },
-                                onClick = { showOverflowMenu = false; onActionClick(SelectionAction.MARK_AS_COMPLETED) }
-                            )
-                        }
-                        if (isSingleSelection) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.edit)) },
-                                onClick = { showOverflowMenu = false; onActionClick(SelectionAction.EDIT_OVERRIDE) }
-                            )
-                        }
-                        if (isAllNonLocal) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.fix)) },
-                                onClick = { showOverflowMenu = false; onActionClick(SelectionAction.FIX) }
+                                text = {
+                                    Text(
+                                        text = selectionActionTitle(
+                                            action = action,
+                                            allPinned = allPinned,
+                                            removeActionTitleRes = removeActionTitleRes,
+                                        ),
+                                    )
+                                },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    onActionClick(action)
+                                },
                             )
                         }
                     }
@@ -168,4 +145,110 @@ fun KototoroSelectionTopBar(
         ),
         modifier = modifier.fillMaxWidth()
     )
+}
+
+@Composable
+private fun SelectionActionIconButton(
+    action: SelectionAction,
+    allPinned: Boolean,
+    removeActionIconRes: Int?,
+    removeActionTitleRes: Int?,
+    onClick: () -> Unit,
+) {
+    IconButton(onClick = onClick) {
+        when (action) {
+            SelectionAction.SELECT_ALL -> {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_select_all),
+                    contentDescription = stringResource(R.string.select_all),
+                )
+            }
+            SelectionAction.PIN -> {
+                Icon(
+                    painter = painterResource(id = if (allPinned) R.drawable.ic_unpin else R.drawable.ic_pin),
+                    contentDescription = if (allPinned) stringResource(R.string.unpin) else stringResource(R.string.pin),
+                )
+            }
+            SelectionAction.REMOVE -> {
+                if (removeActionIconRes != null) {
+                    Icon(
+                        painter = painterResource(removeActionIconRes),
+                        contentDescription = selectionActionTitle(action, allPinned, removeActionTitleRes),
+                    )
+                } else {
+                    Icon(Icons.Default.Delete, contentDescription = selectionActionTitle(action, allPinned, removeActionTitleRes))
+                }
+            }
+            SelectionAction.SAVE -> {
+                Icon(painter = painterResource(id = R.drawable.ic_download), contentDescription = stringResource(R.string.download))
+            }
+            SelectionAction.FAVOURITE -> {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_heart_outline),
+                    contentDescription = stringResource(R.string.categories),
+                )
+            }
+            SelectionAction.SHARE -> {
+                Icon(Icons.Default.Share, contentDescription = stringResource(R.string.share))
+            }
+            SelectionAction.MARK_AS_COMPLETED -> {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_eye_check),
+                    contentDescription = stringResource(R.string.mark_as_completed),
+                )
+            }
+            SelectionAction.EDIT_OVERRIDE,
+            SelectionAction.FIX -> Unit
+        }
+    }
+}
+
+private fun defaultSelectionActions(showRemoveOption: Boolean): List<SelectionAction> = buildList {
+    add(SelectionAction.SELECT_ALL)
+    add(SelectionAction.PIN)
+    if (showRemoveOption) {
+        add(SelectionAction.REMOVE)
+    }
+    add(SelectionAction.SAVE)
+    add(SelectionAction.FAVOURITE)
+    add(SelectionAction.SHARE)
+    add(SelectionAction.MARK_AS_COMPLETED)
+}
+
+private fun defaultInlineSelectionActions(
+    allActions: List<SelectionAction>,
+    supportedActions: Set<SelectionAction>?,
+    showRemoveOption: Boolean,
+): List<SelectionAction> {
+    if (supportedActions == null) {
+        return allActions
+    }
+    return buildList {
+        addAll(allActions.take(4))
+        if (showRemoveOption && SelectionAction.REMOVE in allActions && SelectionAction.REMOVE !in this) {
+            add(SelectionAction.REMOVE)
+        }
+        if (SelectionAction.FAVOURITE in allActions && SelectionAction.FAVOURITE !in this) {
+            add(SelectionAction.FAVOURITE)
+        }
+    }
+}
+
+@Composable
+private fun selectionActionTitle(
+    action: SelectionAction,
+    allPinned: Boolean,
+    removeActionTitleRes: Int?,
+): String {
+    return when (action) {
+        SelectionAction.SELECT_ALL -> stringResource(R.string.select_all)
+        SelectionAction.SHARE -> stringResource(R.string.share)
+        SelectionAction.FAVOURITE -> stringResource(R.string.categories)
+        SelectionAction.SAVE -> stringResource(R.string.download)
+        SelectionAction.EDIT_OVERRIDE -> stringResource(R.string.edit)
+        SelectionAction.FIX -> stringResource(R.string.fix)
+        SelectionAction.REMOVE -> stringResource(removeActionTitleRes ?: R.string.remove)
+        SelectionAction.PIN -> if (allPinned) stringResource(R.string.unpin) else stringResource(R.string.pin)
+        SelectionAction.MARK_AS_COMPLETED -> stringResource(R.string.mark_as_completed)
+    }
 }

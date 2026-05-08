@@ -131,6 +131,7 @@ fun KototoroApp(
     onOpenListOptions: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onSourceSettingsClick: () -> Unit = {},
+    onManageSourcesClick: () -> Unit = onSourceSettingsClick,
     isAppUpdateAvailable: Boolean = false,
     onAppUpdateClick: () -> Unit = {},
     isIncognitoModeEnabled: Boolean = false,
@@ -223,6 +224,7 @@ fun KototoroApp(
     var searchOverlayInitialQuery by rememberSaveable { mutableStateOf("") }
     var isSearchOverlayQueryCommitted by rememberSaveable { mutableStateOf(false) }
     var topBarOverrideState by remember { mutableStateOf<TopBarOverrideState?>(null) }
+    var contextualMenuActions by remember { mutableStateOf<List<KototoroTopBarMenuAction>>(emptyList()) }
 
     val density = androidx.compose.ui.platform.LocalDensity.current
     val statusBarHeightPx = with(density) {
@@ -418,6 +420,7 @@ fun KototoroApp(
                             bottomBarHeightPx = bottomNavHeightPx,
                             pageSaveHelper = pageSaveHelper,
                             onExploreSourceSelectionTopBarChanged = { topBarOverrideState = it },
+                            onContextualMenuActionsChanged = { contextualMenuActions = it },
                             onOpenSearch = { request ->
                                 val route = SearchNavigation.createRoute(request)
                                 if (isSearchRoute) {
@@ -481,6 +484,9 @@ fun KototoroApp(
                                     showRemoveOption = overrideState.showRemoveOption,
                                     supportedActions = overrideState.supportedActions,
                                     allPinned = overrideState.allPinned,
+                                    preferredInlineActions = overrideState.preferredInlineActions,
+                                    removeActionIconRes = overrideState.removeActionIconRes,
+                                    removeActionTitleRes = overrideState.removeActionTitleRes,
                                     onClearSelection = overrideState.onClearSelection,
                                     onActionClick = overrideState.onActionClick,
                                     modifier = Modifier
@@ -513,6 +519,7 @@ fun KototoroApp(
                             onOpenListOptions = onOpenListOptions,
                             onSettingsClick = onSettingsClick,
                             onSourceSettingsClick = onSourceSettingsClick,
+                            onManageSourcesClick = onManageSourcesClick,
                             isAppUpdateAvailable = isAppUpdateAvailable,
                             onAppUpdateClick = onAppUpdateClick,
                             isIncognitoModeEnabled = isIncognitoModeEnabled,
@@ -555,6 +562,7 @@ fun KototoroApp(
                                 null
                             },
                             showSourceSettingsEntry = showBrowseSourceSettingsEntry,
+                            contextualMenuActions = contextualMenuActions,
                             modifier = Modifier
                                 .align(if (isLandscapeNavigation) Alignment.TopStart else Alignment.TopCenter)
                                 .then(if (isLandscapeNavigation) Modifier.fillMaxWidth() else Modifier)

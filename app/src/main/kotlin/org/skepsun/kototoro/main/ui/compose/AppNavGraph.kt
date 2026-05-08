@@ -44,6 +44,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import org.skepsun.kototoro.core.nav.PendingDetailsNavigation
 import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
 import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
@@ -52,6 +53,13 @@ import org.skepsun.kototoro.details.ui.DetailsViewModel
 import org.skepsun.kototoro.details.ui.compose.handleDetailsAction
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.local.ui.compose.LocalContentTagFilterBar
+import kotlinx.coroutines.flow.FlowCollector
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+
+private fun <T> eventCollector(block: suspend (T) -> Unit): FlowCollector<T> = FlowCollector { value ->
+    block(value)
+}
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -64,6 +72,7 @@ fun AppNavGraph(
     pageSaveHelper: org.skepsun.kototoro.reader.ui.PageSaveHelper? = null,
     modifier: Modifier = Modifier,
     onExploreSourceSelectionTopBarChanged: (TopBarOverrideState?) -> Unit = {},
+    onContextualMenuActionsChanged: (List<KototoroTopBarMenuAction>) -> Unit = {},
     onOpenSearch: (SearchNavigationRequest) -> Unit = {},
 ) {
     val activity = LocalContext.current as FragmentActivity
@@ -158,9 +167,23 @@ fun AppNavGraph(
                         }
                     }
                 }
-                val onHomeViewAllUpdatesClick = remember(navController) { { navController.navigate(UpdatedRoute) } }
+                val onHomeViewAllUpdatesClick = remember(navController) {
+                    {
+                        navController.navigate(UpdatedRoute) {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                }
                 val onHomeViewAllRecommendationsClick = remember(navController) {
-                    { navController.navigate(SuggestionsRoute) }
+                    {
+                        navController.navigate(SuggestionsRoute) {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
                 }
                 val onHomeRecentSearchClick = remember(onOpenSearch) {
                     { query: String ->
@@ -403,6 +426,7 @@ fun AppNavGraph(
                     items = items,
                     listMode = listMode,
                     isRefreshing = false,
+                    pullRefreshEnabled = false,
                     isStatsEnabled = isStatsEnabled,
                     gridScale = gridScale,
                     selectedItemsIds = selectedItemsIds,
@@ -459,6 +483,93 @@ fun AppNavGraph(
             val viewModel = hiltViewModel<org.skepsun.kototoro.favourites.ui.container.FavouritesContainerViewModel>()
             val selectedGroupTab by viewModel.globalFavoritesState.selectedGroupTab.collectAsStateWithLifecycle()
             val selectedSourceTags by viewModel.globalFavoritesState.selectedSourceTags.collectAsStateWithLifecycle()
+            val coroutineScope = rememberCoroutineScope()
+            val context = LocalContext.current
+            fun showToast(messageRes: Int) {
+                android.widget.Toast.makeText(context, messageRes, android.widget.Toast.LENGTH_SHORT).show()
+            }
+
+            fun showToast(message: String) {
+                android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+            }
+
+            fun showImportDialog(scope: CoroutineScope) {
+                scope.launch {
+                    val candidates = viewModel.loadImportCandidates()
+                    if (candidates.isEmpty()) {
+                        showToast(org.skepsun.kototoro.R.string.import_favourites_no_available)
+                        return@launch
+                    }
+                    val checked = BooleanArray(candidates.size) { true }
+                    com.google.android.material.dialog.MaterialAlertDialogBuilder(context)
+                        .setTitle(org.skepsun.kototoro.R.string.import_favourites_title)
+                        .setMultiChoiceItems(candidates.map { it.title }.toTypedArray(), checked) { _, which, isChecked ->
+                            checked[which] = isChecked
+                        }
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .setPositiveButton(android.R.string.ok) { _, _ ->
+                            viewModel.importFavorites(candidates.filterIndexed { index, _ -> checked[index] })
+                        }
+                        .show()
+                }
+            }
+
+            fun showSyncDialog(scope: CoroutineScope) {
+                scope.launch {
+                    val candidates = viewModel.loadSyncCandidates()
+                    if (candidates.isEmpty()) {
+                        showToast(org.skepsun.kototoro.R.string.import_favourites_no_available)
+                        return@launch
+                    }
+                    val checked = BooleanArray(candidates.size) { true }
+                    com.google.android.material.dialog.MaterialAlertDialogBuilder(context)
+                        .setTitle(org.skepsun.kototoro.R.string.sync_favourites_title)
+                        .setMessage(org.skepsun.kototoro.R.string.sync_favourites_warning)
+                        .setMultiChoiceItems(candidates.map { it.title }.toTypedArray(), checked) { _, which, isChecked ->
+                            checked[which] = isChecked
+                        }
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .setPositiveButton(android.R.string.ok) { _, _ ->
+                            viewModel.syncFavorites(candidates.filterIndexed { index, _ -> checked[index] })
+                        }
+                        .show()
+                }
+            }
+
+            DisposableEffect(appRouter, viewModel) {
+                onContextualMenuActionsChanged(
+                    listOf(
+                        KototoroTopBarMenuAction(org.skepsun.kototoro.R.string.favourites_categories) {
+                            appRouter.openFavoriteCategories()
+                        },
+                        KototoroTopBarMenuAction(org.skepsun.kototoro.R.string.import_favourites) {
+                            showImportDialog(coroutineScope)
+                        },
+                        KototoroTopBarMenuAction(org.skepsun.kototoro.R.string.sync_favourites) {
+                            showSyncDialog(coroutineScope)
+                        },
+                    ),
+                )
+                onDispose {
+                    onContextualMenuActionsChanged(emptyList())
+                }
+            }
+
+            LaunchedEffect(viewModel.importMessages) {
+                viewModel.importMessages.collect { event ->
+                    event?.consume(eventCollector { message ->
+                        showToast(message)
+                    })
+                }
+            }
+
+            LaunchedEffect(viewModel.syncMessages) {
+                viewModel.syncMessages.collect { event ->
+                    event?.consume(eventCollector { message ->
+                        showToast(message)
+                    })
+                }
+            }
 
             DisposableEffect(mainActivity, viewModel, selectedGroupTab, selectedSourceTags) {
                 val callback = object : SearchBarFilterViewController.Callback {
@@ -640,11 +751,38 @@ fun AppNavGraph(
         composable<LocalRoute> {
             val viewModel = hiltViewModel<org.skepsun.kototoro.local.ui.LocalListViewModel>()
             val activity = androidx.compose.ui.platform.LocalContext.current as? androidx.activity.ComponentActivity
+            DisposableEffect(appRouter) {
+                onContextualMenuActionsChanged(
+                    buildList {
+                        add(
+                            KototoroTopBarMenuAction(org.skepsun.kototoro.R.string._import) {
+                                appRouter.showImportDialog()
+                            },
+                        )
+                        if (appRouter.isFilterSupported()) {
+                            add(
+                                KototoroTopBarMenuAction(org.skepsun.kototoro.R.string.filter) {
+                                    appRouter.showFilterSheet()
+                                },
+                            )
+                        }
+                        add(
+                            KototoroTopBarMenuAction(org.skepsun.kototoro.R.string.directories) {
+                                appRouter.openDirectoriesSettings()
+                            },
+                        )
+                    },
+                )
+                onDispose {
+                    onContextualMenuActionsChanged(emptyList())
+                }
+            }
             CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                 org.skepsun.kototoro.list.ui.compose.AppContentListRoute(
                     viewModel = viewModel,
                     contentPadding = contentPadding,
                     appRouter = appRouter,
+                    pullRefreshEnabled = false,
                     onTopBarOverrideChanged = onExploreSourceSelectionTopBarChanged,
                     showRemoveOption = true,
                     isContentTypeFilterVisible = true,
@@ -666,9 +804,7 @@ fun AppNavGraph(
                             org.skepsun.kototoro.core.util.ShareHelper(activity).shareCbz(files)
                         }
                     },
-                    onAddMenuProvider = { act, _, owner ->
-                        org.skepsun.kototoro.local.ui.LocalListMenuProvider(appRouter, { appRouter.showImportDialog() })
-                    },
+                    onEmptyActionClick = { appRouter.showImportDialog() },
                     listHeader = {
                         val availableTags by viewModel.filterAvailableTags.collectAsStateWithLifecycle(initialValue = emptySet())
                         val selectedTagKeys by viewModel.filterSelectedTagKeys.collectAsStateWithLifecycle(initialValue = emptySet())

@@ -191,6 +191,13 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
         viewModel.isResumeEnabled.observe(this) { isEnabled ->
             isResumeEnabledState = isEnabled
         }
+        viewModel.feedCounter.observe(this) { count ->
+            if (count > 0) {
+                composeNavBarDelegator.setBadgeNumber(R.id.nav_feed, count)
+            } else {
+                composeNavBarDelegator.clearBadge(R.id.nav_feed)
+            }
+        }
 
         if (!setContentViewWebViewSafe { ActivityMainBinding.inflate(layoutInflater) }) {
             return
@@ -247,6 +254,9 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
                 onSourceSettingsClick = {
                     this.router.openSourcesSettings()
                 },
+                onManageSourcesClick = {
+                    this.router.openManageSources()
+                },
                 isAppUpdateAvailable = appUpdate != null,
                 onAppUpdateClick = {
                     this.router.openAppUpdate()
@@ -275,7 +285,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
                     }
                 },
                 onNavDestinationChanged = { itemId ->
-                    composeNavBarDelegator.handleItemSelected(itemId)
+                    composeNavBarDelegator.syncSelectedItem(itemId)
                 },
                 pendingSearchNavigation = searchNavigationRequest,
                 onSearchNavigationHandled = {
