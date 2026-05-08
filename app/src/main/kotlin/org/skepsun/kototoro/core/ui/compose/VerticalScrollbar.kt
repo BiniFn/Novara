@@ -3,6 +3,7 @@ package org.skepsun.kototoro.core.ui.compose
 import android.view.View
 import androidx.appcompat.R as appcompatR
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.lazy.LazyListState
@@ -11,8 +12,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSizeIn
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -35,14 +39,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.util.ext.getThemeColor
-import kotlin.math.roundToInt
+import kotlin.math.floor
 
 private const val SCROLLBAR_HIDE_DELAY_MS = 1000L
 
@@ -67,9 +74,9 @@ fun BoxScope.VerticalScrollbar(
 		labelProvider = labelProvider,
 		totalItemsCount = { state.layoutInfo.totalItemsCount },
 		visibleItemsCount = { state.layoutInfo.visibleItemsInfo.size },
-		scrollPosition = { state.smoothListPosition() },
+		scrollFraction = { state.smoothListScrollFraction() },
 		isScrollInProgress = { state.isScrollInProgress },
-		requestScrollToItem = state::requestScrollToItem,
+		requestScrollToItem = { index -> state.requestFastScrollToItem(index) },
 	)
 }
 
@@ -90,9 +97,9 @@ fun BoxScope.VerticalScrollbar(
 		labelProvider = labelProvider,
 		totalItemsCount = { state.layoutInfo.totalItemsCount },
 		visibleItemsCount = { state.layoutInfo.visibleItemsInfo.size },
-		scrollPosition = { state.smoothGridPosition() },
+		scrollFraction = { state.smoothGridScrollFraction() },
 		isScrollInProgress = { state.isScrollInProgress },
-		requestScrollToItem = state::requestScrollToItem,
+		requestScrollToItem = { index -> state.requestFastScrollToItem(index) },
 	)
 }
 
@@ -105,7 +112,7 @@ private fun BoxScope.FastScrollbar(
 	labelProvider: ((Int) -> String)?,
 	totalItemsCount: () -> Int,
 	visibleItemsCount: () -> Int,
-	scrollPosition: () -> Float,
+	scrollFraction: () -> Float,
 	isScrollInProgress: () -> Boolean,
 	requestScrollToItem: (Int) -> Unit,
 ) {
@@ -120,10 +127,11 @@ private fun BoxScope.FastScrollbar(
 	}
 
 	var isDragging by remember { mutableStateOf(false) }
-	var dragPosition by remember { mutableFloatStateOf(0f) }
+	var dragFraction by remember { mutableFloatStateOf(0f) }
 	var keepVisible by remember { mutableStateOf(false) }
 	var lastDragTarget by remember { mutableIntStateOf(-1) }
 	var trackHeightPx by remember { mutableFloatStateOf(0f) }
+	var bubbleText by remember { mutableStateOf<String?>(null) }
 	val scrolling = isScrollInProgress()
 
 	DisposableEffect(scrollTargets) {
@@ -198,9 +206,10 @@ private fun BoxScope.FastScrollbar(
 							isDragging = false
 						},
 						onDragChanged = { position, index ->
-							dragPosition = position
+							dragFraction = position
 							if (index != lastDragTarget) {
 								lastDragTarget = index
+								bubbleText = labelProvider?.invoke(index)
 								scrollTargets.trySend(index)
 							}
 						},
@@ -217,11 +226,10 @@ private fun BoxScope.FastScrollbar(
 		) {
 			val totalItems = totalItemsCount()
 			val visibleItems = visibleItemsCount()
-			val maxScrollPosition = (totalItems - 1).coerceAtLeast(1)
 			val currentScrollFraction = if (isDragging) {
-				dragPosition / maxScrollPosition
+				dragFraction
 			} else {
-				scrollPosition() / maxScrollPosition
+				scrollFraction()
 			}
 			val barHeightPx = handleHeightPx.coerceAtMost(trackHeightPx)
 			val barTopPx = (trackHeightPx - barHeightPx) * currentScrollFraction.coerceIn(0f, 1f)
@@ -239,7 +247,54 @@ private fun BoxScope.FastScrollbar(
 					cornerRadius = CornerRadius(handleRadiusPx),
 				)
 			}
+
+			if (isDragging && !bubbleText.isNullOrEmpty() && alpha > 0f && showScrollbar) {
+				FastScrollBubble(
+					text = bubbleText.orEmpty(),
+					barTopPx = barTopPx,
+					barHeightPx = barHeightPx,
+					trackHeightPx = trackHeightPx,
+					color = handleColor,
+					modifier = Modifier.align(Alignment.TopEnd),
+				)
+			}
 		}
+	}
+}
+
+@Composable
+private fun FastScrollBubble(
+	text: String,
+	barTopPx: Float,
+	barHeightPx: Float,
+	trackHeightPx: Float,
+	color: Color,
+	modifier: Modifier = Modifier,
+) {
+	val density = LocalDensity.current
+	val bubbleSize = dimensionResource(R.dimen.fastscroll_bubble_size_small)
+	val bubblePadding = dimensionResource(R.dimen.fastscroll_bubble_padding_small)
+	val bubbleSizePx = with(density) { bubbleSize.toPx() }
+	val bubbleTopPx = (barTopPx + barHeightPx / 2f - bubbleSizePx / 2f)
+		.coerceIn(0f, (trackHeightPx - bubbleSizePx).coerceAtLeast(0f))
+	Box(
+		modifier = modifier
+			.wrapContentSize(unbounded = true, align = Alignment.TopEnd)
+			.padding(end = FastScrollInsetEnd + FastScrollTouchWidth)
+			.padding(top = with(density) { bubbleTopPx.toDp() })
+			.requiredSizeIn(minWidth = bubbleSize, minHeight = bubbleSize)
+			.heightIn(min = bubbleSize)
+			.background(color = color, shape = MaterialTheme.shapes.extraLarge),
+		contentAlignment = Alignment.Center,
+	) {
+		Text(
+			text = text,
+			color = MaterialTheme.colorScheme.onTertiary,
+			style = MaterialTheme.typography.titleMedium,
+			textAlign = TextAlign.Center,
+			maxLines = 1,
+			modifier = Modifier.padding(horizontal = bubblePadding),
+		)
 	}
 }
 
@@ -270,12 +325,11 @@ private fun Modifier.fastScrollbarPointerInput(
 				return
 			}
 
-			val maxScrollPosition = (totalItems - 1).coerceAtLeast(1)
 			val availableHeight = (size.height - handleHeightPx).coerceAtLeast(1f)
 			val fraction = (y - handleHeightPx / 2f).coerceIn(0f, availableHeight) / availableHeight
-			val position = fraction * maxScrollPosition
-			val targetIndex = position.roundToInt().coerceIn(0, totalItems - 1)
-			onDragChanged(position, targetIndex)
+			val maxTargetIndex = (totalItems - 1).coerceAtLeast(1)
+			val targetIndex = floor(fraction * maxTargetIndex).toInt().coerceIn(0, totalItems - 1)
+			onDragChanged(fraction, targetIndex)
 		}
 
 		try {
@@ -296,19 +350,88 @@ private fun Modifier.fastScrollbarPointerInput(
 	}
 }
 
-private fun LazyListState.smoothListPosition(): Float {
-	val itemInfo = layoutInfo.visibleItemsInfo.firstOrNull { it.index == firstVisibleItemIndex }
-		?: layoutInfo.visibleItemsInfo.firstOrNull()
-		?: return firstVisibleItemIndex.toFloat()
-	val itemSize = itemInfo.size.coerceAtLeast(1)
-	val offsetFraction = firstVisibleItemScrollOffset.toFloat() / itemSize
-	return firstVisibleItemIndex + offsetFraction.coerceIn(0f, 1f)
+private fun LazyListState.requestFastScrollToItem(index: Int) {
+	val layoutInfo = layoutInfo
+	val visibleItems = layoutInfo.visibleItemsInfo
+	if (visibleItems.isEmpty()) {
+		requestScrollToItem(index)
+		return
+	}
+	val firstVisible = visibleItems.first().index
+	val lastVisible = visibleItems.last().index
+	val lastIndex = (layoutInfo.totalItemsCount - 1).coerceAtLeast(0)
+	when {
+		index >= lastIndex -> requestScrollToItem(lastIndex, Int.MAX_VALUE)
+		index < firstVisible -> requestScrollToItem(index)
+		index > lastVisible -> requestScrollToItem((index - visibleItems.size + 1).coerceAtLeast(0))
+	}
 }
 
-private fun LazyGridState.smoothGridPosition(): Float {
-	val firstInfo = layoutInfo.visibleItemsInfo.minByOrNull { it.index }
-		?: return firstVisibleItemIndex.toFloat()
-	val itemSize = firstInfo.size.height.coerceAtLeast(1)
-	val offsetFraction = firstVisibleItemScrollOffset.toFloat() / itemSize
-	return firstVisibleItemIndex + offsetFraction.coerceIn(0f, 1f)
+private fun LazyGridState.requestFastScrollToItem(index: Int) {
+	val layoutInfo = layoutInfo
+	val visibleItems = layoutInfo.visibleItemsInfo
+	if (visibleItems.isEmpty()) {
+		requestScrollToItem(index)
+		return
+	}
+	val firstVisible = visibleItems.minOf { it.index }
+	val lastVisible = visibleItems.maxOf { it.index }
+	val lastIndex = (layoutInfo.totalItemsCount - 1).coerceAtLeast(0)
+	when {
+		index >= lastIndex -> requestScrollToItem(lastIndex, Int.MAX_VALUE)
+		index < firstVisible -> requestScrollToItem(index)
+		index > lastVisible -> {
+			val firstLineVisibleCount = visibleItems.minOfOrNull { it.offset.y }
+				?.let { firstLineTop -> visibleItems.count { it.offset.y == firstLineTop } }
+				?.coerceAtLeast(1)
+				?: 1
+			val visibleLineCount = visibleItems.map { it.offset.y }.distinct().size.coerceAtLeast(1)
+			val estimatedVisibleCount = firstLineVisibleCount * visibleLineCount
+			requestScrollToItem((index - estimatedVisibleCount + 1).coerceAtLeast(0))
+		}
+	}
+}
+
+private fun LazyListState.smoothListScrollFraction(): Float {
+	val layoutInfo = layoutInfo
+	val visibleItems = layoutInfo.visibleItemsInfo
+	if (visibleItems.isEmpty()) {
+		return 0f
+	}
+	val totalItems = layoutInfo.totalItemsCount
+	if (totalItems <= visibleItems.size) {
+		return 0f
+	}
+	val averageItemSize = visibleItems.map { it.size }.average().takeIf { it > 0.0 }?.toFloat() ?: return 0f
+	val viewportSize = (layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset).coerceAtLeast(1).toFloat()
+	val totalScrollableDistance = (totalItems * averageItemSize - viewportSize).coerceAtLeast(1f)
+	val scrolledDistance = firstVisibleItemIndex * averageItemSize + firstVisibleItemScrollOffset
+	return (scrolledDistance / totalScrollableDistance).coerceIn(0f, 1f)
+}
+
+private fun LazyGridState.smoothGridScrollFraction(): Float {
+	val layoutInfo = layoutInfo
+	val visibleItems = layoutInfo.visibleItemsInfo
+	if (visibleItems.isEmpty()) {
+		return 0f
+	}
+	val totalItems = layoutInfo.totalItemsCount
+	if (totalItems <= visibleItems.size) {
+		return 0f
+	}
+	val firstLineTop = visibleItems.minOf { it.offset.y }
+	val columns = visibleItems.count { it.offset.y == firstLineTop }.coerceAtLeast(1)
+	val averageLineHeight = visibleItems
+		.groupBy { it.offset.y }
+		.values
+		.map { line -> line.maxOf { it.size.height } }
+		.average()
+		.takeIf { it > 0.0 }
+		?.toFloat() ?: return 0f
+	val totalLines = (totalItems + columns - 1) / columns
+	val firstVisibleLine = firstVisibleItemIndex / columns
+	val viewportSize = (layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset).coerceAtLeast(1).toFloat()
+	val totalScrollableDistance = (totalLines * averageLineHeight - viewportSize).coerceAtLeast(1f)
+	val scrolledDistance = firstVisibleLine * averageLineHeight + firstVisibleItemScrollOffset
+	return (scrolledDistance / totalScrollableDistance).coerceIn(0f, 1f)
 }
