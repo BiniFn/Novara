@@ -330,6 +330,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getStringSet(KEY_EXTENSION_LANGUAGES, null) ?: emptySet()
 		set(value) = prefs.edit { putStringSet(KEY_EXTENSION_LANGUAGES, value) }
 
+	var isLocalApkHotReloadEnabled: Boolean
+		get() = prefs.getBoolean(KEY_LOCAL_APK_HOT_RELOAD, false)
+		set(value) = prefs.edit { putBoolean(KEY_LOCAL_APK_HOT_RELOAD, value) }
+
 	var activeTvBoxRepositoryLocator: String?
 		get() = prefs.getString(KEY_TVBOX_ACTIVE_REPOSITORY, null)?.takeIf { it.isNotBlank() }
 		set(value) = prefs.edit {
@@ -1423,6 +1427,9 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 			Int.MAX_VALUE
 		}
 
+	val periodicalBackupRemoteMaxCount: Int
+		get() = periodicalBackupCount.coerceAtLeast(1)
+
 	var periodicalBackupDirectory: Uri?
 		get() = prefs.getString(KEY_BACKUP_PERIODICAL_OUTPUT, null)?.toUriOrNull()
 		set(value) = prefs.edit { putString(KEY_BACKUP_PERIODICAL_OUTPUT, value?.toString()) }
@@ -2011,6 +2018,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_APP_LOCALE = "app_locale"
 		const val KEY_CONTENT_LANGUAGES = "content_languages"
 		const val KEY_EXTENSION_LANGUAGES = "extension_languages"
+		const val KEY_LOCAL_APK_HOT_RELOAD = "local_apk_hot_reload"
 		const val KEY_GITHUB_MIRROR = "github_mirror"
 		const val KEY_SHOW_EXTRA_INFO_ON_CARDS = "show_extra_info_on_cards"
 		const val KEY_HUGGINGFACE_MIRROR = "huggingface_mirror"

@@ -97,9 +97,9 @@ class WebDavBackupUploader @Inject constructor(
 
         // 按最多保留数量进行修剪（失败不影响主流程）
         try {
-            trimRemote(maxCount = 10)
-        } catch (_: Exception) {
-            // ignore trimming errors
+            trimRemote(maxCount = settings.periodicalBackupRemoteMaxCount)
+        } catch (e: Exception) {
+            Log.w(TAG, "WebDAV remote trim failed after upload", e)
         }
     }
 
@@ -295,11 +295,15 @@ class WebDavBackupUploader @Inject constructor(
     }
 
     suspend fun trimRemote(maxCount: Int) {
+        if (maxCount <= 0) return
         val files = listBackupFiles()
         if (files.size <= maxCount) return
         val toDelete = files.drop(maxCount)
         toDelete.forEach { file ->
             runCatching { deleteRemote(file.name) }
+                .onFailure { error ->
+                    Log.w(TAG, "Failed to delete remote backup ${file.name}", error)
+                }
         }
     }
 }
