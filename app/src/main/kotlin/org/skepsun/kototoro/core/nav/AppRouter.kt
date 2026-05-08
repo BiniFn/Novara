@@ -647,6 +647,10 @@ class AppRouter private constructor(
         startActivity(suggestionsSettingsIntent(contextOrNull() ?: return))
     }
 
+    fun openTrackingAccountsSettings() {
+        startActivity(trackingAccountsSettingsIntent(contextOrNull() ?: return))
+    }
+
     fun openSourcesSettings() {
         startActivity(sourcesSettingsIntent(contextOrNull() ?: return))
     }
@@ -1237,6 +1241,10 @@ class AppRouter private constructor(
             Intent(context, SettingsActivity::class.java)
                 .setAction(ACTION_TRACKER)
 
+        fun trackingAccountsSettingsIntent(context: Context) =
+            Intent(context, SettingsActivity::class.java)
+                .setAction(ACTION_TRACKING_ACCOUNTS)
+
         fun syncSettingsIntent(context: Context) =
             Intent(context, SettingsActivity::class.java)
                 .setAction(ACTION_SYNC_SETTINGS)
@@ -1397,6 +1405,7 @@ class AppRouter private constructor(
         val ACTION_SUGGESTIONS = "${BuildConfig.APPLICATION_ID}.action.MANAGE_SUGGESTIONS"
         val ACTION_SYNC_SETTINGS = "${BuildConfig.APPLICATION_ID}.action.MANAGE_SYNC_SETTINGS"
         val ACTION_TRACKER = "${BuildConfig.APPLICATION_ID}.action.MANAGE_TRACKER"
+        val ACTION_TRACKING_ACCOUNTS = "${BuildConfig.APPLICATION_ID}.action.MANAGE_TRACKING_ACCOUNTS"
         val ACTION_TRANSLATION = "${BuildConfig.APPLICATION_ID}.action.MANAGE_TRANSLATION"
         val ACTION_PERIODIC_BACKUP = "${BuildConfig.APPLICATION_ID}.action.MANAGE_PERIODIC_BACKUP"
 

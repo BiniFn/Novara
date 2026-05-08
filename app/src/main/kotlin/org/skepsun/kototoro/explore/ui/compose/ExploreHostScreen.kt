@@ -270,9 +270,9 @@ fun KototoroExploreHostRoute(
     }
     var savedBrowseListIndex by rememberSaveable { mutableIntStateOf(0) }
     var savedBrowseListOffset by rememberSaveable { mutableIntStateOf(0) }
-    var shouldRestoreBrowseScrollAfterDetails by rememberSaveable { mutableStateOf(false) }
-    var hasLeftBrowseForDetails by rememberSaveable { mutableStateOf(false) }
-    var canRestoreBrowseScrollAfterDetails by rememberSaveable { mutableStateOf(false) }
+    var shouldRestoreBrowseScroll by rememberSaveable { mutableStateOf(false) }
+    var hasLeftBrowse by rememberSaveable { mutableStateOf(false) }
+    var canRestoreBrowseScroll by rememberSaveable { mutableStateOf(false) }
     val verticalScrollIntensity = rememberVerticalRailScrollIntensity(listState)
     var heroPx by rememberSaveable { mutableIntStateOf(0) }
     val density = LocalDensity.current
@@ -411,15 +411,20 @@ fun KototoroExploreHostRoute(
             when (event) {
                 Lifecycle.Event.ON_PAUSE,
                 Lifecycle.Event.ON_STOP -> {
-                    if (shouldRestoreBrowseScrollAfterDetails) {
-                        hasLeftBrowseForDetails = true
-                        canRestoreBrowseScrollAfterDetails = false
+                    val index = listState.firstVisibleItemIndex
+                    val offset = listState.firstVisibleItemScrollOffset
+                    if (index != 0 || offset != 0) {
+                        savedBrowseListIndex = index
+                        savedBrowseListOffset = offset
+                        shouldRestoreBrowseScroll = true
                     }
+                    hasLeftBrowse = true
+                    canRestoreBrowseScroll = false
                 }
                 Lifecycle.Event.ON_START,
                 Lifecycle.Event.ON_RESUME -> {
-                    if (shouldRestoreBrowseScrollAfterDetails && hasLeftBrowseForDetails) {
-                        canRestoreBrowseScrollAfterDetails = true
+                    if (shouldRestoreBrowseScroll && hasLeftBrowse) {
+                        canRestoreBrowseScroll = true
                     }
                 }
                 else -> Unit
@@ -439,7 +444,7 @@ fun KototoroExploreHostRoute(
             .collect { (index, offset) ->
                 val isAtTop = index == 0 && offset == 0
                 val hasSavedScroll = savedBrowseListIndex != 0 || savedBrowseListOffset != 0
-                if (!(shouldRestoreBrowseScrollAfterDetails && hasSavedScroll && isAtTop)) {
+                if (!(shouldRestoreBrowseScroll && hasSavedScroll && isAtTop)) {
                     savedBrowseListIndex = index
                     savedBrowseListOffset = offset
                 }
@@ -448,12 +453,12 @@ fun KototoroExploreHostRoute(
 
     LaunchedEffect(
         isBrowseContentReady,
-        shouldRestoreBrowseScrollAfterDetails,
-        canRestoreBrowseScrollAfterDetails,
+        shouldRestoreBrowseScroll,
+        canRestoreBrowseScroll,
         savedBrowseListIndex,
         savedBrowseListOffset,
     ) {
-        if (!shouldRestoreBrowseScrollAfterDetails || !canRestoreBrowseScrollAfterDetails || !isBrowseContentReady) {
+        if (!shouldRestoreBrowseScroll || !canRestoreBrowseScroll || !isBrowseContentReady) {
             return@LaunchedEffect
         }
         val targetIndex = savedBrowseListIndex.coerceAtLeast(0)
@@ -467,9 +472,9 @@ fun KototoroExploreHostRoute(
                 scrollOffset = savedBrowseListOffset,
             )
         }
-        shouldRestoreBrowseScrollAfterDetails = false
-        hasLeftBrowseForDetails = false
-        canRestoreBrowseScrollAfterDetails = false
+        shouldRestoreBrowseScroll = false
+        hasLeftBrowse = false
+        canRestoreBrowseScroll = false
     }
 
     LaunchedEffect(listState, query, popularItems.size) {
@@ -486,9 +491,9 @@ fun KototoroExploreHostRoute(
     fun markBrowseDetailsNavigation() {
         savedBrowseListIndex = listState.firstVisibleItemIndex
         savedBrowseListOffset = listState.firstVisibleItemScrollOffset
-        shouldRestoreBrowseScrollAfterDetails = true
-        hasLeftBrowseForDetails = false
-        canRestoreBrowseScrollAfterDetails = false
+        shouldRestoreBrowseScroll = true
+        hasLeftBrowse = false
+        canRestoreBrowseScroll = false
     }
 
     KototoroPullToRefreshBox(
@@ -562,7 +567,7 @@ fun KototoroExploreHostRoute(
                                     onNavigateToDetails = onNavigateToDetails,
                                 )
                                 if (!didNavigate) {
-                                    shouldRestoreBrowseScrollAfterDetails = false
+                                    shouldRestoreBrowseScroll = false
                                 }
                             },
                             onMoreClick = {
@@ -616,7 +621,7 @@ fun KototoroExploreHostRoute(
                                         onNavigateToDetails = onNavigateToDetails,
                                     )
                                     if (!didNavigate) {
-                                        shouldRestoreBrowseScrollAfterDetails = false
+                                        shouldRestoreBrowseScroll = false
                                     }
                                 },
                             )
@@ -670,7 +675,7 @@ fun KototoroExploreHostRoute(
                         onNavigateToDetails = onNavigateToDetails,
                     )
                     if (!didNavigate) {
-                        shouldRestoreBrowseScrollAfterDetails = false
+                        shouldRestoreBrowseScroll = false
                     }
                 },
                 sharedElementKeyForItem = { item, _ ->

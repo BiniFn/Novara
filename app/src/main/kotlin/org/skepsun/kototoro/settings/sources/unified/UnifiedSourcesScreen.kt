@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.settings.sources.unified
 
 import android.content.Intent
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -90,6 +91,7 @@ import org.skepsun.kototoro.extensions.runtime.getExternalExtensionLanguageDispl
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepo
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.settings.sources.extensions.formatExtensionFingerprint
+import org.skepsun.kototoro.settings.sources.extensions.normalizeExtensionLanguageCode
 import org.skepsun.kototoro.settings.sources.extensions.toInstalledIReaderPackageName
 import java.util.Locale
 
@@ -659,6 +661,13 @@ private fun UnifiedLanguageFilterDialog(
 	onApplyPreferredLanguages: () -> Unit,
 	onClear: () -> Unit,
 ) {
+	LaunchedEffect(languages, selectedLanguages) {
+		Log.d(
+			"UnifiedLanguageFilter",
+			"open language filter languages=$languages selectedLanguages=$selectedLanguages",
+		)
+	}
+
 	AlertDialog(
 		onDismissRequest = onDismiss,
 		confirmButton = {
@@ -1214,7 +1223,7 @@ private fun UnifiedSourceRow(
 				horizontalArrangement = Arrangement.spacedBy(6.dp),
 				verticalAlignment = Alignment.CenterVertically,
 			) {
-				item.language?.takeIf { it.isNotBlank() }?.let { CompactTag(it.uppercase()) }
+				item.language.normalizedLanguageTag()?.let { CompactTag(it) }
 				CompactTag(item.contentType.name.lowercase().replaceFirstChar { it.titlecase() })
 				item.repositoryName?.takeIf { it.isNotBlank() }?.let { CompactTag(it) }
 					item.packageName?.takeIf { it.isNotBlank() }?.let { CompactTag(it) }
@@ -1457,7 +1466,7 @@ private fun UnifiedPackageRow(
 				horizontalArrangement = Arrangement.spacedBy(6.dp),
 				verticalAlignment = Alignment.CenterVertically,
 			) {
-				item.language?.takeIf { it.isNotBlank() }?.let { CompactTag(it.uppercase()) }
+				item.language.normalizedLanguageTag()?.let { CompactTag(it) }
 				if (item.installedVersionName != null && item.state == UnifiedSourcePackageState.UPDATE_AVAILABLE) {
 					CompactTag(stringResource(R.string.installed_version_pattern, item.installedVersionName))
 				}
@@ -1564,6 +1573,13 @@ private fun buildPackageSubtitle(item: UnifiedSourcePackageItem): String {
 		item.repositoryName,
 		stringResource(R.string.extension_source_count, item.sourceCount),
 	).joinToString(" · ")
+}
+
+private fun String?.normalizedLanguageTag(): String? {
+	return this
+		?.normalizeExtensionLanguageCode()
+		?.takeIf { it.isNotBlank() }
+		?.uppercase(Locale.ROOT)
 }
 
 private fun UnifiedSourcePackageItem.installedIconPackageName(): String? {

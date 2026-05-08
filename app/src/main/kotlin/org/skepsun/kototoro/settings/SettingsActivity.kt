@@ -700,6 +700,7 @@ class SettingsActivity :
 				AppRouter.ACTION_HISTORY -> SettingsDestination.BackupsSettings
 				AppRouter.ACTION_TRANSLATION -> SettingsDestination.TranslationSettings
 				AppRouter.ACTION_TRACKER -> SettingsDestination.TrackerSettings
+				AppRouter.ACTION_TRACKING_ACCOUNTS -> SettingsDestination.UsersSettings
 				AppRouter.ACTION_MANAGE_DISCORD -> SettingsDestination.DiscordSettings
 				AppRouter.ACTION_PROXY -> SettingsDestination.ProxySettings
 				AppRouter.ACTION_READER -> SettingsDestination.ReaderSettings

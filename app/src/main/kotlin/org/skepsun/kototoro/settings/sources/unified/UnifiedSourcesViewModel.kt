@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
+import android.util.Log
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -49,6 +50,8 @@ import org.skepsun.kototoro.settings.sources.extensions.normalizePackageNameForM
 import org.skepsun.kototoro.settings.sources.extensions.toInstalledIReaderPackageName
 import javax.inject.Inject
 
+private const val TAG = "UnifiedSourcesVM"
+
 @HiltViewModel
 class UnifiedSourcesViewModel @Inject constructor(
 	@ApplicationContext private val appContext: Context,
@@ -76,7 +79,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 	private val batchUpdateState = ExtensionBatchUpdateStateMachine()
 	private val filterState = MutableStateFlow(
 		UnifiedSourcesFilterState(
-			languages = settings.extensionLanguages.mapTo(LinkedHashSet()) { it.normalizeLanguageCode() },
+			languages = settings.extensionLanguages.normalizeLanguageCodes(),
 		),
 	)
 	private val _events = MutableSharedFlow<UnifiedSourcesEvent>(extraBufferCapacity = 1)
@@ -144,6 +147,9 @@ class UnifiedSourcesViewModel @Inject constructor(
 
 	fun toggleLanguage(language: String) {
 		val normalized = language.normalizeLanguageCode()
+		if (normalized.isBlank()) {
+			return
+		}
 		filterState.update { state ->
 			state.copy(languages = state.languages.toggle(normalized))
 		}
@@ -159,10 +165,13 @@ class UnifiedSourcesViewModel @Inject constructor(
 
 	fun applyPreferredLanguages() {
 		filterState.update {
+			val availableLanguages = (uiState.value as? UnifiedSourcesUiState.Ready)
+				?.availableLanguages
+				.orEmpty()
+				.toSet()
 			it.copy(
-				languages = settings.extensionLanguages.mapTo(LinkedHashSet()) { code ->
-					code.normalizeLanguageCode()
-				},
+				languages = settings.contentLanguages.normalizeLanguageCodes()
+					.filterTo(LinkedHashSet()) { language -> language in availableLanguages },
 			)
 		}
 	}
@@ -906,6 +915,15 @@ class UnifiedSourcesViewModel @Inject constructor(
 		val visibleRepositories = repositories.filterBy(filters)
 		val visiblePackages = packages.filterBy(filters, repositoriesById)
 		val visibleSources = sources.filterBy(filters, repositoriesById, packagesById)
+		val availableLanguages = (packages.mapNotNull { it.language } + sources.mapNotNull { it.language })
+			.map { it.normalizeLanguageCode() }
+			.filter { it.isNotBlank() }
+			.distinct()
+			.sorted()
+		Log.d(
+			TAG,
+			"language filter availableLanguages=$availableLanguages selectedLanguages=${filters.languages}",
+		)
 
 		return UnifiedSourcesUiState.Ready(
 			filters = filters,
@@ -924,10 +942,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 			availableLocationTypes = repositories.map { it.locationType }
 				.distinct()
 				.sortedBy { it.ordinal },
-			availableLanguages = (packages.mapNotNull { it.language } + sources.mapNotNull { it.language })
-				.map { it.normalizeLanguageCode() }
-				.distinct()
-				.sorted(),
+			availableLanguages = availableLanguages,
 		)
 	}
 
@@ -1061,6 +1076,11 @@ private fun UnifiedSourceItem.repositoryLocationType(
 private fun String?.matchesLanguageFilter(languages: Set<String>): Boolean {
 	val normalized = this?.normalizeLanguageCode().orEmpty()
 	return normalized.isBlank() || normalized in languages
+}
+
+private fun Iterable<String>.normalizeLanguageCodes(): LinkedHashSet<String> {
+	return mapTo(LinkedHashSet()) { it.normalizeLanguageCode() }
+		.filterTo(LinkedHashSet()) { it.isNotBlank() }
 }
 
 private fun String.normalizeLanguageCode(): String {

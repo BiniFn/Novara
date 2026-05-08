@@ -10,6 +10,7 @@ import org.skepsun.kototoro.aniyomi.AniyomiExtensionManager
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
+import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.jsonsource.JsonSourceManager
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
@@ -31,6 +32,21 @@ class UnifiedSourceCatalogRepositoryTest : FunSpec({
 		packages.map { it.packageName } shouldBe listOf("+a+", "+a+")
 		packages.map { it.sourceNames } shouldBe listOf(listOf("Alpha"), listOf("Beta"))
 	}
+
+	test("lnreader source item uses plugin metadata language instead of blank json source locale") {
+		val entity = lnReaderEntity(
+			id = "JSON_LNREADER_69SHU",
+			name = "69书吧",
+			lang = "中文, 汉语, 漢語",
+		)
+
+		val item = testRepository().invokeToUnifiedSourceItem(
+			source = JsonContentSource(entity),
+			jsonEntity = entity,
+		)
+
+		item.language shouldBe "zh"
+	}
 })
 
 @Suppress("UNCHECKED_CAST")
@@ -41,6 +57,20 @@ private fun UnifiedSourceCatalogRepository.invokeToJsonPackageItems(
 		.getDeclaredMethod("toJsonPackageItems", List::class.java)
 	method.isAccessible = true
 	return method.invoke(this, sources) as List<UnifiedSourcePackageItem>
+}
+
+private fun UnifiedSourceCatalogRepository.invokeToUnifiedSourceItem(
+	source: JsonContentSource,
+	jsonEntity: JsonSourceEntity,
+): UnifiedSourceItem {
+	val method = javaClass.getDeclaredMethod(
+		"toUnifiedSourceItem",
+		org.skepsun.kototoro.parsers.model.ContentSource::class.java,
+		org.skepsun.kototoro.core.db.entity.MangaSourceEntity::class.java,
+		JsonSourceEntity::class.java,
+	)
+	method.isAccessible = true
+	return method.invoke(this, source, null, jsonEntity) as UnifiedSourceItem
 }
 
 private fun testRepository(): UnifiedSourceCatalogRepository {
@@ -59,7 +89,11 @@ private fun testRepository(): UnifiedSourceCatalogRepository {
 	)
 }
 
-private fun lnReaderEntity(id: String, name: String): JsonSourceEntity {
+private fun lnReaderEntity(
+	id: String,
+	name: String,
+	lang: String = "en",
+): JsonSourceEntity {
 	return JsonSourceEntity(
 		id = id,
 		name = name,
@@ -70,7 +104,7 @@ private fun lnReaderEntity(id: String, name: String): JsonSourceEntity {
 				name: '$name',
 				site: 'https://example.org/$name',
 				version: '1.0.0',
-				lang: 'en'
+				lang: '$lang'
 			}
 		""".trimIndent(),
 		createdAt = 1L,

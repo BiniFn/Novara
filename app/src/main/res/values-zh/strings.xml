@@ -223,6 +223,7 @@
     <string name="filter_extensions_by_language_summary">仅显示符合应用所选内容语言的 Mihon 和 Aniyomi 插件</string>
     <string name="filter_extensions_by_selected_content_languages">按照语言过滤插件：已选内容语言</string>
     <string name="filter_extensions_by_language_with_value">按照语言过滤插件：%1$s</string>
+    <string name="use_setup_wizard_languages">使用向导语言</string>
     <string name="show_extensions_in_grid">插件以双列显示</string>
     <string name="show_extensions_in_list">插件以单列显示</string>
     <string name="selected_content_languages">已选内容语言</string>

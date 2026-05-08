@@ -1263,6 +1263,7 @@
     <string name="filter_extensions_by_language_summary">仅显示与您选择的内容语言相匹配的 Mihon 和 Aniyomi 扩展</string>
     <string name="filter_extensions_by_selected_content_languages">按语言过滤扩展：已选内容语言</string>
     <string name="filter_extensions_by_language_with_value">按语言过滤扩展：%1$s</string>
+    <string name="use_setup_wizard_languages">使用向导语言</string>
     <string name="show_extensions_in_grid">扩展以双列显示</string>
     <string name="show_extensions_in_list">扩展以单列显示</string>
     <string name="no_mihon_extensions">未安装 Mihon 扩展</string>

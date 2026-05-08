@@ -257,6 +257,9 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
                 onManageSourcesClick = {
                     this.router.openManageSources()
                 },
+                onTrackingAccountsClick = {
+                    this.router.openTrackingAccountsSettings()
+                },
                 isAppUpdateAvailable = appUpdate != null,
                 onAppUpdateClick = {
                     this.router.openAppUpdate()

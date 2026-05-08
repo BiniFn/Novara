@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.settings.sources.jsonsource
 
+import android.util.Log
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -19,6 +20,7 @@ import org.skepsun.kototoro.core.network.jsonsource.JsonSourceHttpClient
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsFlow
 import org.skepsun.kototoro.core.ui.BaseViewModel
+import org.skepsun.kototoro.settings.sources.extensions.normalizeExtensionLanguageCode
 import javax.inject.Inject
 
 @HiltViewModel
@@ -62,9 +64,18 @@ class LNReaderRepoViewModel @Inject constructor(
 	/** Available languages from the plugin list */
 	val availableLanguages: StateFlow<List<String>> = _plugins
 		.combine(MutableStateFlow(Unit)) { plugins, _ ->
-			plugins.map { it.lang }
+			val languages = plugins.mapNotNull { plugin ->
+				val normalized = plugin.normalizedLanguageCode()
+				Log.d(
+					TAG,
+					"language raw='${plugin.lang}' normalized='$normalized' plugin=${plugin.id}",
+				)
+				normalized.takeIf { it.isNotBlank() }
+			}
 				.distinct()
 				.sorted()
+			Log.d(TAG, "language filter availableLanguages=$languages")
+			languages
 		}
 		.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -76,15 +87,21 @@ class LNReaderRepoViewModel @Inject constructor(
 		_collapsedLanguageGroups,
 		installedSourceIds,
 	) { plugins, query, selectedLanguages, collapsedGroups, installed ->
+		val normalizedSelectedLanguages = selectedLanguages
+			.mapTo(LinkedHashSet()) { it.normalizeExtensionLanguageCode() }
+			.filterTo(LinkedHashSet()) { it.isNotBlank() }
 		val filtered = plugins
 			.filter { p ->
 				val matchesQuery = query.isBlank() || p.name.contains(query, ignoreCase = true) || p.site.contains(query, ignoreCase = true)
-				val matchesLang = selectedLanguages.isEmpty() || p.lang in selectedLanguages
+				val normalizedLanguage = p.normalizedLanguageCode()
+				val matchesLang = normalizedSelectedLanguages.isEmpty() ||
+					normalizedLanguage.isBlank() ||
+					normalizedLanguage in normalizedSelectedLanguages
 				matchesQuery && matchesLang
 			}
 
 		// Group by language
-		val grouped = filtered.groupBy { it.lang }
+		val grouped = filtered.groupBy { it.normalizedLanguageCode() }
 		val items = mutableListOf<PluginDisplayItem>()
 		for ((lang, langPlugins) in grouped.entries.sortedBy { it.key }) {
 			val isCollapsed = collapsedGroups.contains(lang)
@@ -167,13 +184,25 @@ class LNReaderRepoViewModel @Inject constructor(
 	}
 
 	fun setSelectedExtensionLanguages(languages: Set<String>) {
-		appSettings.extensionLanguages = languages
+		val normalized = languages
+			.mapTo(LinkedHashSet()) { it.normalizeExtensionLanguageCode() }
+			.filterTo(LinkedHashSet()) { it.isNotBlank() }
+		Log.d(TAG, "language filter selectedLanguages=$normalized")
+		appSettings.extensionLanguages = normalized
 	}
 
 	fun toggleLanguageGroup(lang: String) {
 		_collapsedLanguageGroups.value = _collapsedLanguageGroups.value.toMutableSet().apply {
 			if (!add(lang)) remove(lang)
 		}
+	}
+
+	private fun LNReaderPluginInfo.normalizedLanguageCode(): String {
+		return lang.normalizeExtensionLanguageCode()
+	}
+
+	private companion object {
+		private const val TAG = "LNReaderRepoVM"
 	}
 }
 

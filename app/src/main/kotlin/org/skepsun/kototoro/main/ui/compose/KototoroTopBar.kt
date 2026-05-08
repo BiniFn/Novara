@@ -82,6 +82,7 @@ fun KototoroTopBar(
     onSettingsClick: () -> Unit = {},
     onSourceSettingsClick: () -> Unit = {},
     onManageSourcesClick: () -> Unit = onSourceSettingsClick,
+    onTrackingAccountsClick: () -> Unit = {},
     isAppUpdateAvailable: Boolean = false,
     onAppUpdateClick: () -> Unit = {},
     isLanguagePresetFilterVisible: Boolean = false,
@@ -235,14 +236,21 @@ fun KototoroTopBar(
                                         text = { Text(stringResource(R.string.extension_management)) },
                                         onClick = {
                                             isMoreMenuExpanded = false
-                                            onSourceSettingsClick()
+                                            onManageSourcesClick()
                                         },
                                     )
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.manage_sources)) },
                                         onClick = {
                                             isMoreMenuExpanded = false
-                                            onManageSourcesClick()
+                                            onSourceSettingsClick()
+                                        },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.tracking_accounts)) },
+                                        onClick = {
+                                            isMoreMenuExpanded = false
+                                            onTrackingAccountsClick()
                                         },
                                     )
                                     HorizontalDivider()

@@ -247,6 +247,7 @@ internal fun String.normalizeExtensionLanguageCode(): String {
 		return ""
 	}
 	normalizeSingleExtensionLanguageCode(normalized)?.let { return it }
+	normalizeKnownExtensionLanguageCode(normalized.replace(languageCodeSeparators, "-").trim('-'))?.let { return it }
 
 	val parts = normalized
 		.split(languageCodeSeparators)
@@ -281,14 +282,27 @@ internal fun Iterable<String>.selectExtensionLanguageCode(): String {
 }
 
 private fun normalizeSingleExtensionLanguageCode(language: String): String? {
+	return normalizeKnownExtensionLanguageCode(language) ?: language.takeIf { it.isValidLanguageTag() }
+}
+
+private fun normalizeKnownExtensionLanguageCode(language: String): String? {
 	return when (language) {
 		"all",
 		"multi",
+		"multi-language",
+		"multi-languages",
 		"multiple",
+		"multiple-language",
+		"multiple-languages",
 		"multilingual",
 		"various",
+		"various-language",
 		"various-languages",
-		"mixed" -> ""
+		"mixed",
+		"mixed-language",
+		"mixed-languages",
+		"多语言",
+		"多語言" -> ""
 
 		"中文",
 		"简体中文",
@@ -305,6 +319,8 @@ private fun normalizeSingleExtensionLanguageCode(language: String): String? {
 		"zh-cn",
 		"zh-sg",
 		"zh-hans",
+		"zho",
+		"chi",
 		"tw",
 		"hk",
 		"mo",
@@ -315,9 +331,28 @@ private fun normalizeSingleExtensionLanguageCode(language: String): String? {
 		"zh-mo",
 		"zh-hant" -> "zh"
 
+		"english" -> "en"
+		"русский" -> "ru"
+		"español" -> "es"
+		"français" -> "fr"
+		"português" -> "pt"
+		"bahasa-indonesia" -> "id"
+		"tiếng-việt" -> "vi"
+		"türkçe" -> "tr"
+		"українська" -> "uk"
+		"polski" -> "pl"
+		"ไทย" -> "th"
+		"العربية" -> "ar"
+		"japanese",
+		"nihongo",
+		"日本語",
+		"日本语",
 		"jp" -> "ja"
+		"korean",
+		"한국어",
+		"조선말",
 		"kr" -> "ko"
-		else -> language
+		else -> null
 	}
 }
 
@@ -328,7 +363,14 @@ private fun String.inferIReaderLanguageCode(): String {
 	return split("-").getOrNull(1).orEmpty()
 }
 
-private val languageCodeSeparators = Regex("""[,/|;+\s]+""")
+private val languageCodeSeparators = Regex("""[,，、/|;；+\s]+""")
+
+private val languageTagPattern = Regex("""[a-z]{2,3}(-[a-z0-9]{2,8})*""")
+
+private fun String.isValidLanguageTag(): Boolean {
+	val primary = substringBefore('-')
+	return matches(languageTagPattern) && primary !in setOf("all")
+}
 
 private fun MutableList<ExtensionsBrowserListItem>.addSection(
 	section: ExtensionsBrowserSection,

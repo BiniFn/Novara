@@ -2,6 +2,7 @@ package org.skepsun.kototoro.settings.sources.jsonsource
 import org.skepsun.kototoro.core.util.ext.setSupportTitle
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -24,6 +25,8 @@ import androidx.core.content.ContextCompat
 import javax.inject.Inject
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.util.ext.getDisplayName
+import org.skepsun.kototoro.core.util.ext.toLocaleOrNull
 import org.skepsun.kototoro.core.lnreader.LNReaderPluginInfo
 import org.skepsun.kototoro.core.ui.BaseFragment
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -37,8 +40,11 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import androidx.core.view.MenuProvider
 import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
+import org.skepsun.kototoro.extensions.runtime.getExternalExtensionLanguageDisplayName
+import org.skepsun.kototoro.settings.sources.extensions.normalizeExtensionLanguageCode
 import org.skepsun.kototoro.settings.sources.unified.UnifiedSourceKind
 import org.skepsun.kototoro.settings.sources.unified.redirectToUnifiedSources
+import java.util.Locale
 
 @AndroidEntryPoint
 class LNReaderRepoFragment : BaseFragment<FragmentLnreaderRepoBinding>() {
@@ -76,7 +82,8 @@ class LNReaderRepoFragment : BaseFragment<FragmentLnreaderRepoBinding>() {
 			},
 			onToggleLang = { lang ->
 				viewModel.toggleLanguageGroup(lang)
-			}
+			},
+			formatLanguageLabel = ::formatLanguageLabel,
 		)
 
 		binding.recyclerView.layoutManager = LinearLayoutManager(requireContext())
@@ -131,8 +138,12 @@ class LNReaderRepoFragment : BaseFragment<FragmentLnreaderRepoBinding>() {
 	private fun openLanguageFilterDialog() {
 		val availableCodes = viewModel.availableLanguages.value
 		val selectedCodes = appSettings.extensionLanguages
+			.mapTo(LinkedHashSet()) { it.normalizeExtensionLanguageCode() }
+			.filterTo(LinkedHashSet()) { it.isNotBlank() }
 
-		val labels = availableCodes.toTypedArray()
+		Log.d(TAG, "open language filter availableCodes=$availableCodes selectedCodes=$selectedCodes")
+
+		val labels = availableCodes.map { code -> formatLanguageLabel(code) }.toTypedArray()
 		val checkedItems = availableCodes.map { it in selectedCodes }.toBooleanArray()
 
 		com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
@@ -146,6 +157,18 @@ class LNReaderRepoFragment : BaseFragment<FragmentLnreaderRepoBinding>() {
 			}
 			.setNegativeButton(android.R.string.cancel, null)
 			.show()
+	}
+
+	private fun formatLanguageLabel(code: String): String {
+		if (code.isBlank()) {
+			return getString(R.string.multi_language_short)
+		}
+		val extensionLabel = getExternalExtensionLanguageDisplayName(code)
+		if (extensionLabel != code.uppercase(Locale.ROOT)) {
+			return extensionLabel
+		}
+		return (code.toLocaleOrNull() ?: Locale.forLanguageTag(code)).getDisplayName(requireContext())
+			.ifBlank { code.uppercase(Locale.ROOT) }
 	}
 
 	private inner class LNReaderMenuProvider : MenuProvider {
@@ -188,6 +211,10 @@ class LNReaderRepoFragment : BaseFragment<FragmentLnreaderRepoBinding>() {
 			else -> false
 		}
 	}
+
+	private companion object {
+		private const val TAG = "LNReaderRepoFragment"
+	}
 }
 
 // ==================== Adapter ====================
@@ -197,6 +224,7 @@ private class PluginAdapter(
 	private val onInstall: (LNReaderPluginInfo) -> Unit,
 	private val onUninstall: (LNReaderPluginInfo) -> Unit,
 	private val onToggleLang: (String) -> Unit,
+	private val formatLanguageLabel: (String) -> String,
 ) : ListAdapter<PluginDisplayItem, RecyclerView.ViewHolder>(PluginDiffCallback()) {
 
 	var installingIds: Set<String> = emptySet()
@@ -217,7 +245,7 @@ private class PluginAdapter(
 				val binding = ItemLnreaderLangHeaderBinding.inflate(
 					LayoutInflater.from(parent.context), parent, false
 				)
-				LangHeaderViewHolder(binding, onToggleLang)
+				LangHeaderViewHolder(binding, onToggleLang, formatLanguageLabel)
 			}
 			else -> {
 				val binding = ItemLnreaderPluginBinding.inflate(
@@ -239,10 +267,11 @@ private class PluginAdapter(
 private class LangHeaderViewHolder(
 	private val binding: ItemLnreaderLangHeaderBinding,
 	private val onToggleLang: (String) -> Unit,
+	private val formatLanguageLabel: (String) -> String,
 ) : RecyclerView.ViewHolder(binding.root) {
 	fun bind(item: PluginDisplayItem.LangHeader) {
 		val prefix = if (item.isCollapsed) "\u25b6" else "\u25bc"
-		binding.textViewLang.text = "$prefix ${item.lang} (${item.count})"
+		binding.textViewLang.text = "$prefix ${formatLanguageLabel(item.lang)} (${item.count})"
 		binding.root.setOnClickListener { onToggleLang(item.lang) }
 	}
 }

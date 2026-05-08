@@ -282,7 +282,7 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 			kind = kind,
 			source = this,
 			title = getTitle(localizedContext),
-			language = (getLocale()?.language ?: locale.takeIf { it.isNotBlank() })?.normalizeExtensionLanguageCode(),
+			language = resolveLanguage(jsonEntity),
 			contentType = getContentType(),
 			repositoryId = jsonRepository?.id,
 			repositoryName = jsonRepository?.title,
@@ -295,6 +295,15 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 			isNsfw = isNsfw(),
 			isBroken = isBroken,
 		)
+	}
+
+	private fun ContentSource.resolveLanguage(jsonEntity: JsonSourceEntity?): String? {
+		val rawLanguage = if (jsonEntity?.type == JsonSourceType.LNREADER) {
+			LNReaderPluginMetadata.extractFromCode(jsonEntity.config, jsonEntity.id)?.lang
+		} else {
+			getLocale()?.language ?: locale.takeIf { it.isNotBlank() }
+		}
+		return rawLanguage?.normalizeExtensionLanguageCode()
 	}
 
 	private fun ContentSource.resolveKind(): UnifiedSourceKind {

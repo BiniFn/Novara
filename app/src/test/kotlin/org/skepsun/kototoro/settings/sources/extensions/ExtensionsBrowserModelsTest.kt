@@ -123,6 +123,8 @@ class ExtensionsBrowserModelsTest : FunSpec({
 	test("normalizeExtensionLanguageCode maps all to multi-language bucket") {
 		"all".normalizeExtensionLanguageCode() shouldBe ""
 		"ALL".normalizeExtensionLanguageCode() shouldBe ""
+		"multi language".normalizeExtensionLanguageCode() shouldBe ""
+		"多语言".normalizeExtensionLanguageCode() shouldBe ""
 		"zh".normalizeExtensionLanguageCode() shouldBe "zh"
 	}
 
@@ -133,9 +135,34 @@ class ExtensionsBrowserModelsTest : FunSpec({
 		"zh_Hans".normalizeExtensionLanguageCode() shouldBe "zh"
 		"zh-Hant/en".normalizeExtensionLanguageCode() shouldBe "zh"
 		"cn,en".normalizeExtensionLanguageCode() shouldBe "zh"
+		" 中文, 汉语, 漢語".normalizeExtensionLanguageCode() shouldBe "zh"
+		"中文，汉语，漢語".normalizeExtensionLanguageCode() shouldBe "zh"
+		"中文、汉语、漢語".normalizeExtensionLanguageCode() shouldBe "zh"
+		"Chinese, ZHO, chi".normalizeExtensionLanguageCode() shouldBe "zh"
 		"all,en".normalizeExtensionLanguageCode() shouldBe "en"
 		"jp".normalizeExtensionLanguageCode() shouldBe "ja"
 		"kr".normalizeExtensionLanguageCode() shouldBe "ko"
+		"日本語，日本语".normalizeExtensionLanguageCode() shouldBe "ja"
+		"한국어，조선말".normalizeExtensionLanguageCode() shouldBe "ko"
+	}
+
+	test("normalizeExtensionLanguageCode maps official lnreader display language labels to codes") {
+		mapOf(
+			"English" to "en",
+			"Русский" to "ru",
+			"Español" to "es",
+			"Français" to "fr",
+			"Português" to "pt",
+			"Bahasa Indonesia" to "id",
+			"Tiếng Việt" to "vi",
+			"Türkçe" to "tr",
+			"Українська" to "uk",
+			"Polski" to "pl",
+			"ไทย" to "th",
+			"‎العربية" to "ar",
+		).forEach { (raw, expected) ->
+			raw.normalizeExtensionLanguageCode() shouldBe expected
+		}
 	}
 
 	test("ireader available extension infers language from package when repo marks it as all") {
