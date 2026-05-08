@@ -7,7 +7,6 @@ import android.view.ViewGroup
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.ViewCompositionStrategy
-import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
@@ -22,6 +21,7 @@ import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.databinding.FragmentPagePickerBinding
 import org.skepsun.kototoro.details.ui.pager.pages.compose.PagesScreen
+import org.skepsun.kototoro.details.ui.pager.pages.compose.pagePreviewGridColumns
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
 import org.skepsun.kototoro.picker.ui.PageImagePickActivity
 
@@ -48,7 +48,7 @@ class PagePickerFragment : BaseFragment<FragmentPagePickerBinding>() {
 				KototoroTheme {
 					PagesScreen(
 						items = thumbnails,
-						gridMinSize = (120.dp / gridScale.coerceIn(0.5f, 1.5f)),
+						gridColumns = pagePreviewGridColumns(gridScale),
 						selectedItemIds = selectedIds,
 						emptyMessageResId = if (isNoChapters) R.string.no_chapters else null,
 						isLoading = isLoading,

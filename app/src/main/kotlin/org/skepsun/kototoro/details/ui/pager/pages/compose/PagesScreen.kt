@@ -27,7 +27,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
@@ -161,7 +160,7 @@ fun PageThumbnailPlaceholderCard(
 @Composable
 fun PagesScreen(
 	items: List<org.skepsun.kototoro.list.ui.model.ListModel>,
-	gridMinSize: Dp,
+	gridColumns: Int,
 	selectedItemIds: Set<Long>,
 	emptyMessageResId: Int?,
 	isLoading: Boolean,
@@ -256,7 +255,7 @@ fun PagesScreen(
 
 			LazyVerticalGrid(
 				state = listState,
-				columns = GridCells.Adaptive(minSize = gridMinSize),
+				columns = GridCells.Fixed(gridColumns.coerceIn(2, 6)),
 				contentPadding = PaddingValues(16.dp),
 				horizontalArrangement = Arrangement.spacedBy(8.dp),
 				verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -350,6 +349,16 @@ fun PagesScreen(
 				}
 			}
 		}
+	}
+}
+
+fun pagePreviewGridColumns(gridScale: Float): Int {
+	return when {
+		gridScale <= 0.6f -> 6
+		gridScale <= 0.8f -> 5
+		gridScale < 1f -> 4
+		gridScale <= 1.2f -> 3
+		else -> 2
 	}
 }
 

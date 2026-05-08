@@ -8,7 +8,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.android.material.snackbar.Snackbar
@@ -68,7 +67,7 @@ fun PagesScreenRoot(
 
 	PagesScreen(
 		items = thumbnails,
-		gridMinSize = (120.dp / gridScale.coerceIn(0.5f, 1.5f)),
+		gridColumns = pagePreviewGridColumns(gridScale),
 		selectedItemIds = selectedIds,
 		emptyMessageResId = null,
 		isLoading = isLoading,

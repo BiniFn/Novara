@@ -144,6 +144,7 @@ class PagesViewModel @Inject constructor(
 			?: details.allChapters.firstOrNull()?.id
 			?: return
 		chaptersLoader.loadSingleChapter(initialChapterId)
+		chaptersLoader.loadLocalChapters()
 		updateList(state.readerState)
 	}
 

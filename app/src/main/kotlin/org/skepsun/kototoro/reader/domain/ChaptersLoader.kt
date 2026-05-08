@@ -70,6 +70,27 @@ class ChaptersLoader @Inject constructor(
 		}
 	}
 
+	suspend fun loadLocalChapters() {
+		val localChapters = mutex.withLock {
+			buildList(chapters.size()) {
+				for (i in 0 until chapters.size()) {
+					chapters.valueAt(i).takeIf { it.isLocalPageSource() }?.let(::add)
+				}
+			}
+		}
+		localChapters.forEach { chapter ->
+			if (hasPages(chapter.id)) {
+				return@forEach
+			}
+			val pages = loadChapter(chapter.id)
+			mutex.withLock {
+				if (chapter.id !in chapterPages) {
+					chapterPages.addLast(chapter.id, pages)
+				}
+			}
+		}
+	}
+
 	fun peekChapter(chapterId: Long): ContentChapter? = chapters[chapterId]
 
 	fun hasPages(chapterId: Long): Boolean {
@@ -92,10 +113,8 @@ class ChaptersLoader @Inject constructor(
 
 	private suspend fun loadChapter(chapterId: Long): List<ReaderPage> {
 		val chapter = checkNotNull(chapters[chapterId]) { "Requested chapter not found" }
-		val urlStr = chapter.url
-		val isDownloaded = urlStr.startsWith("file://") || urlStr.startsWith("zip://") || urlStr.startsWith("file+zip://") || urlStr.startsWith("content://")
-		val basePages = if (isDownloaded) {
-			org.skepsun.kototoro.local.data.input.LocalContentParser(android.net.Uri.parse(urlStr)).getPages(chapter)
+		val basePages = if (chapter.isLocalPageSource()) {
+			org.skepsun.kototoro.local.data.input.LocalContentParser(android.net.Uri.parse(chapter.url)).getPages(chapter)
 		} else {
 			val repo = mangaRepositoryFactory.create(chapter.source)
 			repo.getPages(chapter)
@@ -103,5 +122,13 @@ class ChaptersLoader @Inject constructor(
 		return basePages.mapIndexed { index, page ->
 			ReaderPage(page, index, chapterId)
 		}
+	}
+
+	private fun ContentChapter.isLocalPageSource(): Boolean {
+		val urlStr = url
+		return urlStr.startsWith("file://") ||
+			urlStr.startsWith("zip://") ||
+			urlStr.startsWith("file+zip://") ||
+			urlStr.startsWith("content://")
 	}
 }
