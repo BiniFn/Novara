@@ -7,9 +7,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -22,6 +22,7 @@ import org.skepsun.kototoro.core.model.FavouriteCategory.Companion.NO_ID
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
+import org.skepsun.kototoro.favourites.ui.container.FavouriteTabModel
 import org.skepsun.kototoro.favourites.ui.container.FavouritesContainerViewModel
 import org.skepsun.kototoro.favourites.domain.GlobalFavoritesState
 import org.skepsun.kototoro.main.ui.MainActivity
@@ -34,6 +35,8 @@ import org.skepsun.kototoro.parsers.model.Content
 fun KototoroFavoritesHostRoute(
     appRouter: AppRouter,
     contentPadding: PaddingValues,
+    initialCategoryId: Long = NO_ID,
+    initialCategoryTitle: String? = null,
     onNavigateToDetails: ((Content, String?) -> Unit)? = null,
     registerFilterCallback: Boolean = true,
     onTopBarOverrideChanged: (TopBarOverrideState?) -> Unit = {},
@@ -96,8 +99,22 @@ fun KototoroFavoritesHostRoute(
         return
     }
 
-    val pagerState = rememberPagerState(pageCount = { categories.size })
+    val displayCategories = remember(categories, initialCategoryId, initialCategoryTitle) {
+        if (initialCategoryId == NO_ID || categories.any { it.id == initialCategoryId }) {
+            categories
+        } else {
+            categories + FavouriteTabModel(id = initialCategoryId, title = initialCategoryTitle)
+        }
+    }
+    val initialPage = remember(displayCategories, initialCategoryId) {
+        displayCategories.indexOfFirst { it.id == initialCategoryId }.takeIf { it >= 0 } ?: 0
+    }
+    val pagerState = rememberPagerState(
+        initialPage = initialPage,
+        pageCount = { displayCategories.size },
+    )
     val coroutineScope = rememberCoroutineScope()
+    var initialSelectionApplied by rememberSaveable(initialCategoryId) { mutableStateOf(false) }
 
     val innerPadding = PaddingValues(
         start = contentPadding.calculateStartPadding(androidx.compose.ui.platform.LocalLayoutDirection.current),
@@ -105,6 +122,17 @@ fun KototoroFavoritesHostRoute(
         top = 0.dp,
         bottom = contentPadding.calculateBottomPadding(),
     )
+
+    LaunchedEffect(displayCategories, initialCategoryId, initialSelectionApplied) {
+        if (initialSelectionApplied || displayCategories.isEmpty()) {
+            return@LaunchedEffect
+        }
+        val targetPage = displayCategories.indexOfFirst { it.id == initialCategoryId }.takeIf { it >= 0 } ?: 0
+        if (pagerState.currentPage != targetPage) {
+            pagerState.scrollToPage(targetPage)
+        }
+        initialSelectionApplied = true
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(top = contentPadding.calculateTopPadding())) {
         ScrollableTabRow(
@@ -119,7 +147,7 @@ fun KototoroFavoritesHostRoute(
                 )
             }
         ) {
-            categories.forEachIndexed { index, tabModel ->
+            displayCategories.forEachIndexed { index, tabModel ->
                 val title = if (tabModel.id == NO_ID) stringResource(R.string.all_favourites) else tabModel.title ?: ""
                 Tab(
                     selected = pagerState.currentPage == index,
@@ -130,7 +158,7 @@ fun KototoroFavoritesHostRoute(
         }
 
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-            val category = categories.getOrNull(page)
+            val category = displayCategories.getOrNull(page)
             if (category != null) {
                 val enabled = page == pagerState.currentPage && !pagerState.isScrollInProgress
                 KototoroFavoritesListScreen(
