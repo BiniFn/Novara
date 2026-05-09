@@ -91,6 +91,10 @@ class VideoChaptersViewModel @Inject constructor(
         loadingJob = doLoad(force)
     }
 
+    fun setCurrentChapter(chapterId: Long) {
+        readingState.value = ReaderState(chapterId, 0, 0)
+    }
+
     private fun doLoad(force: Boolean): Job = launchLoadingJob(Dispatchers.Default) {
         detailsLoadUseCase.invoke(intent, force).collect { details ->
             mangaDetails.value = details

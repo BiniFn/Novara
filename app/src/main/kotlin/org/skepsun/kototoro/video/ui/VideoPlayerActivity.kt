@@ -45,6 +45,7 @@ import org.skepsun.kototoro.core.util.ext.getParcelableExtraCompat
 import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
 import org.skepsun.kototoro.core.nav.ReaderIntent
 import androidx.core.net.toUri
+import org.skepsun.kototoro.local.data.ContentIndex
 import org.skepsun.kototoro.reader.ui.ReaderState
 import org.skepsun.kototoro.parsers.model.ContentSource as ParsersContentSource
 import javax.inject.Inject
@@ -101,7 +102,6 @@ import androidx.activity.viewModels
 @AndroidEntryPoint
 class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>(), ReaderNavigationCallback {
     companion object {
-        // 全局开关：m3u8 代理缓存默认开?
         private const val ENABLE_M3U8_PROXY_CACHE = true
     }
 
@@ -1026,7 +1026,12 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         }
     }
 
-    private fun prepareAndPlay(url: String, source: ParsersContentSource?, headers: Map<String, String>? = null) {
+    private fun prepareAndPlay(
+        url: String,
+        source: ParsersContentSource?,
+        headers: Map<String, String>? = null,
+        startMs: Long? = null,
+    ) {
         val normalizedUrl = TVBoxPlayback.normalizeLocator(url.trim())
         val lastSegment = runCatching { Uri.parse(normalizedUrl).lastPathSegment }.getOrNull() ?: normalizedUrl
         val lowerUrl = normalizedUrl.lowercase()
@@ -1046,7 +1051,14 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val isResolvedPlaybackUrl = isDirectStream || isDirectLocator || (isHttpLike && headers != null && !isHtmlPlaybackPage)
         val manga = intent.getParcelableExtraCompat<ParcelableContent>(AppRouter.KEY_MANGA)?.manga
         val currentState = readerState ?: intent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
-        val localUrl = resolveLocalVideoUrl(manga, currentState, url)
+        val indexedLocalUrl = resolveIndexedLocalVideoUrl(normalizedUrl, currentState)
+        val explicitLocalUrl = normalizedUrl.takeIf {
+            it.startsWith("file://", ignoreCase = true) &&
+                Uri.parse(it).path?.let(::File)?.isFile == true
+        } ?: normalizedUrl.takeIf {
+            it.startsWith("content://", ignoreCase = true)
+        }
+        val localUrl = indexedLocalUrl ?: explicitLocalUrl ?: resolveLocalVideoUrl(manga, currentState, url)
         if (localUrl != null) {
             runCatching {
                 val localUri = Uri.parse(localUrl)
@@ -1082,7 +1094,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 pendingExternalSubtitles = emptyList()
                 pendingExternalAudio = emptyList()
             }
-            currentVideoSource = manga?.source
+            currentVideoSource = manga?.source ?: source
             availableVideos = emptyList()
             currentVideoIndex = 0
             updateQualityButtonVisibility()
@@ -1096,7 +1108,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 }
             }
             
-            startMpvPlayback(mpvUrl, manga?.source, headers = null)
+            startMpvPlayback(mpvUrl, manga?.source ?: source, headers = null, startMs = startMs)
             return
         }
 
@@ -1130,7 +1142,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 ).show()
                 return
             }
-            startMpvPlayback(normalizedUrl, source, mergedHeaders)
+            startMpvPlayback(normalizedUrl, source, mergedHeaders, startMs = startMs)
             return
         }
 
@@ -1168,6 +1180,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                                         selected.videoUrl,
                                         manga.source,
                                         mergedHeaders,
+                                        startMs = startMs,
                                     )
                                     return@runCatching true
                                 }
@@ -1181,7 +1194,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                                 currentVideoIndex = 0
                                 updateQualityButtonVisibility()
                                 currentVideoSource = manga.source
-                                prepareAndPlay(streamUrl, manga.source, streamHeaders)
+                                prepareAndPlay(streamUrl, manga.source, streamHeaders, startMs = startMs)
                                 return@runCatching true
                             }
                             false
@@ -1280,9 +1293,29 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         } ?: return null
         val chapterUrl = currentChapter.url
         if (chapterUrl.startsWith("file://") || chapterUrl.startsWith("content://")) {
-            return chapterUrl
+            return resolveIndexedLocalVideoUrl(chapterUrl, ReaderState(currentChapter.id, 0, 0)) ?: chapterUrl
         }
         val file = videoDownloadIndex.getFile(manga.id, currentChapter.id) ?: return null
+        return file.toUri().toString()
+    }
+
+    private fun resolveIndexedLocalVideoUrl(url: String, state: ReaderState?): String? {
+        val chapterId = state?.chapterId ?: return null
+        val file = runCatching {
+            val parsed = Uri.parse(url)
+            val path = when {
+                parsed.scheme.equals("file", ignoreCase = true) -> parsed.path
+                parsed.scheme.isNullOrBlank() -> url
+                else -> null
+            } ?: return null
+            val inputFile = File(path)
+            val directory = inputFile.takeIf { it.isDirectory } ?: inputFile.parentFile?.takeIf { it.isDirectory }
+            directory?.let { dir ->
+                val fileName = ContentIndex.read(File(dir, "index.json"))?.getChapterFileName(chapterId)
+                    ?: return@let null
+                File(dir, fileName).takeIf { it.exists() && it.isFile }
+            }
+        }.getOrNull() ?: return null
         return file.toUri().toString()
     }
 
@@ -1327,7 +1360,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val (playUrl, playHeaders) = if (useProxy) {
             runCatching {
                 val proxyUrl = videoLocalCacheProxy.getProxyUrl(url, mergedHeaders)
-                proxyUrl to mergedHeaders
+                proxyUrl to emptyMap<String, String>()
             }.getOrElse {
                 Log.w("VideoPlayerActivity", "Proxy cache unavailable, fallback to origin URL", it)
                 url to mergedHeaders
@@ -3032,6 +3065,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 var resolved = false
                 val resetChapterState = {
                     readerState = ReaderState(chapter.id, 0, 0)
+                    chaptersViewModel.setCurrentChapter(chapter.id)
                     hasSkippedIntro = false
                     hasTriggeredOutro = false
                     hasRestoredProgress = false
@@ -3049,7 +3083,6 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     resetChapterState()
                     prepareAndPlay(localUrl, manga.source, headers = null)
                     updateTitleAndSubtitle()
-                    saveHistoryProgressAsync()
                     resolved = true
                 }
                 
@@ -3075,7 +3108,6 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                         
                         startMpvPlayback(selected.videoUrl, manga.source, mergedHeaders)
                         updateTitleAndSubtitle()
-                        saveHistoryProgressAsync()
                         resolved = true
                     }
                 }
@@ -3097,7 +3129,6 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                         
                         prepareAndPlay(streamUrl, manga.source, streamHeaders)
                         updateTitleAndSubtitle()
-                        saveHistoryProgressAsync()
                         resolved = true
                     }
                 }

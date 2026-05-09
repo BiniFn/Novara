@@ -7,6 +7,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.skepsun.kototoro.core.network.ContentHttpClient
 import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.parsers.network.GZipOptions
 import org.skepsun.kototoro.video.dlna.NetworkUtils
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -177,12 +178,20 @@ class VideoLocalCacheProxy @Inject constructor(
     }
 
     private fun normalizeHeaders(headers: Map<String, String>): Map<String, String> {
-        return headers
+        val normalized = headers
             .filterKeys { key ->
                 val lower = key.lowercase(Locale.ROOT)
-                lower != "host" && lower != "range" && lower != "connection"
+                lower != "host" &&
+                    lower != "range" &&
+                    lower != "connection" &&
+                    lower != "content-length" &&
+                    lower != "content-encoding"
             }
             .toSortedMap(String.CASE_INSENSITIVE_ORDER)
+        if (normalized.keys.none { it.equals("Accept", ignoreCase = true) }) {
+            normalized["Accept"] = "application/vnd.apple.mpegurl, application/x-mpegURL, video/*, */*;q=0.8"
+        }
+        return normalized
     }
 
     private fun buildKey(url: String, headers: Map<String, String>): String {
@@ -381,21 +390,27 @@ class VideoLocalCacheProxy @Inject constructor(
                 )
             }
 
-            val upstreamRequest = Request.Builder().url(source.url).apply {
-                source.headers.forEach { (k, v) -> header(k, v) }
-                if (!isPlaylistByUrl) {
-                    requestRange?.let {
-                    header("Range", if (it.end != null) "bytes=${it.start}-${it.end}" else "bytes=${it.start}-")
-                    }
-                }
-            }.build()
             sessionCacheMissCount.incrementAndGet()
             Log.d(TAG, "cache miss key=$key fetch=${source.url} range=${requestRange?.start}-${requestRange?.end ?: "end"}")
 
+            val upstreamRequest = Request.Builder().url(source.url).apply {
+                tag(GZipOptions::class.java, GZipOptions(skip = true))
+                source.headers.forEach { (k, v) -> header(k, v) }
+                if (!isPlaylistByUrl) {
+                    requestRange?.let {
+                        header("Range", if (it.end != null) "bytes=${it.start}-${it.end}" else "bytes=${it.start}-")
+                    }
+                }
+            }.build()
             val upstreamResponse = runCatching { okHttpClient.newCall(upstreamRequest).execute() }.getOrNull()
                 ?: return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "Upstream error")
 
             if (!upstreamResponse.isSuccessful && upstreamResponse.code !in listOf(200, 206)) {
+                val errorBody = runCatching { upstreamResponse.body.string().take(300) }.getOrDefault("")
+                Log.w(
+                    TAG,
+                    "upstream failed key=$key code=${upstreamResponse.code} url=${source.url} body=$errorBody",
+                )
                 upstreamResponse.close()
                 return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "Upstream failed: ${upstreamResponse.code}")
             }

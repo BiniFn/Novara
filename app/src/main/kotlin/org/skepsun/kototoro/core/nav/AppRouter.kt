@@ -360,6 +360,13 @@ class AppRouter private constructor(
         }
     }
 
+	private fun resolveVideoStartUrl(manga: Content, state: ReaderState?): String {
+		return state
+			?.let { currentState -> manga.chapters?.firstOrNull { it.id == currentState.chapterId }?.url }
+			?.takeIf { it.isNotBlank() }
+			?: manga.publicUrl
+	}
+
 	fun openReader(intent: ReaderIntent, anchor: View? = null) {
 		val activityIntent = intent.intent
 		// Intercept video sources when ReaderIntent carries a Content extra and route accordingly
@@ -391,13 +398,12 @@ class AppRouter private constructor(
                     return
                 }
 				if (contentType == ContentType.VIDEO || contentType == ContentType.HENTAI_VIDEO) {
-                    val url = manga.publicUrl
+                    val state = activityIntent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
+                    val url = resolveVideoStartUrl(manga, state)
                     val lastSegment = url.toUriOrNull()?.lastPathSegment ?: url
                     val isDirectStream = lastSegment.endsWith(".m3u8", ignoreCase = true) ||
                         lastSegment.endsWith(".mp4", ignoreCase = true)
 
-                    val state = activityIntent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
-                    
                     if (isDirectStream) {
                         openVideo(
                             url = url,
@@ -416,9 +422,10 @@ class AppRouter private constructor(
                                     val repo = mangaRepositoryFactory.create(manga.source)
                                     val details = repo.getDetails(manga)
                                     val mangaWithChapters = details.copy(chapters = details.chapters)
+                                    val resolvedUrl = resolveVideoStartUrl(mangaWithChapters, state)
                                     
                                     openVideo(
-                                        url = url,
+                                        url = resolvedUrl,
                                         manga = mangaWithChapters,
                                         anchor = anchor,
                                         state = state,
