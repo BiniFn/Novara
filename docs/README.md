@@ -13,6 +13,7 @@ This directory is organized by task, not by internal implementation. Start with 
 | :--- | :--- |
 | Install the app and get productive quickly | [Getting Started](./getting-started.md) |
 | Understand the product at a high level | [Reader Features](./reader-features.md) |
+| Import local files (CBZ, EPUB, video) | [Local Import Guide](./local-import.md) |
 | Set up local OCR + translation | [Automatic Translation](./automatic-translation.md) |
 | Connect external source ecosystems | [Source Integrations](./source-integrations.md) |
 | Sync across devices with WebDAV | [WebDAV Sync](./webdav-sync.md) |
@@ -26,6 +27,7 @@ This directory is organized by task, not by internal implementation. Start with 
 
 - [Getting Started](./getting-started.md)
 - [Reader Features](./reader-features.md) — manga, novels, video, tracking discovery, DLNA, subtitles
+- [Local Import Guide](./local-import.md) — CBZ, EPUB, TXT, MKV, MP4 and more
 - [Automatic Translation](./automatic-translation.md)
 - [Source Integrations](./source-integrations.md) — built-in, Kotatsu-Redo, Mihon, Aniyomi, IReader, Legado, TVBox
 - [WebDAV Sync](./webdav-sync.md)

@@ -24,12 +24,16 @@ features:
     details: Understand how Kototoro keeps manga, novels, video, history, favorites, and sync in one Android workflow.
   - title: Local OCR + Translation
     details: Configure on-device OCR, model downloads, translation modes, and practical fallback paths inside the reader.
+  - title: Local File Import
+    details: Import CBZ, EPUB, TXT, MKV, MP4 and more — with forced content type selection for reliable import.
   - title: External Source Ecosystems
     details: Connect Mihon, Aniyomi, IReader, Legado, and TVBox sources from the same in-app source management flow.
+  - title: Entity Graph
+    details: Cross-type content relationship management that unifies manga, novels, and video under one entity system.
   - title: Tracking & Discovery
     details: Discover anime and manga from MAL, Kitsu, AniList, Bangumi, Shikimori, and MangaUpdates directly inside the app.
   - title: Video Player
-    details: Built-in player with DLNA casting, subtitle and audio track selection, Anime4K super-resolution, and seek gestures.
+    details: Built-in player with DLNA casting, subtitle and audio track selection, Anime4K / NCNN super-resolution, and seek gestures.
   - title: Reliable WebDAV Sync
     details: Set up free or self-hosted WebDAV storage for multi-device backup and synchronization.
   - title: Fast OTA Updates
@@ -43,6 +47,7 @@ features:
 
 - Start with [Getting Started](./getting-started.md) if you are new to the project.
 - Read [Source Integrations](./source-integrations.md) if you need Mihon, Aniyomi, IReader, Legado, or TVBox ecosystems.
+- Read [Local Import Guide](./local-import.md) to learn how to import CBZ, EPUB, video files and structured folders.
 - Read [External Extension Integration Guide](./architecture/external-extension-integration-guide.md) if you are a developer looking to integrate Mihon/Tachiyomi extensions into your own app.
 - Read [Architecture Review](./architecture/architecture-review.md) if you want a project-level architectural assessment before changing major subsystems.
 - Read [Architecture Roadmap](./architecture/architecture-roadmap.md) if you want to understand the active epics and planning.
@@ -57,11 +62,15 @@ features:
 
 - One Android app for manga, novels, and video
 - Local OCR + translation directly in the reader
-- Video super-resolution (Anime4K), DLNA casting, subtitle and audio track selection
+- Video super-resolution (Anime4K / NCNN), DLNA casting, subtitle and audio track selection
 - Tracking discovery across MAL, Kitsu, AniList, Bangumi, Shikimori, and MangaUpdates
 - Broad source support: built-in, Kotatsu-Redo, Mihon, Aniyomi, IReader, Legado, TVBox
+- Entity graph system — unified cross-type content relationship management
+- Local file import: CBZ, EPUB, TXT, MKV, MP4 and more
 - Dynamic zero-overhead UI plugins via external classloaders
 - Fast pure-Kotlin OTA delta updates
+- Built-in browser with Cloudflare challenge bypass
+- Reading statistics, quick-access widget, and Telegram backup bot
 
 ## Key External Source Repositories
 

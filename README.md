@@ -2,7 +2,7 @@
 
 ![App Icon](metadata/en-US/icon.png)
 
-![version](https://img.shields.io/badge/version-0.8.8-blue)
+![version](https://img.shields.io/badge/version-1.0.5-blue)
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/xBXvPz7tr7)
 [![Docs](https://img.shields.io/badge/docs-hub-blue)](https://kototoro-app.github.io/Kototoro/)
 [![Getting Started](https://img.shields.io/badge/docs-getting--started-blue)](https://kototoro-app.github.io/Kototoro/getting-started)
@@ -18,15 +18,26 @@ Kototoro is an open-source Android app that brings manga, novels, and video into
   *(一个应用搞定漫画、小说和视频)*
 - Local automatic OCR + translation directly inside the reader 
   *(阅读器内直接集成强大的本地自动 OCR + 机器翻译)*
-- Video super-resolution (Anime4K), DLNA casting, subtitle and audio track selection 
+- Video super-resolution (Anime4K / NCNN), DLNA casting, subtitle and audio track selection 
   *(视频超分加载、DLNA 投屏播放、外挂字幕与音轨选择)*
 - Tracking discovery across MAL, Kitsu, AniList, Bangumi, Shikimori, and MangaUpdates 
-  *(支持 Bangumi 等多平台进度追踪)*
-- Broad source support: external dynamic parsers, Mihon, Aniyomi, IReader, Legado, TVBox 
+  *(支持 Bangumi 等多平台进度追踪与发现)*
+- Broad source support: Mihon, Aniyomi, IReader, Legado, TVBox extensions + dynamic parsers 
   *(广泛的图源/插件支持：包含 Mihon、阅读、TVBox 等集成)*
+- Entity graph system — unified cross-type content relationship management 
+  *(实体关系图谱：统一管理漫画/小说/视频间的关联)*
+- Local file import: CBZ, EPUB, TXT, MKV, MP4 and more 
+  *(本地文件导入，支持 CBZ、EPUB、TXT、MKV 等格式)*
 - Dynamic zero-overhead UI plugins via external classloaders
-- Fast pure-Kotlin OTA delta updates
-- Site favorites import and synchronization for supported services
+  *(通过外部 classloader 实现的零开销动态 UI 插件)*
+- Fast pure-Kotlin OTA delta updates (bspatch) 
+  *(纯 Kotlin 实现的快速 OTA 增量更新)*
+- Site favorites import and synchronization for supported services 
+  *(站点收藏导入与同步)*
+- Built-in browser with Cloudflare challenge bypass 
+  *(内置浏览器，支持 Cloudflare 验证绕过)*
+- Reading statistics, quick-access widget, and Telegram backup bot 
+  *(阅读统计、快捷桌面挂件、Telegram 备份机器人)*
 
 ## Start Here / 开始使用
 
@@ -82,7 +93,7 @@ The developer(s) of this open-source application does not have any affiliation w
 ## License
 
 ```text
-Copyright © 2024 Kototoro Open Source Project
+Copyright © 2024-2026 Kototoro Open Source Project
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
