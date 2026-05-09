@@ -7,9 +7,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
@@ -161,14 +161,13 @@ fun KototoroPullToRefreshBox(
         state = state,
         contentAlignment = contentAlignment,
         indicator = {
-            if (deferredRefreshing) {
-                CircularProgressIndicator(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .offset(y = indicatorTopInset.calculateTopPadding() + 12.dp),
-                    strokeWidth = 2.5.dp,
-                )
-            }
+            PullToRefreshDefaults.Indicator(
+                state = state,
+                isRefreshing = deferredRefreshing,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = indicatorTopInset.calculateTopPadding()),
+            )
         },
         content = content,
     )
