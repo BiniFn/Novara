@@ -490,13 +490,24 @@ class UnifiedSourcesViewModel @Inject constructor(
 	}
 
 	fun setSourceEnabled(sourceId: String, enabled: Boolean) {
-		val source = (uiState.value as? UnifiedSourcesUiState.Ready)
-			?.allSources
-			?.firstOrNull { it.id == sourceId }
-			?.source
-			?: return
+		setSourcesEnabled(setOf(sourceId), enabled)
+	}
+
+	fun setSourcesEnabled(sourceIds: Set<String>, enabled: Boolean) {
+		if (sourceIds.isEmpty()) {
+			return
+		}
+		val ready = uiState.value as? UnifiedSourcesUiState.Ready ?: return
+		val sourceItems = ready.allSources.filter { it.id in sourceIds }
+		if (sourceItems.isEmpty()) {
+			return
+		}
 		viewModelScope.launch(Dispatchers.Default) {
-			contentSourcesRepository.setSourcesEnabled(setOf(source), enabled)
+			if (!enabled && settings.isAllSourcesEnabled) {
+				contentSourcesRepository.setSourcesEnabled(ready.allSources.map { it.source }, true)
+				settings.isAllSourcesEnabled = false
+			}
+			contentSourcesRepository.setSourcesEnabled(sourceItems.map { it.source }, enabled)
 		}
 	}
 
@@ -1078,7 +1089,7 @@ sealed interface UnifiedSourcesUiState {
 	) : UnifiedSourcesUiState
 }
 
-private fun <T> Set<T>.toggle(value: T): Set<T> {
+internal fun <T> Set<T>.toggle(value: T): Set<T> {
 	return if (value in this) this - value else this + value
 }
 

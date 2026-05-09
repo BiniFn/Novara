@@ -3,8 +3,10 @@ package org.skepsun.kototoro.settings.sources.unified
 import android.content.Intent
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +31,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
@@ -39,6 +43,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
@@ -61,9 +66,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -94,11 +99,17 @@ import org.skepsun.kototoro.settings.sources.extensions.formatExtensionFingerpri
 import org.skepsun.kototoro.settings.sources.extensions.normalizeExtensionLanguageCode
 import org.skepsun.kototoro.settings.sources.extensions.toInstalledIReaderPackageName
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 private enum class UnifiedToolbarFilterPanel {
 	LANGUAGE,
 	MORE,
 }
+
+private const val UNIFIED_SOURCES_TAB_SOURCES = 0
+private const val UNIFIED_SOURCES_TAB_REPOSITORIES = 1
+private const val UNIFIED_SOURCES_TAB_PACKAGES = 2
+private const val UNIFIED_SOURCES_TAB_COUNT = 3
 
 private sealed interface UnifiedSourcesDialogState {
 	data object AddRepositoryKind : UnifiedSourcesDialogState
@@ -164,6 +175,8 @@ fun UnifiedSourcesRoute(
 	var searchActive by rememberSaveable { mutableStateOf(false) }
 	var initialRepositoryHandled by rememberSaveable { mutableStateOf(false) }
 	var activePanel by rememberSaveable { mutableStateOf<UnifiedToolbarFilterPanel?>(null) }
+	var selectedSourceIdList by rememberSaveable { mutableStateOf(emptyList<String>()) }
+	val selectedSourceIds = remember(selectedSourceIdList) { selectedSourceIdList.toSet() }
 
 	fun proceedThirdPartyAction(action: UnifiedThirdPartyAction) {
 		when (action) {
@@ -228,6 +241,23 @@ fun UnifiedSourcesRoute(
 		onLanguageFilterClick = { activePanel = UnifiedToolbarFilterPanel.LANGUAGE },
 		onMoreFiltersClick = { activePanel = UnifiedToolbarFilterPanel.MORE },
 		onSourceEnabledChange = viewModel::setSourceEnabled,
+		selectedSourceIds = selectedSourceIds,
+		onSourceSelectionChange = { selectedSourceIdList = it.toList() },
+		onSelectAllVisibleSources = {
+			selectedSourceIdList = (state as? UnifiedSourcesUiState.Ready)
+				?.sources
+				.orEmpty()
+				.map { it.id }
+		},
+		onClearSourceSelection = { selectedSourceIdList = emptyList() },
+		onEnableSelectedSources = {
+			viewModel.setSourcesEnabled(selectedSourceIds, true)
+			selectedSourceIdList = emptyList()
+		},
+		onDisableSelectedSources = {
+			viewModel.setSourcesEnabled(selectedSourceIds, false)
+			selectedSourceIdList = emptyList()
+		},
 		onSourcePinnedChange = viewModel::setSourcePinned,
 		onBrowseSource = onBrowseSource,
 		onOpenSourceSettings = onOpenSourceSettings,
@@ -878,6 +908,12 @@ fun UnifiedSourcesScreen(
 	onKindClick: (UnifiedSourceKind?) -> Unit,
 	onContentTypeClick: (ContentType?) -> Unit,
 	onSourceEnabledChange: (String, Boolean) -> Unit,
+	selectedSourceIds: Set<String>,
+	onSourceSelectionChange: (Set<String>) -> Unit,
+	onSelectAllVisibleSources: () -> Unit,
+	onClearSourceSelection: () -> Unit,
+	onEnableSelectedSources: () -> Unit,
+	onDisableSelectedSources: () -> Unit,
 	onSourcePinnedChange: (String, Boolean) -> Unit,
 	onBrowseSource: (UnifiedSourceItem) -> Unit,
 	onOpenSourceSettings: (UnifiedSourceItem) -> Unit,
@@ -894,7 +930,28 @@ fun UnifiedSourcesScreen(
 	modifier: Modifier = Modifier,
 ) {
 	val readyState = state as? UnifiedSourcesUiState.Ready
-	var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+	val pagerState = rememberPagerState(pageCount = { UNIFIED_SOURCES_TAB_COUNT })
+	val coroutineScope = rememberCoroutineScope()
+	val selectedTab = pagerState.currentPage.coerceIn(0, UNIFIED_SOURCES_TAB_COUNT - 1)
+	val activeSelectedSourceIds = remember(readyState?.sources, selectedSourceIds) {
+		val visibleSourceIds = readyState?.sources.orEmpty().mapTo(LinkedHashSet()) { it.id }
+		selectedSourceIds intersect visibleSourceIds
+	}
+	LaunchedEffect(activeSelectedSourceIds) {
+		if (selectedSourceIds != activeSelectedSourceIds) {
+			onSourceSelectionChange(activeSelectedSourceIds)
+		}
+	}
+	LaunchedEffect(selectedTab) {
+		if (selectedTab != UNIFIED_SOURCES_TAB_SOURCES && selectedSourceIds.isNotEmpty()) {
+			onClearSourceSelection()
+		}
+	}
+	BackHandler(
+		enabled = selectedTab == UNIFIED_SOURCES_TAB_SOURCES && selectedSourceIds.isNotEmpty(),
+	) {
+		onClearSourceSelection()
+	}
 	Scaffold(
 		modifier = modifier,
 		contentWindowInsets = WindowInsets.navigationBars,
@@ -984,19 +1041,43 @@ fun UnifiedSourcesScreen(
 				) {
 					TabRow(selectedTabIndex = selectedTab) {
 						Tab(
-							selected = selectedTab == 0,
-							onClick = { selectedTab = 0 },
+							selected = selectedTab == UNIFIED_SOURCES_TAB_SOURCES,
+							onClick = {
+								coroutineScope.launch {
+									pagerState.animateScrollToPage(UNIFIED_SOURCES_TAB_SOURCES)
+								}
+							},
 							text = { Text(stringResource(R.string.sources_tab_title, state.sources.size)) },
 						)
 						Tab(
-							selected = selectedTab == 1,
-							onClick = { selectedTab = 1 },
+							selected = selectedTab == UNIFIED_SOURCES_TAB_REPOSITORIES,
+							onClick = {
+								onClearSourceSelection()
+								coroutineScope.launch {
+									pagerState.animateScrollToPage(UNIFIED_SOURCES_TAB_REPOSITORIES)
+								}
+							},
 							text = { Text(stringResource(R.string.repositories_tab_title, state.repositories.size)) },
 						)
 						Tab(
-							selected = selectedTab == 2,
-							onClick = { selectedTab = 2 },
+							selected = selectedTab == UNIFIED_SOURCES_TAB_PACKAGES,
+							onClick = {
+								onClearSourceSelection()
+								coroutineScope.launch {
+									pagerState.animateScrollToPage(UNIFIED_SOURCES_TAB_PACKAGES)
+								}
+							},
 							text = { Text(stringResource(R.string.packages_tab_title, state.packages.size)) },
+						)
+					}
+					if (selectedTab == UNIFIED_SOURCES_TAB_SOURCES && activeSelectedSourceIds.isNotEmpty()) {
+						UnifiedSourceSelectionBar(
+							selectedCount = activeSelectedSourceIds.size,
+							allVisibleSelected = activeSelectedSourceIds.size == state.sources.size,
+							onSelectAllVisibleSources = onSelectAllVisibleSources,
+							onClearSelection = onClearSourceSelection,
+							onEnableSelectedSources = onEnableSelectedSources,
+							onDisableSelectedSources = onDisableSelectedSources,
 						)
 					}
 					KototoroPullToRefreshBox(
@@ -1006,34 +1087,41 @@ fun UnifiedSourcesScreen(
 							.fillMaxWidth()
 							.weight(1f),
 					) {
-						when (selectedTab) {
-							0 -> UnifiedSourceList(
-								modifier = Modifier.fillMaxSize(),
-								sources = state.sources,
-								onBrowseSource = onBrowseSource,
-								onOpenSourceSettings = onOpenSourceSettings,
-								onSourceEnabledChange = onSourceEnabledChange,
-								onSourcePinnedChange = onSourcePinnedChange,
-							)
-							1 -> UnifiedRepositoryList(
-								modifier = Modifier.fillMaxSize(),
-								repositories = state.repositories,
-								onAddRepository = onAddRepository,
-								onRefreshRepository = onRefreshRepository,
-								onDeleteRepository = onDeleteRepository,
-							)
-							else -> UnifiedPackageList(
-								modifier = Modifier.fillMaxSize(),
-								packages = state.packages,
-								updateAllInProgress = updateAllInProgress,
-								onRefreshPackages = onRefreshPackages,
-						onUpdateAllPackages = onUpdateAllPackages,
-						onPackagePrimaryAction = onPackagePrimaryAction,
-						onPackageUninstall = onPackageUninstall,
-						onPackageCancelInstall = onPackageCancelInstall,
-						onImportLocalJar = onImportLocalJar,
-					)
-				}
+						HorizontalPager(
+							state = pagerState,
+							modifier = Modifier.fillMaxSize(),
+						) { page ->
+							when (page) {
+								UNIFIED_SOURCES_TAB_SOURCES -> UnifiedSourceList(
+									modifier = Modifier.fillMaxSize(),
+									sources = state.sources,
+									onBrowseSource = onBrowseSource,
+									onOpenSourceSettings = onOpenSourceSettings,
+									onSourceEnabledChange = onSourceEnabledChange,
+									selectedSourceIds = activeSelectedSourceIds,
+									onSourceSelectionChange = onSourceSelectionChange,
+									onSourcePinnedChange = onSourcePinnedChange,
+								)
+								UNIFIED_SOURCES_TAB_REPOSITORIES -> UnifiedRepositoryList(
+									modifier = Modifier.fillMaxSize(),
+									repositories = state.repositories,
+									onAddRepository = onAddRepository,
+									onRefreshRepository = onRefreshRepository,
+									onDeleteRepository = onDeleteRepository,
+								)
+								UNIFIED_SOURCES_TAB_PACKAGES -> UnifiedPackageList(
+									modifier = Modifier.fillMaxSize(),
+									packages = state.packages,
+									updateAllInProgress = updateAllInProgress,
+									onRefreshPackages = onRefreshPackages,
+									onUpdateAllPackages = onUpdateAllPackages,
+									onPackagePrimaryAction = onPackagePrimaryAction,
+									onPackageUninstall = onPackageUninstall,
+									onPackageCancelInstall = onPackageCancelInstall,
+									onImportLocalJar = onImportLocalJar,
+								)
+							}
+						}
 					}
 				}
 			}
@@ -1134,12 +1222,73 @@ private fun CompactFilterChip(
 }
 
 @Composable
+private fun UnifiedSourceSelectionBar(
+	selectedCount: Int,
+	allVisibleSelected: Boolean,
+	onSelectAllVisibleSources: () -> Unit,
+	onClearSelection: () -> Unit,
+	onEnableSelectedSources: () -> Unit,
+	onDisableSelectedSources: () -> Unit,
+) {
+	LazyRow(
+		modifier = Modifier
+			.fillMaxWidth()
+			.background(MaterialTheme.colorScheme.surface)
+			.padding(horizontal = 12.dp, vertical = 6.dp),
+		horizontalArrangement = Arrangement.spacedBy(8.dp),
+		verticalAlignment = Alignment.CenterVertically,
+	) {
+		item(key = "selected_count") {
+			Text(
+				text = stringResource(R.string.selected_count, selectedCount),
+				style = MaterialTheme.typography.labelMedium,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
+			)
+		}
+		item(key = "select_all") {
+			CompactActionChip(
+				onClick = if (allVisibleSelected) onClearSelection else onSelectAllVisibleSources,
+				label = {
+					Text(stringResource(if (allVisibleSelected) R.string.deselect_all else R.string.select_all))
+				},
+			)
+		}
+		item(key = "enable_selected") {
+			CompactActionChip(
+				onClick = onEnableSelectedSources,
+				label = { Text(stringResource(R.string.enable_selected)) },
+			)
+		}
+		item(key = "disable_selected") {
+			CompactActionChip(
+				onClick = onDisableSelectedSources,
+				label = { Text(stringResource(R.string.disable_selected)) },
+			)
+		}
+		item(key = "clear_selection") {
+			IconButton(
+				onClick = onClearSelection,
+				modifier = Modifier.size(36.dp),
+			) {
+				Icon(
+					imageVector = Icons.Filled.Close,
+					contentDescription = stringResource(android.R.string.cancel),
+					modifier = Modifier.size(18.dp),
+				)
+			}
+		}
+	}
+}
+
+@Composable
 private fun UnifiedSourceList(
 	modifier: Modifier = Modifier,
 	sources: List<UnifiedSourceItem>,
 	onBrowseSource: (UnifiedSourceItem) -> Unit,
 	onOpenSourceSettings: (UnifiedSourceItem) -> Unit,
 	onSourceEnabledChange: (String, Boolean) -> Unit,
+	selectedSourceIds: Set<String>,
+	onSourceSelectionChange: (Set<String>) -> Unit,
 	onSourcePinnedChange: (String, Boolean) -> Unit,
 ) {
     val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
@@ -1148,8 +1297,14 @@ private fun UnifiedSourceList(
 		contentPadding = PaddingValues(vertical = 4.dp),
 	) {
 		items(sources, key = { it.id }) { item ->
+			val isSelected = item.id in selectedSourceIds
 			UnifiedSourceRow(
 				item = item,
+				isSelectionMode = selectedSourceIds.isNotEmpty(),
+				isSelected = isSelected,
+				onSelectionToggle = {
+					onSourceSelectionChange(selectedSourceIds.toggle(item.id))
+				},
 				onBrowseSource = onBrowseSource,
 				onOpenSourceSettings = onOpenSourceSettings,
 				onSourceEnabledChange = onSourceEnabledChange,
@@ -1160,9 +1315,13 @@ private fun UnifiedSourceList(
 	}
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun UnifiedSourceRow(
 	item: UnifiedSourceItem,
+	isSelectionMode: Boolean,
+	isSelected: Boolean,
+	onSelectionToggle: () -> Unit,
 	onBrowseSource: (UnifiedSourceItem) -> Unit,
 	onOpenSourceSettings: (UnifiedSourceItem) -> Unit,
 	onSourceEnabledChange: (String, Boolean) -> Unit,
@@ -1174,15 +1333,32 @@ private fun UnifiedSourceRow(
 		modifier = Modifier
 			.fillMaxWidth()
 			.background(MaterialTheme.colorScheme.background)
-			.clickable { onBrowseSource(item) }
+			.combinedClickable(
+				onClick = {
+					if (isSelectionMode) {
+						onSelectionToggle()
+					} else {
+						onBrowseSource(item)
+					}
+				},
+				onLongClick = onSelectionToggle,
+			)
 			.padding(start = 16.dp, top = 8.dp, end = 8.dp, bottom = 8.dp),
 		verticalAlignment = Alignment.CenterVertically,
 	) {
-		ContentSourceIcon(
-			source = item.source,
-			modifier = Modifier.size(32.dp),
-			contentDescription = item.title,
-		)
+		if (isSelectionMode) {
+			Checkbox(
+				checked = isSelected,
+				onCheckedChange = { onSelectionToggle() },
+				modifier = Modifier.size(32.dp),
+			)
+		} else {
+			ContentSourceIcon(
+				source = item.source,
+				modifier = Modifier.size(32.dp),
+				contentDescription = item.title,
+			)
+		}
 		Spacer(modifier = Modifier.width(16.dp))
 		Column(
 			modifier = Modifier.weight(1f),

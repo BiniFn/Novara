@@ -26,7 +26,6 @@ data class SourcesSettingsUiState(
     val isSourcesGridMode: Boolean,
     val isSourcesGroupedByLanguage: Boolean,
     val jarPriorityOrder: String,
-    val isAllSourcesEnabled: Boolean,
     val isShowBrokenSources: Boolean,
     val isNsfwContentDisabled: Boolean,
     val isHistoryExcludeNsfw: Boolean,
@@ -54,7 +53,6 @@ fun SourcesSettingsScreen(
     onSourcesGroupedByLanguageChange: (Boolean) -> Unit,
     onSetupWizardClick: () -> Unit,
     onJarPriorityOrderChange: (String) -> Unit,
-    onAllSourcesEnabledChange: (Boolean) -> Unit,
     onShowBrokenSourcesChange: (Boolean) -> Unit,
     onNsfwContentDisabledChange: (Boolean) -> Unit,
     onHistoryExcludeNsfwChange: (Boolean) -> Unit,
@@ -121,13 +119,6 @@ fun SourcesSettingsScreen(
                         value = state.jarPriorityOrder,
                         summary = stringResource(R.string.jar_priority_order_summary),
                         onValueChange = onJarPriorityOrderChange,
-                    )
-                    SettingsSectionDivider()
-                    SettingsSwitchPreference(
-                        title = stringResource(R.string.enable_all_sources),
-                        checked = state.isAllSourcesEnabled,
-                        summary = stringResource(R.string.enable_all_sources_summary),
-                        onCheckedChange = onAllSourcesEnabledChange,
                     )
                     SettingsSectionDivider()
                     SettingsSwitchPreference(

@@ -193,7 +193,6 @@ class SettingsSearchHelper @Inject constructor(
 			"json_sources" to R.string.json_sources_directory,
 			"extensions" to R.string.extensions,
 			"jar_priority_order" to R.string.jar_priority_order_title,
-			"sources_enabled_all" to R.string.enable_all_sources,
 			"show_broken_sources" to R.string.show_broken_sources,
 			"no_nsfw" to R.string.disable_nsfw,
 			"history_exclude_nsfw" to R.string.disable_history_nsfw,

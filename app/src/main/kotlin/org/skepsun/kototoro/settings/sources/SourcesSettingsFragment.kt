@@ -79,8 +79,6 @@ fun SourcesSettingsRoute(
     val isSourcesGroupedByLanguage =
         settings.observeAsState(AppSettings.KEY_SOURCES_GROUPED_BY_LANGUAGE) { isSourcesGroupedByLanguage }.value
     val jarPriorityOrder = settings.observeAsState(AppSettings.KEY_JAR_PRIORITY_ORDER) { jarPriorityOrder }.value
-    val isAllSourcesEnabled =
-        settings.observeAsState(AppSettings.KEY_SOURCES_ENABLED_ALL) { isAllSourcesEnabled }.value
     val isShowBrokenSources =
         settings.observeAsState(AppSettings.KEY_SHOW_BROKEN_SOURCES) { isShowBrokenSources }.value
     val isNsfwContentDisabled =
@@ -117,7 +115,6 @@ fun SourcesSettingsRoute(
         isSourcesGridMode = isSourcesGridMode,
         isSourcesGroupedByLanguage = isSourcesGroupedByLanguage,
         jarPriorityOrder = jarPriorityOrder,
-        isAllSourcesEnabled = isAllSourcesEnabled,
         isShowBrokenSources = isShowBrokenSources,
         isNsfwContentDisabled = isNsfwContentDisabled,
         isHistoryExcludeNsfw = isHistoryExcludeNsfw,
@@ -144,7 +141,6 @@ fun SourcesSettingsRoute(
         onSourcesGroupedByLanguageChange = { settings.isSourcesGroupedByLanguage = it },
         onSetupWizardClick = onSetupWizardClick,
         onJarPriorityOrderChange = { settings.jarPriorityOrder = it },
-        onAllSourcesEnabledChange = { settings.isAllSourcesEnabled = it },
         onShowBrokenSourcesChange = { settings.isShowBrokenSources = it },
         onNsfwContentDisabledChange = { settings.isNsfwContentDisabled = it },
         onHistoryExcludeNsfwChange = { settings.isHistoryExcludeNsfw = it },
