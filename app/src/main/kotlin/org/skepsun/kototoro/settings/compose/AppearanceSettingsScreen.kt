@@ -30,6 +30,7 @@ data class AppearanceSettingsUiState(
     val colorScheme: ColorScheme,
     val theme: Int,
     val isAmoledTheme: Boolean,
+    val isGlassEffectEnabled: Boolean,
     val hazeOpacityPercent: Int,
     val tabletUiMode: TabletUiMode,
     val appLocale: String,
@@ -109,6 +110,7 @@ fun AppearanceSettingsScreen(
     onColorSchemeChange: (ColorScheme) -> Unit,
     onThemeChange: (Int) -> Unit,
     onAmoledThemeChange: (Boolean) -> Unit,
+    onGlassEffectEnabledChange: (Boolean) -> Unit,
     onHazeOpacityChange: (Int) -> Unit,
     onTabletUiModeChange: (TabletUiMode) -> Unit,
     onAppLocaleChange: (String) -> Unit,
@@ -197,11 +199,19 @@ fun AppearanceSettingsScreen(
                     onCheckedChange = onAmoledThemeChange,
                 )
                 SettingsSectionDivider()
+                SettingsSwitchPreference(
+                    title = stringResource(R.string.pref_glass_effect),
+                    checked = state.isGlassEffectEnabled,
+                    summary = stringResource(R.string.pref_glass_effect_summary),
+                    onCheckedChange = onGlassEffectEnabledChange,
+                )
+                SettingsSectionDivider()
                 SettingsSliderPreference(
                     title = stringResource(R.string.pref_haze_opacity),
                     value = state.hazeOpacityPercent,
                     valueRange = 0..100,
                     step = 5,
+                    summary = stringResource(R.string.pref_haze_opacity_summary),
                     valueText = { "$it%" },
                     onValueChange = onHazeOpacityChange,
                 )

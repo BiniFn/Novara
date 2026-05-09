@@ -760,6 +760,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getSafeInt(KEY_HAZE_OPACITY, 82).coerceIn(0, 100)
 		set(value) = prefs.edit { putInt(KEY_HAZE_OPACITY, value.coerceIn(0, 100)) }
 
+	var isGlassEffectEnabled: Boolean
+		get() = prefs.getBoolean(KEY_GLASS_EFFECT_ENABLED, true)
+		set(value) = prefs.edit { putBoolean(KEY_GLASS_EFFECT_ENABLED, value) }
+
 	var incognitoModeForNsfw: TriStateOption
 		get() = prefs.getEnumValue(KEY_INCOGNITO_NSFW, TriStateOption.ASK)
 		set(value) = prefs.edit { putEnumValue(KEY_INCOGNITO_NSFW, value) }
@@ -1620,6 +1624,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 			putInt(KEY_BROWSE_PANORAMA_BLEND_HEIGHT, browsePanoramaBlendHeight)
 			putString(KEY_POPUP_RADIUS, popupRadius.toString())
 			putInt(KEY_HAZE_OPACITY, hazeOpacityPercent)
+			putBoolean(KEY_GLASS_EFFECT_ENABLED, isGlassEffectEnabled)
 			putStringSet(KEY_SEARCH_SUGGESTION_TYPES, sanitizedSearchSuggestionTypes.mapToSet { it.name })
 			putStringSet(KEY_MANGA_LIST_BADGES, sanitizedBadges)
 			putString(KEY_SELECTED_GROUP_TAB, sanitizedSelectedGroupTab)
@@ -2058,6 +2063,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_LOADING_CIRCLE_STYLE = "loading_circle_style"
 		const val KEY_POPUP_RADIUS = "popup_radius"
 		const val KEY_HAZE_OPACITY = "haze_opacity"
+		const val KEY_GLASS_EFFECT_ENABLED = "glass_effect_enabled"
 		const val KEY_MAIN_FAB = "main_fab"
 		const val KEY_32BIT_COLOR = "enhanced_colors"
 		const val KEY_SOURCES_ORDER = "sources_sort_order"

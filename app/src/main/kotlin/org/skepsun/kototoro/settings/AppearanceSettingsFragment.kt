@@ -149,6 +149,8 @@ private class AppearanceSettingsCoordinator(
         val colorScheme = settings.observeAsState(AppSettings.KEY_COLOR_THEME) { colorScheme }.value
         val theme = settings.observeAsState(AppSettings.KEY_THEME) { theme }.value
         val isAmoledTheme = settings.observeAsState(AppSettings.KEY_THEME_AMOLED) { isAmoledTheme }.value
+        val isGlassEffectEnabled =
+            settings.observeAsState(AppSettings.KEY_GLASS_EFFECT_ENABLED) { isGlassEffectEnabled }.value
         val hazeOpacityPercent = settings.observeAsState(AppSettings.KEY_HAZE_OPACITY) { hazeOpacityPercent }.value
         val tabletUiMode = settings.observeAsState(AppSettings.KEY_TABLET_UI_MODE) { tabletUiMode }.value
         val appLocale = settings.observeAsState(AppSettings.KEY_APP_LOCALE) { appLocales.toLanguageTags() }.value
@@ -252,6 +254,7 @@ private class AppearanceSettingsCoordinator(
             colorScheme = colorScheme,
             theme = theme,
             isAmoledTheme = isAmoledTheme,
+            isGlassEffectEnabled = isGlassEffectEnabled,
             hazeOpacityPercent = hazeOpacityPercent,
             tabletUiMode = tabletUiMode,
             appLocale = appLocale,
@@ -310,6 +313,7 @@ private class AppearanceSettingsCoordinator(
             onColorSchemeChange = { updateAndRestart(coroutineScope) { settings.colorScheme = it } },
             onThemeChange = ::updateTheme,
             onAmoledThemeChange = { updateAndRestart(coroutineScope) { settings.isAmoledTheme = it } },
+            onGlassEffectEnabledChange = { settings.isGlassEffectEnabled = it },
             onHazeOpacityChange = { settings.hazeOpacityPercent = it },
             onTabletUiModeChange = { settings.tabletUiMode = it },
             onAppLocaleChange = ::updateAppLocale,

@@ -2504,7 +2504,10 @@
 
     <string name="pref_blur_mode">Glass blur style</string>
     <string name="pref_blur_mode_summary">Adjust the blur strength of Haze-backed glass surfaces in Compose UI</string>
-    <string name="pref_haze_opacity">Glass opacity</string>
+    <string name="pref_glass_effect">Frosted-glass blur</string>
+    <string name="pref_glass_effect_summary">Blur content behind supported Compose surfaces</string>
+    <string name="pref_haze_opacity">Glass surface opacity</string>
+    <string name="pref_haze_opacity_summary">Controls the opacity of glass-styled surfaces, even when blur is off</string>
     <string name="blur_mode_standard">Subtle</string>
     <string name="blur_mode_immersive">Balanced (Recommended)</string>
     <string name="blur_mode_enhanced">Strong</string>

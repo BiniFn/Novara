@@ -30,9 +30,11 @@ import dev.chrisbanes.haze.hazeChild
 @Composable
 fun rememberGlassPrefs(settings: AppSettings): GlassPrefs {
     val prefs by settings.observeAsState(
+        AppSettings.KEY_GLASS_EFFECT_ENABLED,
         AppSettings.KEY_HAZE_OPACITY,
     ) {
         GlassPrefs(
+            isGlassEffectEnabled = isGlassEffectEnabled,
             hazeOpacityPercent = hazeOpacityPercent,
         )
     }
@@ -115,7 +117,7 @@ fun GlassSurface(
         )
     }
 
-    val useRuntimeHaze = allowRuntimeHaze && supportsRuntimeHaze()
+    val useRuntimeHaze = glassPrefs.isGlassEffectEnabled && allowRuntimeHaze && supportsRuntimeHaze()
     val hazeStyle = HazeBlurDefaults.style(
         Color.Transparent,
         HazeBlurDefaults.tint(glassColors.baseTintColor),
@@ -193,11 +195,7 @@ private fun computeGlassColors(
     style: GlassStyle,
     colorScheme: androidx.compose.material3.ColorScheme,
 ): GlassColors {
-    val opacityFactor = (hazeOpacityPercent.coerceIn(0, 100)) / 100f
-    val effectiveContainerAlpha = (style.containerAlpha * opacityFactor)
-        .let { alpha ->
-            if (isDarkTheme) (alpha - 0.04f).coerceAtLeast(0.0f) else alpha
-        }
+    val effectiveContainerAlpha = (hazeOpacityPercent.coerceIn(0, 100)) / 100f
     val baseColor = when {
         effectiveContainerAlpha >= 0.86f -> colorScheme.surfaceContainerHigh
         effectiveContainerAlpha >= 0.80f -> colorScheme.surfaceContainer

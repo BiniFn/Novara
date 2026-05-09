@@ -189,9 +189,9 @@ fun DiscoverHeroCarousel(
 
     val panoramaGradientAlphaFactor = (panoramaPrefs.bottomGradientAlphaPercent / 100f).coerceIn(0f, 1f)
     val panoramaAnimationSpeedFactor = (panoramaPrefs.animationSpeedPercent.coerceIn(50, 200)) / 100f
-    val scaleAnimationDuration = (14000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(4000)
-    val horizontalPanAnimationDuration = (16000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(4500)
-    val verticalPanAnimationDuration = (12000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(3500)
+    val scaleAnimationDuration = (7000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(2000)
+    val horizontalPanAnimationDuration = (8000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(2250)
+    val verticalPanAnimationDuration = (6000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(1750)
     val pagerState = rememberPagerState(pageCount = { items.size })
     val selectedIndex by remember(items, pagerState) {
         derivedStateOf { pagerState.currentPage.coerceIn(0, items.lastIndex) }

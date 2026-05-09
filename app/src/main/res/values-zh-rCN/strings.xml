@@ -2034,7 +2034,10 @@
 
     <string name="pref_blur_mode">Haze 玻璃模糊风格</string>
     <string name="pref_blur_mode_summary">调整 Compose 界面里 Haze 玻璃容器的模糊强度</string>
-    <string name="pref_haze_opacity">Haze 玻璃不透明度</string>
+    <string name="pref_glass_effect">毛玻璃模糊</string>
+    <string name="pref_glass_effect_summary">模糊支持的 Compose 容器背后的内容</string>
+    <string name="pref_haze_opacity">玻璃容器不透明度</string>
+    <string name="pref_haze_opacity_summary">控制玻璃风格容器的不透明度，关闭模糊后依然生效</string>
     <string name="blur_mode_standard">轻度</string>
     <string name="blur_mode_immersive">平衡（推荐）</string>
     <string name="blur_mode_enhanced">强化</string>

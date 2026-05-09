@@ -80,9 +80,9 @@ fun AnimatedPanoramaBackdrop(
 
     val panoramaGradientAlphaFactor = (prefs.bottomGradientAlphaPercent / 100f).coerceIn(0f, 1f)
     val panoramaAnimationSpeedFactor = (prefs.animationSpeedPercent.coerceIn(50, 200)) / 100f
-    val scaleAnimationDuration = (14000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(4000)
-    val horizontalPanAnimationDuration = (16000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(4500)
-    val verticalPanAnimationDuration = (12000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(3500)
+    val scaleAnimationDuration = (7000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(2000)
+    val horizontalPanAnimationDuration = (8000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(2250)
+    val verticalPanAnimationDuration = (6000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(1750)
 
     val infiniteTransition = if (prefs.isAnimationEnabled) {
         rememberInfiniteTransition(label = "details_panorama_background")
