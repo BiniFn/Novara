@@ -8,10 +8,12 @@ import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
+import org.skepsun.kototoro.mihon.compat.KotoNetworkHelper
 import okhttp3.Headers
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.skepsun.kototoro.parsers.model.ContentSource
 import rx.Observable
 import uy.kohesive.injekt.injectLazy
@@ -107,7 +109,19 @@ abstract class HttpSource : CatalogueSource {
             try {
                 Observable.fromCallable {
                     val response = client.newCall(tagRequest(searchMangaRequest(page, query, filters))).execute()
-                    searchMangaParse(response)
+                    val responseBody = response.body.string()
+                    val contentType = response.body.contentType()
+                    val parseResponse = response.newBuilder()
+                        .body(responseBody.toResponseBody(contentType))
+                        .build()
+                    runCatching {
+                        searchMangaParse(parseResponse)
+                    }.getOrElse { error ->
+                        val fallbackResponse = response.newBuilder()
+                            .body(responseBody.toResponseBody(contentType))
+                            .build()
+                        parseSearchRedirectedToDetails(fallbackResponse, error)
+                    }
                 }
             } catch (e: NoClassDefFoundError) {
                 throw RuntimeException(e)
@@ -122,6 +136,28 @@ abstract class HttpSource : CatalogueSource {
     ): Request
 
     protected abstract fun searchMangaParse(response: Response): MangasPage
+
+    private fun parseSearchRedirectedToDetails(response: Response, error: Throwable): MangasPage {
+        val finalUrl = response.header(KotoNetworkHelper.WEBVIEW_FINAL_URL_HEADER)
+            ?: response.request.url.toString()
+        val finalPath = runCatching { URI(finalUrl.replace(" ", "%20")).path.orEmpty() }.getOrDefault("")
+        if (!response.request.url.encodedPath.startsWith("/search/") || !finalPath.startsWith("/detail/")) {
+            throw error
+        }
+        val manga = try {
+            mangaDetailsParse(response).apply {
+                setUrlWithoutDomain(finalUrl)
+                initialized = true
+            }
+        } catch (_: Throwable) {
+            SManga.create().apply {
+                setUrlWithoutDomain(finalUrl)
+                title = finalPath.substringAfterLast('/').substringBefore('.').ifBlank { finalUrl }
+                initialized = true
+            }
+        }
+        return MangasPage(listOf(manga), hasNextPage = false)
+    }
 
     // ======== Latest updates ========
 

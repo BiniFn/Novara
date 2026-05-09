@@ -93,6 +93,7 @@ class KotoNetworkHelper(
             val request = enrichApiRequestHeadersIfNeeded(originalRequest)
             val response = chain.proceed(request)
             val challengeUrl = request.toChallengeUrl()
+            val successCookieUrl = request.toSuccessCookieUrl()
             when (CloudFlareHelper.checkResponseForProtection(response)) {
                 CloudFlareHelper.PROTECTION_BLOCKED -> response.closeThrowing(
                     CloudFlareBlockedException(
@@ -166,7 +167,7 @@ class KotoNetworkHelper(
                                     source = source,
                                     url = challengeUrl,
                                     userAgent = request.header("User-Agent"),
-                                    successCookieUrl = challengeUrl,
+                                    successCookieUrl = successCookieUrl,
                                     successCookieName = "cf_clearance",
                                 ),
                             )
@@ -236,14 +237,14 @@ class KotoNetworkHelper(
     }
 
     private fun okhttp3.Request.toChallengeUrl(): String {
-        val referer = header("Referer")?.toHttpUrlOrNull()
-        if (referer != null && referer.host == url.host) {
-            return referer.newBuilder()
-                .query(null)
-                .fragment(null)
-                .build()
-                .toString()
-        }
+        return url.newBuilder()
+            .query(null)
+            .fragment(null)
+            .build()
+            .toString()
+    }
+
+    private fun okhttp3.Request.toSuccessCookieUrl(): String {
         return url.newBuilder()
             .encodedPath("/")
             .query(null)
@@ -375,6 +376,9 @@ class KotoNetworkHelper(
                 runCatching { headersBuilder.add(k, v) }
             }
         }
+        if (result.url.isNotBlank()) {
+            headersBuilder.set(WEBVIEW_FINAL_URL_HEADER, result.url)
+        }
 
         return Response.Builder()
             .request(request)
@@ -413,6 +417,7 @@ class KotoNetworkHelper(
     )
 
     companion object {
+        const val WEBVIEW_FINAL_URL_HEADER = "X-Kototoro-WebView-Final-Url"
         private const val INTERACTIVE_RETRY_WINDOW_MS = 10 * 60 * 1000L
         private val recentChallengeAttempts = ConcurrentHashMap<String, ChallengeAttempt>()
     }

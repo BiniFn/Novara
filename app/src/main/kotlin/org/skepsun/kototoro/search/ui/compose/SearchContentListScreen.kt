@@ -3,7 +3,6 @@ package org.skepsun.kototoro.search.ui.compose
 import android.content.res.Configuration
 import androidx.core.text.HtmlCompat
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -98,9 +97,9 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
-import org.skepsun.kototoro.browser.cloudflare.CloudFlareActivity
-import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
+import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
 import org.skepsun.kototoro.core.model.titleResId
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.nav.AppRouter
@@ -200,11 +199,9 @@ fun AppSearchContentListRoute(
     val quickFilter = preparedItems.quickFilter
     val contentItems = preparedItems.contentItems
     val contentListItems = preparedItems.contentListItems
-    val cloudflareLauncher = rememberLauncherForActivityResult(CloudFlareActivity.Contract()) { resolved ->
-        if (resolved) {
-            viewModel.onRetry()
-        }
-    }
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+    val exceptionResolver = (context as? org.skepsun.kototoro.core.ui.BaseComposeActivity)?.exceptionResolver
+        ?: (context as? org.skepsun.kototoro.core.ui.BaseActivity<*>)?.exceptionResolver
 
     var searchMode by rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf(filterSnapshot.listFilter.query.orEmpty()) }
@@ -293,13 +290,17 @@ fun AppSearchContentListRoute(
         }
     }
 
-    fun resolveCloudflareAndRetry() {
-        val cfError = items
+    fun resolveErrorAndRetry() {
+        val error = items
             .filterIsInstance<ErrorState>()
-            .firstOrNull { it.exception is CloudFlareProtectedException }
-            ?.exception as? CloudFlareProtectedException
-        if (cfError != null) {
-            cloudflareLauncher.launch(cfError)
+            .firstOrNull { ExceptionResolver.canResolve(it.exception) }
+            ?.exception
+        if (error != null && exceptionResolver != null) {
+            coroutineScope.launch {
+                if (exceptionResolver.resolve(error)) {
+                    viewModel.onRetry()
+                }
+            }
         } else {
             viewModel.onRetry()
         }
@@ -383,6 +384,10 @@ fun AppSearchContentListRoute(
                 onGridSizeChange = { size ->
                     settings.gridSize = size.coerceIn(50, 150)
                 },
+                onClearActiveQuery = {
+                    searchQuery = ""
+                    viewModel.filterCoordinator.setQuery(null)
+                },
                 onQuickFilterOptionClick = { option ->
                     (viewModel as? org.skepsun.kototoro.list.domain.QuickFilterListener)?.toggleFilterOption(option)
                 },
@@ -465,7 +470,7 @@ fun AppSearchContentListRoute(
                         },
                         selectedItemsIds = selectedItemsIds,
                         showInlineSelectionTopBar = false,
-                        onRetry = ::resolveCloudflareAndRetry,
+                        onRetry = ::resolveErrorAndRetry,
                     )
                 }
                 Box(
@@ -593,7 +598,7 @@ fun AppSearchContentListRoute(
                 },
                 selectedItemsIds = selectedItemsIds,
                 showInlineSelectionTopBar = false,
-                onRetry = ::resolveCloudflareAndRetry,
+                onRetry = ::resolveErrorAndRetry,
             )
         }
 
@@ -826,6 +831,7 @@ private fun SearchContentTopBar(
     onSettingsClick: () -> Unit,
     onListModeChange: (ListMode) -> Unit,
     onGridSizeChange: (Int) -> Unit,
+    onClearActiveQuery: () -> Unit,
     onQuickFilterOptionClick: (ListFilterOption) -> Unit,
     onToggleTag: (ContentTag, Boolean) -> Unit,
 ) {
@@ -909,18 +915,18 @@ private fun SearchContentTopBar(
                 if (quickFilter != null) {
                     QuickFilterPinnedRow(
                         quickFilter = quickFilter,
+                        activeQuery = activeQuery,
+                        onClearActiveQuery = onClearActiveQuery,
                         onQuickFilterOptionClick = onQuickFilterOptionClick,
                     )
                 } else {
                     SourceTagsPinnedRow(
                         tags = extractedTags,
                         selectedTags = selectedTags,
+                        activeQuery = activeQuery,
+                        onClearActiveQuery = onClearActiveQuery,
                         onToggleTag = onToggleTag,
                     )
-                }
-
-                if (!activeQuery.isNullOrBlank()) {
-                    ActiveQueryRow(query = activeQuery)
                 }
             }
         }
@@ -1302,6 +1308,8 @@ private fun CollapsingBarSlot(
 @Composable
 private fun QuickFilterPinnedRow(
     quickFilter: QuickFilter,
+    activeQuery: String?,
+    onClearActiveQuery: () -> Unit,
     onQuickFilterOptionClick: (ListFilterOption) -> Unit,
 ) {
     LazyRow(
@@ -1309,6 +1317,11 @@ private fun QuickFilterPinnedRow(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
+        activeQuery?.takeIf { it.isNotBlank() }?.let { query ->
+            item(key = "active_query") {
+                ActiveQueryChip(query = query, onClear = onClearActiveQuery)
+            }
+        }
         items(quickFilter.items) { chip ->
             val option = chip.data as? ListFilterOption
             FilterChip(
@@ -1351,14 +1364,21 @@ private fun QuickFilterPinnedRow(
 private fun SourceTagsPinnedRow(
     tags: List<ContentTag>,
     selectedTags: Set<ContentTag>,
+    activeQuery: String?,
+    onClearActiveQuery: () -> Unit,
     onToggleTag: (ContentTag, Boolean) -> Unit,
 ) {
-    if (tags.isEmpty()) return
+    if (tags.isEmpty() && activeQuery.isNullOrBlank()) return
     LazyRow(
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
+        activeQuery?.takeIf { it.isNotBlank() }?.let { query ->
+            item(key = "active_query") {
+                ActiveQueryChip(query = query, onClear = onClearActiveQuery)
+            }
+        }
         items(tags, key = { it.key }) { tag ->
             FilterChip(
                 selected = tag in selectedTags,
@@ -1375,33 +1395,34 @@ private fun SourceTagsPinnedRow(
 }
 
 @Composable
-private fun ActiveQueryRow(query: String) {
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        item {
-            FilterChip(
-                selected = true,
-                onClick = {},
-                enabled = false,
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                    )
-                },
-                label = {
-                    Text(
-                        text = query,
-                        maxLines = 1,
-                    )
-                },
+private fun ActiveQueryChip(
+    query: String,
+    onClear: () -> Unit,
+) {
+    FilterChip(
+        selected = true,
+        onClick = onClear,
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
             )
-        }
-    }
+        },
+        trailingIcon = {
+            Icon(
+                imageVector = Icons.Default.Clear,
+                contentDescription = stringResource(R.string.clear),
+                modifier = Modifier.size(16.dp),
+            )
+        },
+        label = {
+            Text(
+                text = query,
+                maxLines = 1,
+            )
+        },
+    )
 }
 
 @OptIn(ExperimentalLayoutApi::class)
