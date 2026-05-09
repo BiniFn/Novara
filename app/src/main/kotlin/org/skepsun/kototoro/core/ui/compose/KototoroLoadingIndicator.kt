@@ -1,6 +1,8 @@
 package org.skepsun.kototoro.core.ui.compose
 
 import android.view.ContextThemeWrapper
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -8,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -16,17 +17,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import kotlinx.coroutines.delay
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.viewinterop.AndroidView
 import com.google.android.material.progressindicator.CircularProgressIndicator
 import com.google.android.material.progressindicator.LinearProgressIndicator
@@ -34,10 +43,14 @@ import kotlin.math.roundToInt
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.android.awaitFrame
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
 
 private const val IndicatorProgressMax = 10_000
+private const val PullRefreshResistance = 0.52f
+private const val PullRefreshMaxDistanceMultiplier = 1.65f
+private val PullRefreshThreshold = 80.dp
 
 @Composable
 fun KototoroLoadingIndicator(
@@ -132,37 +145,139 @@ fun KototoroPullToRefreshBox(
         return
     }
 
-    // Defer isRefreshing activation to avoid race condition where PullToRefreshModifierNode
-    // tries to read CompositionLocal before it is fully attached.
-    var deferredRefreshing by remember { mutableStateOf(false) }
-    LaunchedEffect(isRefreshing) {
+    val density = LocalDensity.current
+    val thresholdPx = with(density) { PullRefreshThreshold.toPx() }
+    val maxPullDistancePx = thresholdPx * PullRefreshMaxDistanceMultiplier
+    val latestOnRefresh by rememberUpdatedState(onRefresh)
+    val latestIsRefreshing by rememberUpdatedState(isRefreshing)
+    var pullDistancePx by remember { mutableFloatStateOf(0f) }
+    var settledDistancePx by remember { mutableFloatStateOf(0f) }
+    var isDragging by remember { mutableStateOf(false) }
+    var refreshRequestVersion by remember { mutableIntStateOf(0) }
+    val displayedDistancePx by animateFloatAsState(
+        targetValue = if (isDragging) pullDistancePx else settledDistancePx,
+        animationSpec = tween(durationMillis = 180),
+        label = "kototoro_pull_refresh_distance",
+    )
+    val indicatorProgress = (displayedDistancePx / thresholdPx).coerceIn(0f, 1f)
+    val latestIndicatorProgress by rememberUpdatedState(indicatorProgress)
+    val indicatorState = remember {
+        object : PullToRefreshState {
+            override val distanceFraction: Float
+                get() = latestIndicatorProgress
+
+            override suspend fun animateToThreshold() = Unit
+
+            override suspend fun animateToHidden() = Unit
+
+            override suspend fun snapTo(targetValue: Float) = Unit
+        }
+    }
+
+    LaunchedEffect(isRefreshing, thresholdPx) {
         if (isRefreshing) {
-            kotlinx.coroutines.delay(50)
+            isDragging = false
+            pullDistancePx = thresholdPx
+            settledDistancePx = thresholdPx
+        } else {
+            isDragging = false
+            pullDistancePx = 0f
+            settledDistancePx = 0f
         }
-        deferredRefreshing = isRefreshing
     }
-    DisposableEffect(Unit) {
-        onDispose {
-            deferredRefreshing = false
+
+    LaunchedEffect(refreshRequestVersion) {
+        if (refreshRequestVersion == 0) {
+            return@LaunchedEffect
+        }
+        awaitFrame()
+        if (!latestIsRefreshing) {
+            isDragging = false
+            pullDistancePx = 0f
+            settledDistancePx = 0f
         }
     }
-    PullToRefreshBox(
-        isRefreshing = deferredRefreshing,
-        onRefresh = onRefresh,
-        modifier = modifier,
-        state = state,
+
+    val nestedScrollConnection = remember(thresholdPx, maxPullDistancePx) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source != NestedScrollSource.UserInput || latestIsRefreshing || pullDistancePx <= 0f) {
+                    return Offset.Zero
+                }
+                if (available.y >= 0f) {
+                    return Offset.Zero
+                }
+                isDragging = true
+                val consumedY = available.y.coerceAtLeast(-pullDistancePx)
+                pullDistancePx = (pullDistancePx + consumedY).coerceAtLeast(0f)
+                settledDistancePx = pullDistancePx
+                return Offset(x = 0f, y = consumedY)
+            }
+
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset {
+                if (source != NestedScrollSource.UserInput || latestIsRefreshing || available.y <= 0f) {
+                    return Offset.Zero
+                }
+                isDragging = true
+                val consumedY = available.y
+                pullDistancePx = (pullDistancePx + consumedY * PullRefreshResistance)
+                    .coerceAtMost(maxPullDistancePx)
+                settledDistancePx = pullDistancePx
+                return Offset(x = 0f, y = consumedY)
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                settlePullRefresh()
+                return Velocity.Zero
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                settlePullRefresh()
+                return Velocity.Zero
+            }
+
+            private fun settlePullRefresh() {
+                if (!isDragging && pullDistancePx <= 0f) {
+                    return
+                }
+                val shouldRefresh = pullDistancePx >= thresholdPx && !latestIsRefreshing
+                isDragging = false
+                if (shouldRefresh) {
+                    settledDistancePx = thresholdPx
+                    pullDistancePx = thresholdPx
+                    refreshRequestVersion += 1
+                    latestOnRefresh()
+                } else if (!latestIsRefreshing) {
+                    settledDistancePx = 0f
+                    pullDistancePx = 0f
+                }
+            }
+        }
+    }
+
+    Box(
+        modifier = modifier.nestedScroll(nestedScrollConnection),
         contentAlignment = contentAlignment,
-        indicator = {
+    ) {
+        content()
+
+        if (isRefreshing || displayedDistancePx > 0.5f) {
             PullToRefreshDefaults.Indicator(
-                state = state,
-                isRefreshing = deferredRefreshing,
+                state = indicatorState,
+                isRefreshing = isRefreshing,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .offset(y = indicatorTopInset.calculateTopPadding()),
+                    .offset(
+                        y = indicatorTopInset.calculateTopPadding() +
+                            with(density) { (displayedDistancePx * 0.45f).toDp() },
+                    ),
             )
-        },
-        content = content,
-    )
+        }
+    }
 }
 
 @Composable

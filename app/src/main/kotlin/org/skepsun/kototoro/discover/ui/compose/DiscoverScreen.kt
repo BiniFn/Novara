@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -267,10 +268,10 @@ fun DiscoverScreen(
 				),
 				modifier = Modifier.fillMaxSize()
 			) {
-				items(
+				itemsIndexed(
 					items = gridItems,
-					key = { it.manga.id }
-				) { item ->
+					key = { index, item -> "${item.manga.source.name}_${item.manga.id}_$index" }
+				) { _, item ->
 					val sharedElementKey = remember(item.manga.source.name, item.coverUrl) {
 						contentCoverSharedKey(item.manga.source.name, item.coverUrl.orEmpty())
 					}

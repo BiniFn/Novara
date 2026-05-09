@@ -68,6 +68,7 @@ import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedContentSource
+import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
 import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
@@ -701,7 +702,7 @@ fun ContentCardCornerBadges(
                 "tracker" -> {
                     item.metadataTrackingService?.let { service ->
                         Icon(
-                            painter = painterResource(id = service.iconResId),
+                            painter = rememberSafePainter(service.iconResId),
                             contentDescription = service.name,
                             tint = Color.Unspecified,
                             modifier = Modifier.size(metrics.iconSize),

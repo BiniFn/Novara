@@ -2,13 +2,15 @@ package org.skepsun.kototoro.discover.ui.category
 
 import android.content.Context
 import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.core.model.ContentSource
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.BaseViewModel
@@ -66,6 +68,7 @@ class DiscoverCategoryViewModel @Inject constructor(
 	private var currentCategory: String? = null
 	private var currentSortOptionId: String? = null
 	private var isFilterObserverPrimed = false
+	private var canLoadMore = true
 
 	fun initialize(serviceName: String, categoryId: String) {
 		val service = ScrobblerService.entries.find { it.name == serviceName } ?: return
@@ -78,6 +81,7 @@ class DiscoverCategoryViewModel @Inject constructor(
 			_selectedCalendarDateMillis.value = null
 		}
 		currentSortOptionId = findCategoryMeta(service, categoryId)?.defaultSortOptionId
+		canLoadMore = true
 		// Show cached items instantly
 		val cached = cacheRepository.readCategoryCache(service, resolveCacheKey(categoryId))
 		if (cached != null && cached.isNotEmpty()) {
@@ -165,6 +169,7 @@ class DiscoverCategoryViewModel @Inject constructor(
 		cacheRepository.clearCategoryCache(service, resolveCacheKey(category))
 		_items.value = emptyList()
 		_page.value = 0
+		canLoadMore = true
 		viewModelScope.launch {
 			loadingCounter.increment()
 			try {
@@ -176,7 +181,7 @@ class DiscoverCategoryViewModel @Inject constructor(
 	}
 
 	fun loadNextPage() {
-		if (isPageLoading) return
+		if (isPageLoading || !canLoadMore) return
 		val service = currentService ?: return
 		val category = currentCategory ?: return
 		val nextPage = _page.value + 1
@@ -200,19 +205,21 @@ class DiscoverCategoryViewModel @Inject constructor(
 
 		val filterSnapshot = filterCoordinator.snapshot()
 		val result = runCatching {
-			discoveryService.getTrending(
-				TrackingSiteCatalog(
-					service = service,
-					category = category,
-					page = pageRequested,
-					sortOrder = filterSnapshot.sortOrder,
-					listFilter = filterSnapshot.listFilter,
-					trackingSortKey = resolveCurrentTrackingSortKey(service, category),
-					calendarDateMillis = _selectedCalendarDateMillis.value.takeIf {
-						isTrackingDateDrivenCategory(category)
-					},
+			withContext(Dispatchers.IO) {
+				discoveryService.getTrending(
+					TrackingSiteCatalog(
+						service = service,
+						category = category,
+						page = pageRequested,
+						sortOrder = filterSnapshot.sortOrder,
+						listFilter = filterSnapshot.listFilter,
+						trackingSortKey = resolveCurrentTrackingSortKey(service, category),
+						calendarDateMillis = _selectedCalendarDateMillis.value.takeIf {
+							isTrackingDateDrivenCategory(category)
+						},
+					)
 				)
-			)
+			}
 		}
 
 		result.onSuccess { newItems ->
@@ -220,18 +227,23 @@ class DiscoverCategoryViewModel @Inject constructor(
 				_contentState.value = listOf(createEmptyState(service, category))
 				return@onSuccess
 			}
-			val updatedItems = if (isFirstPage) newItems else _items.value + newItems
-			val hasMore = newItems.isNotEmpty()
+			val currentItems = if (isFirstPage) emptyList() else _items.value
+			val seenRemoteIds = currentItems.mapTo(HashSet()) { it.remoteId }
+			val appendedItems = newItems.filter { seenRemoteIds.add(it.remoteId) }
+			val updatedItems = currentItems + appendedItems
+			val hasMore = appendedItems.isNotEmpty()
 
-			_items.value = updatedItems.distinctBy { it.remoteId }
+			_items.value = updatedItems
 			val models = _items.value.toDiscoverModels()
 			_contentState.value = if (hasMore) models + listOf(LoadingState) else models
+			canLoadMore = hasMore
 			_page.value = pageRequested
 			// Save to cache
 			cacheRepository.saveCategoryCache(service, resolveCacheKey(category), _items.value)
 
 		}.onFailure { error ->
 			val models = _items.value.toDiscoverModels()
+			canLoadMore = false
 			if (models.isEmpty()) {
 				_contentState.value = listOf(error.toErrorState(canRetry = true))
 			} else {
@@ -384,7 +396,6 @@ class DiscoverCategoryViewModel @Inject constructor(
 					metadataTrackingService = item.service,
 					scoreText = scoreText,
 				)
-				else -> model
 			}
 		}
 	}

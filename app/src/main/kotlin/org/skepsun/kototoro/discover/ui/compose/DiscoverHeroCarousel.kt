@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -182,6 +183,9 @@ fun DiscoverHeroCarousel(
         else -> panoramaPrefs.blendHeight.dp
     }
     val pageBackground = MaterialTheme.colorScheme.background
+    val heroContentColor = Color.White
+    val heroSecondaryContentColor = Color.White.copy(alpha = 0.82f)
+    val heroControlContainerColor = Color.Black.copy(alpha = 0.42f)
 
     val panoramaGradientAlphaFactor = (panoramaPrefs.bottomGradientAlphaPercent / 100f).coerceIn(0f, 1f)
     val panoramaAnimationSpeedFactor = (panoramaPrefs.animationSpeedPercent.coerceIn(50, 200)) / 100f
@@ -355,6 +359,17 @@ fun DiscoverHeroCarousel(
                             ),
                         ),
                     )
+                    drawRect(
+                        Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to Color.Black.copy(alpha = 0.38f),
+                                0.18f to Color.Black.copy(alpha = 0.22f),
+                                0.48f to Color.Black.copy(alpha = 0.18f),
+                                0.72f to Color.Black.copy(alpha = 0.36f),
+                                1.0f to Color.Black.copy(alpha = if (detachedBottomContent) 0.50f else 0.44f),
+                            ),
+                        ),
+                    )
                 },
         )
         // 底部渐变固定在 hero 图片区域底部，不随 bottomContent 延伸
@@ -420,7 +435,7 @@ fun DiscoverHeroCarousel(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = heroSecondaryContentColor,
                     modifier = Modifier.weight(1f),
                 )
                 activeService?.let { service ->
@@ -429,12 +444,24 @@ fun DiscoverHeroCarousel(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (onOpenSchedule != null) {
-                            IconButton(onClick = onOpenSchedule) {
-                                Icon(
-                                    imageVector = Icons.Filled.DateRange,
-                                    contentDescription = stringResource(R.string.open_daily_schedule),
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                )
+                            IconButton(
+                                onClick = onOpenSchedule,
+                                modifier = Modifier.size(40.dp),
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(RoundedCornerShape(999.dp))
+                                        .background(heroControlContainerColor),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.DateRange,
+                                        contentDescription = stringResource(R.string.open_daily_schedule),
+                                        modifier = Modifier.size(18.dp),
+                                        tint = heroContentColor,
+                                    )
+                                }
                             }
                         }
                         Box {
@@ -459,6 +486,12 @@ fun DiscoverHeroCarousel(
                                 label = {
                                     Text(stringResource(service.titleResId))
                                 },
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = heroControlContainerColor,
+                                    labelColor = heroContentColor,
+                                    leadingIconContentColor = heroContentColor,
+                                    trailingIconContentColor = heroContentColor,
+                                ),
                             )
                             DropdownMenu(
                                 expanded = isServiceMenuExpanded,
@@ -562,7 +595,7 @@ fun DiscoverHeroCarousel(
                         Text(
                             text = item.title,
                             style = MaterialTheme.typography.headlineSmall,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = heroContentColor,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
@@ -574,7 +607,7 @@ fun DiscoverHeroCarousel(
                             Text(
                                 text = info,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = heroSecondaryContentColor,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -583,7 +616,7 @@ fun DiscoverHeroCarousel(
                             Text(
                                 text = secondaryTitle,
                                 style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = heroSecondaryContentColor,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -592,12 +625,16 @@ fun DiscoverHeroCarousel(
                             Text(
                                 text = supportingText,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = heroSecondaryContentColor,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
-                        DiscoverHeroPill(text = rememberResolvedSourceTitle(item.source))
+                        DiscoverHeroPill(
+                            text = rememberResolvedSourceTitle(item.source),
+                            contentColor = heroContentColor,
+                            containerColor = heroControlContainerColor,
+                        )
                     }
                 }
             }
@@ -606,6 +643,8 @@ fun DiscoverHeroCarousel(
                     pageCount = items.size,
                     currentPage = selectedIndex,
                     modifier = Modifier.padding(horizontal = 20.dp),
+                    activeColor = heroContentColor,
+                    inactiveColor = heroContentColor.copy(alpha = 0.34f),
                 )
             }
             if (bottomContent != null) {
@@ -622,6 +661,8 @@ fun DiscoverHeroCarousel(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(start = 20.dp, end = 20.dp, bottom = 14.dp),
+                activeColor = heroContentColor,
+                inactiveColor = heroContentColor.copy(alpha = 0.34f),
             )
         }
     }
@@ -630,15 +671,17 @@ fun DiscoverHeroCarousel(
 @Composable
 private fun DiscoverHeroPill(
     text: String,
+    contentColor: Color = MaterialTheme.colorScheme.onSurface,
+    containerColor: Color = MaterialTheme.colorScheme.surface.copy(alpha = 0.78f),
 ) {
     Surface(
         shape = RoundedCornerShape(999.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.78f),
+        color = containerColor,
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = contentColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),

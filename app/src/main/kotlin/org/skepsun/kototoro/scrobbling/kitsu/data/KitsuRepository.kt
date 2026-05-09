@@ -3,6 +3,8 @@ package org.skepsun.kototoro.scrobbling.kitsu.data
 import android.content.Context
 import androidx.room.withTransaction
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import okhttp3.FormBody
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -38,9 +40,11 @@ import org.skepsun.kototoro.entitygraph.domain.EntityType
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.util.LinkedHashMap
 
 private const val BASE_WEB_URL = "https://kitsu.app"
 private const val DISCOVERY_PAGE_LIMIT = 20
+private const val DAILY_SCHEDULE_CACHE_SIZE = 14
 
 class KitsuRepository(
 	@ApplicationContext context: Context,
@@ -57,6 +61,26 @@ class KitsuRepository(
 
 	override val isAuthorized: Boolean
 		get() = storage.accessToken != null
+
+	private data class DailyScheduleCacheEntry(
+		val items: MutableList<ScrobblerContent> = ArrayList(),
+		var nextOffset: Int = 0,
+		var total: Int = Int.MAX_VALUE,
+		var exhausted: Boolean = false,
+	)
+
+	private val dailyScheduleCacheMutex = Mutex()
+	private val dailyScheduleCache = object : LinkedHashMap<LocalDate, DailyScheduleCacheEntry>(
+		DAILY_SCHEDULE_CACHE_SIZE,
+		0.75f,
+		true,
+	) {
+		override fun removeEldestEntry(
+			eldest: MutableMap.MutableEntry<LocalDate, DailyScheduleCacheEntry>?,
+		): Boolean {
+			return size > DAILY_SCHEDULE_CACHE_SIZE
+		}
+	}
 
 	override val cachedUser: ScrobblerUser?
 		get() {
@@ -175,39 +199,49 @@ class KitsuRepository(
 	 * prefer nextRelease weekday and fall back to startDate weekday when nextRelease is absent.
 	 */
 	suspend fun getDailySchedule(date: LocalDate, page: Int): List<ScrobblerContent> {
-		val targetDay = date.dayOfWeek
 		val requiredCount = (page + 1) * DISCOVERY_PAGE_LIMIT
-		val matches = ArrayList<ScrobblerContent>(requiredCount)
-		var offset = 0
-		var total = Int.MAX_VALUE
+		return dailyScheduleCacheMutex.withLock {
+			val entry = dailyScheduleCache.getOrPut(date) { DailyScheduleCacheEntry() }
+			val targetDay = date.dayOfWeek
+			val seenIds = entry.items.mapTo(HashSet()) { it.id }
 
-		while (matches.size < requiredCount && offset < total) {
-			val request = Request.Builder()
-				.get()
-				.url(
-					"$BASE_WEB_URL/api/edge/anime?page[limit]=$DISCOVERY_PAGE_LIMIT" +
-						"&page[offset]=$offset&filter[status]=current&sort=-userCount"
-				)
-			val json = okHttp.newCall(request.build()).await().parseJson().ensureSuccess()
-			total = json.optJSONObject("meta")?.optInt("count", total) ?: total
-			val data = json.optJSONArray("data") ?: break
-			if (data.length() == 0) break
+			while (entry.items.size < requiredCount && !entry.exhausted && entry.nextOffset < entry.total) {
+				val request = Request.Builder()
+					.get()
+					.url(
+						"$BASE_WEB_URL/api/edge/anime?page[limit]=$DISCOVERY_PAGE_LIMIT" +
+							"&page[offset]=${entry.nextOffset}&filter[status]=current&sort=-userCount"
+					)
+				val json = okHttp.newCall(request.build()).await().parseJson().ensureSuccess()
+				entry.total = json.optJSONObject("meta")?.optInt("count", entry.total) ?: entry.total
+				val data = json.optJSONArray("data")
+				if (data == null || data.length() == 0) {
+					entry.exhausted = true
+					break
+				}
 
-			data.mapJSON { entry ->
-				val attrs = entry.getJSONObject("attributes")
-				val releaseDate = attrs.getStringOrNull("nextRelease")?.toKitsuReleaseDate()
-				val startDate = attrs.getStringOrNull("startDate")?.toKitsuStartDate()
-				val scheduleDay = releaseDate?.dayOfWeek ?: startDate?.dayOfWeek
-				if (scheduleDay == targetDay) {
-					matches += createDiscoveryContent(entry, attrs, "anime")
+				data.mapJSON { item ->
+					val attrs = item.getJSONObject("attributes")
+					val releaseDate = attrs.getStringOrNull("nextRelease")?.toKitsuReleaseDate()
+					val startDate = attrs.getStringOrNull("startDate")?.toKitsuStartDate()
+					val scheduleDay = releaseDate?.dayOfWeek ?: startDate?.dayOfWeek
+					if (scheduleDay == targetDay) {
+						val content = createDiscoveryContent(item, attrs, "anime")
+						if (seenIds.add(content.id)) {
+							entry.items += content
+						}
+					}
+				}
+				entry.nextOffset += DISCOVERY_PAGE_LIMIT
+				if (entry.nextOffset >= entry.total) {
+					entry.exhausted = true
 				}
 			}
-			offset += DISCOVERY_PAGE_LIMIT
-		}
 
-		return matches
-			.drop(page * DISCOVERY_PAGE_LIMIT)
-			.take(DISCOVERY_PAGE_LIMIT)
+			entry.items
+				.drop(page * DISCOVERY_PAGE_LIMIT)
+				.take(DISCOVERY_PAGE_LIMIT)
+		}
 	}
 
 	/**

@@ -159,6 +159,13 @@ class DiscoverViewModel @Inject constructor(
 		}
 
 		viewModelScope.launch {
+			preferredService.drop(1).collect {
+				selectedServiceOverride.value = null
+				selectedCategoryOverride.value = null
+			}
+		}
+
+		viewModelScope.launch {
 			combine(
 				settings.observe(AppSettings.KEY_LIST_MODE),
 				settings.observe(AppSettings.KEY_SELECTED_GROUP_TAB)
