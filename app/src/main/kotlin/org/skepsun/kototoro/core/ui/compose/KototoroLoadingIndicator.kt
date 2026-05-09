@@ -1,16 +1,15 @@
 package org.skepsun.kototoro.core.ui.compose
 
 import android.view.ContextThemeWrapper
-import android.widget.ImageView
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
@@ -29,16 +28,14 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.view.isVisible
-import androidx.swiperefreshlayout.widget.CircularProgressDrawable
 import com.google.android.material.progressindicator.CircularProgressIndicator
 import com.google.android.material.progressindicator.LinearProgressIndicator
+import kotlin.math.roundToInt
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
-import kotlin.math.roundToInt
 
 private const val IndicatorProgressMax = 10_000
 
@@ -138,36 +135,17 @@ fun KototoroPullToRefreshBox(
     // Defer isRefreshing activation to avoid race condition where PullToRefreshModifierNode
     // tries to read CompositionLocal before it is fully attached.
     var deferredRefreshing by remember { mutableStateOf(false) }
-    var suppressDragIndicator by remember { mutableStateOf(false) }
     LaunchedEffect(isRefreshing) {
         if (isRefreshing) {
             kotlinx.coroutines.delay(50)
-            deferredRefreshing = true
-            suppressDragIndicator = false
-            return@LaunchedEffect
         }
         deferredRefreshing = isRefreshing
-        suppressDragIndicator = true
-        if (!isRefreshing && (state.distanceFraction > 0f || state.isAnimating)) {
-            runCatching { state.animateToHidden() }
-            if (state.distanceFraction > 0f) {
-                runCatching { state.snapTo(0f) }
-            }
-        }
-    }
-    LaunchedEffect(state.distanceFraction, deferredRefreshing) {
-        if (!deferredRefreshing && state.distanceFraction <= 0f) {
-            suppressDragIndicator = false
-        }
     }
     DisposableEffect(Unit) {
         onDispose {
             deferredRefreshing = false
-            suppressDragIndicator = false
         }
     }
-    val dragProgress = state.distanceFraction.coerceIn(0f, 1f)
-    val showDragIndicator = !deferredRefreshing && !suppressDragIndicator && dragProgress > 0f
     PullToRefreshBox(
         isRefreshing = deferredRefreshing,
         onRefresh = onRefresh,
@@ -175,59 +153,15 @@ fun KototoroPullToRefreshBox(
         state = state,
         contentAlignment = contentAlignment,
         indicator = {
-            SwipeRefreshLikeIndicator(
-                progress = dragProgress,
+            PullToRefreshDefaults.Indicator(
+                state = state,
                 isRefreshing = deferredRefreshing,
-                visible = deferredRefreshing || showDragIndicator,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .offset(y = indicatorTopInset.calculateTopPadding()),
             )
         },
         content = content,
-    )
-}
-
-@Composable
-private fun SwipeRefreshLikeIndicator(
-    progress: Float,
-    isRefreshing: Boolean,
-    visible: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    if (!visible) {
-        return
-    }
-    val color = MaterialTheme.colorScheme.primary.toArgb()
-    AndroidView(
-        modifier = modifier.size(40.dp),
-        factory = { context ->
-            ImageView(context).apply {
-                val drawable = CircularProgressDrawable(context).apply {
-                    setStyle(CircularProgressDrawable.DEFAULT)
-                }
-                setImageDrawable(drawable)
-            }
-        },
-        update = { view ->
-            view.isVisible = visible
-            val drawable = view.drawable as? CircularProgressDrawable ?: return@AndroidView
-            drawable.setColorSchemeColors(color)
-            if (isRefreshing) {
-                drawable.setArrowEnabled(false)
-                drawable.start()
-                return@AndroidView
-            }
-
-            val adjustedProgress = progress.coerceIn(0f, 1f)
-            val swipeProgress = ((adjustedProgress - 0.4f).coerceAtLeast(0f) * 5f / 3f).coerceIn(0f, 1f)
-            drawable.stop()
-            drawable.setArrowEnabled(adjustedProgress > 0f)
-            drawable.setStartEndTrim(0f, (0.8f * swipeProgress).coerceAtMost(0.8f))
-            drawable.setArrowScale(swipeProgress)
-            drawable.setProgressRotation((-0.25f + 0.4f * swipeProgress).coerceAtLeast(0f) * 0.5f)
-            view.invalidate()
-        },
     )
 }
 
