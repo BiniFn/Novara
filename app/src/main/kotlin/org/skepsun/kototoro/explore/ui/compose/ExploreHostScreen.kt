@@ -323,15 +323,24 @@ fun KototoroExploreHostRoute(
     val showcaseRows = if (isBrowseTrackingRecommendationsEnabled) browseDiscoverItems.showcaseRows else emptyList()
     val popularItems = if (isBrowseTrackingRecommendationsEnabled) browseDiscoverItems.popularItems else emptyList()
     val isLoadingOnly = browseDiscoverItems.isLoadingOnly
+    val shouldShowBrowseHero = isBrowseTrackingRecommendationsEnabled && (heroItems.isNotEmpty() || isLoadingOnly)
     val isBrowseContentReady = sources.isNotEmpty() ||
         heroItems.isNotEmpty() ||
         showcaseRows.isNotEmpty() ||
         popularItems.isNotEmpty()
-    val heroOverlapDp = if (sources.isNotEmpty() || isLoadingOnly) BrowseHeroContentOverlap else 0.dp
-    val heroHeightDp by remember(heroPx, density, heroOverlapDp) {
+    val heroOverlapDp = if (shouldShowBrowseHero && (sources.isNotEmpty() || isLoadingOnly)) {
+        BrowseHeroContentOverlap
+    } else {
+        0.dp
+    }
+    val heroHeightDp by remember(heroPx, density, heroOverlapDp, shouldShowBrowseHero) {
         derivedStateOf {
-            with(density) {
-                (heroPx - heroOverlapDp.roundToPx()).coerceAtLeast(0).toDp()
+            if (!shouldShowBrowseHero) {
+                0.dp
+            } else {
+                with(density) {
+                    (heroPx - heroOverlapDp.roundToPx()).coerceAtLeast(0).toDp()
+                }
             }
         }
     }
@@ -507,15 +516,17 @@ fun KototoroExploreHostRoute(
             LazyColumn(
                 state = listState,
                 contentPadding = PaddingValues(
-                    top = 0.dp,
+                    top = if (shouldShowBrowseHero) 0.dp else contentPadding.calculateTopPadding(),
                     bottom = contentPadding.calculateBottomPadding() + 120.dp,
                 ),
                 verticalArrangement = Arrangement.Top,
                 modifier = Modifier.fillMaxSize(),
             ) {
                 // 占位 Spacer，给 Hero Overlay 留空间
-                item(key = "discover_hero_spacer") {
-                    Spacer(modifier = Modifier.height(heroHeightDp))
+                if (shouldShowBrowseHero) {
+                    item(key = "discover_hero_spacer") {
+                        Spacer(modifier = Modifier.height(heroHeightDp))
+                    }
                 }
 
                 if (sources.isNotEmpty() || isLoadingOnly) {
@@ -538,6 +549,7 @@ fun KototoroExploreHostRoute(
                                 selectedSourceIds = selectedSourceIds.toggle(source.id)
                             },
                             onManageSourcesClick = appRouter::openManageSources,
+                            forceExpanded = !isBrowseTrackingRecommendationsEnabled,
                             topBackgroundOverlap = heroOverlapDp,
                         )
                     }
@@ -640,57 +652,61 @@ fun KototoroExploreHostRoute(
             }
 
             // ===== Hero Overlay（跟随滚动，无 spacing 污染）=====
-            BrowseHeroBlock(
-                title = heroRow?.category?.let { stringResource(it.nameResId) }
-                    ?: stringResource(R.string.discover),
-                heroItems = heroItems,
-                activeService = activeService,
-                availableServices = availableServices,
-                isLoadingOnly = isLoadingOnly,
-                topContentInset = contentPadding.calculateTopPadding(),
-                settings = settings,
-                onSelectService = discoverViewModel::selectService,
-                onOpenSchedule = activeService?.let { service ->
-                    val scheduleCategory = discoverViewModel.getScheduleCategory(service)
-                    if (scheduleCategory == null) {
-                        null
-                    } else {
-                        {
-                            appRouter.openTrackingDiscoveryCategory(
-                                service,
-                                scheduleCategory.id,
-                                scheduleCategory.nameResId,
-                            )
+            if (shouldShowBrowseHero) {
+                BrowseHeroBlock(
+                    title = heroRow?.category?.let { stringResource(it.nameResId) }
+                        ?: stringResource(R.string.discover),
+                    heroItems = heroItems,
+                    activeService = activeService,
+                    availableServices = availableServices,
+                    isLoadingOnly = isLoadingOnly,
+                    topContentInset = contentPadding.calculateTopPadding(),
+                    settings = settings,
+                    onSelectService = discoverViewModel::selectService,
+                    onOpenSchedule = activeService?.let { service ->
+                        val scheduleCategory = discoverViewModel.getScheduleCategory(service)
+                        if (scheduleCategory == null) {
+                            null
+                        } else {
+                            {
+                                appRouter.openTrackingDiscoveryCategory(
+                                    service,
+                                    scheduleCategory.id,
+                                    scheduleCategory.nameResId,
+                                )
+                            }
                         }
-                    }
-                },
-                onHeroItemClick = { item, sharedElementKey ->
-                    markBrowseDetailsNavigation()
-                    val didNavigate = openTrackingItem(
-                        appRouter = appRouter,
-                        discoverViewModel = discoverViewModel,
-                        availableServices = availableServices,
-                        item = item,
-                        sharedElementKey = sharedElementKey,
-                        onNavigateToDetails = onNavigateToDetails,
-                    )
-                    if (!didNavigate) {
-                        shouldRestoreBrowseScroll = false
-                    }
-                },
-                sharedElementKeyForItem = { item, _ ->
-                    contentCoverSharedKey(
-                        item.manga.source.name,
-                        item.manga.coverUrl.orEmpty(),
-                        instanceKey = "explore_hero_${item.id}",
-                    )
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.TopStart)
-                    .onSizeChanged { heroPx = it.height }
-                    .graphicsLayer { translationY = heroScrollOffsetPx },
-            )
+                    },
+                    onHeroItemClick = { item, sharedElementKey ->
+                        markBrowseDetailsNavigation()
+                        val didNavigate = openTrackingItem(
+                            appRouter = appRouter,
+                            discoverViewModel = discoverViewModel,
+                            availableServices = availableServices,
+                            item = item,
+                            sharedElementKey = sharedElementKey,
+                            onNavigateToDetails = onNavigateToDetails,
+                        )
+                        if (!didNavigate) {
+                            shouldRestoreBrowseScroll = false
+                        }
+                    },
+                    sharedElementKeyForItem = { item, _ ->
+                        contentCoverSharedKey(
+                            item.manga.source.name,
+                            item.manga.coverUrl.orEmpty(),
+                            instanceKey = "explore_hero_${item.id}",
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopStart)
+                        .onSizeChanged { heroPx = it.height }
+                        .graphicsLayer { translationY = heroScrollOffsetPx },
+                )
+            } else {
+                heroPx = 0
+            }
 
         }
     }
@@ -809,6 +825,7 @@ private fun DetachedBottomContent(
     onSourceClick: (ContentSourceItem) -> Unit,
     onSourceLongClick: (ContentSourceItem) -> Unit,
     onManageSourcesClick: () -> Unit,
+    forceExpanded: Boolean = false,
     topBackgroundOverlap: androidx.compose.ui.unit.Dp = 0.dp,
     modifier: Modifier = Modifier,
 ) {
@@ -825,6 +842,7 @@ private fun DetachedBottomContent(
                     browseListMode = browseListMode,
                     isGroupedByLanguage = isGroupedByLanguage,
                     selectedSourceIds = selectedSourceIds,
+                    forceExpanded = forceExpanded,
                     onSourceClick = onSourceClick,
                     onSourceLongClick = onSourceLongClick,
                     onManageClick = onManageSourcesClick,
@@ -860,6 +878,7 @@ private fun SourcesQuickAccessSection(
     browseListMode: ListMode,
     isGroupedByLanguage: Boolean,
     selectedSourceIds: Set<Long>,
+    forceExpanded: Boolean = false,
     onSourceClick: (ContentSourceItem) -> Unit,
     onSourceLongClick: (ContentSourceItem) -> Unit,
     onManageClick: () -> Unit,
@@ -892,11 +911,14 @@ private fun SourcesQuickAccessSection(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
             }
-            IconButton(onClick = onManageClick, modifier = Modifier.size(34.dp)) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_more_vert),
-                    contentDescription = stringResource(R.string.manage),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            TextButton(
+                onClick = onManageClick,
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.extension_management),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
                 )
             }
         }
@@ -913,12 +935,13 @@ private fun SourcesQuickAccessSection(
                     context = context,
                 )
             }
-            val visibleGroups = remember(groupedSources, collapsedVisibleCount, isExpanded) {
+            val effectiveExpanded = forceExpanded || isExpanded
+            val visibleGroups = remember(groupedSources, collapsedVisibleCount, effectiveExpanded) {
                 groupedSources.takeVisibleSourceGroups(
-                    maxSources = if (isExpanded) Int.MAX_VALUE else collapsedVisibleCount,
+                    maxSources = if (effectiveExpanded) Int.MAX_VALUE else collapsedVisibleCount,
                 )
             }
-            val hasMoreSources = sources.size > collapsedVisibleCount
+            val hasMoreSources = !forceExpanded && sources.size > collapsedVisibleCount
 
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 visibleGroups.forEach { group ->
@@ -947,7 +970,7 @@ private fun SourcesQuickAccessSection(
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                     ) {
                         Text(
-                            text = if (isExpanded) {
+                            text = if (effectiveExpanded) {
                                 stringResource(R.string.show_less)
                             } else {
                                 "${stringResource(R.string.show_more)} (${sources.size - collapsedVisibleCount})"
