@@ -154,6 +154,7 @@ fun KototoroPullToRefreshBox(
     var settledDistancePx by remember { mutableFloatStateOf(0f) }
     var isDragging by remember { mutableStateOf(false) }
     var refreshRequestVersion by remember { mutableIntStateOf(0) }
+    val indicatorOffsetFactor = 1f
     val displayedDistancePx by animateFloatAsState(
         targetValue = if (isDragging) pullDistancePx else settledDistancePx,
         animationSpec = tween(durationMillis = 180),
@@ -224,7 +225,7 @@ fun KototoroPullToRefreshBox(
                 }
                 isDragging = true
                 val consumedY = available.y
-                pullDistancePx = (pullDistancePx + consumedY * PullRefreshResistance)
+                pullDistancePx = (pullDistancePx + consumedY)
                     .coerceAtMost(maxPullDistancePx)
                 settledDistancePx = pullDistancePx
                 return Offset(x = 0f, y = consumedY)
@@ -273,7 +274,7 @@ fun KototoroPullToRefreshBox(
                     .align(Alignment.TopCenter)
                     .offset(
                         y = indicatorTopInset.calculateTopPadding() +
-                            with(density) { (displayedDistancePx * 0.45f).toDp() },
+                            with(density) { (displayedDistancePx * indicatorOffsetFactor).toDp() },
                     ),
             )
         }
