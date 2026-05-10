@@ -5,7 +5,7 @@ import androidx.room.Entity
 
 @Entity(
 	tableName = "scrobblings",
-	primaryKeys = ["scrobbler", "id", "manga_id"],
+	primaryKeys = ["scrobbler", "id", "manga_id", "media_type"],
 )
 data class ScrobblingEntity(
 	@ColumnInfo(name = "scrobbler") val scrobbler: Int,
@@ -16,4 +16,5 @@ data class ScrobblingEntity(
 	@ColumnInfo(name = "chapter") val chapter: Int,
 	@ColumnInfo(name = "comment") val comment: String?,
 	@ColumnInfo(name = "rating") val rating: Float,
+	@ColumnInfo(name = "media_type") val mediaType: String = "",
 )

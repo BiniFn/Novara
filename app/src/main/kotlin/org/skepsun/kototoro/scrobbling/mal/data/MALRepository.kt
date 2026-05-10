@@ -52,7 +52,7 @@ class MALRepository @Inject constructor(
 
 	private val clientId = context.getString(R.string.mal_clientId)
 	private val codeVerifier: String by lazy(::generateCodeVerifier)
-	private val contentTypeHints = java.util.concurrent.ConcurrentHashMap<Long, String>()
+	private val contentTypeHints = java.util.concurrent.ConcurrentHashMap<RemoteListKey, String>()
 
 	override val oauthUrl: String
 		get() = "$BASE_WEB_URL/v1/oauth2/authorize?" +
@@ -268,29 +268,56 @@ class MALRepository @Inject constructor(
 	}
 
 	override suspend fun getContentInfo(id: Long): ScrobblerContentInfo {
-		val endpoint = contentTypeHints[id] ?: db.getScrobblingDao()
-			.findAllByScrobbler(ScrobblerService.MAL.id)
-			.firstOrNull { it.targetId == id }
-			?.let { mediaEndpoint(isAnime(it.mangaId)) }
+		val endpoint = db.getScrobblingDao()
+			.findAllByTargetId(ScrobblerService.MAL.id, id)
+			.firstNotNullOfOrNull { entity ->
+				entity.mediaType.takeIf { it.isNotBlank() }
+					?: entity.takeIf { it.mangaId != 0L }?.let { mediaEndpoint(isAnime(it.mangaId)) }
+			}
 			?: MANGA_ENDPOINT
 		return getContentInfo(id, endpoint)
 	}
 
 	suspend fun getContentInfo(id: Long, mangaId: Long): ScrobblerContentInfo {
-		return getContentInfo(id, resolvedEndpoint(id, mangaId))
+		return getContentInfo(id, mangaId, "")
+	}
+
+	suspend fun getContentInfo(id: Long, mangaId: Long, mediaType: String): ScrobblerContentInfo {
+		return getContentInfo(id, resolvedEndpoint(id, mangaId, mediaType))
+	}
+
+	suspend fun getContentPreview(id: Long, mangaId: Long): ScrobblerContentInfo {
+		return getContentPreview(id, mangaId, "")
+	}
+
+	suspend fun getContentPreview(id: Long, mangaId: Long, mediaType: String): ScrobblerContentInfo {
+		return getContentPreview(id, resolvedEndpoint(id, mangaId, mediaType))
 	}
 
 	private suspend fun getContentInfo(id: Long, endpoint: String): ScrobblerContentInfo {
 		val response = requestContentInfo(id, endpoint)
 		if (response.has("id")) {
-			contentTypeHints[id] = endpoint
+			rememberEndpoint(id, endpoint)
 			return buildContentInfo(response, endpoint)
 		}
 		val fallbackEndpoint = alternateEndpoint(endpoint)
 		val fallbackResponse = requestContentInfo(id, fallbackEndpoint)
 		check(fallbackResponse.has("id")) { "Invalid MAL content response for $id: \"$fallbackResponse\"" }
-		contentTypeHints[id] = fallbackEndpoint
+		rememberEndpoint(id, fallbackEndpoint)
 		return buildContentInfo(fallbackResponse, fallbackEndpoint)
+	}
+
+	private suspend fun getContentPreview(id: Long, endpoint: String): ScrobblerContentInfo {
+		val response = requestContentInfo(id, endpoint)
+		if (response.has("id")) {
+			rememberEndpoint(id, endpoint)
+			return ScrobblerContentInfo(response, endpoint)
+		}
+		val fallbackEndpoint = alternateEndpoint(endpoint)
+		val fallbackResponse = requestContentInfo(id, fallbackEndpoint)
+		check(fallbackResponse.has("id")) { "Invalid MAL content response for $id: \"$fallbackResponse\"" }
+		rememberEndpoint(id, fallbackEndpoint)
+		return ScrobblerContentInfo(fallbackResponse, fallbackEndpoint)
 	}
 
 	/**
@@ -329,8 +356,8 @@ class MALRepository @Inject constructor(
 
 	override suspend fun createRate(mangaId: Long, content: ScrobblerContent) {
 		val scrobblerContentId = content.id
-		content.mediaType?.let { contentTypeHints[scrobblerContentId] = it }
-		val endpoint = content.mediaType ?: resolvedEndpoint(scrobblerContentId, mangaId)
+		content.mediaType?.let { rememberEndpoint(scrobblerContentId, it) }
+		val endpoint = content.mediaType ?: resolvedEndpoint(scrobblerContentId, mangaId, "")
 		val body = FormBody.Builder()
 			.add("status", defaultStatus(endpoint == ANIME_ENDPOINT))
 			.add("score", "0")
@@ -349,7 +376,7 @@ class MALRepository @Inject constructor(
 	}
 
 	override suspend fun updateRate(rateId: Int, mangaId: Long, chapter: Int) {
-		val endpoint = resolvedEndpoint(rateId.toLong(), mangaId)
+		val endpoint = resolvedEndpoint(rateId.toLong(), mangaId, "")
 		val body = FormBody.Builder()
 			.add(progressField(endpoint), chapter.toString())
 		val url = BASE_API_URL.toHttpUrl().newBuilder()
@@ -366,7 +393,7 @@ class MALRepository @Inject constructor(
 	}
 
 	override suspend fun updateRate(rateId: Int, mangaId: Long, rating: Float, status: String?, comment: String?) {
-		val endpoint = resolvedEndpoint(rateId.toLong(), mangaId)
+		val endpoint = resolvedEndpoint(rateId.toLong(), mangaId, "")
 		val mappedStatus = mapStatusForEndpoint(status, endpoint)
 		val body = FormBody.Builder()
 			.add("status", mappedStatus.toString())
@@ -392,6 +419,7 @@ class MALRepository @Inject constructor(
 	 * GET /v2/users/@me/mangalist?fields=list_status&limit=100
 	 */
 	suspend fun syncLibraryFromRemote(): Int {
+		android.util.Log.d("MALRepo", "syncLibrary: start")
 		val oldMappings = buildOldMappings()
 		val synced = ArrayList<ScrobblingEntity>()
 		synced += syncRemoteLibraryEntries(ANIME_ENDPOINT, oldMappings)
@@ -403,21 +431,29 @@ class MALRepository @Inject constructor(
 				db.getScrobblingDao().upsert(entity)
 			}
 		}
+		android.util.Log.d(
+			"MALRepo",
+			"syncLibrary: completed oldMappings=${oldMappings.size}, synced=${synced.size}",
+		)
 		return synced.size
 	}
 
 	private suspend fun saveRate(json: JSONObject, mangaId: Long, scrobblerContentId: Long, endpoint: String) {
 		val statusJson = json.optJSONObject("my_list_status") ?: json
-		contentTypeHints[scrobblerContentId] = endpoint
+		rememberEndpoint(scrobblerContentId, endpoint)
 		val entity = ScrobblingEntity(
 			scrobbler = ScrobblerService.MAL.id,
 			id = scrobblerContentId.toInt(),
 			mangaId = mangaId,
 			targetId = scrobblerContentId,
-			status = statusJson.optString("status", defaultStatus(endpoint == ANIME_ENDPOINT)),
+			status = normalizeRemoteStatus(
+				statusJson.optString("status", defaultStatus(endpoint == ANIME_ENDPOINT)),
+				endpoint,
+			),
 			chapter = statusJson.optInt(progressField(endpoint), 0),
 			comment = statusJson.optString("comments", ""),
 			rating = (statusJson.optDouble("score", 0.0).toFloat() / 10f).coerceIn(0f, 1f),
+			mediaType = endpoint,
 		)
 		db.getScrobblingDao().upsert(entity)
 	}
@@ -429,6 +465,7 @@ class MALRepository @Inject constructor(
 			val targetId = entity.targetId
 			if (targetId == 0L) continue
 			val endpoint = when {
+				entity.mediaType.isNotBlank() -> entity.mediaType
 				entity.mangaId == 0L -> null
 				isAnime(entity.mangaId) -> ANIME_ENDPOINT
 				else -> MANGA_ENDPOINT
@@ -443,6 +480,7 @@ class MALRepository @Inject constructor(
 		oldMappings: Map<RemoteListKey, Long>,
 	): List<ScrobblingEntity> {
 		val synced = ArrayList<ScrobblingEntity>()
+		var page = 0
 		var nextUrl: String? = BASE_API_URL.toHttpUrl().newBuilder()
 			.addPathSegment("users")
 			.addPathSegment("@me")
@@ -454,6 +492,7 @@ class MALRepository @Inject constructor(
 			.toString()
 
 		while (nextUrl != null) {
+			page += 1
 			val request = Request.Builder().url(nextUrl).get().build()
 			val callResponse = okHttp.newCall(request).await()
 			if (!callResponse.isSuccessful) {
@@ -465,6 +504,10 @@ class MALRepository @Inject constructor(
 				android.util.Log.w("MALRepo", "syncLibrary($endpoint): missing data key at $nextUrl")
 				break
 			}
+			android.util.Log.d(
+				"MALRepo",
+				"syncLibrary($endpoint): page=$page, items=${data.length()}, accumulated=${synced.size}",
+			)
 
 			for (i in 0 until data.length()) {
 				val entry = data.optJSONObject(i) ?: continue
@@ -472,22 +515,33 @@ class MALRepository @Inject constructor(
 				val listStatus = entry.optJSONObject("list_status") ?: continue
 				val targetId = node.optLong("id", 0L)
 				if (targetId == 0L) continue
+				val rawStatus = listStatus.optString("status", "")
+				val normalizedStatus = normalizeRemoteStatus(rawStatus, endpoint)
 				synced.add(
 					ScrobblingEntity(
 						scrobbler = ScrobblerService.MAL.id,
 						id = targetId.toInt(),
 						mangaId = oldMappings[RemoteListKey(endpoint, targetId)] ?: 0L,
 						targetId = targetId,
-						status = listStatus.optString("status", ""),
+						status = normalizedStatus,
 						chapter = listStatus.optInt(progressField(endpoint), 0),
 						comment = listStatus.optString("comments", ""),
 						rating = (listStatus.optDouble("score", 0.0).toFloat() / 10f).coerceIn(0f, 1f),
+						mediaType = endpoint,
 					),
 				)
-				contentTypeHints[targetId] = endpoint
+				android.util.Log.d(
+					"MALRepo",
+					"syncLibrary($endpoint): targetId=$targetId, rawStatus=$rawStatus, normalizedStatus=$normalizedStatus, storedMediaType=$endpoint",
+				)
+				rememberEndpoint(targetId, endpoint)
 			}
 
 			nextUrl = response.optJSONObject("paging")?.getStringOrNull("next")
+			android.util.Log.d(
+				"MALRepo",
+				"syncLibrary($endpoint): page=$page done, next=${!nextUrl.isNullOrBlank()}, accumulated=${synced.size}",
+			)
 		}
 
 		return synced
@@ -497,8 +551,33 @@ class MALRepository @Inject constructor(
 		return if (isAnime) ANIME_ENDPOINT else MANGA_ENDPOINT
 	}
 
-	private suspend fun resolvedEndpoint(targetId: Long, mangaId: Long): String {
-		return contentTypeHints[targetId] ?: mediaEndpoint(isAnime(mangaId))
+	private suspend fun resolvedEndpoint(targetId: Long, mangaId: Long, mediaType: String): String {
+		if (mediaType.isNotBlank()) {
+			return mediaType
+		}
+		cachedEndpoint(targetId)?.let { return it }
+		val storedMediaTypes = db.getScrobblingDao()
+			.findAllByTargetId(ScrobblerService.MAL.id, targetId)
+			.mapNotNull { it.mediaType.takeIf(String::isNotBlank) }
+			.distinct()
+		if (storedMediaTypes.size == 1) {
+			return storedMediaTypes.first()
+		}
+		return mediaEndpoint(isAnime(mangaId))
+	}
+
+	private fun rememberEndpoint(targetId: Long, endpoint: String) {
+		contentTypeHints[RemoteListKey(endpoint, targetId)] = endpoint
+	}
+
+	private fun cachedEndpoint(targetId: Long): String? {
+		val endpoints = contentTypeHints.keys
+			.asSequence()
+			.filter { it.targetId == targetId }
+			.map { it.endpoint }
+			.distinct()
+			.toList()
+		return endpoints.singleOrNull()
 	}
 
 	private suspend fun requestContentInfo(id: Long, endpoint: String): JSONObject {
@@ -517,6 +596,15 @@ class MALRepository @Inject constructor(
 
 	private fun defaultStatus(isAnime: Boolean): String {
 		return if (isAnime) "watching" else "reading"
+	}
+
+	private fun normalizeRemoteStatus(status: String?, endpoint: String): String? {
+		if (endpoint != ANIME_ENDPOINT) return status
+		return when (status) {
+			"watching" -> "reading"
+			"plan_to_watch" -> "plan_to_read"
+			else -> status
+		}
 	}
 
 	private fun mapStatusForEndpoint(status: String?, endpoint: String): String? {
@@ -1069,7 +1157,7 @@ class MALRepository @Inject constructor(
 	private fun createDiscoveryContent(node: JSONObject, mediaType: String): ScrobblerContent {
 		val title = node.getString("title")
 		val id = node.getLong("id")
-		contentTypeHints[id] = mediaType
+		rememberEndpoint(id, mediaType)
 		val alternativeTitles = node.optJSONObject("alternative_titles")
 		val originalTitle = alternativeTitles?.getStringOrNull("ja")
 		val secondaryTitle = sequenceOf(

@@ -14,6 +14,7 @@ class ScrobblingBackup(
 	@SerialName("chapter") val chapter: Int,
 	@SerialName("comment") val comment: String?,
 	@SerialName("rating") val rating: Float,
+	@SerialName("media_type") val mediaType: String = "",
 ) {
 
 	constructor(entity: ScrobblingEntity) : this(
@@ -25,6 +26,7 @@ class ScrobblingBackup(
 		chapter = entity.chapter,
 		comment = entity.comment,
 		rating = entity.rating,
+		mediaType = entity.mediaType,
 	)
 
 	fun toEntity() = ScrobblingEntity(
@@ -36,5 +38,6 @@ class ScrobblingBackup(
 		chapter = chapter,
 		comment = comment,
 		rating = rating,
+		mediaType = mediaType,
 	)
 }

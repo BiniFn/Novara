@@ -33,6 +33,7 @@ data class MangaPrefsEntity(
 	@ColumnInfo(name = "metadata_source_kind") val metadataSourceKind: String?,
 	@ColumnInfo(name = "metadata_source_service") val metadataSourceService: Int?,
 	@ColumnInfo(name = "metadata_source_remote_id") val metadataSourceRemoteId: Long?,
+	@ColumnInfo(name = "reading_status") val readingStatus: String?,
 	@ColumnInfo(name = "ignored_tracking_suggestion_service") val ignoredTrackingSuggestionService: Int?,
 	@ColumnInfo(name = "ignored_tracking_suggestion_remote_id") val ignoredTrackingSuggestionRemoteId: Long?,
 )

@@ -180,7 +180,7 @@ private fun UserTrackingAccountRow(
                     text = stats,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
-                    maxLines = 2,
+                    maxLines = 4,
                     overflow = TextOverflow.Ellipsis,
                 )
             }

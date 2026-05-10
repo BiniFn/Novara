@@ -238,9 +238,12 @@ private fun formatStatsSummary(
     if (stats == null) {
         return context.getString(R.string.statistics_pending_short)
     }
+    if (service == ScrobblerService.MAL) {
+        return formatDualMediaStatsSummary(context, stats)
+    }
     val parts = when (service) {
+        ScrobblerService.MAL -> emptyList()
         ScrobblerService.ANILIST,
-        ScrobblerService.MAL,
         ScrobblerService.KITSU,
         ScrobblerService.BANGUMI,
         ScrobblerService.MANGAUPDATES,
@@ -264,6 +267,28 @@ private fun formatStatsSummary(
     return parts.joinToString(separator = " · ").ifBlank {
         context.getString(R.string.statistics_pending_short)
     }
+}
+
+private fun formatDualMediaStatsSummary(
+    context: android.content.Context,
+    stats: ScrobblerUserStats,
+): String {
+    val animeLine = listOfNotNull(
+        stats.animeCount?.let { context.getString(R.string.anime_count_short, it) },
+        stats.episodesWatched?.let { context.getString(R.string.episodes_watched_short, it) },
+        stats.animeMeanScore?.let { context.getString(R.string.mean_score_short, formatScore(it)) },
+    ).joinToString(separator = " · ")
+
+    val mangaLine = listOfNotNull(
+        stats.mangaCount?.let { context.getString(R.string.manga_count_short, it) },
+        stats.chaptersRead?.let { context.getString(R.string.chapters_read_short, it) },
+        stats.mangaMeanScore?.let { context.getString(R.string.mean_score_short, formatScore(it)) },
+    ).joinToString(separator = " · ")
+
+    return listOf(animeLine, mangaLine)
+        .filter { it.isNotBlank() }
+        .joinToString(separator = "\n")
+        .ifBlank { context.getString(R.string.statistics_pending_short) }
 }
 
 private fun formatScore(score: Double): String {

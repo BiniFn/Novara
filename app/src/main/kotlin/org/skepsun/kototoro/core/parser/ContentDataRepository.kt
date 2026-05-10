@@ -31,6 +31,7 @@ import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.util.nullIfEmpty
 import org.skepsun.kototoro.reader.domain.ReaderColorFilter
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingStatus
 import javax.inject.Inject
 import javax.inject.Provider
 
@@ -127,6 +128,32 @@ class ContentDataRepository @Inject constructor(
 			map[entity.mangaId] = entity.getOverrideOrNull() ?: continue
 		}
 		return map
+	}
+
+	suspend fun getReadingStatus(mangaId: Long): ScrobblingStatus? {
+		return db.getPreferencesDao().find(mangaId)?.readingStatus
+			?.let(ScrobblingStatus::valueOf)
+	}
+
+	fun observeReadingStatus(mangaId: Long): Flow<ScrobblingStatus?> {
+		return db.getPreferencesDao().observe(mangaId)
+			.map { it?.readingStatus?.let(ScrobblingStatus::valueOf) }
+			.distinctUntilChanged()
+	}
+
+	suspend fun setReadingStatus(
+		mangaId: Long,
+		status: ScrobblingStatus?,
+	) {
+		db.withTransaction {
+			val dao = db.getPreferencesDao()
+			val entity = dao.find(mangaId) ?: newEntity(mangaId)
+			dao.upsert(
+				entity.copy(
+					readingStatus = status?.name,
+				),
+			)
+		}
 	}
 
 	suspend fun setOverride(manga: Content, override: ContentOverride?) {
@@ -336,6 +363,7 @@ class ContentDataRepository @Inject constructor(
 		metadataSourceKind = null,
 		metadataSourceService = null,
 		metadataSourceRemoteId = null,
+		readingStatus = null,
 		ignoredTrackingSuggestionService = null,
 		ignoredTrackingSuggestionRemoteId = null,
 	)

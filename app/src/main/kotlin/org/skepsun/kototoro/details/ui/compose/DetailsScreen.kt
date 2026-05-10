@@ -176,6 +176,7 @@ import org.skepsun.kototoro.favourites.ui.categories.select.compose.FavoriteCate
 import org.skepsun.kototoro.stats.ui.sheet.compose.ContentStatsDialog
 import org.skepsun.kototoro.stats.ui.sheet.ContentStatsViewModel
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingStatus
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import kotlinx.coroutines.CancellationException
@@ -214,6 +215,7 @@ fun DetailsScreen(
     val isStatsAvailable = detailsPrimaryUiState.isStatsAvailable
     val trackingSuggestion = detailsPrimaryUiState.trackingSuggestion
     val linkedTrackingItems = detailsPrimaryUiState.linkedTrackingItems
+    val readingStatus = detailsPrimaryUiState.readingStatus
     val isLoading = detailsPrimaryUiState.isLoading
     val entityRelationSections = detailsPrimaryUiState.entityRelationSections
     val activeLocalBrowserContent = detailsPrimaryUiState.activeLocalBrowserContent
@@ -731,6 +733,7 @@ fun DetailsScreen(
                             favouriteCategories = favouriteCategories,
                             historyInfo = historyInfo,
                             linkedTrackingItems = linkedTrackingItems,
+                            readingStatus = readingStatus,
                             trackingSuggestion = trackingSuggestion,
                             metadataSourceOptions = metadataSourceOptions,
                             readingSourceOptions = readingSourceOptions,
@@ -782,9 +785,17 @@ fun DetailsScreen(
                             onOpenMetadataSourceSheet = {
                                 if (!isTemporaryReadOnly) showMetadataSourceDialog = true
                             },
-							onOpenReadingSourceSheet = {
+                            onOpenReadingSourceSheet = {
                                 if (!isTemporaryReadOnly) showReadingSourceDialog = true
                             },
+                            onUpdateLinkedTrackingStatus = { linked, status ->
+                                viewModel.updateScrobbling(
+                                    scrobblerServiceId = linked.service.id,
+                                    rating = linked.rating ?: 0f,
+                                    status = status,
+                                )
+                            },
+                            onUpdateReadingStatus = viewModel::updateUnifiedReadingStatus,
                             onEntityClick = { item ->
                                 val entityId = item.entityId
                                 if (entityId != null) {
@@ -888,6 +899,7 @@ fun DetailsScreen(
                                 favouriteCategories = favouriteCategories,
                                 historyInfo = historyInfo,
                                 linkedTrackingItems = linkedTrackingItems,
+                                readingStatus = readingStatus,
                                 trackingSuggestion = trackingSuggestion,
                                 metadataSourceOptions = metadataSourceOptions,
                                 readingSourceOptions = readingSourceOptions,
@@ -942,6 +954,14 @@ fun DetailsScreen(
                                 onOpenReadingSourceSheet = {
                                     if (!isTemporaryReadOnly) showReadingSourceDialog = true
                                 },
+                                onUpdateLinkedTrackingStatus = { linked, status ->
+                                    viewModel.updateScrobbling(
+                                        scrobblerServiceId = linked.service.id,
+                                        rating = linked.rating ?: 0f,
+                                        status = status,
+                                    )
+                                },
+                                onUpdateReadingStatus = viewModel::updateUnifiedReadingStatus,
                                 onEntityClick = { item ->
                                     val entityId = item.entityId
                                     if (entityId != null) {
@@ -1147,6 +1167,14 @@ fun DetailsScreen(
                     currentContent = content,
                     unavailableText = stringResource(R.string.details_reading_source_unavailable),
                     linkedTrackingItems = linkedTrackingItems,
+                    scrobblingStatuses = arrayOf(
+                        stringResource(R.string.status_planned),
+                        stringResource(R.string.status_reading),
+                        stringResource(R.string.status_re_reading),
+                        stringResource(R.string.status_completed),
+                        stringResource(R.string.status_on_hold),
+                        stringResource(R.string.status_dropped),
+                    ),
                     onDismissRequest = { showMetadataSourceDialog = false },
                     onSelectOption = viewModel::selectMetadataSource,
                     onSearchQueryChange = viewModel::updateMetadataSearchQuery,
@@ -1157,6 +1185,13 @@ fun DetailsScreen(
                     },
                     onOpenLinkedTracking = { linked ->
                         onActionClick(DetailsAction.OpenTrackingDetails(linked.service, linked.remoteId, linked.url))
+                    },
+                    onUpdateLinkedTrackingStatus = { linked, status ->
+                        viewModel.updateScrobbling(
+                            scrobblerServiceId = linked.service.id,
+                            rating = linked.rating ?: 0f,
+                            status = status,
+                        )
                     },
                 )
             }
@@ -1675,6 +1710,7 @@ private fun DetailsScrollableContent(
     historyInfo: HistoryInfo,
     favouriteCategories: Set<org.skepsun.kototoro.core.model.FavouriteCategory>,
     linkedTrackingItems: List<org.skepsun.kototoro.details.ui.model.LinkedTrackingItemUiModel>,
+    readingStatus: ScrobblingStatus,
     trackingSuggestion: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult?,
     metadataSourceOptions: List<DetailsSourceOption>,
     readingSourceOptions: List<DetailsSourceOption>,
@@ -1718,6 +1754,8 @@ private fun DetailsScrollableContent(
     onSelectMetadataSource: (DetailsSourceOption) -> Unit,
     onOpenMetadataSourceSheet: () -> Unit,
     onOpenReadingSourceSheet: () -> Unit,
+    onUpdateLinkedTrackingStatus: (org.skepsun.kototoro.details.ui.model.LinkedTrackingItemUiModel, ScrobblingStatus) -> Unit,
+    onUpdateReadingStatus: (ScrobblingStatus) -> Unit,
     onEntityClick: (EntityRelationItem) -> Unit,
     onActionClick: (DetailsAction) -> Unit,
     sharedElementKey: String? = null,
@@ -1752,6 +1790,7 @@ private fun DetailsScrollableContent(
             favouriteCategories = favouriteCategories,
             historyInfo = historyInfo,
             linkedTrackingItems = linkedTrackingItems,
+            readingStatus = readingStatus,
             trackingSuggestion = trackingSuggestion,
             metadataSourceOptions = metadataSourceOptions,
             readingSourceOptions = readingSourceOptions,
@@ -1815,6 +1854,8 @@ private fun DetailsScrollableContent(
             onManageLinkedTracking = { linked ->
                 onActionClick(DetailsAction.ManageTrackingBinding(linked.service, linked.remoteId, linked.title, linked.url))
             },
+            onUpdateLinkedTrackingStatus = onUpdateLinkedTrackingStatus,
+            onUpdateReadingStatus = onUpdateReadingStatus,
             onRemoveLinkedTracking = { match -> onActionClick(DetailsAction.RemoveTrackingMatch(match)) },
             onBindTrackingSuggestion = { match -> onActionClick(DetailsAction.BindTrackingMatch(match)) },
             onOpenTrackingSuggestion = { match ->

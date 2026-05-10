@@ -33,7 +33,7 @@ abstract class Scrobbler(
 	private val mangaRepositoryFactory: ContentRepository.Factory,
 ) {
 
-	private val infoCache = java.util.concurrent.ConcurrentHashMap<Pair<Long, Long>, ScrobblerContentInfo>()
+	private val infoCache = java.util.concurrent.ConcurrentHashMap<InfoCacheKey, ScrobblerContentInfo>()
 	protected val statuses = EnumMap<ScrobblingStatus, String>(ScrobblingStatus::class.java)
 
 	val user: Flow<ScrobblerUser> = flow {
@@ -141,15 +141,28 @@ abstract class Scrobbler(
 		return repository.getContentInfo(entity.targetId)
 	}
 
+	protected open suspend fun fallbackScrobblingInfo(entity: ScrobblingEntity): ScrobblingInfo? = null
+
 	private suspend fun ScrobblingEntity.toScrobblingInfo(): ScrobblingInfo? {
-		val cacheKey = targetId to mangaId
+		val cacheKey = InfoCacheKey(
+			targetId = targetId,
+			mangaId = mangaId,
+			mediaType = mediaType,
+		)
 		val mangaInfo = infoCache[cacheKey] ?: runCatchingCancellable {
 			getContentInfo(this)
 		}.onFailure {
-			it.printStackTraceDebug()
+			android.util.Log.w(
+				"Scrobbler",
+				"Failed to load content info: service=${scrobblerService.name}, targetId=$targetId, mangaId=$mangaId, mediaType=$mediaType",
+				it,
+			)
 		}.onSuccess {
 			infoCache[cacheKey] = it
 		}.getOrNull()
+		if (mangaInfo == null) {
+			return fallbackScrobblingInfo(this)
+		}
 		val title = mangaInfo?.name ?: "#$targetId"
 		val coverUrl = mangaInfo?.cover ?: ""
 		val description = mangaInfo?.descriptionHtml?.let { it.parseAsHtml().sanitize() } ?: ""
@@ -166,8 +179,15 @@ abstract class Scrobbler(
 			coverUrl = coverUrl,
 			description = description,
 			externalUrl = externalUrl,
+			mediaType = mediaType.takeIf { it.isNotBlank() },
 		)
 	}
+
+	private data class InfoCacheKey(
+		val targetId: Long,
+		val mangaId: Long,
+		val mediaType: String,
+	)
 }
 
 suspend fun Scrobbler.tryScrobble(manga: Content, chapterId: Long): Boolean {

@@ -15,13 +15,15 @@ data class ScrobblingInfo(
 	val coverUrl: String,
 	val description: CharSequence?,
 	val externalUrl: String,
+	val mediaType: String? = null,
 ) : ListModel {
 
 	override fun areItemsTheSame(other: ListModel): Boolean {
 		return other is ScrobblingInfo &&
 			other.scrobbler == scrobbler &&
 			other.targetId == targetId &&
-			other.mangaId == mangaId
+			other.mangaId == mangaId &&
+			other.mediaType == mediaType
 	}
 
 	override fun getChangePayload(previousState: ListModel): Any? = when {

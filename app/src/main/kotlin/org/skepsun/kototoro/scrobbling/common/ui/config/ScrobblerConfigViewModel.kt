@@ -133,6 +133,7 @@ class ScrobblerConfigViewModel @Inject constructor(
 					chapter = info.chapter,
 					comment = info.comment,
 					rating = info.rating,
+					mediaType = info.mediaType.orEmpty(),
 				)
 				android.util.Log.d("ScrobblerConfigVM", "bindContent: no existing entity, upserting new=$newEntity")
 				db.getScrobblingDao().upsert(newEntity)

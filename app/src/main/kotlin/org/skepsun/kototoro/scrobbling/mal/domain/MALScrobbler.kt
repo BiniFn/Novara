@@ -1,13 +1,17 @@
 package org.skepsun.kototoro.scrobbling.mal.domain
 
 import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.core.model.ContentSource
+import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblingEntity
 import org.skepsun.kototoro.scrobbling.common.domain.Scrobbler
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingStatus
 import org.skepsun.kototoro.scrobbling.mal.data.MALRepository
+import org.skepsun.kototoro.parsers.model.ContentType
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,7 +33,34 @@ class MALScrobbler @Inject constructor(
 	}
 
 	override suspend fun getContentInfo(entity: ScrobblingEntity) =
-		repository.getContentInfo(entity.targetId, entity.mangaId)
+		repository.getContentPreview(entity.targetId, entity.mangaId, entity.mediaType)
+
+	override suspend fun fallbackScrobblingInfo(entity: ScrobblingEntity): ScrobblingInfo? {
+		val localManga = db.getMangaDao().find(entity.mangaId)?.manga
+		val localTitle = localManga?.title
+		val endpoint = entity.mediaType.takeIf { it.isNotBlank() }
+			?: localManga?.source
+				?.let(::ContentSource)
+				?.getContentType()
+				?.let { type ->
+					if (type == ContentType.VIDEO || type == ContentType.HENTAI_VIDEO) "anime" else "manga"
+				}
+			?: "manga"
+		return ScrobblingInfo(
+			scrobbler = scrobblerService,
+			mangaId = entity.mangaId,
+			targetId = entity.targetId,
+			status = resolveStatus(entity.status),
+			chapter = entity.chapter,
+			comment = entity.comment,
+			rating = entity.rating,
+			title = localTitle ?: "MAL #${entity.targetId}",
+			coverUrl = "",
+			description = null,
+			externalUrl = "https://myanimelist.net/$endpoint/${entity.targetId}",
+			mediaType = entity.mediaType.takeIf { it.isNotBlank() } ?: endpoint,
+		)
+	}
 
 	override suspend fun updateScrobblingInfo(
 		mangaId: Long,

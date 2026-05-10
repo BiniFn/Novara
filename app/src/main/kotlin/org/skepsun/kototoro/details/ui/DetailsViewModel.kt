@@ -236,6 +236,7 @@ data class DetailsPrimaryUiState(
 	val isStatsAvailable: Boolean = false,
 	val trackingSuggestion: TrackingSiteMatchResult? = null,
 	val linkedTrackingItems: List<LinkedTrackingItemUiModel> = emptyList(),
+	val readingStatus: ScrobblingStatus = ScrobblingStatus.PLANNED,
 	val isLoading: Boolean = false,
 	val entityRelationSections: List<EntityRelationSection> = emptyList(),
 	val activeLocalBrowserContent: Content? = null,
@@ -314,6 +315,7 @@ private data class DetailsHeaderUiState(
 	val historyInfo: HistoryInfo = HistoryInfo(null, null, null, false, null),
 	val trackingSuggestion: TrackingSiteMatchResult? = null,
 	val linkedTrackingItems: List<LinkedTrackingItemUiModel> = emptyList(),
+	val readingStatus: ScrobblingStatus = ScrobblingStatus.PLANNED,
 )
 
 private data class DetailsPaneSummaryUiState(
@@ -2099,6 +2101,21 @@ class DetailsViewModel @Inject constructor(
 		}.sortedWith(BranchComparator())
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, emptyList())
 
+	private val readingStatus: StateFlow<ScrobblingStatus> = combine(
+		activeMangaIdFlow.filterNotNull().flatMapLatest { dataRepository.observeReadingStatus(it) },
+		history,
+		linkedTrackingItems,
+	) { localStatus, history, linkedTrackingItems ->
+		localStatus
+			?: linkedTrackingItems.firstOrNull { it.isPreferred }?.status
+			?: linkedTrackingItems.firstOrNull()?.status
+			?: when {
+				history == null -> ScrobblingStatus.PLANNED
+				org.skepsun.kototoro.list.domain.ReadingProgress.isCompleted(history.percent) -> ScrobblingStatus.COMPLETED
+				else -> ScrobblingStatus.READING
+			}
+	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, ScrobblingStatus.PLANNED)
+
 	private val detailsHeaderUiState = combine(
 		mangaDetails,
 		favouriteCategories,
@@ -2112,6 +2129,15 @@ class DetailsViewModel @Inject constructor(
 			historyInfo = historyInfo,
 			trackingSuggestion = trackingSuggestion,
 			linkedTrackingItems = linkedTrackingItems,
+		)
+	}.combine(readingStatus) { header, readingStatus ->
+		DetailsHeaderUiState(
+			mangaDetails = header.mangaDetails,
+			favouriteCategories = header.favouriteCategories,
+			historyInfo = header.historyInfo,
+			trackingSuggestion = header.trackingSuggestion,
+			linkedTrackingItems = header.linkedTrackingItems,
+			readingStatus = readingStatus,
 		)
 	}
 	private val detailsPaneSummaryUiState = combine(
@@ -2143,6 +2169,7 @@ class DetailsViewModel @Inject constructor(
 			isStatsAvailable = pane.isStatsAvailable,
 			trackingSuggestion = header.trackingSuggestion,
 			linkedTrackingItems = header.linkedTrackingItems,
+			readingStatus = header.readingStatus,
 			isLoading = pane.isLoading,
 			entityRelationSections = entityRelationSections,
 			activeLocalBrowserContent = pane.activeLocalBrowserContent,
@@ -3131,6 +3158,24 @@ class DetailsViewModel @Inject constructor(
 				status = status,
 				comment = null,
 			)
+		}
+	}
+
+	fun updateUnifiedReadingStatus(status: ScrobblingStatus) {
+		launchJob(Dispatchers.Default) {
+			val currentMangaId = activeMangaIdFlow.value ?: return@launchJob
+			dataRepository.setReadingStatus(currentMangaId, status)
+			linkedTrackingItems.value.forEach { linked ->
+				val scrobbler = scrobblers.firstOrNull {
+					it.scrobblerService == linked.service && it.isEnabled
+				} ?: return@forEach
+				scrobbler.updateScrobblingInfo(
+					mangaId = currentMangaId,
+					rating = linked.rating ?: 0f,
+					status = status,
+					comment = null,
+				)
+			}
 		}
 	}
 

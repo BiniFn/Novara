@@ -1579,6 +1579,7 @@
     <string name="details_metadata_source">Metadata Source</string>
     <string name="details_reading_source">Reading Source</string>
     <string name="details_playback_source">Playback Source</string>
+    <string name="details_reading_status">Reading status</string>
     <string name="details_reading_language">Reading language</string>
     <string name="details_playback_language">Playback language</string>
     <string name="details_reading_language_short">Reading</string>

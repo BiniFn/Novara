@@ -41,6 +41,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
@@ -123,6 +125,7 @@ import org.skepsun.kototoro.details.ui.model.LinkedTrackingItemUiModel
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentTag
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingStatus
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItem
 import org.skepsun.kototoro.parsers.model.ContentType
@@ -136,6 +139,7 @@ fun DetailsHeader(
     historyInfo: HistoryInfo,
     favouriteCategories: Set<FavouriteCategory>,
     linkedTrackingItems: List<LinkedTrackingItemUiModel>,
+    readingStatus: ScrobblingStatus,
     trackingSuggestion: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult?,
     metadataSourceOptions: List<DetailsSourceOption>,
     readingSourceOptions: List<DetailsSourceOption>,
@@ -176,6 +180,8 @@ fun DetailsHeader(
     showReviewsAction: Boolean,
     onOpenLinkedTracking: (LinkedTrackingItemUiModel) -> Unit,
     onManageLinkedTracking: (LinkedTrackingItemUiModel) -> Unit,
+    onUpdateLinkedTrackingStatus: (LinkedTrackingItemUiModel, ScrobblingStatus) -> Unit,
+    onUpdateReadingStatus: (ScrobblingStatus) -> Unit,
     onRemoveLinkedTracking: (org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult) -> Unit,
     onBindTrackingSuggestion: (org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult) -> Unit,
     onOpenTrackingSuggestion: (org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult) -> Unit,
@@ -498,13 +504,17 @@ fun DetailsHeader(
                             )
                         }
                     }
+                    UnifiedReadingStatusRow(
+                        status = readingStatus,
+                        scrobblingStatuses = scrobblingStatuses,
+                        linkedTrackingItems = linkedTrackingItems,
+                        onUpdateStatus = onUpdateReadingStatus,
+                    )
                     if (infoItems.isNotEmpty()) {
-                        if (metadataSourceOptions.isNotEmpty() || readingSourceOptions.isNotEmpty()) {
-                            HorizontalDivider(
-                                modifier = Modifier.padding(vertical = 4.dp),
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-                            )
-                        }
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                        )
                         infoItems.chunked(2).forEach { rowItems ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -763,6 +773,89 @@ private fun TrackingSuggestionCard(
     }
 }
 
+@Composable
+private fun UnifiedReadingStatusRow(
+    status: ScrobblingStatus,
+    scrobblingStatuses: Array<String>,
+    linkedTrackingItems: List<LinkedTrackingItemUiModel>,
+    onUpdateStatus: (ScrobblingStatus) -> Unit,
+) {
+    var expanded by remember(status, linkedTrackingItems) { mutableStateOf(false) }
+    val supportedStatuses = remember(linkedTrackingItems) {
+        linkedTrackingItems
+            .map { supportedStatusesForService(it.service).toSet() }
+            .reduceOrNull { acc, statuses -> acc intersect statuses }
+            ?.takeIf { it.isNotEmpty() }
+            ?.toList()
+            ?: ScrobblingStatus.entries
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.details_reading_status),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Box {
+            SuggestionChip(
+                onClick = { expanded = true },
+                label = {
+                    Text(
+                        text = scrobblingStatuses.getOrElse(status.ordinal) { status.name },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                    )
+                },
+                colors = SuggestionChipDefaults.suggestionChipColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                    labelColor = MaterialTheme.colorScheme.onSurface,
+                    iconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+            )
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+            ) {
+                supportedStatuses.forEach { candidate ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = scrobblingStatuses.getOrElse(candidate.ordinal) { candidate.name },
+                            )
+                        },
+                        onClick = {
+                            expanded = false
+                            onUpdateStatus(candidate)
+                        },
+                        leadingIcon = if (status == candidate) {
+                            {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                )
+                            }
+                        } else {
+                            null
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DetailsSourceSelectorButton(
@@ -900,6 +993,7 @@ private data class SourceOptionDisplayModel(
     val coverUrl: String?,
     val source: ContentSource?,
     val trackingService: ScrobblerService?,
+    val linkedTrackingItem: LinkedTrackingItemUiModel?,
     val isSelected: Boolean,
 )
 
@@ -935,6 +1029,7 @@ private fun DetailsSourceOption.resolveDisplayModel(
         coverUrl = coverUrl,
         source = source,
         trackingService = trackingService,
+        linkedTrackingItem = linkedTrackingItem,
         isSelected = isSelected,
     )
 }
@@ -943,8 +1038,13 @@ private fun DetailsSourceOption.resolveDisplayModel(
 private fun SourceOptionCard(
     displayModel: SourceOptionDisplayModel,
     onClick: () -> Unit,
+    scrobblingStatuses: Array<String>,
+    onTrackingStatusClick: ((LinkedTrackingItemUiModel, ScrobblingStatus) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
+    var statusMenuExpanded by remember(displayModel.linkedTrackingItem?.service, displayModel.linkedTrackingItem?.remoteId) {
+        mutableStateOf(false)
+    }
     Surface(
         modifier = modifier
             .width(112.dp)
@@ -1025,7 +1125,92 @@ private fun SourceOptionCard(
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
             )
+            val linkedTrackingItem = displayModel.linkedTrackingItem
+            if (linkedTrackingItem != null && linkedTrackingItem.status != null && onTrackingStatusClick != null) {
+                Spacer(Modifier.height(6.dp))
+                Box {
+                    SuggestionChip(
+                        onClick = { statusMenuExpanded = true },
+                        label = {
+                            Text(
+                                text = scrobblingStatuses.getOrElse(linkedTrackingItem.status.ordinal) {
+                                    linkedTrackingItem.status.name
+                                },
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                            labelColor = MaterialTheme.colorScheme.onSurface,
+                            iconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
+                    )
+                    DropdownMenu(
+                        expanded = statusMenuExpanded,
+                        onDismissRequest = { statusMenuExpanded = false },
+                    ) {
+                        supportedStatusesForService(linkedTrackingItem.service).forEach { status ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = scrobblingStatuses.getOrElse(status.ordinal) { status.name },
+                                    )
+                                },
+                                onClick = {
+                                    statusMenuExpanded = false
+                                    onTrackingStatusClick(linkedTrackingItem, status)
+                                },
+                                leadingIcon = if (linkedTrackingItem.status == status) {
+                                    {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                        )
+                                    }
+                                } else {
+                                    null
+                                },
+                            )
+                        }
+                    }
+                }
+            }
         }
+    }
+}
+
+private fun supportedStatusesForService(service: ScrobblerService): List<ScrobblingStatus> {
+    return when (service) {
+        ScrobblerService.MAL,
+        ScrobblerService.KITSU,
+        ScrobblerService.MANGAUPDATES,
+        ScrobblerService.SIMKL,
+        ScrobblerService.ANILIST,
+        ScrobblerService.SHIKIMORI,
+        -> listOf(
+            ScrobblingStatus.PLANNED,
+            ScrobblingStatus.READING,
+            if (service == ScrobblerService.SHIKIMORI) ScrobblingStatus.RE_READING else null,
+            ScrobblingStatus.COMPLETED,
+            ScrobblingStatus.ON_HOLD,
+            ScrobblingStatus.DROPPED,
+        ).filterNotNull()
+
+        ScrobblerService.BANGUMI -> listOf(
+            ScrobblingStatus.PLANNED,
+            ScrobblingStatus.READING,
+            ScrobblingStatus.COMPLETED,
+            ScrobblingStatus.ON_HOLD,
+            ScrobblingStatus.DROPPED,
+        )
     }
 }
 
@@ -1043,6 +1228,7 @@ fun MetadataSourceSheet(
     currentContent: Content?,
     unavailableText: String,
     linkedTrackingItems: List<LinkedTrackingItemUiModel> = emptyList(),
+    scrobblingStatuses: Array<String>,
     onDismissRequest: () -> Unit,
     onSelectOption: (DetailsSourceOption) -> Unit,
     onSearchQueryChange: (String) -> Unit,
@@ -1050,6 +1236,7 @@ fun MetadataSourceSheet(
     onBindResult: (TrackingSiteItem) -> Unit,
     onOpenResult: (TrackingSiteItem) -> Unit,
     onOpenLinkedTracking: (LinkedTrackingItemUiModel) -> Unit = {},
+    onUpdateLinkedTrackingStatus: (LinkedTrackingItemUiModel, ScrobblingStatus) -> Unit = { _, _ -> },
 ) {
     var pendingBindTarget by remember { mutableStateOf<TrackingSiteItem?>(null) }
     val visibleSections = remember(searchServices, searchSections) {
@@ -1089,15 +1276,17 @@ fun MetadataSourceSheet(
 	                            val linked = option.trackingService?.let { svc ->
 	                                linkedTrackingItems.firstOrNull { it.service == svc && it.remoteId == option.remoteId }
 	                            }
-	                            SourceOptionCard(
-	                                displayModel = option.resolveDisplayModel(
-	                                    currentContent = currentContent,
-	                                    linkedTrackingItem = linked,
-	                                    isSelected = option == selectedOption || option.isSelected,
-	                                ),
-	                                onClick = {
-	                                    onDismissRequest()
-	                                    onSelectOption(option)
+                            SourceOptionCard(
+                                displayModel = option.resolveDisplayModel(
+                                    currentContent = currentContent,
+                                    linkedTrackingItem = linked,
+                                    isSelected = option == selectedOption || option.isSelected,
+                                ),
+                                scrobblingStatuses = scrobblingStatuses,
+                                onTrackingStatusClick = onUpdateLinkedTrackingStatus,
+                                onClick = {
+                                    onDismissRequest()
+                                    onSelectOption(option)
 	                                },
 	                            )
 	                        }
@@ -1252,15 +1441,16 @@ fun ReadingSourceSheet(
 	                        items = currentOptions,
 	                        key = { index, option -> "${option.key}:$index" },
 	                    ) { _, option ->
-	                            SourceOptionCard(
-	                                displayModel = option.resolveDisplayModel(
-	                                    currentContent = currentContent,
-	                                    linkedTrackingItem = null,
-	                                    isSelected = option == selectedOption || option.isSelected,
-	                                ),
-	                                onClick = {
-	                                    onDismissRequest()
-	                                    onSelectOption(option)
+                            SourceOptionCard(
+                                displayModel = option.resolveDisplayModel(
+                                    currentContent = currentContent,
+                                    linkedTrackingItem = null,
+                                    isSelected = option == selectedOption || option.isSelected,
+                                ),
+                                scrobblingStatuses = emptyArray(),
+                                onClick = {
+                                    onDismissRequest()
+                                    onSelectOption(option)
 	                                },
 	                            )
 	                        }
