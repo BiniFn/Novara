@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -95,55 +96,57 @@ fun SourceSettingsScreen(
                 item(key = section.id) {
                     SettingsPreferenceSection(title = section.title) {
                         section.rows.forEachIndexed { index, row ->
-                            when (row) {
-                                is SourceSettingsActionRowUiState -> {
-                                    SettingsActionPreference(
-                                        title = row.title,
-                                        summary = row.summary,
-                                        enabled = row.enabled,
-                                        showChevron = row.showChevron,
-                                        onClick = row.onClick,
-                                    )
-                                }
+                            key(row.id) {
+                                when (row) {
+                                    is SourceSettingsActionRowUiState -> {
+                                        SettingsActionPreference(
+                                            title = row.title,
+                                            summary = row.summary,
+                                            enabled = row.enabled,
+                                            showChevron = row.showChevron,
+                                            onClick = row.onClick,
+                                        )
+                                    }
 
-                                is SourceSettingsSwitchRowUiState -> {
-                                    SettingsSwitchPreference(
-                                        title = row.title,
-                                        checked = row.checked,
-                                        summary = row.summary,
-                                        enabled = row.enabled,
-                                        onCheckedChange = row.onCheckedChange,
-                                    )
-                                }
+                                    is SourceSettingsSwitchRowUiState -> {
+                                        SettingsSwitchPreference(
+                                            title = row.title,
+                                            checked = row.checked,
+                                            summary = row.summary,
+                                            enabled = row.enabled,
+                                            onCheckedChange = row.onCheckedChange,
+                                        )
+                                    }
 
-                                is SourceSettingsChoiceRowUiState -> {
-                                    SettingsChoicePreference(
-                                        title = row.title,
-                                        value = row.value,
-                                        options = row.options,
-                                        summary = row.summary,
-                                        enabled = row.enabled,
-                                        onValueChange = row.onValueChange,
-                                    )
-                                }
+                                    is SourceSettingsChoiceRowUiState -> {
+                                        SettingsChoicePreference(
+                                            title = row.title,
+                                            value = row.value,
+                                            options = row.options,
+                                            summary = row.summary,
+                                            enabled = row.enabled,
+                                            onValueChange = row.onValueChange,
+                                        )
+                                    }
 
-                                is SourceSettingsTextRowUiState -> {
-                                    SettingsDialogTextPreference(
-                                        title = row.title,
-                                        value = row.value,
-                                        summary = row.summary,
-                                        placeholder = row.placeholder,
-                                        isPassword = row.isPassword,
-                                        enabled = row.enabled,
-                                        onValueChange = row.onValueChange,
-                                    )
-                                }
+                                    is SourceSettingsTextRowUiState -> {
+                                        SettingsDialogTextPreference(
+                                            title = row.title,
+                                            value = row.value,
+                                            summary = row.summary,
+                                            placeholder = row.placeholder,
+                                            isPassword = row.isPassword,
+                                            enabled = row.enabled,
+                                            onValueChange = row.onValueChange,
+                                        )
+                                    }
 
-                                is SourceSettingsInfoRowUiState -> {
-                                    SettingsInfoPreference(
-                                        title = row.title,
-                                        summary = row.summary,
-                                    )
+                                    is SourceSettingsInfoRowUiState -> {
+                                        SettingsInfoPreference(
+                                            title = row.title,
+                                            summary = row.summary,
+                                        )
+                                    }
                                 }
                             }
                             if (index < section.rows.lastIndex) {

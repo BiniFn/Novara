@@ -14,6 +14,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -112,7 +113,10 @@ class SourceComposeSettingsFragment : Fragment() {
         }
 
         (view as ComposeView).setContent {
-            sourcePrefs.observeChanges().collectAsStateWithLifecycle(initialValue = null).value
+            sourcePrefs.observeChanges()
+                .map { Any() }
+                .collectAsStateWithLifecycle(initialValue = Any())
+                .value
             val configKeys = configKeysFlow.asStateFlow().collectAsStateWithLifecycle().value
             val isEnabled = viewModel.isEnabled.collectAsStateWithLifecycle(initialValue = false).value
             val browserUrl = viewModel.browserUrl.collectAsStateWithLifecycle(initialValue = null).value
