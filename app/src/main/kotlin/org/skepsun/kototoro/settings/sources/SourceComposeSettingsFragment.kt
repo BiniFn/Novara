@@ -112,7 +112,7 @@ class SourceComposeSettingsFragment : Fragment() {
         }
 
         (view as ComposeView).setContent {
-            sourcePrefs.observeChanges().collectAsStateWithLifecycle(initialValue = null)
+            sourcePrefs.observeChanges().collectAsStateWithLifecycle(initialValue = null).value
             val configKeys = configKeysFlow.asStateFlow().collectAsStateWithLifecycle().value
             val isEnabled = viewModel.isEnabled.collectAsStateWithLifecycle(initialValue = false).value
             val browserUrl = viewModel.browserUrl.collectAsStateWithLifecycle(initialValue = null).value

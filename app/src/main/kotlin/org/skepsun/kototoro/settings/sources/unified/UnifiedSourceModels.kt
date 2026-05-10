@@ -8,6 +8,7 @@ import org.skepsun.kototoro.parsers.model.ContentType
 enum class UnifiedSourceKind {
 	NATIVE,
 	JAR,
+	CLOUDSTREAM,
 	MIHON,
 	ANIYOMI,
 	IREADER,

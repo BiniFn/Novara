@@ -61,6 +61,7 @@ class ContentSourcesRepository @Inject constructor(
 	private val mihonExtensionManager: org.skepsun.kototoro.mihon.MihonExtensionManager,
 	private val aniyomiExtensionManager: org.skepsun.kototoro.aniyomi.AniyomiExtensionManager,
 	private val ireaderExtensionManager: org.skepsun.kototoro.ireader.IReaderExtensionManager,
+	private val cloudstreamRuntimeManager: org.skepsun.kototoro.cloudstream.runtime.CloudstreamRuntimeManager,
 ) {
 
 	private val dao get() = db.getSourcesDao()
@@ -99,6 +100,11 @@ class ContentSourcesRepository @Inject constructor(
 				assimilateNewSources(force = true)
 			}
 		}
+		org.skepsun.kototoro.core.util.ext.processLifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+			cloudstreamRuntimeManager.sources.collect {
+				assimilateNewSources(force = true)
+			}
+		}
 	}
 
 	val allContentSources: Set<ContentSource>
@@ -108,6 +114,7 @@ class ContentSourcesRepository @Inject constructor(
 			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources.value.forEach { 
 				set.add(cachedKotatsuSources.getOrPut(it.name) { org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource(it) }) 
 			}
+			cloudstreamRuntimeManager.sources.value.forEach { set.add(it) }
 			return set
 		}
 
@@ -435,6 +442,21 @@ class ContentSourcesRepository @Inject constructor(
 				(query.isNullOrEmpty() || source.displayName.contains(query, ignoreCase = true))
 			}
 			result.addAll(filteredIReader)
+		}
+
+		val shouldIncludeCloudstream = sourceTypes == null ||
+			org.skepsun.kototoro.core.jsonsource.SourceType.CLOUDSTREAM in sourceTypes
+
+		if (shouldIncludeCloudstream) {
+			val allCloudstream = cloudstreamRuntimeManager.sources.value
+			val disabledNames = if (!settings.isAllSourcesEnabled) dao.findAll().filter { !it.isEnabled }.mapToSet { it.source } else emptySet<String>()
+			val existingNames = result.mapToSet { it.name }
+			val filteredCloudstream = allCloudstream.filter { source ->
+				source.name !in existingNames &&
+					(if (isDisabledOnly) source.name in disabledNames else source.name !in disabledNames) &&
+					(query.isNullOrEmpty() || source.displayName.contains(query, ignoreCase = true))
+			}
+			result.addAll(filteredCloudstream)
 		}
 		
 		if (locale != null) {
@@ -1108,6 +1130,7 @@ class ContentSourcesRepository @Inject constructor(
 		org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources.value.find { it.name == this }?.let { 
 			return cachedKotatsuSources.getOrPut(it.name) { org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource(it) } 
 		}
+		cloudstreamRuntimeManager.findSourceByName(this)?.let { return it }
 
 		// Try Mihon sources
 		if (startsWith("MIHON_")) {

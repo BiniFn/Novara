@@ -32,6 +32,7 @@ class ExtensionInstallService @Inject constructor(
 	@ApplicationContext private val context: Context,
 	@ContentHttpClient private val httpClient: OkHttpClient,
 	private val settings: AppSettings,
+	private val cloudstreamRuntimeManager: org.skepsun.kototoro.cloudstream.runtime.CloudstreamRuntimeManager,
 ) {
 
 	private fun applyMirror(url: String): String {
@@ -52,10 +53,15 @@ class ExtensionInstallService @Inject constructor(
 	val downloadStates: StateFlow<Map<String, ExtensionInstallDownloadState>> = _downloadStates.asStateFlow()
 
 	suspend fun install(extension: RepoAvailableExtension): ExtensionInstallResult {
-		val apkUrl = applyMirror("${extension.repoUrl}/apk/${extension.apkName}")
+		val archiveUrl = when (extension.type) {
+			ExternalExtensionType.CLOUDSTREAM -> extension.archiveUrl?.let(::applyMirror)
+				?: applyMirror("${extension.repoUrl}/${extension.archiveName}")
+			else -> applyMirror("${extension.repoUrl}/apk/${extension.archiveName}")
+		}
 		val outputDir = File(context.cacheDir, "extension-installs").apply { mkdirs() }
-		val outputFile = File(outputDir, "${extension.pkgName}-${extension.versionCode}.apk")
-		val call = httpClient.newCachelessCallWithProgress(GET(apkUrl), ExtensionInstallProgressListener(extension.pkgName))
+		val archiveExtension = extension.archiveName.substringAfterLast('.', missingDelimiterValue = "apk")
+		val outputFile = File(outputDir, "${extension.pkgName}-${extension.versionCode}.$archiveExtension")
+		val call = httpClient.newCachelessCallWithProgress(GET(archiveUrl), ExtensionInstallProgressListener(extension.pkgName))
 		check(activeCalls.putIfAbsent(extension.pkgName, call) == null) {
 			"Extension install download already in progress for ${extension.pkgName}"
 		}
@@ -89,6 +95,25 @@ class ExtensionInstallService @Inject constructor(
 				.putLong(extension.pkgName, extension.versionCode)
 				.apply()
 			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.initialize(context)
+			return ExtensionInstallResult.Completed
+		}
+
+		if (extension.type == ExternalExtensionType.CLOUDSTREAM) {
+			val pluginsDir = File(File(context.filesDir, "cloudstream"), "plugins").apply { mkdirs() }
+			val pluginFile = File(pluginsDir, extension.archiveName)
+			outputFile.copyTo(pluginFile, overwrite = true)
+			outputFile.delete()
+			context.getSharedPreferences("cloudstream_plugin_versions", Context.MODE_PRIVATE)
+				.edit()
+				.putLong(extension.pkgName, extension.versionCode)
+				.putString("${extension.pkgName}:name", extension.name)
+				.putString("${extension.pkgName}:lang", extension.lang)
+				.putString("${extension.pkgName}:repo", extension.repoUrl)
+				.putString("${extension.pkgName}:repoName", extension.repoName)
+				.putString("${extension.pkgName}:archive", extension.archiveName)
+				.putString("${extension.pkgName}:icon", extension.iconUrl)
+				.apply()
+			cloudstreamRuntimeManager.initialize()
 			return ExtensionInstallResult.Completed
 		}
 
@@ -146,6 +171,7 @@ private fun ExternalExtensionType.toLocalApkEcosystem(): String? {
 		ExternalExtensionType.ANIYOMI -> "aniyomi"
 		ExternalExtensionType.IREADER -> "ireader"
 		ExternalExtensionType.JAR -> null
+		ExternalExtensionType.CLOUDSTREAM -> null
 	}
 }
 

@@ -124,6 +124,12 @@ open class BaseApp : App(), Configuration.Provider, SingletonImageLoader.Factory
 		}
 		processLifecycleScope.launch(Dispatchers.IO) {
 			try {
+				BaseAppHolder.setCloudstreamRuntimeManager(entryPoint.cloudstreamRuntimeManager())
+				entryPoint.cloudstreamRuntimeManager().initialize()
+			} catch (e: Throwable) {
+				e.printStackTrace()
+			}
+			try {
 				org.skepsun.kototoro.core.extensions.GlobalExtensionManager.initialize(this@BaseApp)
 			} catch (e: Throwable) {
 				e.printStackTrace()
@@ -198,6 +204,7 @@ open class BaseApp : App(), Configuration.Provider, SingletonImageLoader.Factory
 		fun mihonExtensionManager(): MihonExtensionManager
 		fun aniyomiExtensionManager(): AniyomiExtensionManager
 		fun ireaderExtensionManager(): IReaderExtensionManager
+		fun cloudstreamRuntimeManager(): org.skepsun.kototoro.cloudstream.runtime.CloudstreamRuntimeManager
 		fun externalExtensionRepoRepository(): org.skepsun.kototoro.extensions.repo.ExternalExtensionRepoRepository
 		fun extensionInstallService(): org.skepsun.kototoro.extensions.install.ExtensionInstallService
 		fun contentSourcesRepository(): org.skepsun.kototoro.explore.data.ContentSourcesRepository

@@ -32,6 +32,8 @@ import org.skepsun.kototoro.core.util.ext.consumeAll
 import org.skepsun.kototoro.R
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import okhttp3.Request
+import okhttp3.Response
 import org.skepsun.kototoro.core.model.ContentSource
 import org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository
 import org.skepsun.kototoro.core.parser.ContentRepository
@@ -48,6 +50,7 @@ import androidx.core.net.toUri
 import org.skepsun.kototoro.local.data.ContentIndex
 import org.skepsun.kototoro.reader.ui.ReaderState
 import org.skepsun.kototoro.parsers.model.ContentSource as ParsersContentSource
+import org.skepsun.kototoro.cloudstream.model.CloudstreamSource
 import javax.inject.Inject
 import com.google.android.material.snackbar.Snackbar
 import org.skepsun.kototoro.reader.ui.ScreenOrientationHelper
@@ -63,12 +66,16 @@ import android.media.AudioManager
 import android.provider.Settings
 import android.content.Context
 import java.io.File
+import java.net.URI
 import kotlin.math.abs
+import okhttp3.Headers
 import org.skepsun.kototoro.core.util.ext.menuView
 import org.skepsun.kototoro.history.data.HistoryRepository
 import org.skepsun.kototoro.history.domain.HistoryUpdateUseCase
 import org.skepsun.kototoro.reader.ui.ReaderNavigationCallback
 import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentPage
+import org.skepsun.kototoro.parsers.model.ContentExternalTrack
 import org.skepsun.kototoro.reader.ui.pager.ReaderPage
 import org.skepsun.kototoro.bookmarks.domain.Bookmark
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -1186,10 +1193,43 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                                 }
                             }
                             val pages = repo.getPages(currentChapter)
+                            val fallbackVideos = pages.toFallbackVideos(repo)
+                            if (fallbackVideos.isNotEmpty()) {
+                                availableVideos = fallbackVideos
+                                updateQualityButtonVisibility()
+                                currentVideoSource = manga.source
+                                currentVideoIndex = 0
+                                val selected = fallbackVideos[currentVideoIndex]
+                                val mergedHeaders = mergeHeaders(repo.getRequestHeaders(), headersToMap(selected.headers))
+                                pendingExternalSubtitles = selected.subtitleTracks
+                                pendingExternalAudio = selected.audioTracks
+                                Log.d(
+                                    "VideoPlayerActivity",
+                                    "Selected fallback video for chapter=${currentChapter.id} url=${selected.videoUrl} title=${selected.videoTitle} source=${manga.source.name} subtitles=${selected.subtitleTracks.size}",
+                                )
+                                startMpvPlayback(
+                                    selected.videoUrl,
+                                    manga.source,
+                                    mergedHeaders,
+                                    startMs = startMs,
+                                )
+                                return@runCatching true
+                            }
                             val page = pages.firstOrNull()
                             if (page != null) {
                                 val streamUrl = repo.getPageUrl(page)
                                 val streamHeaders = mergeHeaders(repo.getRequestHeaders(), page.headers)
+                                pendingExternalSubtitles = page.externalSubtitleTracks.map { track ->
+                                    eu.kanade.tachiyomi.animesource.model.Track(
+                                        url = resolveExternalSubtitleUrl(track),
+                                        lang = track.lang,
+                                    )
+                                }
+                                pendingExternalAudio = emptyList()
+                                Log.d(
+                                    "VideoPlayerActivity",
+                                    "Selected fallback page for chapter=${currentChapter.id} url=$streamUrl headers=${streamHeaders.keys} source=${manga.source.name} subtitles=${page.externalSubtitleTracks.size}",
+                                )
                                 availableVideos = emptyList()
                                 currentVideoIndex = 0
                                 updateQualityButtonVisibility()
@@ -1356,8 +1396,16 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
         Log.d("VideoPlayerActivity", "Loading media. URL: $url, Headers: ${mergedHeaders.keys}")
         val isHttpSource = url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true)
-        val useProxy = shouldUseLocalProxy(url, isHttpSource)
-        val (playUrl, playHeaders) = if (useProxy) {
+        val useProxy = shouldUseLocalProxy(url, isHttpSource, source)
+        val dynamicCloudstreamPlaylistUrl = createCloudstreamPlaylistProxyUrl(
+            url = url,
+            headers = mergedHeaders,
+            source = source,
+        )
+        val (playUrl, playHeaders) = if (dynamicCloudstreamPlaylistUrl != null) {
+            Log.d("VideoPlayerActivity", "Using rewritten Cloudstream playlist proxy for URL: $url")
+            dynamicCloudstreamPlaylistUrl to emptyMap<String, String>()
+        } else if (useProxy) {
             runCatching {
                 val proxyUrl = videoLocalCacheProxy.getProxyUrl(url, mergedHeaders)
                 proxyUrl to emptyMap<String, String>()
@@ -1369,7 +1417,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             Log.d("VideoPlayerActivity", "Bypass local proxy for URL: $url")
             url to mergedHeaders
         }
-        Log.d("VideoPlayerActivity", "Resolved playback URL: $playUrl")
+        Log.d("VideoPlayerActivity", "Resolved playback URL: $playUrl, useProxy=$useProxy")
         
         val doLoad = {
             schedulePlaybackStartupTimeout()
@@ -1402,8 +1450,16 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         }
     }
 
-    private fun shouldUseLocalProxy(url: String, isHttpSource: Boolean): Boolean {
+    private fun shouldUseLocalProxy(
+        url: String,
+        isHttpSource: Boolean,
+        source: ParsersContentSource?,
+    ): Boolean {
         if (!isHttpSource) return false
+        if (source is CloudstreamSource) {
+            Log.d("VideoPlayerActivity", "Bypass local proxy for Cloudstream source: $url")
+            return false
+        }
         val host = runCatching { Uri.parse(url).host.orEmpty().lowercase() }.getOrDefault("")
         if (host == "127.0.0.1" || host == "localhost") {
             Log.d("VideoPlayerActivity", "Bypass local proxy for loopback URL: $url")
@@ -1418,6 +1474,206 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             return false
         }
         return true
+    }
+
+    private fun createCloudstreamPlaylistProxyUrl(
+        url: String,
+        headers: Map<String, String>,
+        source: ParsersContentSource?,
+    ): String? {
+        if (source !is CloudstreamSource) return null
+        if (!url.contains("/config-", ignoreCase = true)) return null
+        val identitySeed = buildString {
+            append(url)
+            headers.toSortedMap(String.CASE_INSENSITIVE_ORDER).forEach { (key, value) ->
+                append('|').append(key).append('=').append(value)
+            }
+        }
+        return videoLocalCacheProxy.getDynamicProxyUrl(
+            id = "cloudstream-config:${identitySeed.hashCode()}",
+        ) { request ->
+            val proxyBaseUrl = buildDynamicProxyBaseUrl(request)
+            val targetUrl = request.queryParameters["target"].takeUnless { it.isNullOrBlank() } ?: url
+            val upstreamResponse = executeCloudstreamProxyRequest(targetUrl, headers)
+            if (!upstreamResponse.isSuccessful) {
+                upstreamResponse.close()
+                return@getDynamicProxyUrl VideoLocalCacheProxy.DynamicResponse(
+                    statusCode = upstreamResponse.code,
+                    contentType = "text/plain; charset=utf-8",
+                    body = "Cloudstream upstream failed: ${upstreamResponse.code}".toByteArray(Charsets.UTF_8),
+                )
+            }
+            val body = upstreamResponse.body
+            val contentType = upstreamResponse.header("Content-Type").orEmpty()
+            if (body == null) {
+                upstreamResponse.close()
+                return@getDynamicProxyUrl VideoLocalCacheProxy.DynamicResponse(
+                    statusCode = 500,
+                    contentType = "text/plain; charset=utf-8",
+                    body = "Cloudstream upstream body is null".toByteArray(Charsets.UTF_8),
+                )
+            }
+            if (isCloudstreamPlaylistResponse(targetUrl, contentType)) {
+                val playlist = body.string()
+                upstreamResponse.close()
+                val rewritten = rewriteCloudstreamPlaylistForProxy(
+                    playlist = playlist,
+                    baseUrl = targetUrl,
+                    proxyBaseUrl = proxyBaseUrl,
+                )
+                Log.d(
+                    "VideoPlayerActivity",
+                    "Cloudstream playlist preview:\n${rewritten.lineSequence().take(8).joinToString("\n")}",
+                )
+                return@getDynamicProxyUrl VideoLocalCacheProxy.DynamicResponse(
+                    statusCode = 200,
+                    contentType = "application/vnd.apple.mpegurl; charset=utf-8",
+                    headers = mapOf("Cache-Control" to "no-cache"),
+                    body = rewritten.toByteArray(Charsets.UTF_8),
+                )
+            }
+            Log.d(
+                "VideoPlayerActivity",
+                "Cloudstream proxy passthrough target=$targetUrl contentType=$contentType",
+            )
+            VideoLocalCacheProxy.DynamicResponse(
+                statusCode = upstreamResponse.code,
+                contentType = contentType.ifBlank { "application/octet-stream" },
+                headers = buildCloudstreamProxyHeaders(upstreamResponse),
+                bodyStream = body.byteStream(),
+            )
+        }
+    }
+
+    private fun buildDynamicProxyBaseUrl(request: VideoLocalCacheProxy.DynamicRequest): String {
+        val host = request.headers["host"].orEmpty().ifBlank { "127.0.0.1" }
+        val key = request.pathSegments.lastOrNull().orEmpty()
+        return "http://$host/dynamic/$key"
+    }
+
+    private fun executeCloudstreamProxyRequest(
+        url: String,
+        headers: Map<String, String>,
+    ): Response {
+        val request = Request.Builder()
+            .url(url)
+            .apply {
+                headers.forEach { (key, value) -> header(key, value) }
+            }
+            .get()
+            .build()
+        return runCatching {
+            val field = videoLocalCacheProxy.javaClass.getDeclaredField("okHttpClient")
+            field.isAccessible = true
+            val okHttpClient = field.get(videoLocalCacheProxy) as okhttp3.OkHttpClient
+            okHttpClient.newCall(request).execute()
+        }.getOrElse { error ->
+            throw IllegalStateException("Failed to proxy Cloudstream request: $url", error)
+        }
+    }
+
+    private fun isCloudstreamPlaylistResponse(
+        targetUrl: String,
+        contentType: String,
+    ): Boolean {
+        val lowerUrl = targetUrl.lowercase()
+        val lowerContentType = contentType.lowercase()
+        return lowerUrl.contains(".m3u8") ||
+            lowerUrl.contains("/config-") ||
+            lowerUrl.contains("/data-") ||
+            lowerContentType.contains("mpegurl") ||
+            lowerContentType.contains("application/x-mpegurl")
+    }
+
+    private fun rewriteCloudstreamPlaylistForProxy(
+        playlist: String,
+        baseUrl: String,
+        proxyBaseUrl: String,
+    ): String {
+        val currentToken = Uri.parse(baseUrl).getQueryParameter("t").orEmpty()
+        return playlist.lineSequence()
+            .map { line ->
+                if (line.startsWith("#")) {
+                    rewritePlaylistDirective(line, baseUrl, proxyBaseUrl, currentToken)
+                } else {
+                    rewritePlaylistDataLine(line, baseUrl, proxyBaseUrl, currentToken)
+                }
+            }
+            .joinToString("\n")
+    }
+
+    private fun rewritePlaylistDirective(
+        line: String,
+        baseUrl: String,
+        proxyBaseUrl: String,
+        currentToken: String,
+    ): String {
+        return Regex("""URI="([^"]+)"""").replace(line) { match ->
+            val rewritten = rewritePlaylistUrl(match.groupValues[1], baseUrl, proxyBaseUrl, currentToken)
+            "URI=\"$rewritten\""
+        }
+    }
+
+    private fun rewritePlaylistDataLine(
+        line: String,
+        baseUrl: String,
+        proxyBaseUrl: String,
+        currentToken: String,
+    ): String {
+        val trimmed = line.trim()
+        if (trimmed.isEmpty()) return line
+        return rewritePlaylistUrl(trimmed, baseUrl, proxyBaseUrl, currentToken)
+    }
+
+    private fun rewritePlaylistUrl(
+        rawUrl: String,
+        baseUrl: String,
+        proxyBaseUrl: String,
+        currentToken: String,
+    ): String {
+        val normalized = rawUrl.trim()
+        if (normalized.isEmpty()) return rawUrl
+        val absoluteUrl = runCatching {
+            val parsed = URI(normalized)
+            if (parsed.scheme.isNullOrBlank()) {
+                URI(baseUrl).resolve(normalized).toString()
+            } else {
+                normalized
+            }
+        }.getOrDefault(normalized)
+        val resolved = runCatching { URI(absoluteUrl) }.getOrNull() ?: return rawUrl
+        if (resolved.scheme != "https" && resolved.scheme != "http") {
+            return rawUrl
+        }
+        val normalizedTargetUrl = if (currentToken.isNotBlank()) {
+            Uri.parse(absoluteUrl).buildUpon()
+                .clearQuery()
+                .appendQueryParameter("t", currentToken)
+                .build()
+                .toString()
+        } else {
+            absoluteUrl
+        }
+        val rewritten = Uri.parse(proxyBaseUrl).buildUpon()
+            .appendQueryParameter("target", normalizedTargetUrl)
+            .build()
+            .toString()
+        if (rewritten != rawUrl) {
+            Log.d(
+                "VideoPlayerActivity",
+                "Rewrote Cloudstream playlist URL from=$rawUrl to=$rewritten",
+            )
+        }
+        return rewritten
+    }
+
+    private fun buildCloudstreamProxyHeaders(response: Response): Map<String, String> {
+        return buildMap {
+            response.header("Content-Length")?.let { put("Content-Length", it) }
+            response.header("Accept-Ranges")?.let { put("Accept-Ranges", it) }
+            response.header("Content-Range")?.let { put("Content-Range", it) }
+            response.header("Cache-Control")?.let { put("Cache-Control", it) }
+        }
     }
 
     private fun resolveVideoRenderer(rendererMode: VideoRendererMode): String {
@@ -1438,6 +1694,38 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             map[headers.name(i)] = headers.value(i)
         }
         return map
+    }
+
+    private suspend fun List<ContentPage>.toFallbackVideos(repo: ContentRepository): List<Video> {
+        return mapNotNull { page ->
+            val streamUrl = runCatching { repo.getPageUrl(page) }
+                .getOrNull()
+                ?.takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            val title = buildString {
+                page.playbackLabel?.trim()?.takeIf { it.isNotEmpty() }?.let { append(it) }
+                page.playbackQuality?.takeIf { it > 0 }?.let { quality ->
+                    if (isNotEmpty()) append(" ")
+                    append("${quality}p")
+                }
+            }
+            Video(
+                videoUrl = streamUrl,
+                videoTitle = title,
+                resolution = page.playbackQuality,
+                headers = page.headers
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { headers ->
+                        Headers.headersOf(*headers.flatMap { listOf(it.key, it.value) }.toTypedArray())
+                    },
+                subtitleTracks = page.externalSubtitleTracks.map { track ->
+                    eu.kanade.tachiyomi.animesource.model.Track(
+                        url = resolveExternalSubtitleUrl(track),
+                        lang = track.lang,
+                    )
+                },
+            )
+        }
     }
 
     private fun mergeHeaders(
@@ -1999,6 +2287,16 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 }
             }
         }
+    }
+
+    private fun resolveExternalSubtitleUrl(track: ContentExternalTrack): String {
+        val headers = track.headers.orEmpty()
+        if (headers.isEmpty()) return track.url
+        return runCatching {
+            videoLocalCacheProxy.getProxyUrl(track.url, headers)
+        }.onFailure { error ->
+            Log.w("VideoPlayerActivity", "Failed to proxy external subtitle: ${track.url}", error)
+        }.getOrDefault(track.url)
     }
 
     /**
@@ -3115,11 +3413,32 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 // Fallback to getPages for non-Aniyomi sources
                 if (!resolved) {
                     val pages = repo.getPages(chapter)
+                    val fallbackVideos = pages.toFallbackVideos(repo)
+                    if (fallbackVideos.isNotEmpty()) {
+                        availableVideos = fallbackVideos
+                        currentVideoIndex = 0
+                        updateQualityButtonVisibility()
+                        currentVideoSource = manga.source
+                        val selected = fallbackVideos[currentVideoIndex]
+                        pendingExternalSubtitles = selected.subtitleTracks
+                        pendingExternalAudio = selected.audioTracks
+
+                        resetChapterState()
+
+                        val mergedHeaders = mergeHeaders(repo.getRequestHeaders(), headersToMap(selected.headers))
+                        startMpvPlayback(selected.videoUrl, manga.source, mergedHeaders)
+                        updateTitleAndSubtitle()
+                        resolved = true
+                    }
                     val page = pages.firstOrNull()
-                    val streamUrl = page?.let { repo.getPageUrl(it) }
-                    val streamHeaders = page?.let { mergeHeaders(repo.getRequestHeaders(), it.headers) }
+                    val streamUrl = if (!resolved) page?.let { repo.getPageUrl(it) } else null
+                    val streamHeaders = if (!resolved) page?.let { mergeHeaders(repo.getRequestHeaders(), it.headers) } else null
                     
                     if (streamUrl != null) {
+                        Log.d(
+                            "VideoPlayerActivity",
+                            "Selected chapter page chapter=${chapter.id} url=$streamUrl headers=${streamHeaders?.keys} source=${manga.source.name}",
+                        )
                         availableVideos = emptyList()
                         currentVideoIndex = 0
                         updateQualityButtonVisibility()

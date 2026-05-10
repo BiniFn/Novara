@@ -49,11 +49,74 @@ class ExtensionRepoService @Inject constructor(
 		return url.host
 	}
 
+	private fun isCloudstreamIndexEntry(segment: String?): Boolean {
+		val value = segment?.lowercase().orEmpty()
+		return value == "plugins.json" ||
+			value == "repo.json" ||
+			value == "repo" ||
+			value.endsWith(".json")
+	}
+
+	private fun normalizeCloudstreamBaseUrl(url: okhttp3.HttpUrl): String {
+		val normalizedSegments = url.pathSegments
+			.filter { it.isNotEmpty() }
+			.toMutableList()
+		if (isCloudstreamIndexEntry(normalizedSegments.lastOrNull())) {
+			normalizedSegments.removeLastOrNull()
+		}
+		val normalizedPath = if (normalizedSegments.isEmpty()) "/" else "/" + normalizedSegments.joinToString("/")
+		return url.newBuilder()
+			.encodedPath(normalizedPath)
+			.fragment(null)
+			.query(null)
+			.build()
+			.toString()
+			.trimEnd('/')
+	}
+
 	suspend fun fetchRepoDetails(baseUrl: String, type: ExternalExtensionType): ExternalExtensionRepo {
+		if (type == ExternalExtensionType.CLOUDSTREAM) {
+			val normalizedInputUrl = baseUrl.toHttpUrlOrNull() ?: error("Invalid Cloudstream repository URL: $baseUrl")
+			val metadataUrl = resolveCloudstreamRepoMetadataUrl(normalizedInputUrl)
+			val body = withTimeout(REPO_DETAILS_TIMEOUT_MS) {
+				httpClient.newCall(GET(applyMirror(metadataUrl))).awaitSuccess().use { response ->
+					response.body.string()
+				}
+			}
+			val dto = json.decodeFromString<CloudstreamRepositoryMetaDto>(body)
+			val now = System.currentTimeMillis()
+			val normalizedBaseUrl = normalizeCloudstreamBaseUrl(normalizedInputUrl)
+			val derived = deriveRepoName(normalizedBaseUrl, "Cloudstream")
+			return ExternalExtensionRepo(
+				type = type,
+				baseUrl = normalizedBaseUrl,
+				name = dto.name.ifBlank { "Cloudstream: $derived" },
+				shortName = dto.name.takeIf { it.isNotBlank() } ?: derived,
+				website = dto.repositoryUrl ?: dto.website ?: normalizedBaseUrl,
+				signingKeyFingerprint = normalizedBaseUrl.hashCode().toString(16),
+				createdAt = now,
+				updatedAt = now,
+				lastSuccessAt = now,
+				lastError = null,
+				version = dto.manifestVersion?.toString(),
+			)
+		}
+
 		if (type == ExternalExtensionType.IREADER || type == ExternalExtensionType.JAR) {
 			val now = System.currentTimeMillis()
-			val derived = deriveRepoName(baseUrl, if (type == ExternalExtensionType.IREADER) "IReader" else "Kototoro")
-			val repoName = if (type == ExternalExtensionType.IREADER) "IReader: $derived" else "Kototoro: $derived"
+			val fallbackName = when (type) {
+				ExternalExtensionType.IREADER -> "IReader"
+				ExternalExtensionType.JAR -> "Kototoro"
+				ExternalExtensionType.CLOUDSTREAM -> error("Cloudstream handled separately")
+				else -> error("Unsupported local metadata extension type: $type")
+			}
+			val derived = deriveRepoName(baseUrl, fallbackName)
+			val repoName = when (type) {
+				ExternalExtensionType.IREADER -> "IReader: $derived"
+				ExternalExtensionType.JAR -> "Kototoro: $derived"
+				ExternalExtensionType.CLOUDSTREAM -> error("Cloudstream handled separately")
+				else -> error("Unsupported local metadata extension type: $type")
+			}
 			val repoShort = derived
 			var version: String? = null
 			if (type == ExternalExtensionType.JAR) {
@@ -114,25 +177,40 @@ class ExtensionRepoService @Inject constructor(
 	}
 
 	suspend fun fetchAvailableExtensions(repo: ExternalExtensionRepo): List<RepoAvailableExtension> {
-		val indexUrl = "${repo.baseUrl}/index.min.json"
-		val requestUrl = applyMirror(indexUrl)
+		val indexUrls = if (repo.type == ExternalExtensionType.CLOUDSTREAM) {
+			fetchCloudstreamPluginListUrls(repo)
+		} else {
+			listOf("${repo.baseUrl}/index.min.json")
+		}
+		val requestUrls = indexUrls.map(::applyMirror)
 		val startedAt = System.currentTimeMillis()
-		Log.d(TAG, "fetchAvailableExtensions:start type=${repo.type} url=$requestUrl")
+		Log.d(TAG, "fetchAvailableExtensions:start type=${repo.type} urls=$requestUrls")
 		return runCatching {
 			withTimeout(CATALOG_TIMEOUT_MS) {
-				val body = httpClient.newCall(GET(requestUrl)).awaitSuccess().use { response ->
-					response.body.string()
-				}
-				if (repo.type == ExternalExtensionType.IREADER) {
-					val dto = json.decodeFromString<List<IReaderExtensionIndexDto>>(body)
-					dto.asSequence()
-						.mapNotNull { item -> item.toAvailableExtension(repo) }
-						.toList()
-				} else {
-					val dto = json.decodeFromString<List<ExtensionIndexDto>>(body)
-					dto.asSequence()
-						.mapNotNull { item -> item.toAvailableExtension(repo) }
-						.toList()
+				requestUrls.flatMap { requestUrl ->
+					val body = httpClient.newCall(GET(requestUrl)).awaitSuccess().use { response ->
+						response.body.string()
+					}
+					when (repo.type) {
+						ExternalExtensionType.IREADER -> {
+							val dto = json.decodeFromString<List<IReaderExtensionIndexDto>>(body)
+							dto.asSequence()
+								.mapNotNull { item -> item.toAvailableExtension(repo) }
+								.toList()
+						}
+						ExternalExtensionType.CLOUDSTREAM -> {
+							val dto = json.decodeFromString<List<CloudstreamPluginIndexDto>>(body)
+							dto.asSequence()
+								.mapNotNull { item -> item.toAvailableExtension(repo) }
+								.toList()
+						}
+						else -> {
+							val dto = json.decodeFromString<List<ExtensionIndexDto>>(body)
+							dto.asSequence()
+								.mapNotNull { item -> item.toAvailableExtension(repo) }
+								.toList()
+						}
+					}
 				}
 			}
 		}.onSuccess { extensions ->
@@ -156,10 +234,18 @@ class ExtensionRepoService @Inject constructor(
 		if (url.scheme != "https") {
 			return null
 		}
+		if (looksLikeCloudstreamRepoUrl(url)) {
+			return url.newBuilder()
+				.fragment(null)
+				.query(null)
+				.build()
+				.toString()
+		}
 		val normalizedSegments = url.pathSegments
 			.filter { it.isNotEmpty() }
 			.toMutableList()
-		if (normalizedSegments.lastOrNull() != "index.min.json") {
+		val lastSegment = normalizedSegments.lastOrNull()
+		if (lastSegment != "index.min.json" && lastSegment != "plugins.json") {
 			normalizedSegments += "index.min.json"
 		}
 		val normalizedPath = "/" + normalizedSegments.joinToString("/")
@@ -172,7 +258,13 @@ class ExtensionRepoService @Inject constructor(
 	}
 
 	fun baseUrlFromIndexUrl(indexUrl: String): String {
-		return indexUrl.removeSuffix("/index.min.json")
+		val url = indexUrl.toHttpUrlOrNull()
+		if (url != null && looksLikeCloudstreamRepoUrl(url)) {
+			return normalizeCloudstreamBaseUrl(url)
+		}
+		return indexUrl
+			.removeSuffix("/index.min.json")
+			.removeSuffix("/plugins.json")
 	}
 
 	private fun ExtensionIndexDto.toAvailableExtension(repo: ExternalExtensionRepo): RepoAvailableExtension? {
@@ -182,12 +274,14 @@ class ExtensionRepoService @Inject constructor(
 			ExternalExtensionType.ANIYOMI -> libVersion in AniyomiExtensionLoader.LIB_VERSION_MIN..AniyomiExtensionLoader.LIB_VERSION_MAX
 			ExternalExtensionType.IREADER -> true
 			ExternalExtensionType.JAR -> true
+			ExternalExtensionType.CLOUDSTREAM -> true
 		}
 		val displayName = when (repo.type) {
 			ExternalExtensionType.MIHON -> name.removePrefix("Tachiyomi: ")
 			ExternalExtensionType.ANIYOMI -> name.removePrefix("Aniyomi: ")
 			ExternalExtensionType.IREADER -> name.removePrefix("IReader: ")
 			ExternalExtensionType.JAR -> name
+			ExternalExtensionType.CLOUDSTREAM -> name
 		}
 
 		return RepoAvailableExtension(
@@ -200,7 +294,8 @@ class ExtensionRepoService @Inject constructor(
 			lang = lang,
 			isNsfw = nsfw == 1,
 			sourceNames = sources.orEmpty().map { it.name },
-			apkName = apk,
+			archiveName = apk,
+			archiveUrl = null,
 			iconUrl = applyMirror(if (repo.type == ExternalExtensionType.IREADER) "${repo.baseUrl}/icon/${apk.replace(".apk", ".png")}" else "${repo.baseUrl}/icon/$pkg.png"),
 			repoUrl = repo.baseUrl,
 			repoName = repo.displayName,
@@ -223,7 +318,8 @@ class ExtensionRepoService @Inject constructor(
 			lang = lang,
 			isNsfw = nsfw,
 			sourceNames = emptyList(), // IReader plugins don't declare subset sources natively
-			apkName = apk,
+			archiveName = apk,
+			archiveUrl = null,
 			iconUrl = applyMirror("${repo.baseUrl}/icon/${apk.replace(".apk", ".png")}"),
 			repoUrl = repo.baseUrl,
 			repoName = repo.displayName,
@@ -234,6 +330,79 @@ class ExtensionRepoService @Inject constructor(
 			signatureHash = "",
 			isCompatible = true,
 		)
+	}
+
+	private fun CloudstreamPluginIndexDto.toAvailableExtension(repo: ExternalExtensionRepo): RepoAvailableExtension? {
+		val normalizedUrl = pluginUrlFrom(repo.baseUrl, url)
+		val archiveName = normalizedUrl.substringAfterLast('/').ifBlank { "$internalName.cs3" }
+		val normalizedLanguage = language ?: "all"
+		val normalizedVersionName = version.toString()
+		return RepoAvailableExtension(
+			type = repo.type,
+			name = name,
+			pkgName = internalName,
+			versionName = normalizedVersionName,
+			versionCode = version.toLong(),
+			libVersion = apiVersion.toDouble(),
+			lang = normalizedLanguage,
+			isNsfw = false,
+			sourceNames = listOf(name),
+			archiveName = archiveName,
+			archiveUrl = normalizedUrl,
+			iconUrl = iconUrl?.let(::applyMirror).orEmpty(),
+			repoUrl = repo.baseUrl,
+			repoName = repo.displayName,
+			// Cloudstream catalogs expose file hashes, not Android package signing fingerprints.
+			// Treating fileHash as a signature would incorrectly mark every installed plugin as untrusted.
+			signatureHash = "",
+			isCompatible = true,
+		)
+	}
+
+	private suspend fun fetchCloudstreamPluginListUrls(repo: ExternalExtensionRepo): List<String> {
+		val metadataUrl = resolveCloudstreamRepoMetadataUrl(requireNotNull(repo.baseUrl.toHttpUrlOrNull()))
+		val body = httpClient.newCall(GET(applyMirror(metadataUrl))).awaitSuccess().use { response ->
+			response.body.string()
+		}
+		val dto = json.decodeFromString<CloudstreamRepositoryMetaDto>(body)
+		return dto.pluginLists
+			.map { pluginUrlFrom(repo.baseUrl, it) }
+			.ifEmpty { listOf(pluginUrlFrom(repo.baseUrl, "plugins.json")) }
+	}
+
+	private fun resolveCloudstreamRepoMetadataUrl(url: okhttp3.HttpUrl): String {
+		val lastSegment = url.pathSegments.filter { it.isNotEmpty() }.lastOrNull()
+		if (isCloudstreamIndexEntry(lastSegment)) {
+			return url.newBuilder()
+				.fragment(null)
+				.query(null)
+				.build()
+				.toString()
+		}
+		return url.newBuilder()
+			.addPathSegment("repo.json")
+			.fragment(null)
+			.query(null)
+			.build()
+			.toString()
+	}
+
+	private fun looksLikeCloudstreamRepoUrl(url: okhttp3.HttpUrl): Boolean {
+		val joinedPath = url.encodedPath.lowercase()
+		return joinedPath.contains("/builds/") ||
+			joinedPath.endsWith("/repo.json") ||
+			joinedPath.endsWith("/plugins.json") ||
+			joinedPath.endsWith("/repo") ||
+			url.host.contains("codeberg.org")
+	}
+
+	private fun pluginUrlFrom(baseUrl: String, url: String): String {
+		if (url.startsWith("http://") || url.startsWith("https://")) {
+			return applyMirror(url)
+		}
+		val base = baseUrl.trimEnd('/')
+		val suffix = url.removePrefix("/")
+		return applyMirror("$base/$suffix")
 	}
 
 
@@ -284,6 +453,37 @@ class ExtensionRepoService @Inject constructor(
 		val code: Long = 1,
 		val version: String = "1.0",
 		val nsfw: Boolean = false,
+	)
+
+	@Keep
+	@Serializable
+	private data class CloudstreamPluginIndexDto(
+		val url: String,
+		val status: Int = 1,
+		val version: Int,
+		val apiVersion: Int = 1,
+		val name: String,
+		val internalName: String,
+		val authors: List<String> = emptyList(),
+		val description: String? = null,
+		val repositoryUrl: String? = null,
+		val tvTypes: List<String>? = null,
+		val language: String? = null,
+		val iconUrl: String? = null,
+		val fileSize: Long? = null,
+		val fileHash: String? = null,
+	)
+
+	@Keep
+	@Serializable
+	private data class CloudstreamRepositoryMetaDto(
+		val name: String = "",
+		val iconUrl: String? = null,
+		val description: String? = null,
+		val manifestVersion: Int? = null,
+		val pluginLists: List<String> = emptyList(),
+		val repositoryUrl: String? = null,
+		val website: String? = null,
 	)
 
 	private companion object {

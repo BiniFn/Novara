@@ -51,6 +51,7 @@ import javax.inject.Inject
 import coil3.Uri as CoilUri
 import org.skepsun.kototoro.parsers.model.ContentSource as ParserContentSource
 import org.skepsun.kototoro.core.jsonsource.JsonContentSource
+import org.skepsun.kototoro.cloudstream.runtime.CloudstreamContentRepository
 
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepoRepository
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
@@ -123,6 +124,8 @@ class FaviconFetcher(
 
 			is org.skepsun.kototoro.ireader.IReaderMangaRepository -> fetchIReaderIcon(repo)
 
+			is CloudstreamContentRepository -> fetchCloudstreamIcon(repo)
+
 			// JS sources: try to derive favicon from config; fallback to neutral
 			is JsContentRepository -> {
 				val guessed = guessFaviconUrl((repo.source as? JsonContentSource)?.entity?.config)
@@ -187,6 +190,28 @@ class FaviconFetcher(
         } else {
             imageLoader.fetch(R.drawable.ic_storage, options)!!
         }
+    }
+
+    private suspend fun fetchCloudstreamIcon(repository: CloudstreamContentRepository): FetchResult {
+        val pkgName = repository.source.pluginPackageName
+
+        try {
+            val availableExtensions = repoRepository.getCatalogExtensions(ExternalExtensionType.CLOUDSTREAM)
+            val repoExt = availableExtensions.find { extension ->
+                ExternalExtensionType.CLOUDSTREAM.normalizePackageNameForMatching(extension.pkgName) ==
+                    ExternalExtensionType.CLOUDSTREAM.normalizePackageNameForMatching(pkgName)
+            }
+            if (repoExt != null && repoExt.iconUrl.isNotBlank()) {
+                val remoteIcon = imageLoader.fetch(repoExt.iconUrl, options)
+                if (remoteIcon != null) {
+                    return remoteIcon
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTraceDebug()
+        }
+
+        return imageLoader.fetch(R.drawable.ic_source_cloudstream, options)!!
     }
 
     private suspend fun fetchAniyomiIcon(repository: org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository): FetchResult {
@@ -428,10 +453,10 @@ class FaviconFetcher(
 		const val FALLBACK_SIZE = 9999 // largest icon
 
 		private fun defaultIconRes(source: ParserContentSource): Int {
-			return if (source is JsonContentSource || source.name.startsWith("JSON_")) {
-				R.drawable.ic_source_builtin
-			} else {
-				R.drawable.ic_storage
+			return when {
+				source is JsonContentSource || source.name.startsWith("JSON_") -> R.drawable.ic_source_builtin
+				source.name.startsWith("CLOUDSTREAM_") -> R.drawable.ic_source_cloudstream
+				else -> R.drawable.ic_storage
 			}
 		}
 

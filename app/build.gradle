@@ -1,4 +1,5 @@
 import java.time.LocalDateTime
+import java.util.zip.ZipFile
 
 plugins {
 	id 'com.android.application'
@@ -200,6 +201,47 @@ hilt {
     enableAggregatingTask = true
 }
 
+def cloudstreamSourceJar = layout.projectDirectory.file('libs/cloudstream3-pre-release.jar')
+def cloudstreamSanitizedJarTask = tasks.register('prepareCloudstreamRuntimeJar', Jar) {
+	archiveBaseName.set('cloudstream3-runtime')
+	archiveVersion.set('pre-release')
+	destinationDirectory.set(layout.buildDirectory.dir('generated/cloudstream'))
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+	preserveFileTimestamps = false
+	reproducibleFileOrder = true
+
+	from({
+		def sourceJar = cloudstreamSourceJar.asFile
+		if (!sourceJar.exists()) {
+			throw new GradleException("Missing Cloudstream source jar: ${sourceJar.absolutePath}")
+		}
+		zipTree(sourceJar)
+	}) {
+		exclude 'androidx/**'
+		exclude 'com/google/android/material/**'
+	}
+
+	doLast {
+		def outputJar = archiveFile.get().asFile
+		def forbiddenEntries = []
+		ZipFile zipFile = new ZipFile(outputJar)
+		try {
+			zipFile.entries().each { entry ->
+				if (entry.name.startsWith('androidx/') || entry.name.startsWith('com/google/android/material/')) {
+					forbiddenEntries << entry.name
+				}
+			}
+		} finally {
+			zipFile.close()
+		}
+		if (!forbiddenEntries.isEmpty()) {
+			throw new GradleException("Sanitized Cloudstream jar still contains forbidden entries: ${forbiddenEntries.take(5)}")
+		}
+	}
+}
+
+def cloudstreamRuntimeJar = files(cloudstreamSanitizedJarTask.flatMap { it.archiveFile })
+
 // 配置SNAPSHOT版本的缓存策略
 configurations.all {
 	resolutionStrategy {
@@ -253,8 +295,10 @@ configurations.all {
 	implementation libs.guava
 	implementation libs.gson
 
-    // Foldable/Window layout
-    implementation libs.androidx.window
+	// Foldable/Window layout
+	implementation libs.androidx.window
+	implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
+	implementation 'com.fasterxml.jackson.module:jackson-module-kotlin:2.15.2'
 
 	implementation libs.androidx.room.runtime
 	implementation libs.androidx.room.ktx
@@ -318,6 +362,7 @@ configurations.all {
 	implementation libs.onnxruntime.android
 	implementation libs.djl.tokenizers
 	implementation files('libs/tokenizer-native-0.33.0.aar')
+	implementation cloudstreamRuntimeJar
 	implementation libs.djl.sentencepiece
 	implementation 'com.github.akari39:RealCUGAN-ncnn-Android:1.1'
 
@@ -331,6 +376,7 @@ configurations.all {
 	implementation libs.rxjava
 	implementation libs.rxjava2
 	implementation libs.rxjava3
+	implementation files('libs/fuzzywuzzy-1.4.0.jar')
 
 	// IReader extension compatibility
 	implementation libs.ireader.source.api

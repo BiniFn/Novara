@@ -15,7 +15,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.DpOffset
@@ -105,7 +104,11 @@ fun SourceTagDropdown(
                             painter = rememberSafePainter(tag.iconRes),
                             contentDescription = null,
                             modifier = Modifier.size(24.dp),
-                            tint = Color.Unspecified,
+                            tint = if (tag in selectedTags) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
                         )
                     },
                     trailingIcon = {

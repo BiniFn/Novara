@@ -72,6 +72,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 	private val mihonExtensionManager: MihonExtensionManager,
 	private val aniyomiExtensionManager: AniyomiExtensionManager,
 	private val ireaderExtensionManager: IReaderExtensionManager,
+	private val cloudstreamRuntimeManager: org.skepsun.kototoro.cloudstream.runtime.CloudstreamRuntimeManager,
 ) : BaseViewModel() {
 
 	private val availableExternalExtensions = MutableStateFlow<List<RepoAvailableExtension>>(emptyList())
@@ -264,6 +265,31 @@ class UnifiedSourcesViewModel @Inject constructor(
 			return
 		}
 
+		if (item.kind == UnifiedSourceKind.CLOUDSTREAM) {
+			val prefs = appContext.getSharedPreferences("cloudstream_plugin_versions", Context.MODE_PRIVATE)
+			val archiveName = prefs.getString("${packageName}:archive", null) ?: "$packageName.cs3"
+			val pluginDir = File(File(appContext.filesDir, "cloudstream"), "plugins")
+			val pluginFile = File(pluginDir, archiveName)
+			if (pluginFile.exists()) {
+				pluginFile.delete()
+			}
+			prefs.edit()
+				.remove(packageName)
+				.remove("${packageName}:name")
+				.remove("${packageName}:lang")
+				.remove("${packageName}:repo")
+				.remove("${packageName}:repoName")
+				.remove("${packageName}:archive")
+				.remove("${packageName}:icon")
+				.apply()
+			cloudstreamRuntimeManager.initialize()
+			viewModelScope.launch(Dispatchers.IO) {
+				refreshPackages(refreshRepositories = false, showLoading = false)
+				emitMessage(appContext.getString(R.string.removal_completed))
+			}
+			return
+		}
+
 		val ecosystem = item.kind.toLocalApkEcosystem()
 		if (ecosystem != null) {
 			val deleted = LocalApkExtensionSupport.deleteManagedLocalPackage(
@@ -354,6 +380,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 					sourceTitle = title,
 				)
 				UnifiedSourceKind.LNREADER -> addLnReaderRepository(cleanUrl)
+				UnifiedSourceKind.CLOUDSTREAM,
 				UnifiedSourceKind.MIHON,
 				UnifiedSourceKind.ANIYOMI,
 				UnifiedSourceKind.IREADER,
@@ -423,6 +450,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 					refreshAvailableLnReaderPackages()
 					emitMessage(appContext.getString(R.string.unified_sources_repository_refreshed))
 				}
+				UnifiedSourceKind.CLOUDSTREAM,
 				UnifiedSourceKind.MIHON,
 				UnifiedSourceKind.ANIYOMI,
 				UnifiedSourceKind.IREADER,
@@ -453,6 +481,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 					refreshAvailableLnReaderPackages()
 					emitMessage(appContext.getString(R.string.unified_sources_repository_deleted))
 				}
+				UnifiedSourceKind.CLOUDSTREAM,
 				UnifiedSourceKind.MIHON,
 				UnifiedSourceKind.ANIYOMI,
 				UnifiedSourceKind.IREADER,
@@ -572,6 +601,8 @@ class UnifiedSourcesViewModel @Inject constructor(
 	) {
 		if (item.kind.isHotReloadableExternalKind()) {
 			reloadExternalExtensionManagers()
+			refreshPackages(refreshRepositories = false, showLoading = false)
+		} else if (item.kind == UnifiedSourceKind.CLOUDSTREAM) {
 			refreshPackages(refreshRepositories = false, showLoading = false)
 		}
 		emitMessage(appContext.getString(R.string.unified_sources_package_installed))
@@ -917,16 +948,16 @@ class UnifiedSourcesViewModel @Inject constructor(
 			name = name,
 			packageName = pkgName,
 			repositoryId = repositoryIdForAction(kind, repoUrl),
-			repositoryName = repoName,
+			repositoryName = installedPackage?.repositoryName ?: repoName,
 			versionName = versionName,
 			versionCode = versionCode,
 			libVersion = libVersion,
 			language = lang.normalizeLanguageCode(),
 			isInstalled = isInstalled,
 			isNsfw = isNsfw,
-			sourceCount = sourceNames.size,
-			sourceNames = sourceNames,
-			iconUrl = iconUrl.takeIf { it.isNotBlank() },
+			sourceCount = installedPackage?.sourceCount?.takeIf { it > 0 } ?: sourceNames.size,
+			sourceNames = installedPackage?.sourceNames?.takeIf { it.isNotEmpty() } ?: sourceNames,
+			iconUrl = iconUrl.takeIf { it.isNotBlank() } ?: installedPackage?.iconUrl,
 			state = state,
 			installedVersionName = installedPackage?.versionName,
 			installProgressPercent = downloadState?.progressPercent,
@@ -1144,6 +1175,7 @@ private fun String.normalizeLanguageCode(): String {
 
 private fun UnifiedSourceKind.toExternalExtensionType(): ExternalExtensionType? {
 	return when (this) {
+		UnifiedSourceKind.CLOUDSTREAM -> ExternalExtensionType.CLOUDSTREAM
 		UnifiedSourceKind.MIHON -> ExternalExtensionType.MIHON
 		UnifiedSourceKind.ANIYOMI -> ExternalExtensionType.ANIYOMI
 		UnifiedSourceKind.IREADER -> ExternalExtensionType.IREADER
@@ -1154,6 +1186,7 @@ private fun UnifiedSourceKind.toExternalExtensionType(): ExternalExtensionType? 
 
 private fun ExternalExtensionType.toUnifiedKindForPackage(): UnifiedSourceKind {
 	return when (this) {
+		ExternalExtensionType.CLOUDSTREAM -> UnifiedSourceKind.CLOUDSTREAM
 		ExternalExtensionType.MIHON -> UnifiedSourceKind.MIHON
 		ExternalExtensionType.ANIYOMI -> UnifiedSourceKind.ANIYOMI
 		ExternalExtensionType.IREADER -> UnifiedSourceKind.IREADER
@@ -1164,6 +1197,7 @@ private fun ExternalExtensionType.toUnifiedKindForPackage(): UnifiedSourceKind {
 private fun UnifiedSourceKind.isExternalExtensionKind(): Boolean {
 	return when (this) {
 		UnifiedSourceKind.JAR,
+		UnifiedSourceKind.CLOUDSTREAM,
 		UnifiedSourceKind.MIHON,
 		UnifiedSourceKind.ANIYOMI,
 		UnifiedSourceKind.IREADER -> true
@@ -1197,6 +1231,7 @@ private val UnifiedSourcePackageState.sortOrder: Int
 private fun externalExtensionTypes(): List<ExternalExtensionType> {
 	return listOf(
 		ExternalExtensionType.JAR,
+		ExternalExtensionType.CLOUDSTREAM,
 		ExternalExtensionType.MIHON,
 		ExternalExtensionType.ANIYOMI,
 		ExternalExtensionType.IREADER,
@@ -1232,6 +1267,7 @@ private fun UnifiedSourceKind.displayNameForMessage(context: Context): String {
 	return when (this) {
 		UnifiedSourceKind.NATIVE -> context.getString(R.string.source_type_native)
 		UnifiedSourceKind.JAR -> context.getString(R.string.source_type_jar)
+		UnifiedSourceKind.CLOUDSTREAM -> context.getString(R.string.source_type_cloudstream)
 		UnifiedSourceKind.MIHON -> context.getString(R.string.source_type_mihon)
 		UnifiedSourceKind.ANIYOMI -> context.getString(R.string.source_type_aniyomi)
 		UnifiedSourceKind.IREADER -> context.getString(R.string.source_type_ireader)
@@ -1246,6 +1282,9 @@ private fun normalizeRepositoryUrlForAction(url: String): String {
 	return url.trim()
 		.trimEnd('/')
 		.removeSuffix("/index.min.json")
+		.removeSuffix("/plugins.json")
+		.removeSuffix("/repo.json")
+		.removeSuffix("/repo")
 		.trimEnd('/')
 }
 

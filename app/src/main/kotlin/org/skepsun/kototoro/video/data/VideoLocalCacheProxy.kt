@@ -762,6 +762,9 @@ class VideoLocalCacheProxy @Inject constructor(
                 output.addHeader(key, value)
             }
         }
+        if (response.headers.keys.none { it.equals("Connection", ignoreCase = true) }) {
+            output.addHeader("Connection", "close")
+        }
         if (response.bodyStream == null) {
             output.addHeader("Content-Length", response.body.size.toString())
         }

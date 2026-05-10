@@ -1762,20 +1762,22 @@ private fun UnifiedSourcePackageItem.installedIconPackageName(): String? {
 	if (!isInstalled) {
 		return null
 	}
-	return when (kind) {
-		UnifiedSourceKind.MIHON,
-		UnifiedSourceKind.ANIYOMI -> packageName
-		UnifiedSourceKind.IREADER -> packageName?.toInstalledIReaderPackageName()
-		else -> null
+		return when (kind) {
+			UnifiedSourceKind.CLOUDSTREAM -> packageName
+			UnifiedSourceKind.MIHON,
+			UnifiedSourceKind.ANIYOMI -> packageName
+			UnifiedSourceKind.IREADER -> packageName?.toInstalledIReaderPackageName()
+			else -> null
 	}
 }
 
 private fun UnifiedSourceKind.packageIconRes(): Int {
-	return when (this) {
-		UnifiedSourceKind.JAR -> R.drawable.ic_file_zip
-		UnifiedSourceKind.MIHON -> R.drawable.ic_source_mihon
-		UnifiedSourceKind.ANIYOMI -> R.drawable.ic_source_aniyomi
-		UnifiedSourceKind.IREADER -> R.drawable.ic_source_ireader
+		return when (this) {
+			UnifiedSourceKind.JAR -> R.drawable.ic_file_zip
+			UnifiedSourceKind.CLOUDSTREAM -> R.drawable.ic_source_cloudstream
+			UnifiedSourceKind.MIHON -> R.drawable.ic_source_mihon
+			UnifiedSourceKind.ANIYOMI -> R.drawable.ic_source_aniyomi
+			UnifiedSourceKind.IREADER -> R.drawable.ic_source_ireader
 		UnifiedSourceKind.LEGADO -> R.drawable.ic_source_legado
 		UnifiedSourceKind.TVBOX -> R.drawable.ic_source_tvbox
 		UnifiedSourceKind.JS -> R.drawable.ic_source_js
@@ -1866,12 +1868,13 @@ private fun UnifiedSourceKind.displayLabel(): String {
 }
 
 private fun UnifiedSourceKind.labelResId(): Int {
-	return when (this) {
-		UnifiedSourceKind.NATIVE -> R.string.source_type_native
-		UnifiedSourceKind.JAR -> R.string.source_type_jar
-		UnifiedSourceKind.MIHON -> R.string.source_type_mihon
-		UnifiedSourceKind.ANIYOMI -> R.string.source_type_aniyomi
-		UnifiedSourceKind.IREADER -> R.string.source_type_ireader
+		return when (this) {
+			UnifiedSourceKind.NATIVE -> R.string.source_type_native
+			UnifiedSourceKind.JAR -> R.string.source_type_jar
+			UnifiedSourceKind.CLOUDSTREAM -> R.string.source_type_cloudstream
+			UnifiedSourceKind.MIHON -> R.string.source_type_mihon
+			UnifiedSourceKind.ANIYOMI -> R.string.source_type_aniyomi
+			UnifiedSourceKind.IREADER -> R.string.source_type_ireader
 		UnifiedSourceKind.LEGADO -> R.string.source_type_legado
 		UnifiedSourceKind.TVBOX -> R.string.source_type_tvbox
 		UnifiedSourceKind.JS -> R.string.source_type_js
@@ -1880,12 +1883,13 @@ private fun UnifiedSourceKind.labelResId(): Int {
 }
 
 private fun UnifiedSourceKind.dialogLabelResId(): Int {
-	return when (this) {
-		UnifiedSourceKind.NATIVE -> R.string.source_type_builtin_short
-		UnifiedSourceKind.JAR -> R.string.source_type_jar
-		UnifiedSourceKind.MIHON -> R.string.source_type_mihon_apk
-		UnifiedSourceKind.ANIYOMI -> R.string.source_type_aniyomi_apk
-		UnifiedSourceKind.IREADER -> R.string.source_type_ireader_apk
+		return when (this) {
+			UnifiedSourceKind.NATIVE -> R.string.source_type_builtin_short
+			UnifiedSourceKind.JAR -> R.string.source_type_jar
+			UnifiedSourceKind.CLOUDSTREAM -> R.string.source_type_cloudstream
+			UnifiedSourceKind.MIHON -> R.string.source_type_mihon_apk
+			UnifiedSourceKind.ANIYOMI -> R.string.source_type_aniyomi_apk
+			UnifiedSourceKind.IREADER -> R.string.source_type_ireader_apk
 		UnifiedSourceKind.LEGADO -> R.string.source_type_legado_json
 		UnifiedSourceKind.TVBOX -> R.string.source_type_tvbox_json
 		UnifiedSourceKind.JS -> R.string.source_type_js_source
@@ -1904,11 +1908,11 @@ private fun UnifiedSourceKind.supportsJsonImport(): Boolean {
 }
 
 private fun UnifiedSourceKind.isSideloadKind(): Boolean {
-	return when (this) {
-		UnifiedSourceKind.MIHON,
-		UnifiedSourceKind.ANIYOMI,
-		UnifiedSourceKind.IREADER -> true
-		else -> false
+		return when (this) {
+			UnifiedSourceKind.MIHON,
+			UnifiedSourceKind.ANIYOMI,
+			UnifiedSourceKind.IREADER -> true
+			else -> false
 	}
 }
 

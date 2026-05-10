@@ -23,6 +23,7 @@ import org.skepsun.kototoro.core.exceptions.resolve.CaptchaHandler.Companion.sup
 import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.core.model.getOriginLabel
 import org.skepsun.kototoro.core.model.getTitle
+import org.skepsun.kototoro.core.BaseAppHolder
 import org.skepsun.kototoro.core.parser.favicon.faviconUri
 import org.skepsun.kototoro.core.ui.image.sourceFallbackImage
 import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
@@ -160,6 +161,7 @@ private fun resolveDynamicContentSource(
     source.name.startsWith("MIHON_") -> entryPoint.mihonExtensionManager().getMihonMangaSourceByName(source.name)
     source.name.startsWith("ANIYOMI_") -> entryPoint.aniyomiExtensionManager().getAniyomiAnimeSourceByName(source.name)
     source.name.startsWith("IREADER_") -> entryPoint.ireaderExtensionManager().getIReaderMangaSourceByName(source.name)
+    source.name.startsWith("CLOUDSTREAM_") -> BaseAppHolder.get()?.findSourceByName(source.name)
     else -> null
 }
 
@@ -183,6 +185,7 @@ private fun resolveReadableSourceTitle(
 fun ContentSource.iconResForUi(): Int = when {
     name.startsWith("MIHON_") -> R.drawable.ic_source_mihon
     name.startsWith("ANIYOMI_") -> R.drawable.ic_source_aniyomi
+    name.startsWith("CLOUDSTREAM_") -> R.drawable.ic_source_cloudstream
     name.startsWith("JSON_TVBOX_") -> R.drawable.ic_source_tvbox
     name.startsWith("JSON_JS_") -> R.drawable.ic_source_js
     name.startsWith("JSON_LEGADO_") || name.startsWith("JSON_LEGADO_M_") -> R.drawable.ic_source_legado

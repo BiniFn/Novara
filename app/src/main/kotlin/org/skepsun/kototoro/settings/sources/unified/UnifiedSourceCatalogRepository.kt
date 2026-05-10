@@ -6,6 +6,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onStart
@@ -62,6 +63,7 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 	private val mihonExtensionManager: MihonExtensionManager,
 	private val aniyomiExtensionManager: AniyomiExtensionManager,
 	private val ireaderExtensionManager: IReaderExtensionManager,
+	private val cloudstreamRuntimeManager: org.skepsun.kototoro.cloudstream.runtime.CloudstreamRuntimeManager,
 	private val json: Json,
 ) {
 
@@ -82,11 +84,12 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 	fun observeRepositories(): Flow<List<UnifiedSourceRepositoryItem>> {
 		val externalRepos = combine(
 			extensionRepoRepository.observeByType(ExternalExtensionType.JAR),
+			extensionRepoRepository.observeByType(ExternalExtensionType.CLOUDSTREAM),
 			extensionRepoRepository.observeByType(ExternalExtensionType.MIHON),
 			extensionRepoRepository.observeByType(ExternalExtensionType.ANIYOMI),
 			extensionRepoRepository.observeByType(ExternalExtensionType.IREADER),
-		) { jar, mihon, aniyomi, ireader ->
-			jar + mihon + aniyomi + ireader
+		) { jar, cloudstream, mihon, aniyomi, ireader ->
+			jar + cloudstream + mihon + aniyomi + ireader
 		}
 		val lnReaderRepos = settings.observeAsFlow(AppSettings.KEY_LNREADER_REPOS) {
 			lnReaderRepoUrls
@@ -218,12 +221,50 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 				}
 		}
 
+		val cloudstreamPackages = combine(
+			cloudstreamRuntimeManager.sources,
+			flowOf(appContext.getSharedPreferences("cloudstream_plugin_versions", Context.MODE_PRIVATE)),
+		) { runtimeSources, versionPrefs ->
+			val sourceNamesByPackage = runtimeSources
+				.groupBy { it.pluginPackageName }
+				.mapValues { (_, sources) -> sources.map { it.displayName }.distinct().sorted() }
+			val pluginsDir = java.io.File(java.io.File(appContext.filesDir, "cloudstream"), "plugins")
+			pluginsDir.listFiles()
+				?.filter { it.isFile && (it.extension.equals("cs3", ignoreCase = true) || it.extension.equals("zip", ignoreCase = true)) }
+				.orEmpty()
+				.map { file ->
+					val packageName = versionPrefs.all.entries.firstOrNull { (_, value) ->
+						value is String && value == file.name
+					}?.key?.substringBefore(":archive")
+						?: file.nameWithoutExtension
+					val storedVersion = versionPrefs.getLong(packageName, 1L)
+					UnifiedSourcePackageItem(
+						id = packageId(UnifiedSourceKind.CLOUDSTREAM, packageName),
+						kind = UnifiedSourceKind.CLOUDSTREAM,
+						name = versionPrefs.getString("${packageName}:name", packageName) ?: packageName,
+						packageName = packageName,
+						repositoryId = versionPrefs.getString("${packageName}:repo", null)
+							?.let { repositoryId(UnifiedSourceKind.CLOUDSTREAM, it) },
+						repositoryName = versionPrefs.getString("${packageName}:repoName", null),
+						versionName = storedVersion.toString(),
+						versionCode = storedVersion,
+						libVersion = 1.0,
+						language = versionPrefs.getString("${packageName}:lang", null),
+						isInstalled = true,
+						isNsfw = false,
+						sourceCount = sourceNamesByPackage[packageName]?.size ?: 0,
+						sourceNames = sourceNamesByPackage[packageName].orEmpty(),
+						iconUrl = versionPrefs.getString("${packageName}:icon", null),
+					)
+				}
+		}
+
 		val jsonPackages = jsonSourceManager.observeAllJsonSources().map { sources ->
 			sources.toJsonPackageItems()
 		}
 
-		return combine(apkPackages, jarPackages, jsonPackages) { apk, jar, json ->
-			(apk + jar + json).sortedWith(compareBy({ it.kind.ordinal }, { it.name.lowercase() }))
+		return combine(apkPackages, jarPackages, cloudstreamPackages, jsonPackages) { apk, jar, cloudstream, json ->
+			(apk + jar + cloudstream + json).sortedWith(compareBy({ it.kind.ordinal }, { it.name.lowercase() }))
 		}
 	}
 
@@ -248,7 +289,8 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 			GlobalExtensionManager.mangaSources,
 			GlobalExtensionManager.contentSources,
 		) { _, _ -> Unit }
-		return combine(apkChanges, jarChanges) { _, _ -> Unit }
+		val cloudstreamChanges = cloudstreamRuntimeManager.sources.map { Unit }
+		return combine(apkChanges, jarChanges, cloudstreamChanges) { _, _, _ -> Unit }
 			.onStart { emit(Unit) }
 	}
 
@@ -312,6 +354,7 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 			is MihonMangaSource -> UnifiedSourceKind.MIHON
 			is AniyomiAnimeSource -> UnifiedSourceKind.ANIYOMI
 			is IReaderMangaSource -> UnifiedSourceKind.IREADER
+			is org.skepsun.kototoro.cloudstream.model.CloudstreamSource -> UnifiedSourceKind.CLOUDSTREAM
 			is PluginContentSource -> UnifiedSourceKind.JAR
 			is KotatsuParserSource -> if (delegate is PluginMangaSource) UnifiedSourceKind.JAR else UnifiedSourceKind.NATIVE
 			else -> UnifiedSourceKind.NATIVE
@@ -323,6 +366,8 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 			is MihonMangaSource -> packageId(UnifiedSourceKind.MIHON, pkgName) to pkgName
 			is AniyomiAnimeSource -> packageId(UnifiedSourceKind.ANIYOMI, pkgName) to pkgName
 			is IReaderMangaSource -> packageId(UnifiedSourceKind.IREADER, pkgName) to pkgName
+			is org.skepsun.kototoro.cloudstream.model.CloudstreamSource ->
+				packageId(UnifiedSourceKind.CLOUDSTREAM, pluginPackageName) to pluginPackageName
 			is PluginContentSource -> {
 				val packageName = jarName.removeSuffix(".jar")
 				packageId(UnifiedSourceKind.JAR, packageName) to packageName
@@ -348,11 +393,15 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 
 	private fun ExternalExtensionRepo.toUnifiedRepositoryItem(isPreset: Boolean): UnifiedSourceRepositoryItem {
 		val kind = type.toUnifiedKind()
+		val repositoryUrl = when (type) {
+			ExternalExtensionType.CLOUDSTREAM -> "$baseUrl/repo.json"
+			else -> "$baseUrl/index.min.json"
+		}
 		return UnifiedSourceRepositoryItem(
 			id = repositoryId(kind, baseUrl),
 			kind = kind,
 			name = displayName,
-			url = "$baseUrl/index.min.json",
+			url = repositoryUrl,
 			locationType = UnifiedRepositoryLocationType.REMOTE_URL,
 			website = website,
 			isConfigured = true,
@@ -370,6 +419,7 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 			ExternalExtensionType.ANIYOMI -> UnifiedSourceKind.ANIYOMI
 			ExternalExtensionType.IREADER -> UnifiedSourceKind.IREADER
 			ExternalExtensionType.JAR -> UnifiedSourceKind.JAR
+			ExternalExtensionType.CLOUDSTREAM -> UnifiedSourceKind.CLOUDSTREAM
 		}
 	}
 
@@ -379,7 +429,7 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 			UnifiedRepositoryCapability.VERSIONED_INDEX,
 			UnifiedRepositoryCapability.INSTALL_PACKAGE,
 		)
-		return if (this == ExternalExtensionType.JAR || this == ExternalExtensionType.IREADER) {
+		return if (this == ExternalExtensionType.JAR || this == ExternalExtensionType.IREADER || this == ExternalExtensionType.CLOUDSTREAM) {
 			base
 		} else {
 			base + UnifiedRepositoryCapability.TRUST_FINGERPRINT
@@ -629,6 +679,9 @@ private fun normalizeRepositoryUrl(url: String): String {
 	return url.trim()
 		.trimEnd('/')
 		.removeSuffix("/index.min.json")
+		.removeSuffix("/plugins.json")
+		.removeSuffix("/repo.json")
+		.removeSuffix("/repo")
 		.trimEnd('/')
 }
 

@@ -5,4 +5,5 @@ enum class ExternalExtensionType {
 	ANIYOMI,
 	IREADER,
 	JAR,
+	CLOUDSTREAM,
 }

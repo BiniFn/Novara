@@ -44,6 +44,7 @@ class ExtensionsBrowserViewModel @Inject constructor(
 	private val mihonExtensionManager: MihonExtensionManager,
 	private val aniyomiExtensionManager: AniyomiExtensionManager,
 	private val ireaderExtensionManager: org.skepsun.kototoro.ireader.IReaderExtensionManager,
+	private val cloudstreamRuntimeManager: org.skepsun.kototoro.cloudstream.runtime.CloudstreamRuntimeManager,
 ) : BaseViewModel() {
 
 	val type: ExternalExtensionType = enumValueOf(savedStateHandle.require<String>(ARG_EXTENSION_TYPE))
@@ -215,6 +216,28 @@ class ExtensionsBrowserViewModel @Inject constructor(
 			return
 		}
 
+		if (item.extension.type == ExternalExtensionType.CLOUDSTREAM) {
+			val prefs = appContext.getSharedPreferences("cloudstream_plugin_versions", android.content.Context.MODE_PRIVATE)
+			val archiveName = prefs.getString("${item.pkgName}:archive", null) ?: "${item.pkgName}.cs3"
+			val pluginDir = java.io.File(java.io.File(appContext.filesDir, "cloudstream"), "plugins")
+			val pluginFile = java.io.File(pluginDir, archiveName)
+			if (pluginFile.exists()) {
+				pluginFile.delete()
+			}
+			prefs.edit()
+				.remove(item.pkgName)
+				.remove("${item.pkgName}:name")
+				.remove("${item.pkgName}:lang")
+				.remove("${item.pkgName}:repo")
+				.remove("${item.pkgName}:repoName")
+				.remove("${item.pkgName}:archive")
+				.remove("${item.pkgName}:icon")
+				.apply()
+			cloudstreamRuntimeManager.initialize()
+			refresh()
+			return
+		}
+
 		val uninstallPkg = if (item.extension.type == ExternalExtensionType.IREADER && item.pkgName.startsWith("ireader-")) {
 			item.pkgName.toInstalledIReaderPackageName()
 		} else item.pkgName
@@ -263,7 +286,8 @@ class ExtensionsBrowserViewModel @Inject constructor(
 				val lookupPkg = pkgName.toInstalledIReaderPackageName()
 				ireaderExtensionManager.getIReaderMangaSources().filter { it.pkgName == lookupPkg || it.pkgName == pkgName }
 			}
-			ExternalExtensionType.JAR -> emptyList()
+			ExternalExtensionType.JAR,
+			ExternalExtensionType.CLOUDSTREAM -> emptyList()
 		}
 	}
 

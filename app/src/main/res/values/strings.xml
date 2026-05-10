@@ -1833,8 +1833,9 @@
     <string name="paste_tvbox_content">Paste TVBox content</string>
     <string name="paste_js_content">Paste JavaScript source content</string>
 	<string name="source_type">Source Type</string>
-	<string name="source_type_native">Built-in</string>
-	<string name="source_type_mihon">Mihon</string>
+		<string name="source_type_native">Built-in</string>
+		<string name="source_type_cloudstream">Cloudstream</string>
+		<string name="source_type_mihon">Mihon</string>
 	<string name="source_type_aniyomi">Aniyomi</string>
 	<string name="source_type_legado">Legado</string>
 	<string name="source_type_tvbox">TVBox</string>
@@ -2015,8 +2016,9 @@
     <string name="packages_tab_title">Packages (%1$d)</string>
     <string name="repository_location_inline">Inline</string>
     <string name="repository_location_preset">Preset</string>
-    <string name="source_type_jar">JAR</string>
-    <string name="source_type_builtin_short">Native</string>
+	    <string name="source_type_jar">JAR</string>
+	    <string name="source_type_builtin_short">Native</string>
+	    <string name="cloudstream_extension_repositories">Cloudstream Repositories</string>
     <string name="source_type_tvbox_json">TVBox JSON</string>
     <string name="source_type_legado_json">Legado JSON</string>
     <string name="source_type_mihon_apk">Mihon APK</string>

@@ -116,6 +116,7 @@ class SourceGroupManager @Inject constructor(
 		}
 
 		return when {
+			sourceName.startsWith("CLOUDSTREAM_") -> if (isNsfw) ContentGroup.HENTAI_VIDEO else ContentGroup.VIDEO
 			sourceName.startsWith("IREADER_") -> if (isNsfw) ContentGroup.HENTAI_NOVEL else ContentGroup.NOVEL
 			sourceName.startsWith("ANIYOMI_") -> if (isNsfw) ContentGroup.HENTAI_VIDEO else ContentGroup.VIDEO
 			sourceName.startsWith("JSON_TVBOX_") -> if (isNsfw) ContentGroup.HENTAI_VIDEO else ContentGroup.VIDEO
@@ -140,6 +141,7 @@ class SourceGroupManager @Inject constructor(
 			SourceType.MIHON -> OriginGroup.MIHON
 			SourceType.ANIYOMI -> OriginGroup.ANIYOMI
 			SourceType.IREADER -> OriginGroup.IREADER
+			SourceType.CLOUDSTREAM -> OriginGroup.CLOUDSTREAM
 			SourceType.JSON_LNREADER -> OriginGroup.LNREADER_JSON
 		}
 	}
@@ -161,6 +163,7 @@ class SourceGroupManager @Inject constructor(
 			SourceType.MIHON -> OriginGroup.MIHON
 			SourceType.ANIYOMI -> OriginGroup.ANIYOMI
 			SourceType.IREADER -> OriginGroup.IREADER
+			SourceType.CLOUDSTREAM -> OriginGroup.CLOUDSTREAM
 			SourceType.JSON_LNREADER -> OriginGroup.LNREADER_JSON
 		}
 	}
@@ -295,6 +298,11 @@ enum class OriginGroup {
 	 * IReader extension sources
 	 */
 	IREADER,
+
+	/**
+	 * Cloudstream extension sources
+	 */
+	CLOUDSTREAM,
 
 	/**
 	 * JSON sources using LNReader format

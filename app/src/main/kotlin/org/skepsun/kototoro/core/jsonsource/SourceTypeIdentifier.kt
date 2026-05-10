@@ -23,6 +23,7 @@ class SourceTypeIdentifier @Inject constructor() {
 		private const val MIHON_PREFIX = "MIHON_"
 		private const val ANIYOMI_PREFIX = "ANIYOMI_"
 		private const val IREADER_PREFIX = "IREADER_"
+		private const val CLOUDSTREAM_PREFIX = "CLOUDSTREAM_"
 	}
 	
 	/**
@@ -43,6 +44,7 @@ class SourceTypeIdentifier @Inject constructor() {
 	 */
 	fun getSourceType(sourceId: String): SourceType {
 		return when {
+			sourceId.startsWith(CLOUDSTREAM_PREFIX) -> SourceType.CLOUDSTREAM
 			sourceId.startsWith(IREADER_PREFIX) -> SourceType.IREADER
 			sourceId.startsWith(MIHON_PREFIX) -> SourceType.MIHON
 			sourceId.startsWith(ANIYOMI_PREFIX) -> SourceType.ANIYOMI
@@ -74,6 +76,7 @@ class SourceTypeIdentifier @Inject constructor() {
 			SourceType.MIHON -> "Mihon 扩展"
 			SourceType.ANIYOMI -> "Aniyomi 扩展"
 			SourceType.IREADER -> "IReader 扩展"
+			SourceType.CLOUDSTREAM -> "Cloudstream 扩展"
 		}
 	}
 	
@@ -142,4 +145,9 @@ enum class SourceType {
 	 * IReader extension sources
 	 */
 	IREADER
+
+	/**
+	 * Cloudstream video extension sources
+	 */
+	,CLOUDSTREAM
 }

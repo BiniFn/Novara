@@ -70,6 +70,7 @@ fun ContentSource(name: String?): ContentSource {
 	}
 	org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources.value.find { it.name == name }?.let { return org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource(it) }
 	org.skepsun.kototoro.core.extensions.GlobalExtensionManager.contentSources.value.find { it.name == name }?.let { return it }
+	org.skepsun.kototoro.core.BaseAppHolder.get()?.findSourceByName(name)?.let { return it }
 
 	// Fallbacks: If not loaded yet, return stable AnonymousContentSource
 	// Keep the original name so it isn't lost if the source loads later
@@ -160,7 +161,8 @@ fun ContentSource.getSummary(context: Context, contentType: ContentType? = null)
 	is KotatsuParserSource,
 	is org.skepsun.kototoro.mihon.model.MihonMangaSource,
 	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource,
-	is org.skepsun.kototoro.ireader.model.IReaderMangaSource -> {
+	is org.skepsun.kototoro.ireader.model.IReaderMangaSource,
+	is org.skepsun.kototoro.cloudstream.model.CloudstreamSource -> {
 		val resolvedContentType = contentType ?: getContentType()
 		val type = context.getString(resolvedContentType.titleResId)
 		val lang = source.locale.toLocale()
@@ -196,6 +198,7 @@ fun ContentSource.getOriginLabel(context: Context): String? = when (this) {
 	is org.skepsun.kototoro.mihon.model.MihonMangaSource -> "Mihon"
 	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> "Aniyomi"
 	is org.skepsun.kototoro.ireader.model.IReaderMangaSource -> "IReader"
+	is org.skepsun.kototoro.cloudstream.model.CloudstreamSource -> "Cloudstream"
 	is org.skepsun.kototoro.core.jsonsource.JsonContentSource -> {
 		val type = org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier().getSourceType(name)
 		when (type) {
@@ -215,6 +218,7 @@ fun ContentSource.getOriginLabel(context: Context): String? = when (this) {
 			type == org.skepsun.kototoro.core.jsonsource.SourceType.JSON_TVBOX -> "TVBox"
 			type == org.skepsun.kototoro.core.jsonsource.SourceType.JSON_JS -> "JS"
 			type == org.skepsun.kototoro.core.jsonsource.SourceType.EXTERNAL -> context.getString(R.string.external_source)
+			type == org.skepsun.kototoro.core.jsonsource.SourceType.CLOUDSTREAM -> "Cloudstream"
 			type == org.skepsun.kototoro.core.jsonsource.SourceType.NATIVE -> null
 			else -> null
 		}
@@ -233,10 +237,13 @@ fun ContentSource.getTitle(context: Context): String {
 		is org.skepsun.kototoro.mihon.model.MihonMangaSource -> source.displayName
 		is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> source.displayName
 		is org.skepsun.kototoro.ireader.model.IReaderMangaSource -> source.displayName
+		is org.skepsun.kototoro.cloudstream.model.CloudstreamSource -> source.displayName
 		else -> {
 			// Try to handle anonymous wrappers for JSON, Mihon, or Aniyomi sources
 			if (source.name.startsWith("MIHON_")) {
 				"Loading Mihon source..."
+			} else if (source.name.startsWith("CLOUDSTREAM_")) {
+				"Loading Cloudstream source..."
 			} else if (source.name.startsWith("JSON_")) {
 				"Loading JSON source..."
 			} else if (source.name.startsWith("ANIYOMI_")) {
@@ -268,7 +275,6 @@ val ContentSource.isBroken: Boolean
 		return when (unwrapped) {
 			is KotatsuParserSource -> unwrapped.isBroken
 			is org.skepsun.kototoro.core.extensions.PluginContentSource -> unwrapped.isBroken
-			is org.skepsun.kototoro.core.extensions.PluginMangaSource -> unwrapped.isBroken
 			else -> {
 				org.skepsun.kototoro.core.extensions.GlobalExtensionManager.contentSources.value.find { it.originalSource == unwrapped || it.name == unwrapped.name }?.isBroken == true ||
 				org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources.value.find { it.originalSource == unwrapped || it.name == unwrapped.name }?.isBroken == true

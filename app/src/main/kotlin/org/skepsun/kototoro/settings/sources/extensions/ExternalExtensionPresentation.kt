@@ -2,6 +2,7 @@ package org.skepsun.kototoro.settings.sources.extensions
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import org.skepsun.kototoro.aniyomi.AniyomiExtensionManager
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
@@ -85,7 +86,8 @@ internal fun observeInstalledExtensionInfoMap(
 			versionNameOf = { it.versionName },
 		)
 		
-		ExternalExtensionType.JAR -> kotlinx.coroutines.flow.flowOf(emptyMap()) // Unused by JAR right now
+		ExternalExtensionType.JAR,
+		ExternalExtensionType.CLOUDSTREAM -> kotlinx.coroutines.flow.flowOf(emptyMap()) // Unused by non-APK ecosystems right now
 	}
 }
 
@@ -125,6 +127,35 @@ internal fun observeInstalledExtensionEntries(
 					)
 				}
 			}
+		}
+
+		ExternalExtensionType.CLOUDSTREAM -> combine(
+			context?.let { org.skepsun.kototoro.core.BaseAppHolder.get()?.sources } ?: flowOf(emptyList()),
+			flowOf(context?.getSharedPreferences("cloudstream_plugin_versions", android.content.Context.MODE_PRIVATE)),
+		) { runtimeSources, prefs ->
+			val packageSourceNames = runtimeSources
+				.groupBy { it.pluginPackageName }
+				.mapValues { (_, sources) -> sources.map { it.displayName }.distinct().sorted() }
+			val prefs = context?.getSharedPreferences("cloudstream_plugin_versions", android.content.Context.MODE_PRIVATE)
+			val pluginsDir = context?.filesDir?.let { java.io.File(java.io.File(it, "cloudstream"), "plugins") }
+			pluginsDir?.listFiles()
+				?.filter { it.isFile && (it.extension.equals("cs3", ignoreCase = true) || it.extension.equals("zip", ignoreCase = true)) }
+				.orEmpty()
+				.map { file ->
+					val pkg = prefs?.all?.entries?.firstOrNull { (_, value) -> value is String && value == file.name }
+						?.key?.substringBefore(":archive")
+						?: file.nameWithoutExtension
+					InstalledExtensionEntry(
+						pkgName = pkg,
+						name = prefs?.getString("${pkg}:name", pkg) ?: pkg,
+						versionName = (prefs?.getLong(pkg, 1L) ?: 1L).toString(),
+						versionCode = prefs?.getLong(pkg, 1L) ?: 1L,
+						libVersion = 1.0,
+						lang = prefs?.getString("${pkg}:lang", "all") ?: "all",
+						isNsfw = false,
+						sourceNames = packageSourceNames[pkg].orEmpty(),
+					)
+				}
 		}
 	}
 }

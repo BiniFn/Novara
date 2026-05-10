@@ -22,7 +22,25 @@ public data class ContentPage(
 	 * Optional per-page request headers (e.g., Referer) to be applied when fetching the page/image.
 	 */
 	@JvmField public val headers: Map<String, String>? = null,
+	/**
+	 * Optional external subtitle tracks associated with this page/media item.
+	 */
+	@JvmField public val externalSubtitleTracks: List<ContentExternalTrack> = emptyList(),
+	/**
+	 * Optional human-readable playback label for video sources, e.g. line/group name.
+	 */
+	@JvmField public val playbackLabel: String? = null,
+	/**
+	 * Optional nominal video quality/resolution for video sources.
+	 */
+	@JvmField public val playbackQuality: Int? = null,
 	@JvmField public val source: ContentSource,
+)
+
+public data class ContentExternalTrack(
+	@JvmField public val url: String,
+	@JvmField public val lang: String,
+	@JvmField public val headers: Map<String, String>? = null,
 )
 
 @Deprecated("Use id instead of index", ReplaceWith("ContentPage(index.toLong(), url, previewUrl, source)"))

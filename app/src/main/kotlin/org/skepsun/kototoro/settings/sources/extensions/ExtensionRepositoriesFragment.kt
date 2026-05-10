@@ -79,13 +79,14 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 			return
 		}
 		setSupportTitle(
-			when (viewModel.type) {
-				ExternalExtensionType.MIHON -> R.string.mihon_extension_repositories
-				ExternalExtensionType.ANIYOMI -> R.string.aniyomi_extension_repositories
-				ExternalExtensionType.IREADER -> R.string.ireader_extension_repositories
-				ExternalExtensionType.JAR -> R.string.jar_extension_repositories
-			},
-		)
+				when (viewModel.type) {
+					ExternalExtensionType.MIHON -> R.string.mihon_extension_repositories
+					ExternalExtensionType.ANIYOMI -> R.string.aniyomi_extension_repositories
+					ExternalExtensionType.IREADER -> R.string.ireader_extension_repositories
+					ExternalExtensionType.JAR -> R.string.jar_extension_repositories
+					ExternalExtensionType.CLOUDSTREAM -> R.string.cloudstream_extension_repositories
+				},
+			)
 	}
 
 	override fun onDestroyView() {
@@ -227,14 +228,37 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 				),
 			)
 
-			ExternalExtensionType.JAR -> listOf(
-				RecommendedRepo(
-					name = "Kototoro Parsers",
-					url = "https://raw.githubusercontent.com/skepsun/kototoro-parsers/repo/index.min.json",
-				),
-			)
+				ExternalExtensionType.JAR -> listOf(
+					RecommendedRepo(
+						name = "Kototoro Parsers",
+						url = "https://raw.githubusercontent.com/skepsun/kototoro-parsers/repo/index.min.json",
+					),
+				)
+
+				ExternalExtensionType.CLOUDSTREAM -> listOf(
+					RecommendedRepo(
+						name = "CloudStream Providers",
+						url = "https://raw.githubusercontent.com/recloudstream/extensions/master/repo.json",
+					),
+					RecommendedRepo(
+						name = "Phisher Repo",
+						url = "https://raw.githubusercontent.com/phisher98/cloudstream-extensions-phisher/refs/heads/builds/repo.json",
+					),
+					RecommendedRepo(
+						name = "IndoStream Repo",
+						url = "https://raw.githubusercontent.com/TeKuma25/IndoStream/builds/repo.json",
+					),
+					RecommendedRepo(
+						name = "CloudX Repository",
+						url = "https://raw.githubusercontent.com/Asm0d3usX/CloudX/builds/repo.json",
+					),
+					RecommendedRepo(
+						name = "CakesTwix Repository",
+						url = "https://codeberg.org/CakesTwix/cloudstream-extensions-uk/raw/branch/master/repo.json",
+					),
+				)
+			}
 		}
-	}
 
 	private fun openWebsite(repo: ExternalExtensionRepo) {
 		startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, repo.website.toUri()))

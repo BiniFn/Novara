@@ -15,19 +15,60 @@ object UnifiedRecommendedRepositories {
 		UnifiedRepositoryCapability.INSTALL_PACKAGE,
 	)
 
+	private val cloudstreamRepoCapabilities = setOf(
+		UnifiedRepositoryCapability.REFRESH,
+		UnifiedRepositoryCapability.VERSIONED_INDEX,
+		UnifiedRepositoryCapability.INSTALL_PACKAGE,
+	)
+
 	private val jsonRepoCapabilities = setOf(
 		UnifiedRepositoryCapability.REFRESH,
 		UnifiedRepositoryCapability.IMPORT_JSON_LIST,
 	)
 
 	val all: List<UnifiedRecommendedRepository> = listOf(
-		UnifiedRecommendedRepository(
-			kind = UnifiedSourceKind.JAR,
-			name = "Kototoro Parsers",
-			url = "https://raw.githubusercontent.com/skepsun/kototoro-parsers/repo/index.min.json",
-			locationType = UnifiedRepositoryLocationType.REMOTE_URL,
-			capabilities = jarRepoCapabilities,
-		),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.JAR,
+				name = "Kototoro Parsers",
+				url = "https://raw.githubusercontent.com/skepsun/kototoro-parsers/repo/index.min.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = jarRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "CloudStream Providers",
+				url = "https://raw.githubusercontent.com/recloudstream/extensions/master/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "Phisher Repo",
+				url = "https://raw.githubusercontent.com/phisher98/cloudstream-extensions-phisher/refs/heads/builds/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "IndoStream Repo",
+				url = "https://raw.githubusercontent.com/TeKuma25/IndoStream/builds/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "CloudX Repository",
+				url = "https://raw.githubusercontent.com/Asm0d3usX/CloudX/builds/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "CakesTwix Repository",
+				url = "https://codeberg.org/CakesTwix/cloudstream-extensions-uk/raw/branch/master/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
 		UnifiedRecommendedRepository(
 			kind = UnifiedSourceKind.MIHON,
 			name = "Keiyoushi",

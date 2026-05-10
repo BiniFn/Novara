@@ -23,6 +23,7 @@ internal fun ExternalExtensionType.toUnifiedSourceKind(): UnifiedSourceKind {
 		ExternalExtensionType.ANIYOMI -> UnifiedSourceKind.ANIYOMI
 		ExternalExtensionType.IREADER -> UnifiedSourceKind.IREADER
 		ExternalExtensionType.JAR -> UnifiedSourceKind.JAR
+		ExternalExtensionType.CLOUDSTREAM -> UnifiedSourceKind.CLOUDSTREAM
 	}
 }
 

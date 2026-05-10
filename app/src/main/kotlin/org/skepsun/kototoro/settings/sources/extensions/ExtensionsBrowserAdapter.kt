@@ -196,6 +196,7 @@ class ExtensionsBrowserAdapter(
 			org.skepsun.kototoro.extensions.repo.ExternalExtensionType.ANIYOMI -> R.drawable.ic_source_aniyomi
 			org.skepsun.kototoro.extensions.repo.ExternalExtensionType.IREADER -> R.drawable.ic_source_mihon // Fallback
 			org.skepsun.kototoro.extensions.repo.ExternalExtensionType.JAR -> R.mipmap.ic_launcher
+			org.skepsun.kototoro.extensions.repo.ExternalExtensionType.CLOUDSTREAM -> R.drawable.ic_source_cloudstream
 		}
 	}
 
