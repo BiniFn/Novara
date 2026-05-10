@@ -264,6 +264,42 @@
 }
 -dontwarn io.ktor.**
 
+# Cloudstream runtime API
+# Cloudstream cs3 plugins are loaded dynamically via DexClassLoader and depend on
+# the host app's bundled runtime packages. Even with -dontobfuscate enabled,
+# R8 can still strip classes/members not referenced directly by the host app.
+-keep class com.lagradost.cloudstream3.** { *; }
+-keep interface com.lagradost.cloudstream3.** { *; }
+-keepclassmembers class com.lagradost.cloudstream3.** {
+    public <init>(...);
+    public protected *;
+}
+
+-keep class com.lagradost.api.** { *; }
+-keep interface com.lagradost.api.** { *; }
+-keepclassmembers class com.lagradost.api.** {
+    public <init>(...);
+    public protected *;
+}
+
+-keep class com.lagradost.nicehttp.** { *; }
+-keep interface com.lagradost.nicehttp.** { *; }
+-keepclassmembers class com.lagradost.nicehttp.** {
+    public <init>(...);
+    public protected *;
+}
+
+# Cloudstream extra dependencies used at runtime by the bundled prerelease jar
+# and some cs3 plugins.
+-keep class com.fasterxml.jackson.** { *; }
+-keep interface com.fasterxml.jackson.** { *; }
+-dontwarn com.fasterxml.jackson.**
+
+-keep class me.xdrop.fuzzywuzzy.** { *; }
+-keep class me.xdrop.diffutils.** { *; }
+-dontwarn me.xdrop.fuzzywuzzy.**
+-dontwarn me.xdrop.diffutils.**
+
 # TTS Models (TtsHttpConfig serialized with Gson for Legado JSON payload)
 -keep class org.skepsun.kototoro.reader.novel.tts.model.** { *; }
 
