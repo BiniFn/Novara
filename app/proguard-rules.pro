@@ -268,9 +268,93 @@
 # Cloudstream cs3 plugins are loaded dynamically via DexClassLoader and depend on
 # the host app's bundled runtime packages. Even with -dontobfuscate enabled,
 # R8 can still strip classes/members not referenced directly by the host app.
--keep class com.lagradost.cloudstream3.** { *; }
--keep interface com.lagradost.cloudstream3.** { *; }
--keepclassmembers class com.lagradost.cloudstream3.** {
+# Keep only the runtime surface used by plugins and the host integration, not the full Cloudstream app shell.
+-keep class com.lagradost.cloudstream3.MainAPI { *; }
+-keep class com.lagradost.cloudstream3.MainAPI$Companion { *; }
+-keep class com.lagradost.cloudstream3.MainAPIKt { *; }
+-keep class com.lagradost.cloudstream3.MainActivityKt { *; }
+-keep class com.lagradost.cloudstream3.APIHolder { *; }
+-keep class com.lagradost.cloudstream3.Prerelease { *; }
+-keep class com.lagradost.cloudstream3.ProviderType { *; }
+-keep class com.lagradost.cloudstream3.VPNStatus { *; }
+-keep class com.lagradost.cloudstream3.TvType { *; }
+-keep class com.lagradost.cloudstream3.DubStatus { *; }
+-keep class com.lagradost.cloudstream3.Score { *; }
+-keep class com.lagradost.cloudstream3.Tracker { *; }
+-keep class com.lagradost.cloudstream3.TrackerType { *; }
+-keep class com.lagradost.cloudstream3.ProvidersInfoJson { *; }
+-keep class com.lagradost.cloudstream3.SettingsJson { *; }
+-keep class com.lagradost.cloudstream3.MainPageData { *; }
+-keep class com.lagradost.cloudstream3.MainPageRequest { *; }
+-keep class com.lagradost.cloudstream3.HomePageList { *; }
+-keep class com.lagradost.cloudstream3.HomePageResponse { *; }
+-keep class com.lagradost.cloudstream3.SearchResponse { *; }
+-keep class com.lagradost.cloudstream3.SearchResponseList { *; }
+-keep class com.lagradost.cloudstream3.SearchQuality { *; }
+-keep class com.lagradost.cloudstream3.MovieSearchResponse { *; }
+-keep class com.lagradost.cloudstream3.TvSeriesSearchResponse { *; }
+-keep class com.lagradost.cloudstream3.AnimeSearchResponse { *; }
+-keep class com.lagradost.cloudstream3.LiveSearchResponse { *; }
+-keep class com.lagradost.cloudstream3.LoadResponse { *; }
+-keep class com.lagradost.cloudstream3.MovieLoadResponse { *; }
+-keep class com.lagradost.cloudstream3.TvSeriesLoadResponse { *; }
+-keep class com.lagradost.cloudstream3.AnimeLoadResponse { *; }
+-keep class com.lagradost.cloudstream3.LiveStreamLoadResponse { *; }
+-keep class com.lagradost.cloudstream3.TorrentLoadResponse { *; }
+-keep class com.lagradost.cloudstream3.TorrentSearchResponse { *; }
+-keep class com.lagradost.cloudstream3.Episode { *; }
+-keep class com.lagradost.cloudstream3.EpisodeResponse { *; }
+-keep class com.lagradost.cloudstream3.SeasonData { *; }
+-keep class com.lagradost.cloudstream3.SubtitleFile { *; }
+-keep class com.lagradost.cloudstream3.AudioFile { *; }
+-keep class com.lagradost.cloudstream3.Actor { *; }
+-keep class com.lagradost.cloudstream3.ActorData { *; }
+-keep class com.lagradost.cloudstream3.ActorRole { *; }
+-keep class com.lagradost.cloudstream3.ErrorLoadingException { *; }
+-keep class com.lagradost.cloudstream3.syncproviders.SyncIdName { *; }
+-keep class com.lagradost.cloudstream3.plugins.BasePlugin { *; }
+-keep class com.lagradost.cloudstream3.plugins.BasePluginKt { *; }
+-keep class com.lagradost.cloudstream3.plugins.Plugin { *; }
+-keep class com.lagradost.cloudstream3.plugins.CloudstreamPlugin { *; }
+-keep class com.lagradost.cloudstream3.plugins.PluginData { *; }
+-keep class com.lagradost.cloudstream3.plugins.SitePlugin { *; }
+-keep class com.lagradost.cloudstream3.utils.ExtractorApi { *; }
+-keep class com.lagradost.cloudstream3.utils.ExtractorApiKt { *; }
+-keep class com.lagradost.cloudstream3.utils.ExtractorLink { *; }
+-keep class com.lagradost.cloudstream3.utils.DrmExtractorLink { *; }
+-keep class com.lagradost.cloudstream3.utils.ExtractorLinkPlayList { *; }
+-keep class com.lagradost.cloudstream3.utils.ExtractorLinkType { *; }
+-keep class com.lagradost.cloudstream3.utils.HlsPlaylistParser { *; }
+-keep class com.lagradost.cloudstream3.utils.M3u8Helper { *; }
+-keep class com.lagradost.cloudstream3.utils.M3u8Helper2 { *; }
+-keep class com.lagradost.cloudstream3.utils.Qualities { *; }
+-keep class com.lagradost.cloudstream3.utils.ShortLink { *; }
+-keep class com.lagradost.cloudstream3.utils.SubtitleHelper { *; }
+-keep class com.lagradost.cloudstream3.utils.SubtitleHelperKt { *; }
+-keep class com.lagradost.cloudstream3.utils.SubtitleUtils { *; }
+-keep class com.lagradost.cloudstream3.utils.AppUtils { *; }
+-keep class com.lagradost.cloudstream3.utils.Coroutines { *; }
+-keep class com.lagradost.cloudstream3.utils.Coroutines_jvmKt { *; }
+-keep class com.lagradost.cloudstream3.utils.StringUtils { *; }
+-keep class com.lagradost.cloudstream3.network.** { *; }
+-keep class com.lagradost.cloudstream3.extractors.** { *; }
+-keepclassmembers class com.lagradost.cloudstream3.MainAPI {
+    public <init>(...);
+    public protected *;
+}
+-keepclassmembers class com.lagradost.cloudstream3.plugins.BasePlugin {
+    public <init>(...);
+    public protected *;
+}
+-keepclassmembers class com.lagradost.cloudstream3.plugins.Plugin {
+    public <init>(...);
+    public protected *;
+}
+-keepclassmembers class com.lagradost.cloudstream3.utils.ExtractorApi {
+    public <init>(...);
+    public protected *;
+}
+-keepclassmembers class com.lagradost.cloudstream3.extractors.** {
     public <init>(...);
     public protected *;
 }
