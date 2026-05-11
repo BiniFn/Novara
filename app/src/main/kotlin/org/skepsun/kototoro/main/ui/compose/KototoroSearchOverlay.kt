@@ -82,6 +82,7 @@ import coil3.request.crossfade
 import kotlinx.coroutines.delay
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.jsonsource.SourceType
+import org.skepsun.kototoro.explore.data.SourcePreset
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
@@ -112,6 +113,8 @@ fun KototoroSearchOverlay(
     initialSearchKind: SearchKind,
     initialSourceTypes: Set<SourceType>,
     initialContentKinds: Set<SearchContentKind>,
+    languagePresets: List<SourcePreset>,
+    activeLanguagePresetId: Long,
     onQueryChanged: (String) -> Unit,
     onSearch: (String) -> Unit,
     onSearchWithOptions: (
@@ -131,6 +134,8 @@ fun KototoroSearchOverlay(
     onSourceSuggestionClick: (ContentSource) -> Unit,
     onAuthorSuggestionClick: (String) -> Unit,
     onDeleteQuery: (String) -> Unit,
+    onLanguagePresetSelected: (Long) -> Unit,
+    onManageLanguagePresets: () -> Unit,
     onVoiceInput: () -> Unit,
     onExitFinished: () -> Unit = {},
 ) {
@@ -446,6 +451,8 @@ fun KototoroSearchOverlay(
             contentKinds = selectedContentKinds,
             pinnedOnly = pinnedOnly,
             hideEmpty = hideEmpty,
+            languagePresets = languagePresets,
+            activeLanguagePresetId = activeLanguagePresetId,
             onSourceTypeToggle = { type ->
                 selectedSourceTypes = selectedSourceTypes.toggleOrAll(type, ALL_SOURCE_TYPES)
             },
@@ -454,6 +461,8 @@ fun KototoroSearchOverlay(
             },
             onPinnedOnlyChange = { pinnedOnly = it },
             onHideEmptyChange = { hideEmpty = it },
+            onLanguagePresetSelected = onLanguagePresetSelected,
+            onManageLanguagePresets = onManageLanguagePresets,
             onDismissRequest = { showFilterSheet = false },
         )
     }

@@ -75,7 +75,7 @@ import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
 import org.skepsun.kototoro.core.ui.compose.rememberHorizontalRailScrollIntensity
 import org.skepsun.kototoro.core.ui.compose.rememberRailAnimationFactor
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
-
+import org.skepsun.kototoro.explore.data.SourcePreset
 import org.skepsun.kototoro.list.ui.compose.ContentCardUiPrefs
 import org.skepsun.kototoro.list.ui.compose.KototoroContentCard
 import org.skepsun.kototoro.list.ui.compose.KototoroSelectionTopBar
@@ -147,6 +147,7 @@ fun SearchResultsRoute(
     onOpenContent: (Content) -> Unit,
     onPickContent: (Content) -> Unit,
     onOpenSourceResults: (SearchResultsListModel) -> Unit,
+    onManageLanguagePresets: () -> Unit,
     onSubmitSearch: (
         query: String,
         kind: SearchKind,
@@ -164,6 +165,8 @@ fun SearchResultsRoute(
     val listModels by viewModel.list.collectAsStateWithLifecycle()
     val activeTvBoxRepositoryTitle by viewModel.activeTvBoxRepositoryTitle.collectAsStateWithLifecycle()
     val isTvBoxSourceTypeActive by viewModel.isTvBoxSourceTypeActive.collectAsStateWithLifecycle()
+    val languagePresets by viewModel.languagePresets.collectAsStateWithLifecycle()
+    val activeLanguagePresetId by viewModel.activeLanguagePresetId.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
     val screenPrefs by settings.observeAsState(
@@ -314,11 +317,11 @@ fun SearchResultsRoute(
             ),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            items(
+            itemsIndexed(
                 items = sections,
-                key = { section -> "${section.source.name}_${section.titleResId}" },
-                contentType = { "search_section" },
-            ) { section ->
+                key = { index, section -> "${section.source.name}_${section.titleResId}_$index" },
+                contentType = { _, _ -> "search_section" },
+            ) { _, section ->
                 SearchResultsSection(
                     section = section,
                     gridSpanCount = gridSpanCount,
@@ -364,6 +367,8 @@ fun SearchResultsRoute(
             contentKinds = selectedContentKinds,
             pinnedOnly = pinnedOnly,
             hideEmpty = hideEmpty,
+            languagePresets = languagePresets,
+            activeLanguagePresetId = activeLanguagePresetId,
             onSourceTypeToggle = { type ->
                 selectedSourceTypes = selectedSourceTypes.toggleOrAll(type, ALL_SOURCE_TYPES)
                 viewModel.setSourceTypes(selectedSourceTypes)
@@ -380,6 +385,8 @@ fun SearchResultsRoute(
                 hideEmpty = it
                 viewModel.setHideEmpty(it)
             },
+            onLanguagePresetSelected = viewModel::setActiveLanguagePreset,
+            onManageLanguagePresets = onManageLanguagePresets,
             onDismissRequest = { showOptionsSheet = false },
         )
     }

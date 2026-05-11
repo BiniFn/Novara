@@ -45,6 +45,7 @@ class SearchActivity : BaseActivity<ActivitySearchComposeBinding>() {
 							router.openList(item.source, item.listFilter, item.sortOrder)
 						}
 					},
+					onManageLanguagePresets = router::openSourcePresets,
 					onSubmitSearch = { query, kind, sourceTypes, contentKinds, advancedQuery, pinnedOnly, hideEmpty ->
 						router.openSearch(
 							query = query,

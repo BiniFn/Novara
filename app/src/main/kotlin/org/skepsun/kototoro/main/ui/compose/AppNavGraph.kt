@@ -968,6 +968,7 @@ fun AppNavGraph(
                         appRouter.openList(item.source, item.listFilter, item.sortOrder)
                     }
                 },
+                onManageLanguagePresets = appRouter::openSourcePresets,
                 onSubmitSearch = { query, kind, sourceTypes, contentKinds, advancedQuery, pinnedOnly, hideEmpty ->
                     onOpenSearch(
                         SearchNavigationRequest(

@@ -254,13 +254,15 @@ fun DetailsScreen(
     val metadataSearchLoading = metadataSearchUiState.isLoading
     val metadataSearchHasSearched = metadataSearchUiState.hasSearched
     val metadataSearchError = metadataSearchUiState.errorMessage
+    val languagePresets by viewModel.languagePresets.collectAsStateWithLifecycle()
+    val activeLanguagePresetId by viewModel.activeLanguagePresetId.collectAsStateWithLifecycle()
     val readingSearchSources = readingSearchUiState.sources
-    val selectedReadingSearchSource = readingSearchUiState.selectedSource
     val readingSearchQuery = readingSearchUiState.query
     val readingSearchSections = readingSearchUiState.sections
     val readingSearchLoading = readingSearchUiState.isLoading
     val readingSearchHasSearched = readingSearchUiState.hasSearched
     val readingSearchState = readingSearchUiState.state
+    val readingSearchScopeFilterUiState = readingSearchUiState.scopeFilterUiState
 
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -1209,11 +1211,20 @@ fun DetailsScreen(
                     searchSections = readingSearchSections,
                     isLoading = readingSearchLoading,
                     hasSearched = readingSearchHasSearched,
+                    scopeFilterUiState = readingSearchScopeFilterUiState,
+                    languagePresets = languagePresets,
+                    activeLanguagePresetId = activeLanguagePresetId,
                     currentContent = content,
                     unavailableText = stringResource(R.string.details_reading_source_unavailable),
                     onSelectOption = { option -> option.targetMangaId?.let(viewModel::selectActiveLocalSource) },
                     onSearchQueryChange = viewModel::updateReadingSearchQuery,
                     onSearch = viewModel::searchReadingBindings,
+                    onLanguagePresetSelected = viewModel::setActiveLanguagePreset,
+                    onManageLanguagePresets = appRouter::openSourcePresets,
+                    onSourceTypeToggle = viewModel::toggleReadingSearchSourceType,
+                    onContentKindToggle = viewModel::toggleReadingSearchContentKind,
+                    onPinnedOnlyChange = viewModel::setReadingSearchPinnedOnly,
+                    onHideEmptyChange = viewModel::setReadingSearchHideEmpty,
                     onTemporaryOpenResult = { candidate ->
                         appRouter.openTemporaryDetails(candidate)
                     },

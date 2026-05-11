@@ -659,6 +659,8 @@ fun KototoroApp(
                         initialSearchKind = initialSearchKind,
                         initialSourceTypes = initialSearchSourceTypes,
                         initialContentKinds = initialSearchContentKinds,
+                        languagePresets = languagePresetEntries,
+                        activeLanguagePresetId = activeSourcePresetId,
                         onQueryChanged = onQueryChanged,
                         onSearch = {
                             isSearchOverlayQueryCommitted = true
@@ -679,6 +681,8 @@ fun KototoroApp(
                             isSearchOverlayVisible = false
                         },
                         onDismissRequest = { isSearchOverlayVisible = false },
+                        onLanguagePresetSelected = onLanguagePresetSelected,
+                        onManageLanguagePresets = onManageLanguagePresets,
                         onExitFinished = {
                             if (!isSearchOverlayVisible) {
                                 if (!isSearchOverlayQueryCommitted) {

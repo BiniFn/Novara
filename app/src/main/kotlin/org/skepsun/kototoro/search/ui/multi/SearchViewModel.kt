@@ -36,6 +36,8 @@ import org.skepsun.kototoro.core.util.ext.append
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.toLocale
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
+import org.skepsun.kototoro.explore.data.SourcePreset
+import org.skepsun.kototoro.explore.data.SourcePresetsRepository
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
 import org.skepsun.kototoro.favourites.domain.GlobalFavoritesState
 import org.skepsun.kototoro.history.data.HistoryRepository
@@ -72,6 +74,7 @@ class SearchViewModel @Inject constructor(
 	private val sourcesRepository: ContentSourcesRepository,
 	private val sourceTypeIdentifier: SourceTypeIdentifier,
 	private val appSettings: AppSettings,
+	private val sourcePresetsRepository: SourcePresetsRepository,
 	private val globalFavoritesState: GlobalFavoritesState,
 	private val historyRepository: HistoryRepository,
 	private val favouritesRepository: FavouritesRepository,
@@ -110,6 +113,13 @@ class SearchViewModel @Inject constructor(
 	val isTvBoxSourceTypeActive: StateFlow<Boolean> = sourceTypes
 		.map { SourceType.JSON_TVBOX in it }
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, SourceType.JSON_TVBOX in sourceTypes.value)
+	val languagePresets: StateFlow<List<SourcePreset>> = sourcePresetsRepository.observeAll()
+		.stateIn(viewModelScope + Dispatchers.IO, SharingStarted.Eagerly, emptyList())
+	val activeLanguagePresetId: StateFlow<Long> = appSettings.observeAsStateFlow(
+		scope = viewModelScope + Dispatchers.IO,
+		key = AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID,
+		valueProducer = { appSettings.activeSourcePresetId },
+	)
 	private val results = MutableStateFlow<List<SearchResultsListModel>>(emptyList())
 
 	private var searchJob: Job? = null
@@ -233,6 +243,13 @@ class SearchViewModel @Inject constructor(
 		return contentKinds.value
 	}
 
+	fun setActiveLanguagePreset(presetId: Long) {
+		if (appSettings.activeSourcePresetId != presetId) {
+			appSettings.activeSourcePresetId = presetId
+			retry()
+		}
+	}
+
 	fun continueSearch() {
 		if (includeDisabledSources.value) {
 			return
@@ -247,7 +264,7 @@ class SearchViewModel @Inject constructor(
 				sourcesRepository.getDisabledSources()
 					.sortedByDescending { it.priority() }
 			}
-			val filteredSources = filterSourcesByType(sources)
+			val filteredSources = filterSourcesByType(filterSourcesByActivePreset(sources))
 			val semaphore = Semaphore(MAX_PARALLELISM)
 			filteredSources.map { source ->
 				launch {
@@ -271,7 +288,7 @@ class SearchViewModel @Inject constructor(
 			} else {
 				sourcesRepository.getEnabledSources()
 			}
-			val filteredSources = filterSourcesByType(sources)
+			val filteredSources = filterSourcesByType(filterSourcesByActivePreset(sources))
 			val semaphore = Semaphore(MAX_PARALLELISM)
 			filteredSources.map { source ->
 				launch {
@@ -427,6 +444,15 @@ class SearchViewModel @Inject constructor(
 			sourceTypeIdentifier.getSourceType(source.name) in allowedSourceTypes &&
 				allowedContentKinds.any { it.matches(source) }
 		}
+	}
+
+	private fun filterSourcesByActivePreset(sources: Collection<ContentSource>): List<ContentSource> {
+		val activePreset = languagePresets.value.firstOrNull { it.id == activeLanguagePresetId.value }
+			?: return sources.toList()
+		if (activePreset.sources.isEmpty()) {
+			return emptyList()
+		}
+		return sources.filter { it.name in activePreset.sources }
 	}
 
 	private fun filterContentBySourceType(manga: List<Content>): List<Content> {

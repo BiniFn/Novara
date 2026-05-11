@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -19,11 +21,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.jsonsource.SourceType
-import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
+import org.skepsun.kototoro.explore.data.SourcePreset
 import org.skepsun.kototoro.search.domain.ALL_SEARCH_CONTENT_KINDS
 import org.skepsun.kototoro.search.domain.ALL_SOURCE_TYPES
 import org.skepsun.kototoro.search.domain.SEARCH_CONTENT_KIND_OPTIONS
@@ -37,10 +40,14 @@ fun SearchFilterSheet(
     contentKinds: Set<SearchContentKind>,
     pinnedOnly: Boolean,
     hideEmpty: Boolean,
+    languagePresets: List<SourcePreset> = emptyList(),
+    activeLanguagePresetId: Long? = null,
     onSourceTypeToggle: (SourceType) -> Unit,
     onContentKindToggle: (SearchContentKind) -> Unit,
     onPinnedOnlyChange: (Boolean) -> Unit,
     onHideEmptyChange: (Boolean) -> Unit,
+    onLanguagePresetSelected: (Long) -> Unit = {},
+    onManageLanguagePresets: (() -> Unit)? = null,
     onDismissRequest: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismissRequest) {
@@ -49,6 +56,25 @@ fun SearchFilterSheet(
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            if (activeLanguagePresetId != null || languagePresets.isNotEmpty() || onManageLanguagePresets != null) {
+                item {
+                    Text(
+                        text = stringResource(R.string.show_language_preset_filter),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+                item {
+                    LanguagePresetSection(
+                        presets = languagePresets,
+                        activePresetId = activeLanguagePresetId ?: -1L,
+                        onPresetSelected = onLanguagePresetSelected,
+                        onManagePresets = onManageLanguagePresets,
+                    )
+                }
+                item {
+                    HorizontalDivider()
+                }
+            }
             item {
                 Text(
                     text = stringResource(R.string.source_type),
@@ -64,17 +90,6 @@ fun SearchFilterSheet(
                         FilterChip(
                             selected = option.type in sourceTypes,
                             onClick = { onSourceTypeToggle(option.type) },
-                            leadingIcon = {
-                                Icon(
-                                    painter = rememberSafePainter(option.iconRes),
-                                    contentDescription = null,
-                                    tint = if (option.type in sourceTypes) {
-                                        MaterialTheme.colorScheme.onSecondaryContainer
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    },
-                                )
-                            },
                             label = { Text(stringResource(option.titleRes)) },
                         )
                     }
@@ -114,6 +129,48 @@ fun SearchFilterSheet(
                     onCheckedChange = onHideEmptyChange,
                 )
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LanguagePresetSection(
+    presets: List<SourcePreset>,
+    activePresetId: Long,
+    onPresetSelected: (Long) -> Unit,
+    onManagePresets: (() -> Unit)?,
+) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        FilterChip(
+            selected = activePresetId <= 0L,
+            onClick = { onPresetSelected(-1L) },
+            label = { Text(stringResource(R.string.all)) },
+        )
+        presets.forEach { preset ->
+            FilterChip(
+                selected = activePresetId == preset.id,
+                onClick = { onPresetSelected(preset.id) },
+                label = { Text(preset.title) },
+            )
+        }
+    }
+    if (onManagePresets != null) {
+        FilledTonalButton(
+            onClick = onManagePresets,
+            modifier = Modifier.padding(top = 8.dp),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_language),
+                contentDescription = null,
+            )
+            Text(
+                text = stringResource(R.string.manage_language_presets),
+                modifier = Modifier.padding(start = 8.dp),
+            )
         }
     }
 }

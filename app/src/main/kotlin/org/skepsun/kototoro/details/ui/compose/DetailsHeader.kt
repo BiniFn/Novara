@@ -49,6 +49,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -64,6 +65,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -110,6 +112,7 @@ import org.skepsun.kototoro.core.ui.compose.KototoroLinearProgressIndicator
 import org.skepsun.kototoro.core.ui.compose.iconResForUi
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
+import org.skepsun.kototoro.core.ui.model.titleRes
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
 import org.skepsun.kototoro.core.util.ext.mangaExtra
@@ -117,11 +120,13 @@ import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
 import org.skepsun.kototoro.core.util.ext.toLocaleOrNull
 import org.skepsun.kototoro.details.data.ContentDetails
 import org.skepsun.kototoro.discover.ui.details.LocalSearchState
+import org.skepsun.kototoro.explore.data.SourcePreset
 import org.skepsun.kototoro.details.ui.model.DetailsSourceOption
 import org.skepsun.kototoro.details.ui.model.DetailsSupplementAction
 import org.skepsun.kototoro.details.ui.model.EntityChapterSourceInfo
 import org.skepsun.kototoro.details.ui.model.HistoryInfo
 import org.skepsun.kototoro.details.ui.model.LinkedTrackingItemUiModel
+import org.skepsun.kototoro.main.ui.compose.SearchFilterSheet
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentTag
@@ -1396,6 +1401,9 @@ fun ReadingSourceSheet(
     searchSections: List<org.skepsun.kototoro.details.ui.ReadingSearchSectionUiState>,
     isLoading: Boolean,
     hasSearched: Boolean,
+    scopeFilterUiState: org.skepsun.kototoro.details.ui.ReadingSearchScopeFilterUiState,
+    languagePresets: List<SourcePreset>,
+    activeLanguagePresetId: Long,
     currentContent: Content?,
     unavailableText: String,
     label: String,
@@ -1403,11 +1411,18 @@ fun ReadingSourceSheet(
     onSelectOption: (DetailsSourceOption) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
+    onLanguagePresetSelected: (Long) -> Unit,
+    onManageLanguagePresets: () -> Unit,
+    onSourceTypeToggle: (org.skepsun.kototoro.core.jsonsource.SourceType) -> Unit,
+    onContentKindToggle: (org.skepsun.kototoro.search.domain.SearchContentKind) -> Unit,
+    onPinnedOnlyChange: (Boolean) -> Unit,
+    onHideEmptyChange: (Boolean) -> Unit,
     onTemporaryOpenResult: (Content) -> Unit,
     onMigrateResult: (Content) -> Unit,
 ) {
     val context = LocalContext.current
     var pendingMigrationTarget by remember { mutableStateOf<Content?>(null) }
+    var showFilterSheet by rememberSaveable { mutableStateOf(false) }
     val visibleSections = remember(searchSources, searchSections) {
         if (searchSections.isNotEmpty()) {
             searchSections
@@ -1420,9 +1435,9 @@ fun ReadingSourceSheet(
 	    DetailsSourceOverlayDialog(
 	        onDismissRequest = onDismissRequest,
 	    ) { panelDragModifier ->
-	        Column(
-	            modifier = Modifier
-	                .fillMaxWidth()
+	            Column(
+	                modifier = Modifier
+	                    .fillMaxWidth()
 	                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
 	            verticalArrangement = Arrangement.spacedBy(12.dp),
 	        ) {
@@ -1457,11 +1472,42 @@ fun ReadingSourceSheet(
 	                    }
 	                }
 	                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-	                SourceSearchField(
-	                    value = searchQuery,
-	                    onValueChange = onSearchQueryChange,
-	                    onSearch = onSearch,
-	                )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+	                    SourceSearchField(
+	                        value = searchQuery,
+	                        onValueChange = onSearchQueryChange,
+	                        onSearch = onSearch,
+                            modifier = Modifier.weight(1f),
+	                    )
+                        FilledTonalButton(
+                            onClick = onSearch,
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Search,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                        FilledTonalButton(
+                            onClick = { showFilterSheet = true },
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_filter_menu),
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            if (scopeFilterUiState.appliedFilterCount > 0) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(scopeFilterUiState.appliedFilterCount.toString())
+                            }
+                        }
+                    }
 	            }
 	            Box(
 	                modifier = Modifier
@@ -1540,6 +1586,24 @@ fun ReadingSourceSheet(
             },
         )
 	}
+
+    if (showFilterSheet) {
+        SearchFilterSheet(
+            sourceTypes = scopeFilterUiState.sourceTypes,
+            contentKinds = scopeFilterUiState.contentKinds,
+            pinnedOnly = scopeFilterUiState.pinnedOnly,
+            hideEmpty = scopeFilterUiState.hideEmpty,
+            languagePresets = languagePresets,
+            activeLanguagePresetId = activeLanguagePresetId,
+            onSourceTypeToggle = onSourceTypeToggle,
+            onContentKindToggle = onContentKindToggle,
+            onPinnedOnlyChange = onPinnedOnlyChange,
+            onHideEmptyChange = onHideEmptyChange,
+            onLanguagePresetSelected = onLanguagePresetSelected,
+            onManageLanguagePresets = onManageLanguagePresets,
+            onDismissRequest = { showFilterSheet = false },
+        )
+    }
 }
 
 @Composable
@@ -1554,7 +1618,6 @@ private fun SourceSearchField(
             value = value,
             onValueChange = onValueChange,
             modifier = modifier
-                .fillMaxWidth()
                 .height(48.dp),
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyMedium,

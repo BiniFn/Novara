@@ -47,10 +47,14 @@ import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.model.getPreferredBranch
+import org.skepsun.kototoro.core.jsonsource.SourceType
+import org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier
 import org.skepsun.kototoro.core.nav.ContentIntent
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.TriStateOption
+import org.skepsun.kototoro.core.prefs.observeAsFlow
+import org.skepsun.kototoro.core.prefs.observeAsStateFlow
 import org.skepsun.kototoro.core.ui.util.ReversibleAction
 import org.skepsun.kototoro.core.util.ext.awaitCancellable
 import org.skepsun.kototoro.core.util.ext.call
@@ -75,6 +79,8 @@ import org.skepsun.kototoro.details.ui.pager.EmptyContentReason
 import org.skepsun.kototoro.discover.ui.details.LocalSearchState
 import org.skepsun.kototoro.download.ui.worker.DownloadWorker
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
+import org.skepsun.kototoro.explore.data.SourcePreset
+import org.skepsun.kototoro.explore.data.SourcePresetsRepository
 import org.skepsun.kototoro.history.data.HistoryRepository
 import org.skepsun.kototoro.list.domain.ContentListMapper
 import org.skepsun.kototoro.list.ui.model.ContentListModel
@@ -122,6 +128,11 @@ import org.skepsun.kototoro.entitygraph.ui.details.EntityRelationSection
 import org.skepsun.kototoro.entitygraph.ui.details.EntityRelationItem
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.details.ui.model.DetailsSupplementAction
+import org.skepsun.kototoro.filter.ui.model.UiTagGroup
+import org.skepsun.kototoro.search.domain.ALL_SEARCH_CONTENT_KINDS
+import org.skepsun.kototoro.search.domain.ALL_SOURCE_TYPES
+import org.skepsun.kototoro.search.domain.SearchContentKind
+import org.skepsun.kototoro.search.domain.matches
 import kotlinx.coroutines.channels.BufferOverflow
 import java.util.Locale
 
@@ -190,6 +201,8 @@ data class ReadingSearchUiState(
 	val isLoading: Boolean = false,
 	val hasSearched: Boolean = false,
 	val state: LocalSearchState? = null,
+	val filterUiState: ReadingSearchFilterUiState = ReadingSearchFilterUiState(),
+	val scopeFilterUiState: ReadingSearchScopeFilterUiState = ReadingSearchScopeFilterUiState(),
 )
 
 data class MetadataSearchSectionUiState(
@@ -205,6 +218,43 @@ data class ReadingSearchSectionUiState(
 	val isLoading: Boolean = false,
 	val errorMessage: String? = null,
 )
+
+data class ReadingSearchFilterUiState(
+	val hasSelectedSource: Boolean = false,
+	val isLoading: Boolean = false,
+	val errorMessage: String? = null,
+	val sortOrders: List<SortOrder> = emptyList(),
+	val selectedSortOrder: SortOrder? = null,
+	val tagGroups: List<UiTagGroup> = emptyList(),
+	val excludedTagGroups: List<UiTagGroup> = emptyList(),
+	val contentTypes: List<ContentType> = emptyList(),
+	val selectedContentTypes: Set<ContentType> = emptySet(),
+	val states: List<ContentState> = emptyList(),
+	val selectedStates: Set<ContentState> = emptySet(),
+	val locales: List<Locale?> = emptyList(),
+	val selectedLocale: Locale? = null,
+	val author: String? = null,
+	val canSearchByAuthor: Boolean = false,
+	val supportsTagExclusion: Boolean = false,
+	val appliedFilterCount: Int = 0,
+)
+
+data class ReadingSearchScopeFilterUiState(
+	val sourceTypes: Set<SourceType> = ALL_SOURCE_TYPES,
+	val contentKinds: Set<SearchContentKind> = ALL_SEARCH_CONTENT_KINDS,
+	val pinnedOnly: Boolean = false,
+	val hideEmpty: Boolean = false,
+) {
+	val appliedFilterCount: Int
+		get() {
+			var count = 0
+			if (sourceTypes != ALL_SOURCE_TYPES) count++
+			if (contentKinds != ALL_SEARCH_CONTENT_KINDS) count++
+			if (pinnedOnly) count++
+			if (hideEmpty) count++
+			return count
+		}
+}
 
 data class SourceBindingUiState(
 	val activeLocalSourceOptions: List<ActiveLocalSourceOption> = emptyList(),
@@ -284,6 +334,19 @@ private data class ReadingSearchPrimaryUiState(
 	val sections: List<ReadingSearchSectionUiState> = emptyList(),
 )
 
+private data class ReadingSearchFilterState(
+	val source: ContentSourceInfo? = null,
+	val capabilities: org.skepsun.kototoro.parsers.model.ContentListFilterCapabilities =
+		org.skepsun.kototoro.parsers.model.ContentListFilterCapabilities(),
+	val filterOptions: org.skepsun.kototoro.parsers.model.ContentListFilterOptions =
+		org.skepsun.kototoro.parsers.model.ContentListFilterOptions(),
+	val sortOrders: List<SortOrder> = emptyList(),
+	val selectedSortOrder: SortOrder? = null,
+	val listFilter: ContentListFilter = ContentListFilter.EMPTY,
+	val isLoading: Boolean = false,
+	val errorMessage: String? = null,
+)
+
 private data class SourceOptionsUiState(
 	val activeLocalSourceOptions: List<ActiveLocalSourceOption> = emptyList(),
 	val entityChapterSourceInfo: EntityChapterSourceInfo? = null,
@@ -352,6 +415,7 @@ class DetailsViewModel @Inject constructor(
 	private val favouritesRepository: FavouritesRepository,
 	mangaRepositoryFactory: org.skepsun.kototoro.core.parser.ContentRepository.Factory,
 	private val contentSourcesRepository: ContentSourcesRepository,
+	private val sourcePresetsRepository: SourcePresetsRepository,
 	private val trackingSiteMatcher: TrackingSiteMatcher,
 	private val dataRepository: org.skepsun.kototoro.core.parser.ContentDataRepository,
 	private val detailsTranslationCache: DetailsTranslationCache,
@@ -359,6 +423,7 @@ class DetailsViewModel @Inject constructor(
 	private val trackingSiteCacheRepository: org.skepsun.kototoro.tracking.discovery.data.TrackingSiteCacheRepository,
 	private val entityGraphRepository: org.skepsun.kototoro.entitygraph.data.EntityGraphRepository,
 	private val trackingSiteDiscoveryService: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteDiscoveryService,
+	private val sourceTypeIdentifier: SourceTypeIdentifier,
 ) : ChaptersPagesViewModel(
 	settings = settings,
 	interactor = interactor,
@@ -518,6 +583,8 @@ class DetailsViewModel @Inject constructor(
 	val readingSearchLoading = MutableStateFlow(false)
 	val readingSearchHasSearched = MutableStateFlow(false)
 	val readingSearchState = MutableStateFlow<LocalSearchState?>(null)
+	private val readingSearchFilterState = MutableStateFlow(ReadingSearchFilterState())
+	private val readingSearchScopeFilters = MutableStateFlow(ReadingSearchScopeFilterUiState())
 	private val readingSearchPrimaryUiState = combine(
 		readingSearchSources,
 		selectedReadingSearchSource,
@@ -540,7 +607,9 @@ class DetailsViewModel @Inject constructor(
 		) { isLoading, hasSearched, state ->
 			Triple(isLoading, hasSearched, state)
 		},
-	) { primary, status ->
+		readingSearchFilterState,
+		readingSearchScopeFilters,
+	) { primary, status, filterState, scopeFilterState ->
 		ReadingSearchUiState(
 			sources = primary.sources,
 			selectedSource = primary.selectedSource,
@@ -549,8 +618,17 @@ class DetailsViewModel @Inject constructor(
 			isLoading = status.first,
 			hasSearched = status.second,
 			state = status.third,
+			filterUiState = filterState.toUiState(),
+			scopeFilterUiState = scopeFilterState,
 		)
 	}.stateIn(viewModelScope, SharingStarted.Eagerly, ReadingSearchUiState())
+	val languagePresets: StateFlow<List<SourcePreset>> = sourcePresetsRepository.observeAll()
+		.stateIn(viewModelScope + Dispatchers.IO, SharingStarted.Eagerly, emptyList())
+	val activeLanguagePresetId: StateFlow<Long> = settings.observeAsStateFlow(
+		scope = viewModelScope + Dispatchers.IO,
+		key = AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID,
+		valueProducer = { settings.activeSourcePresetId },
+	)
 	val chaptersPaneControlsUiState: StateFlow<ChaptersPaneControlsUiState> = combine(
 		isChaptersReversed,
 		isChaptersInGridView,
@@ -620,6 +698,17 @@ class DetailsViewModel @Inject constructor(
 	val showTranslateAction = MutableStateFlow(false)
 	val activeLocalBrowserContent = MutableStateFlow<Content?>(null)
 	private val allEnabledSourceInfos = MutableStateFlow<List<ContentSourceInfo>>(emptyList())
+	private val activeSourcePreset = settings.observeAsFlow(
+		AppSettings.KEY_ACTIVE_SOURCE_PRESET_ID,
+	) {
+		activeSourcePresetId
+	}.mapLatest { presetId ->
+		if (presetId > 0L) {
+			sourcePresetsRepository.getById(presetId)
+		} else {
+			null
+		}
+	}
 
 	private var baseLoadedDetails: ContentDetails? = null
 	private val trackingMetadataCandidates = MutableStateFlow<List<TrackingMetadataCandidate>>(emptyList())
@@ -722,30 +811,10 @@ class DetailsViewModel @Inject constructor(
 		return source.name.startsWith("TRACKING_")
 	}
 
-	private fun isReadingSearchSourceMatch(
+	private fun isReadingSearchSourceEligible(
 		source: org.skepsun.kototoro.parsers.model.ContentSource,
-		contentType: ContentType?,
 	): Boolean {
-		if (isTrackingSource(source) || source.isLocal) {
-			return false
-		}
-		val sourceType = source.getContentType()
-		return when (contentType) {
-			ContentType.VIDEO, ContentType.HENTAI_VIDEO -> {
-				sourceType == ContentType.VIDEO || sourceType == ContentType.HENTAI_VIDEO
-			}
-			ContentType.NOVEL, ContentType.HENTAI_NOVEL -> {
-				sourceType == ContentType.NOVEL || sourceType == ContentType.HENTAI_NOVEL
-			}
-			else -> {
-				sourceType !in setOf(
-					ContentType.VIDEO,
-					ContentType.HENTAI_VIDEO,
-					ContentType.NOVEL,
-					ContentType.HENTAI_NOVEL,
-				)
-			}
-		}
+		return !isTrackingSource(source) && !source.isLocal
 	}
 
 	private fun TrackingSiteItem.toScrobblerContent(): org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent {
@@ -759,10 +828,9 @@ class DetailsViewModel @Inject constructor(
 	}
 
 	private fun refreshReadingSearchSources() {
-		val contentType = currentDetailsContentType()
 		val currentSource = (baseLoadedDetails?.toContent() ?: mangaDetails.value?.toContent() ?: originContent ?: intent.manga)
 			?.source
-			?.takeIf { source -> isReadingSearchSourceMatch(source, contentType) }
+			?.takeIf { source -> isReadingSearchSourceEligible(source) }
 			?.let { source ->
 				ContentSourceInfo(
 					mangaSource = source,
@@ -773,17 +841,38 @@ class DetailsViewModel @Inject constructor(
 		val filtered = buildList {
 			currentSource?.let(::add)
 			allEnabledSourceInfos.value
-				.filter { info -> isReadingSearchSourceMatch(info.mangaSource, contentType) }
+				.filter { info -> isReadingSearchSourceEligible(info.mangaSource) }
 				.forEach { info ->
 					if (none { it.mangaSource.name == info.mangaSource.name }) {
 						add(info)
 					}
-				}
+		}
 		}
 		readingSearchSources.value = filtered
-		if (selectedReadingSearchSource.value !in filtered.map { it.mangaSource.name }.toSet()) {
-			selectedReadingSearchSource.value = filtered.firstOrNull()?.mangaSource?.name
+		readingSearchScopeFilters.update { current ->
+			if (current.sourceTypes == ALL_SOURCE_TYPES &&
+				current.contentKinds == ALL_SEARCH_CONTENT_KINDS &&
+				!current.pinnedOnly &&
+				!current.hideEmpty
+			) {
+				current.copy(contentKinds = defaultReadingSearchContentKinds())
+			} else {
+				current
+			}
 		}
+		if (selectedReadingSearchSource.value !in filtered.map { it.mangaSource.name }.toSet()) {
+			selectedReadingSearchSource.value = null
+			readingSearchFilterState.value = ReadingSearchFilterState()
+		}
+	}
+
+	private fun List<ContentSourceInfo>.filterByPreset(
+		preset: SourcePreset?,
+	): List<ContentSourceInfo> {
+		if (preset == null) {
+			return this
+		}
+		return filter { it.mangaSource.name in preset.sources }
 	}
 
 	private fun syntheticSource(
@@ -1088,7 +1177,12 @@ class DetailsViewModel @Inject constructor(
 		}
 
 		launchJob(Dispatchers.Default) {
-			contentSourcesRepository.observeEnabledSources().collect { sources ->
+			combine(
+				contentSourcesRepository.observeEnabledSources(),
+				activeSourcePreset,
+			) { sources, preset ->
+				sources.filterByPreset(preset)
+			}.collect { sources ->
 				allEnabledSourceInfos.value = sources
 				refreshReadingSearchSources()
 			}
@@ -2964,15 +3058,197 @@ class DetailsViewModel @Inject constructor(
 		}
 	}
 
-	fun setReadingSearchSource(sourceName: String) {
+	fun setReadingSearchSource(sourceName: String?) {
 		if (selectedReadingSearchSource.value == sourceName) {
 			return
 		}
 		selectedReadingSearchSource.value = sourceName
+		readingSearchSections.value = emptyList()
+		readingSearchLoading.value = false
+		readingSearchHasSearched.value = false
+		readingSearchState.value = null
+		if (sourceName == null) {
+			readingSearchFilterState.value = ReadingSearchFilterState()
+		} else {
+			loadReadingSearchFilters(sourceName)
+		}
 	}
 
 	fun updateReadingSearchQuery(query: String) {
 		readingSearchQuery.value = query
+	}
+
+	fun toggleReadingSearchSourceType(type: SourceType) {
+		readingSearchScopeFilters.update { current ->
+			val updated = current.sourceTypes.toMutableSet().apply {
+				if (!add(type)) {
+					remove(type)
+				}
+			}.ifEmpty { ALL_SOURCE_TYPES }
+			current.copy(sourceTypes = updated)
+		}
+	}
+
+	fun toggleReadingSearchContentKind(kind: SearchContentKind) {
+		readingSearchScopeFilters.update { current ->
+			val updated = current.contentKinds.toMutableSet().apply {
+				if (!add(kind)) {
+					remove(kind)
+				}
+			}.ifEmpty { ALL_SEARCH_CONTENT_KINDS }
+			current.copy(contentKinds = updated)
+		}
+	}
+
+	fun setReadingSearchPinnedOnly(enabled: Boolean) {
+		readingSearchScopeFilters.update { it.copy(pinnedOnly = enabled) }
+	}
+
+	fun setReadingSearchHideEmpty(enabled: Boolean) {
+		readingSearchScopeFilters.update { it.copy(hideEmpty = enabled) }
+	}
+
+	fun setActiveLanguagePreset(presetId: Long) {
+		if (settings.activeSourcePresetId != presetId) {
+			settings.activeSourcePresetId = presetId
+		}
+	}
+
+	fun setReadingSearchSortOrder(sortOrder: SortOrder) {
+		readingSearchFilterState.update { state ->
+			if (state.source == null) return@update state
+			state.copy(selectedSortOrder = sortOrder)
+		}
+	}
+
+	fun setReadingSearchAuthor(author: String?) {
+		readingSearchFilterState.update { state ->
+			if (state.source == null) return@update state
+			state.copy(
+				listFilter = state.listFilter.copy(author = author?.trim()?.takeIf { it.isNotEmpty() }),
+			)
+		}
+	}
+
+	fun setReadingSearchLocale(locale: Locale?) {
+		readingSearchFilterState.update { state ->
+			if (state.source == null) return@update state
+			state.copy(listFilter = state.listFilter.copy(locale = locale))
+		}
+	}
+
+	fun toggleReadingSearchState(value: ContentState, isSelected: Boolean) {
+		readingSearchFilterState.update { state ->
+			if (state.source == null) return@update state
+			state.copy(
+				listFilter = state.listFilter.copy(
+					states = if (isSelected) state.listFilter.states + value else state.listFilter.states - value,
+				),
+			)
+		}
+	}
+
+	fun toggleReadingSearchContentType(value: ContentType, isSelected: Boolean) {
+		readingSearchFilterState.update { state ->
+			if (state.source == null) return@update state
+			state.copy(
+				listFilter = state.listFilter.copy(
+					types = if (isSelected) state.listFilter.types + value else state.listFilter.types - value,
+				),
+			)
+		}
+	}
+
+	fun toggleReadingSearchTag(value: org.skepsun.kototoro.parsers.model.ContentTag, isSelected: Boolean, excludeMode: Boolean) {
+		readingSearchFilterState.update { state ->
+			if (state.source == null) return@update state
+			val tagGroup = state.filterOptions.effectiveTagGroups.firstOrNull { value in it.tags }
+			if (excludeMode) {
+				val newTagsExclude = when {
+					tagGroup?.isExclusive == true -> {
+						val tagsWithoutGroup = state.listFilter.tagsExclude - tagGroup.tags
+						if (isSelected) tagsWithoutGroup + value else state.listFilter.tagsExclude - value
+					}
+					state.capabilities.isMultipleTagsSupported -> {
+						if (isSelected) state.listFilter.tagsExclude + value else state.listFilter.tagsExclude - value
+					}
+					else -> {
+						if (isSelected) setOf(value) else emptySet()
+					}
+				}
+				state.copy(
+					listFilter = state.listFilter.copy(
+						tags = state.listFilter.tags - newTagsExclude,
+						tagsExclude = newTagsExclude,
+					),
+				)
+			} else {
+				val newTags = when {
+					tagGroup?.isExclusive == true -> {
+						val tagsWithoutGroup = state.listFilter.tags - tagGroup.tags
+						if (isSelected) tagsWithoutGroup + value else state.listFilter.tags - value
+					}
+					state.capabilities.isMultipleTagsSupported -> {
+						if (isSelected) state.listFilter.tags + value else state.listFilter.tags - value
+					}
+					else -> {
+						if (isSelected) setOf(value) else emptySet()
+					}
+				}
+				state.copy(
+					listFilter = state.listFilter.copy(
+						tags = newTags,
+						tagsExclude = state.listFilter.tagsExclude - newTags,
+					),
+				)
+			}
+		}
+	}
+
+	fun resetReadingSearchFilters() {
+		readingSearchFilterState.update { state ->
+			if (state.source == null) return@update state
+			state.copy(
+				selectedSortOrder = state.defaultReadingSearchSortOrder(),
+				listFilter = ContentListFilter.EMPTY,
+				errorMessage = null,
+			)
+		}
+	}
+
+	fun isReadingSearchTextInputTag(tag: org.skepsun.kototoro.parsers.model.ContentTag): Boolean {
+		return tag.key.startsWith("text:")
+	}
+
+	fun getReadingSearchTextInputLabel(tag: org.skepsun.kototoro.parsers.model.ContentTag): String {
+		return tag.title.removePrefix("📝 ")
+	}
+
+	fun getReadingSearchTextInputValue(tag: org.skepsun.kototoro.parsers.model.ContentTag): String? {
+		val baseKey = tag.key
+		return readingSearchFilterState.value.listFilter.tags
+			.find { it.key.startsWith(baseKey) && it.key.contains("=") }
+			?.key
+			?.substringAfter("=")
+	}
+
+	fun setReadingSearchTextInputValue(originalTag: org.skepsun.kototoro.parsers.model.ContentTag, value: String) {
+		readingSearchFilterState.update { state ->
+			if (state.source == null) return@update state
+			val baseKey = originalTag.key
+			val filteredTags = state.listFilter.tags.filter { !it.key.startsWith(baseKey) }.toSet()
+			val newTags = if (value.isNotBlank()) {
+				val tagWithValue = org.skepsun.kototoro.parsers.model.ContentTag(
+					title = "${originalTag.title.removePrefix("📝 ")}: $value",
+					key = "$baseKey=$value",
+					source = originalTag.source,
+				)
+				filteredTags + tagWithValue
+			} else {
+				filteredTags
+			}
+			state.copy(listFilter = state.listFilter.copy(tags = newTags))
+		}
 	}
 
 	private fun List<Content>.withCurrentReadingSourceResult(
@@ -3002,7 +3278,14 @@ class DetailsViewModel @Inject constructor(
 	}
 
 	fun searchReadingBindings() {
-		val sources = readingSearchSources.value
+		val scopeFilter = readingSearchScopeFilters.value
+		val sources = readingSearchSources.value.filter { sourceInfo ->
+			val source = sourceInfo.mangaSource
+			val sourceType = sourceTypeIdentifier.getSourceType(source.name)
+			sourceType in scopeFilter.sourceTypes &&
+				scopeFilter.contentKinds.any { kind -> kind.matches(source) } &&
+				(!scopeFilter.pinnedOnly || sourceInfo.isPinned)
+		}
 		if (sources.isEmpty()) {
 			readingSearchSections.value = emptyList()
 			readingSearchLoading.value = false
@@ -3069,9 +3352,136 @@ class DetailsViewModel @Inject constructor(
 			}
 			readingSearchLoading.value = false
 			readingSearchHasSearched.value = true
-			val finalSections = readingSearchSections.value
+			val finalSections = if (scopeFilter.hideEmpty) {
+				readingSearchSections.value.filter { it.items.isNotEmpty() || !it.errorMessage.isNullOrBlank() }
+			} else {
+				readingSearchSections.value
+			}
+			readingSearchSections.value = finalSections
 			readingSearchState.value = LocalSearchState.Loaded(finalSections.flatMap { it.items })
 		}
+	}
+
+	private fun defaultReadingSearchContentKinds(): Set<SearchContentKind> {
+		return when (currentDetailsContentType()) {
+			ContentType.VIDEO, ContentType.HENTAI_VIDEO -> setOf(SearchContentKind.VIDEO)
+			ContentType.NOVEL, ContentType.HENTAI_NOVEL -> setOf(SearchContentKind.NOVEL)
+			null -> ALL_SEARCH_CONTENT_KINDS
+			else -> setOf(SearchContentKind.MANGA)
+		}
+	}
+
+	private fun loadReadingSearchFilters(sourceName: String) {
+		val sourceInfo = readingSearchSources.value.firstOrNull { it.mangaSource.name == sourceName }
+		if (sourceInfo == null) {
+			readingSearchFilterState.value = ReadingSearchFilterState()
+			return
+		}
+		readingSearchFilterState.value = ReadingSearchFilterState(
+			source = sourceInfo,
+			isLoading = true,
+		)
+		launchJob(Dispatchers.IO) {
+			val repository = mangaRepositoryFactory.create(sourceInfo.mangaSource)
+			val sortOrders = repository.sortOrders.toList().sortedBy { it.ordinal }
+			val defaultSortOrder = repository.resolveReadingSearchSortOrder()
+			val optionsResult = runCatchingCancellable {
+				repository.getFilterOptions()
+			}
+			if (selectedReadingSearchSource.value != sourceName) {
+				return@launchJob
+			}
+			readingSearchFilterState.value = optionsResult.fold(
+				onSuccess = { options ->
+					ReadingSearchFilterState(
+						source = sourceInfo,
+						capabilities = repository.filterCapabilities,
+						filterOptions = options,
+						sortOrders = sortOrders,
+						selectedSortOrder = defaultSortOrder,
+					)
+				},
+				onFailure = { error ->
+					ReadingSearchFilterState(
+						source = sourceInfo,
+						capabilities = repository.filterCapabilities,
+						sortOrders = sortOrders,
+						selectedSortOrder = defaultSortOrder,
+						errorMessage = error.localizedMessage ?: error.javaClass.simpleName,
+					)
+				},
+			)
+		}
+	}
+
+	private fun ReadingSearchFilterState.defaultReadingSearchSortOrder(): SortOrder? {
+		return sortOrders.firstOrNull { it == SortOrder.RELEVANCE } ?: selectedSortOrder ?: sortOrders.firstOrNull()
+	}
+
+	private fun ReadingSearchFilterState.toUiState(): ReadingSearchFilterUiState {
+		val sortedLocales = filterOptions.availableLocales
+			.sortedBy { it.getDisplayName(it).ifBlank { it.toLanguageTag() } }
+		return ReadingSearchFilterUiState(
+			hasSelectedSource = source != null,
+			isLoading = isLoading,
+			errorMessage = errorMessage,
+			sortOrders = sortOrders,
+			selectedSortOrder = selectedSortOrder,
+			tagGroups = filterOptions.effectiveTagGroups.map { group ->
+				UiTagGroup(
+					title = group.title,
+					tags = group.tags,
+					selected = group.tags.intersect(listFilter.tags),
+					isExclusive = group.isExclusive,
+				)
+			},
+			excludedTagGroups = filterOptions.effectiveTagGroups.map { group ->
+				UiTagGroup(
+					title = group.title,
+					tags = group.tags,
+					selected = group.tags.intersect(listFilter.tagsExclude),
+					isExclusive = group.isExclusive,
+				)
+			},
+			contentTypes = filterOptions.availableContentTypes.toList().sortedBy { it.ordinal },
+			selectedContentTypes = listFilter.types,
+			states = filterOptions.availableStates.toList().sortedBy { it.ordinal },
+			selectedStates = listFilter.states,
+			locales = if (sortedLocales.isNotEmpty()) listOf(null) + sortedLocales else emptyList(),
+			selectedLocale = listFilter.locale,
+			author = listFilter.author,
+			canSearchByAuthor = capabilities.isAuthorSearchSupported,
+			supportsTagExclusion = capabilities.isTagsExclusionSupported,
+			appliedFilterCount = listFilter.appliedFilterCount(),
+		)
+	}
+
+	private fun ContentListFilter.appliedFilterCount(): Int {
+		var count = 0
+		count += tags.size
+		count += tagsExclude.size
+		count += states.size
+		count += types.size
+		if (locale != null) count++
+		if (!author.isNullOrBlank()) count++
+		return count
+	}
+
+	private fun org.skepsun.kototoro.core.parser.ContentRepository.buildReadingSearchFilter(
+		query: String,
+		baseFilter: ContentListFilter,
+	): ContentListFilter {
+		var filter = baseFilter.copy(query = query.takeIf { it.isNotBlank() })
+		if (!filter.author.isNullOrBlank() && !filterCapabilities.isAuthorSearchSupported) {
+			filter = filter.copy(author = null)
+		}
+		if (!filter.query.isNullOrBlank() && filter.hasNonSearchOptions() && !filterCapabilities.isSearchWithFiltersSupported) {
+			filter = filter.copy(query = null)
+		}
+		if (!filter.query.isNullOrBlank() && !filterCapabilities.isSearchSupported) {
+			filter = filter.copy(query = null)
+		}
+		return filter
 	}
 
 	fun bindReadingCandidateToTracking(content: Content, onComplete: (() -> Unit)? = null) {
