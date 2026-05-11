@@ -11,6 +11,7 @@ data class Bookmark(
 	val manga: Content,
 	val pageId: Long,
 	val chapterId: Long,
+	val chapterTitle: String? = null,
 	val page: Int,
 	val scroll: Int,
 	val imageUrl: String,

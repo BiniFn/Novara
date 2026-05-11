@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import dagger.Reusable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.skepsun.kototoro.core.db.entity.ChapterEntity
 import org.skepsun.kototoro.bookmarks.data.BookmarkEntity
 import org.skepsun.kototoro.bookmarks.data.toBookmark
 import org.skepsun.kototoro.bookmarks.data.toBookmarks
@@ -37,7 +38,7 @@ class BookmarksRepository @Inject constructor(
 			val res = LinkedHashMap<Content, List<Bookmark>>(map.size)
 			for ((k, v) in map) {
 				val manga = k.toContent()
-				res[manga] = v.toBookmarks(manga)
+				res[manga] = v.toBookmarks(manga).resolveChapterTitles(manga.id)
 			}
 			res
 		}
@@ -98,6 +99,25 @@ class BookmarksRepository @Inject constructor(
 					}
 				}
 			}
+		}
+	}
+
+	private suspend fun List<Bookmark>.resolveChapterTitles(mangaId: Long): List<Bookmark> {
+		if (isEmpty()) {
+			return this
+		}
+		val chapterTitles = db.getChaptersDao()
+			.findAll(mangaId)
+			.associateBy(ChapterEntity::chapterId, ChapterEntity::title)
+		val epubChapterMappings = db.getEpubChapterMappingDao()
+			.findByContentId(mangaId)
+			.associateBy({ it.internalChapterId }, { it.chapterTitle })
+		return map { bookmark ->
+			bookmark.copy(
+				chapterTitle = chapterTitles[bookmark.chapterId]
+					?: epubChapterMappings[bookmark.chapterId]
+					?: bookmark.chapterTitle,
+			)
 		}
 	}
 }

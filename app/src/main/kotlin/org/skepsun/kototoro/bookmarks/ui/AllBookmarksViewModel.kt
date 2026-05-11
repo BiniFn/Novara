@@ -14,6 +14,8 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.bookmarks.domain.Bookmark
 import org.skepsun.kototoro.bookmarks.domain.BookmarksRepository
 import org.skepsun.kototoro.core.jsonsource.SourceGroupManager
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsStateFlow
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.ui.util.ReversibleAction
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
@@ -34,9 +36,15 @@ class AllBookmarksViewModel @Inject constructor(
 	private val repository: BookmarksRepository,
 	private val sourceGroupManager: SourceGroupManager,
 	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
+	settings: AppSettings,
 ) : BaseViewModel() {
 
 	val onActionDone = MutableEventFlow<ReversibleAction>()
+	val gridScale: StateFlow<Float> = settings.observeAsStateFlow(
+		scope = viewModelScope + Dispatchers.Default,
+		key = AppSettings.KEY_GRID_SIZE,
+		valueProducer = { gridSize / 100f },
+	)
 
 	val currentGroupTab: StateFlow<BrowseGroupTab> = globalFavoritesState.selectedGroupTab
 	val currentSourceTags: StateFlow<Set<SourceTag>> = globalFavoritesState.selectedSourceTags

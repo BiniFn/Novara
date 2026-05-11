@@ -8,6 +8,7 @@ fun BookmarkEntity.toBookmark(manga: Content) = Bookmark(
 	manga = manga,
 	pageId = pageId,
 	chapterId = chapterId,
+	chapterTitle = null,
 	page = page,
 	scroll = scroll,
 	imageUrl = imageUrl,

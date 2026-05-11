@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -16,8 +17,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlin.math.floor
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.bookmarks.domain.Bookmark
 import org.skepsun.kototoro.bookmarks.ui.AllBookmarksViewModel
@@ -34,6 +37,7 @@ import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
+import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
 import org.skepsun.kototoro.reader.ui.PageSaveHelper
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,6 +49,7 @@ fun AppBookmarksRoute(
     pageSaveHelper: PageSaveHelper
 ) {
     val items by viewModel.content.collectAsStateWithLifecycle(initialValue = emptyList())
+    val gridScale by viewModel.gridScale.collectAsStateWithLifecycle(initialValue = 1f)
     var composeSelectionIds by rememberSaveable { mutableStateOf(emptySet<Long>()) }
 
     val activity = LocalContext.current as? androidx.activity.ComponentActivity
@@ -79,129 +84,152 @@ fun AppBookmarksRoute(
             state = pullRefreshState,
             modifier = Modifier.fillMaxSize()
         ) {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 100.dp),
-                contentPadding = contentPadding,
-                modifier = Modifier.fillMaxSize()
-            ) {
-                items(
-                    items = items,
-                    span = { item ->
-                        if (item is ListHeader || item is EmptyState || item is LoadingState) {
-                            GridItemSpan(maxLineSpan)
-                        } else {
-                            GridItemSpan(1)
+            val posterStyle = remember(gridScale) { compactPosterCardStyle(gridScale) }
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val horizontalPadding = contentPadding.calculateLeftPadding(LayoutDirection.Ltr) +
+                    contentPadding.calculateRightPadding(LayoutDirection.Ltr)
+                val gridSpacing = 6.dp
+                val availableWidth = (maxWidth - horizontalPadding).coerceAtLeast(posterStyle.itemWidth)
+                val gridColumns = remember(availableWidth, posterStyle.itemWidth, gridSpacing) {
+                    floor(
+                        ((availableWidth + gridSpacing) / (posterStyle.itemWidth + gridSpacing)).toDouble(),
+                    ).toInt().coerceAtLeast(1)
+                }
+
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(gridColumns),
+                    contentPadding = contentPadding,
+                    horizontalArrangement = Arrangement.spacedBy(gridSpacing),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(
+                        items = items,
+                        span = { item ->
+                            if (item is ListHeader || item is EmptyState || item is LoadingState) {
+                                GridItemSpan(maxLineSpan)
+                            } else {
+                                GridItemSpan(1)
+                            }
                         }
-                    }
-                ) { listModel ->
-                    when (listModel) {
-                        is ListHeader -> {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        val manga = listModel.payload as? Content
-                                        if (manga != null) {
-                                            appRouter.openDetails(manga, rootView)
+                    ) { listModel ->
+                        when (listModel) {
+                            is ListHeader -> {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            val manga = listModel.payload as? Content
+                                            if (manga != null) {
+                                                appRouter.openDetails(manga, rootView)
+                                            }
                                         }
+                                        .padding(horizontal = 16.dp, vertical = 24.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val text = listModel.getText(LocalContext.current)
+                                    Text(
+                                        text = text?.toString() ?: "",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onBackground
+                                    )
+                                    if (listModel.buttonTextRes != 0) {
+                                        Icon(
+                                            imageVector = androidx.compose.material.icons.Icons.Default.KeyboardArrowRight,
+                                            contentDescription = "More",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
-                                    .padding(horizontal = 16.dp, vertical = 24.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                val text = listModel.getText(LocalContext.current)
-                                Text(
-                                    text = text?.toString() ?: "",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onBackground
-                                )
-                                if (listModel.buttonTextRes != 0) {
+                                }
+                            }
+                            is Bookmark -> {
+                                val isSelected = listModel.pageId in composeSelectionIds
+                                val source = listModel.manga.source.unwrap()
+                                val contentType = source.getContentType()
+                                val isNovel = contentType == ContentType.NOVEL || contentType == ContentType.HENTAI_NOVEL
+
+                                Box(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentAlignment = Alignment.TopCenter,
+                                ) {
+                                    if (isNovel) {
+                                        KototoroBookmarkCardNovel(
+                                            item = listModel,
+                                            cardStyle = posterStyle,
+                                            isSelected = isSelected,
+                                            onClick = {
+                                                if (composeSelectionIds.isNotEmpty()) {
+                                                    composeSelectionIds = if (isSelected) composeSelectionIds - listModel.pageId else composeSelectionIds + listModel.pageId
+                                                } else {
+                                                    val intent = ReaderIntent.Builder(activity as Context)
+                                                        .bookmark(listModel)
+                                                        .incognito()
+                                                        .build()
+                                                    appRouter.openReader(intent)
+                                                    android.widget.Toast.makeText(activity, R.string.incognito_mode, android.widget.Toast.LENGTH_SHORT).show()
+                                                }
+                                            },
+                                            onLongClick = {
+                                                composeSelectionIds = if (isSelected) composeSelectionIds - listModel.pageId else composeSelectionIds + listModel.pageId
+                                            },
+                                            modifier = Modifier.width(posterStyle.itemWidth),
+                                        )
+                                    } else {
+                                        KototoroBookmarkCardThumb(
+                                            item = listModel,
+                                            cardStyle = posterStyle,
+                                            isSelected = isSelected,
+                                            onClick = {
+                                                if (composeSelectionIds.isNotEmpty()) {
+                                                    composeSelectionIds = if (isSelected) composeSelectionIds - listModel.pageId else composeSelectionIds + listModel.pageId
+                                                } else {
+                                                    val intent = ReaderIntent.Builder(activity as Context)
+                                                        .bookmark(listModel)
+                                                        .incognito()
+                                                        .build()
+                                                    appRouter.openReader(intent)
+                                                    android.widget.Toast.makeText(activity, R.string.incognito_mode, android.widget.Toast.LENGTH_SHORT).show()
+                                                }
+                                            },
+                                            onLongClick = {
+                                                composeSelectionIds = if (isSelected) composeSelectionIds - listModel.pageId else composeSelectionIds + listModel.pageId
+                                            },
+                                            modifier = Modifier.width(posterStyle.itemWidth),
+                                        )
+                                    }
+                                }
+                            }
+                            is EmptyState -> {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 64.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
                                     Icon(
-                                        imageVector = androidx.compose.material.icons.Icons.Default.KeyboardArrowRight,
-                                        contentDescription = "More",
+                                        painter = painterResource(id = listModel.icon),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(64.dp),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text(
+                                        text = stringResource(id = listModel.textPrimary),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onBackground
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = stringResource(id = listModel.textSecondary),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
-                        }
-                        is Bookmark -> {
-                            val isSelected = listModel.pageId in composeSelectionIds
-                            val source = listModel.manga.source.unwrap()
-                            val contentType = source.getContentType()
-                            val isNovel = contentType == ContentType.NOVEL || contentType == ContentType.HENTAI_NOVEL
-
-                            if (isNovel) {
-                                KototoroBookmarkCardNovel(
-                                    item = listModel,
-                                    isSelected = isSelected,
-                                    onClick = {
-                                        if (composeSelectionIds.isNotEmpty()) {
-                                            composeSelectionIds = if (isSelected) composeSelectionIds - listModel.pageId else composeSelectionIds + listModel.pageId
-                                        } else {
-                                            val intent = ReaderIntent.Builder(activity as Context)
-                                                .bookmark(listModel)
-                                                .incognito()
-                                                .build()
-                                            appRouter.openReader(intent)
-                                            android.widget.Toast.makeText(activity, R.string.incognito_mode, android.widget.Toast.LENGTH_SHORT).show()
-                                        }
-                                    },
-                                    onLongClick = {
-                                        composeSelectionIds = if (isSelected) composeSelectionIds - listModel.pageId else composeSelectionIds + listModel.pageId
-                                    }
-                                )
-                            } else {
-                                KototoroBookmarkCardThumb(
-                                    item = listModel,
-                                    isSelected = isSelected,
-                                    onClick = {
-                                        if (composeSelectionIds.isNotEmpty()) {
-                                            composeSelectionIds = if (isSelected) composeSelectionIds - listModel.pageId else composeSelectionIds + listModel.pageId
-                                        } else {
-                                            val intent = ReaderIntent.Builder(activity as Context)
-                                                .bookmark(listModel)
-                                                .incognito()
-                                                .build()
-                                            appRouter.openReader(intent)
-                                            android.widget.Toast.makeText(activity, R.string.incognito_mode, android.widget.Toast.LENGTH_SHORT).show()
-                                        }
-                                    },
-                                    onLongClick = {
-                                        composeSelectionIds = if (isSelected) composeSelectionIds - listModel.pageId else composeSelectionIds + listModel.pageId
-                                    }
-                                )
-                            }
-                        }
-                        is EmptyState -> {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 64.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Icon(
-                                    painter = painterResource(id = listModel.icon),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(64.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = stringResource(id = listModel.textPrimary),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onBackground
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = stringResource(id = listModel.textSecondary),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        is LoadingState -> {
-                            Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator()
+                            is LoadingState -> {
+                                Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator()
+                                }
                             }
                         }
                     }

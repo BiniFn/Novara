@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -24,11 +25,13 @@ import coil3.compose.AsyncImage
 import org.jsoup.Jsoup
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.bookmarks.domain.Bookmark
+import org.skepsun.kototoro.core.ui.compose.CompactPosterCardStyle
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun KototoroBookmarkCardThumb(
     item: Bookmark,
+    cardStyle: CompactPosterCardStyle,
     isSelected: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -44,7 +47,7 @@ fun KototoroBookmarkCardThumb(
                 onClick = onClick,
                 onLongClick = onLongClick
             )
-            .aspectRatio(2f / 3f)
+            .height(cardStyle.posterHeight)
     ) {
         AsyncImage(
             model = item.imageUrl,
@@ -52,6 +55,24 @@ fun KototoroBookmarkCardThumb(
             contentScale = ContentScale.Crop,
             modifier = Modifier.matchParentSize()
         )
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .background(Color.Black.copy(alpha = 0.58f))
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+        ) {
+            Text(
+                text = item.chapterTitle.orEmpty().ifBlank {
+                    stringResource(R.string.bookmark_position, item.page + 1)
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
 
         if (isSelected) {
             Box(modifier = Modifier.matchParentSize().background(MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)))
@@ -80,6 +101,7 @@ fun KototoroBookmarkCardThumb(
 @Composable
 fun KototoroBookmarkCardNovel(
     item: Bookmark,
+    cardStyle: CompactPosterCardStyle,
     isSelected: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -99,8 +121,20 @@ fun KototoroBookmarkCardNovel(
                 onLongClick = onLongClick
             )
             .padding(12.dp)
-            .defaultMinSize(minHeight = 120.dp)
+            .height(cardStyle.posterHeight)
     ) {
+        Text(
+            text = item.chapterTitle.orEmpty().ifBlank {
+                stringResource(R.string.bookmark_position, item.page + 1)
+            },
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         Box(modifier = Modifier.weight(1f)) {
             Text(
                 text = previewText,
