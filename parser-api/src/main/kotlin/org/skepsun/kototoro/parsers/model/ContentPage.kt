@@ -35,7 +35,41 @@ public data class ContentPage(
 	 */
 	@JvmField public val playbackQuality: Int? = null,
 	@JvmField public val source: ContentSource,
-)
+) {
+
+	public constructor(
+		id: Long,
+		url: String,
+		preview: String?,
+		source: ContentSource,
+	) : this(
+		id = id,
+		url = url,
+		preview = preview,
+		headers = null,
+		externalSubtitleTracks = emptyList(),
+		playbackLabel = null,
+		playbackQuality = null,
+		source = source,
+	)
+
+	public constructor(
+		id: Long,
+		url: String,
+		preview: String?,
+		headers: Map<String, String>?,
+		source: ContentSource,
+	) : this(
+		id = id,
+		url = url,
+		preview = preview,
+		headers = headers,
+		externalSubtitleTracks = emptyList(),
+		playbackLabel = null,
+		playbackQuality = null,
+		source = source,
+	)
+}
 
 public data class ContentExternalTrack(
 	@JvmField public val url: String,
