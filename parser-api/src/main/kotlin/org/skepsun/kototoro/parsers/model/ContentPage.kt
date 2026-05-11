@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.parsers.model
 
+import kotlin.jvm.internal.DefaultConstructorMarker
 import org.skepsun.kototoro.parsers.ContentParser
 
 public data class ContentPage(
@@ -64,6 +65,26 @@ public data class ContentPage(
 		url = url,
 		preview = preview,
 		headers = headers,
+		externalSubtitleTracks = emptyList(),
+		playbackLabel = null,
+		playbackQuality = null,
+		source = source,
+	)
+
+	@Suppress("UNUSED_PARAMETER")
+	public constructor(
+		id: Long,
+		url: String,
+		preview: String?,
+		headers: Map<String, String>?,
+		source: ContentSource,
+		mask: Int,
+		marker: DefaultConstructorMarker?,
+	) : this(
+		id = id,
+		url = url,
+		preview = preview,
+		headers = if (mask and 0x8 != 0) null else headers,
 		externalSubtitleTracks = emptyList(),
 		playbackLabel = null,
 		playbackQuality = null,
