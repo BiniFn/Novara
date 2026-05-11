@@ -2056,6 +2056,10 @@
     <string name="unified_sources_http_error">HTTP %1$d</string>
     <string name="unified_sources_empty_response_body">Empty response body</string>
     <string name="unified_sources_unsupported_repository_kind">Unsupported extension repository kind: %1$s</string>
+    <string name="unified_sources_delete_selected_message">Delete %1$d package(s) for the selected sources?</string>
+    <string name="unified_sources_delete_selected_with_skipped_jars">Delete %1$d package(s) for the selected sources?\n\nJAR packages were skipped to avoid accidental removal: %2$s</string>
+    <string name="unified_sources_delete_selected_only_skipped_jars">The selection contains JAR sources. Their packages were skipped to avoid accidental removal: %1$s</string>
+    <string name="unified_sources_delete_selected_no_packages">No removable packages were found in the current selection.</string>
     <string name="show_extensions_in_grid">Show extensions in two columns</string>
     <string name="show_extensions_in_list">Show extensions in one column</string>
     <string name="setup_wizard">Setup wizard</string>

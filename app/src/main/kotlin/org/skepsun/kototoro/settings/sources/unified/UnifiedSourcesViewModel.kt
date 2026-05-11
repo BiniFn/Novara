@@ -78,6 +78,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 	private val availableExternalExtensions = MutableStateFlow<List<RepoAvailableExtension>>(emptyList())
 	private val availableLnReaderPlugins = MutableStateFlow<List<LnReaderAvailablePlugin>>(emptyList())
 	private val installingLnReaderPackageIds = MutableStateFlow<Set<String>>(emptySet())
+	private val pendingUninstallIntents = ArrayDeque<Intent>()
 	private val lnReaderPackageSnapshot = combine(
 		availableLnReaderPlugins,
 		installingLnReaderPackageIds,
@@ -236,89 +237,48 @@ class UnifiedSourcesViewModel @Inject constructor(
 
 	fun uninstallPackage(packageId: String) {
 		val item = currentPackage(packageId) ?: return
-		val packageName = item.packageName ?: return
-		if (item.state == UnifiedSourcePackageState.INSTALLING) {
-			return
-		}
-
-		if (item.kind == UnifiedSourceKind.LNREADER) {
-			val sourceId = item.id.removePrefix("package:${UnifiedSourceKind.LNREADER.name}:")
-			launchLoadingJob(Dispatchers.IO) {
-				jsonSourceManager.deleteSource(sourceId)
+		val ready = uiState.value as? UnifiedSourcesUiState.Ready ?: return
+		launchLoadingJob(Dispatchers.IO) {
+			val result = removePackage(item, ready)
+			if (result.reloadExternalExtensionManagers) {
+				reloadExternalExtensionManagers()
+			}
+			if (result.removedDirectly) {
 				emitMessage(appContext.getString(R.string.removal_completed))
 			}
+			result.uninstallIntent?.let { dispatchUninstallIntents(listOf(it)) }
+		}
+	}
+
+	fun deletePackages(packageIds: Set<String>) {
+		if (packageIds.isEmpty()) {
 			return
 		}
-
-		if (item.kind == UnifiedSourceKind.JAR) {
-			val pluginDir = File(appContext.filesDir, "plugins")
-			val jarFile = File(pluginDir, "$packageName.jar")
-			if (jarFile.exists()) {
-				jarFile.delete()
-			}
-			appContext.getSharedPreferences("jar_plugin_versions", Context.MODE_PRIVATE)
-				.edit()
-				.remove(packageName)
-				.apply()
-			GlobalExtensionManager.initialize(appContext)
-			viewModelScope.launch { emitMessage(appContext.getString(R.string.removal_completed)) }
+		val ready = uiState.value as? UnifiedSourcesUiState.Ready ?: return
+		val packageItems = ready.allPackages
+			.filter { it.id in packageIds }
+			.distinctBy { it.id }
+		if (packageItems.isEmpty()) {
 			return
 		}
-
-		if (item.kind == UnifiedSourceKind.CLOUDSTREAM) {
-			val prefs = appContext.getSharedPreferences("cloudstream_plugin_versions", Context.MODE_PRIVATE)
-			val archiveName = prefs.getString("${packageName}:archive", null) ?: "$packageName.cs3"
-			val pluginDir = File(File(appContext.filesDir, "cloudstream"), "plugins")
-			val pluginFile = File(pluginDir, archiveName)
-			if (pluginFile.exists()) {
-				pluginFile.delete()
+		launchLoadingJob(Dispatchers.IO) {
+			val uninstallIntents = ArrayList<Intent>(packageItems.size)
+			var removedDirectly = false
+			var reloadExternalManagers = false
+			packageItems.forEach { item ->
+				val result = removePackage(item, ready)
+				removedDirectly = removedDirectly || result.removedDirectly
+				reloadExternalManagers = reloadExternalManagers || result.reloadExternalExtensionManagers
+				result.uninstallIntent?.let(uninstallIntents::add)
 			}
-			prefs.edit()
-				.remove(packageName)
-				.remove("${packageName}:name")
-				.remove("${packageName}:lang")
-				.remove("${packageName}:repo")
-				.remove("${packageName}:repoName")
-				.remove("${packageName}:archive")
-				.remove("${packageName}:icon")
-				.apply()
-			cloudstreamRuntimeManager.initialize()
-			viewModelScope.launch(Dispatchers.IO) {
-				refreshPackages(refreshRepositories = false, showLoading = false)
+			if (reloadExternalManagers) {
+				reloadExternalExtensionManagers()
+			}
+			if (removedDirectly) {
 				emitMessage(appContext.getString(R.string.removal_completed))
 			}
-			return
+			dispatchUninstallIntents(uninstallIntents)
 		}
-
-		val ecosystem = item.kind.toLocalApkEcosystem()
-		if (ecosystem != null) {
-			val deleted = LocalApkExtensionSupport.deleteManagedLocalPackage(
-				context = appContext,
-				ecosystem = ecosystem,
-				packageName = packageName,
-			)
-			if (deleted) {
-				viewModelScope.launch(Dispatchers.IO) {
-					reloadExternalExtensionManagers()
-					refreshPackages(refreshRepositories = false, showLoading = false)
-					emitMessage(appContext.getString(R.string.removal_completed))
-				}
-				return
-			}
-		}
-
-		val uninstallPkg = if (item.kind == UnifiedSourceKind.IREADER && packageName.startsWith("ireader-")) {
-			packageName.toInstalledIReaderPackageName()
-		} else {
-			packageName
-		}
-		val action = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-			Intent.ACTION_DELETE
-		} else {
-			@Suppress("DEPRECATION")
-			Intent.ACTION_UNINSTALL_PACKAGE
-		}
-		_events.tryEmit(UnifiedSourcesEvent.StartUninstall(Intent(action, Uri.fromParts("package", uninstallPkg, null))))
 	}
 
 	fun onPackagePrimaryAction(packageId: String) {
@@ -347,6 +307,12 @@ class UnifiedSourcesViewModel @Inject constructor(
 
 	fun onInstallActivityResult() {
 		handleBatchNextAction(batchUpdateState.onInstallActivityResult())
+	}
+
+	fun onUninstallActivityResult() {
+		viewModelScope.launch {
+			dispatchNextPendingUninstall()
+		}
 	}
 
 	fun importLocalJar(uri: Uri) {
@@ -557,6 +523,117 @@ class UnifiedSourcesViewModel @Inject constructor(
 			?.firstOrNull { it.id == packageId }
 	}
 
+	private suspend fun removePackage(
+		item: UnifiedSourcePackageItem,
+		ready: UnifiedSourcesUiState.Ready,
+	): PackageRemovalResult {
+		if (item.state == UnifiedSourcePackageState.INSTALLING) {
+			return PackageRemovalResult()
+		}
+
+		if (item.kind.isJsonBackedKind()) {
+			val sourceIds = ready.allSources
+				.filter { it.packageId == item.id }
+				.map { it.id }
+			if (sourceIds.isEmpty()) {
+				return PackageRemovalResult()
+			}
+			jsonSourceManager.deleteSourcesBatch(sourceIds)
+			return PackageRemovalResult(removedDirectly = true)
+		}
+
+		val packageName = item.packageName ?: return PackageRemovalResult()
+		if (item.kind == UnifiedSourceKind.JAR) {
+			val pluginDir = File(appContext.filesDir, "plugins")
+			val jarFile = File(pluginDir, "$packageName.jar")
+			if (jarFile.exists()) {
+				jarFile.delete()
+			}
+			appContext.getSharedPreferences("jar_plugin_versions", Context.MODE_PRIVATE)
+				.edit()
+				.remove(packageName)
+				.apply()
+			GlobalExtensionManager.initialize(appContext)
+			return PackageRemovalResult(removedDirectly = true)
+		}
+
+		if (item.kind == UnifiedSourceKind.CLOUDSTREAM) {
+			val prefs = appContext.getSharedPreferences("cloudstream_plugin_versions", Context.MODE_PRIVATE)
+			val archiveName = prefs.getString("${packageName}:archive", null) ?: "$packageName.cs3"
+			val pluginDir = File(File(appContext.filesDir, "cloudstream"), "plugins")
+			val pluginFile = File(pluginDir, archiveName)
+			if (pluginFile.exists()) {
+				pluginFile.delete()
+			}
+			prefs.edit()
+				.remove(packageName)
+				.remove("${packageName}:name")
+				.remove("${packageName}:lang")
+				.remove("${packageName}:repo")
+				.remove("${packageName}:repoName")
+				.remove("${packageName}:archive")
+				.remove("${packageName}:icon")
+				.apply()
+			cloudstreamRuntimeManager.initialize()
+			return PackageRemovalResult(removedDirectly = true)
+		}
+
+		val ecosystem = item.kind.toLocalApkEcosystem()
+		if (ecosystem != null) {
+			val deleted = LocalApkExtensionSupport.deleteManagedLocalPackage(
+				context = appContext,
+				ecosystem = ecosystem,
+				packageName = packageName,
+			)
+			if (deleted) {
+				return PackageRemovalResult(
+					removedDirectly = true,
+					reloadExternalExtensionManagers = true,
+				)
+			}
+		}
+
+		return PackageRemovalResult(uninstallIntent = buildUninstallIntent(item.kind, packageName))
+	}
+
+	private fun buildUninstallIntent(kind: UnifiedSourceKind, packageName: String): Intent {
+		val uninstallPkg = if (kind == UnifiedSourceKind.IREADER && packageName.startsWith("ireader-")) {
+			packageName.toInstalledIReaderPackageName()
+		} else {
+			packageName
+		}
+		val action = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+			Intent.ACTION_DELETE
+		} else {
+			@Suppress("DEPRECATION")
+			Intent.ACTION_UNINSTALL_PACKAGE
+		}
+		return Intent(action, Uri.fromParts("package", uninstallPkg, null))
+	}
+
+	private suspend fun dispatchUninstallIntents(intents: List<Intent>) {
+		if (intents.isEmpty()) {
+			return
+		}
+		val iterator = intents.iterator()
+		if (pendingUninstallIntents.isEmpty()) {
+			val first = iterator.next()
+			while (iterator.hasNext()) {
+				pendingUninstallIntents.addLast(iterator.next())
+			}
+			_events.emit(UnifiedSourcesEvent.StartUninstall(first))
+			return
+		}
+		while (iterator.hasNext()) {
+			pendingUninstallIntents.addLast(iterator.next())
+		}
+	}
+
+	private suspend fun dispatchNextPendingUninstall() {
+		val next = pendingUninstallIntents.removeFirstOrNull() ?: return
+		_events.emit(UnifiedSourcesEvent.StartUninstall(next))
+	}
+
 	private fun requestInstall(item: UnifiedSourcePackageItem, fromBatch: Boolean) {
 		val extension = item.installPayload ?: return
 		if (extension.pkgName in installService.downloadStates.value) {
@@ -677,6 +754,12 @@ class UnifiedSourcesViewModel @Inject constructor(
 			.orEmpty()
 			.filter { it.state == UnifiedSourcePackageState.UPDATE_AVAILABLE }
 	}
+
+	private data class PackageRemovalResult(
+		val removedDirectly: Boolean = false,
+		val uninstallIntent: Intent? = null,
+		val reloadExternalExtensionManagers: Boolean = false,
+	)
 
 	private suspend fun prepareExternalRepository(kind: UnifiedSourceKind, url: String) {
 		val type = kind.toExternalExtensionType()
@@ -1211,6 +1294,16 @@ private fun UnifiedSourceKind.toLocalApkEcosystem(): String? {
 		UnifiedSourceKind.ANIYOMI -> "aniyomi"
 		UnifiedSourceKind.IREADER -> "ireader"
 		else -> null
+	}
+}
+
+private fun UnifiedSourceKind.isJsonBackedKind(): Boolean {
+	return when (this) {
+		UnifiedSourceKind.LEGADO,
+		UnifiedSourceKind.TVBOX,
+		UnifiedSourceKind.JS,
+		UnifiedSourceKind.LNREADER -> true
+		else -> false
 	}
 }
 

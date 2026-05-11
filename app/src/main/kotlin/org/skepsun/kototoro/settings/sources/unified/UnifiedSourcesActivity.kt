@@ -41,6 +41,10 @@ class UnifiedSourcesActivity : BaseActivity<ActivityUnifiedSourcesBinding>() {
 		viewModel.onInstallActivityResult()
 	}
 
+	private val uninstallLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+		viewModel.onUninstallActivityResult()
+	}
+
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		setContentView(ActivityUnifiedSourcesBinding.inflate(layoutInflater))
@@ -62,7 +66,7 @@ class UnifiedSourcesActivity : BaseActivity<ActivityUnifiedSourcesBinding>() {
 							.onFailure { Toast.makeText(this, it.message, Toast.LENGTH_SHORT).show() }
 					},
 					onStartUninstall = { intent ->
-						runCatching { startActivity(intent) }
+						runCatching { uninstallLauncher.launch(intent) }
 							.onFailure { Toast.makeText(this, it.message, Toast.LENGTH_SHORT).show() }
 					},
 					modifier = Modifier.fillMaxSize(),

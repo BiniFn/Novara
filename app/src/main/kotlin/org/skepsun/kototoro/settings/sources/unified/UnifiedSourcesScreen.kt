@@ -132,6 +132,7 @@ private sealed interface UnifiedSourcesDialogState {
 
 	data class TrustRepository(val repo: ExternalExtensionRepo) : UnifiedSourcesDialogState
 	data class DeleteRepository(val repository: UnifiedSourceRepositoryItem) : UnifiedSourcesDialogState
+	data class DeleteSelectedSources(val plan: UnifiedSelectedSourceDeletePlan) : UnifiedSourcesDialogState
 	data class PackageDetails(val item: UnifiedSourcePackageItem) : UnifiedSourcesDialogState
 	data class ThirdPartyDisclaimer(val action: UnifiedThirdPartyAction) : UnifiedSourcesDialogState
 }
@@ -152,6 +153,12 @@ private sealed interface UnifiedThirdPartyAction {
 	data class OpenRepositoryFile(val kind: UnifiedSourceKind) : UnifiedThirdPartyAction
 	data object OpenLocalJar : UnifiedThirdPartyAction
 }
+
+private data class UnifiedSelectedSourceDeletePlan(
+	val deletablePackageIds: List<String>,
+	val deletablePackageNames: List<String>,
+	val skippedJarPackageNames: List<String>,
+)
 
 @Composable
 fun UnifiedSourcesRoute(
@@ -257,6 +264,12 @@ fun UnifiedSourcesRoute(
 		onDisableSelectedSources = {
 			viewModel.setSourcesEnabled(selectedSourceIds, false)
 			selectedSourceIdList = emptyList()
+		},
+		onDeleteSelectedSources = {
+			val readyStateForDelete = state as? UnifiedSourcesUiState.Ready ?: return@UnifiedSourcesScreen
+			activeDialog = UnifiedSourcesDialogState.DeleteSelectedSources(
+				readyStateForDelete.buildDeletePlan(selectedSourceIds),
+			)
 		},
 		onSourcePinnedChange = viewModel::setSourcePinned,
 		onBrowseSource = onBrowseSource,
@@ -412,6 +425,16 @@ fun UnifiedSourcesRoute(
 			onDismiss = { activeDialog = null },
 			onConfirm = {
 				viewModel.deleteRepository(dialog.repository.id)
+				activeDialog = null
+			},
+		)
+
+		is UnifiedSourcesDialogState.DeleteSelectedSources -> UnifiedDeleteSelectedSourcesDialog(
+			plan = dialog.plan,
+			onDismiss = { activeDialog = null },
+			onConfirm = {
+				viewModel.deletePackages(dialog.plan.deletablePackageIds.toSet())
+				selectedSourceIdList = emptyList()
 				activeDialog = null
 			},
 		)
@@ -594,6 +617,60 @@ private fun UnifiedDeleteRepositoryDialog(
 		},
 			title = { Text(stringResource(R.string.delete_repository_title)) },
 			text = { Text(stringResource(R.string.delete_repository_message, repository.name)) },
+	)
+}
+
+@Composable
+private fun UnifiedDeleteSelectedSourcesDialog(
+	plan: UnifiedSelectedSourceDeletePlan,
+	onDismiss: () -> Unit,
+	onConfirm: () -> Unit,
+) {
+	val skippedJarText = plan.skippedJarPackageNames.joinToString(", ")
+	val message = when {
+		plan.deletablePackageIds.isNotEmpty() && plan.skippedJarPackageNames.isNotEmpty() -> {
+			stringResource(
+				R.string.unified_sources_delete_selected_with_skipped_jars,
+				plan.deletablePackageIds.size,
+				skippedJarText,
+			)
+		}
+		plan.deletablePackageIds.isNotEmpty() -> {
+			stringResource(
+				R.string.unified_sources_delete_selected_message,
+				plan.deletablePackageIds.size,
+			)
+		}
+		plan.skippedJarPackageNames.isNotEmpty() -> {
+			stringResource(
+				R.string.unified_sources_delete_selected_only_skipped_jars,
+				skippedJarText,
+			)
+		}
+		else -> stringResource(R.string.unified_sources_delete_selected_no_packages)
+	}
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		confirmButton = {
+			if (plan.deletablePackageIds.isNotEmpty()) {
+				TextButton(onClick = onConfirm) {
+					Text(stringResource(R.string.delete))
+				}
+			} else {
+				TextButton(onClick = onDismiss) {
+					Text(stringResource(android.R.string.ok))
+				}
+			}
+		},
+		dismissButton = {
+			if (plan.deletablePackageIds.isNotEmpty()) {
+				TextButton(onClick = onDismiss) {
+					Text(stringResource(android.R.string.cancel))
+				}
+			}
+		},
+		title = { Text(stringResource(R.string.delete)) },
+		text = { Text(message) },
 	)
 }
 
@@ -915,6 +992,7 @@ fun UnifiedSourcesScreen(
 	onClearSourceSelection: () -> Unit,
 	onEnableSelectedSources: () -> Unit,
 	onDisableSelectedSources: () -> Unit,
+	onDeleteSelectedSources: () -> Unit,
 	onSourcePinnedChange: (String, Boolean) -> Unit,
 	onBrowseSource: (UnifiedSourceItem) -> Unit,
 	onOpenSourceSettings: (UnifiedSourceItem) -> Unit,
@@ -1079,6 +1157,7 @@ fun UnifiedSourcesScreen(
 							onClearSelection = onClearSourceSelection,
 							onEnableSelectedSources = onEnableSelectedSources,
 							onDisableSelectedSources = onDisableSelectedSources,
+							onDeleteSelectedSources = onDeleteSelectedSources,
 						)
 					}
 					KototoroPullToRefreshBox(
@@ -1230,6 +1309,7 @@ private fun UnifiedSourceSelectionBar(
 	onClearSelection: () -> Unit,
 	onEnableSelectedSources: () -> Unit,
 	onDisableSelectedSources: () -> Unit,
+	onDeleteSelectedSources: () -> Unit,
 ) {
 	LazyRow(
 		modifier = Modifier
@@ -1257,13 +1337,19 @@ private fun UnifiedSourceSelectionBar(
 		item(key = "enable_selected") {
 			CompactActionChip(
 				onClick = onEnableSelectedSources,
-				label = { Text(stringResource(R.string.enable_selected)) },
+				label = { Text(stringResource(R.string.enable)) },
 			)
 		}
 		item(key = "disable_selected") {
 			CompactActionChip(
 				onClick = onDisableSelectedSources,
-				label = { Text(stringResource(R.string.disable_selected)) },
+				label = { Text(stringResource(R.string.disable)) },
+			)
+		}
+		item(key = "delete_selected") {
+			CompactActionChip(
+				onClick = onDeleteSelectedSources,
+				label = { Text(stringResource(R.string.delete)) },
 			)
 		}
 		item(key = "clear_selection") {
@@ -1757,6 +1843,37 @@ private fun String?.normalizedLanguageTag(): String? {
 		?.normalizeExtensionLanguageCode()
 		?.takeIf { it.isNotBlank() }
 		?.uppercase(Locale.ROOT)
+}
+
+private fun UnifiedSourcesUiState.Ready.buildDeletePlan(
+	selectedSourceIds: Set<String>,
+): UnifiedSelectedSourceDeletePlan {
+	val packagesById = allPackages.associateBy { it.id }
+	val deletablePackageIds = LinkedHashSet<String>()
+	val deletablePackageNames = LinkedHashSet<String>()
+	val skippedJarPackageNames = LinkedHashSet<String>()
+
+	allSources
+		.asSequence()
+		.filter { it.id in selectedSourceIds }
+		.forEach { item ->
+			when {
+				item.kind == UnifiedSourceKind.JAR -> {
+					skippedJarPackageNames += packagesById[item.packageId]?.name ?: item.packageName ?: item.title
+				}
+				item.packageId != null -> {
+					if (deletablePackageIds.add(item.packageId)) {
+						deletablePackageNames += packagesById[item.packageId]?.name ?: item.packageName ?: item.title
+					}
+				}
+			}
+		}
+
+	return UnifiedSelectedSourceDeletePlan(
+		deletablePackageIds = deletablePackageIds.toList(),
+		deletablePackageNames = deletablePackageNames.toList(),
+		skippedJarPackageNames = skippedJarPackageNames.toList(),
+	)
 }
 
 private fun UnifiedSourcePackageItem.installedIconPackageName(): String? {
