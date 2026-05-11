@@ -24,6 +24,7 @@ import org.skepsun.kototoro.core.cache.MemoryContentCache
 import org.skepsun.kototoro.core.parser.CachingContentRepository
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentChapter
+import org.skepsun.kototoro.parsers.model.ContentExternalTrack
 import org.skepsun.kototoro.parsers.model.ContentListFilter
 import org.skepsun.kototoro.parsers.model.ContentListFilterCapabilities
 import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
@@ -107,7 +108,7 @@ class CloudstreamContentRepository(
 	override suspend fun getPagesImpl(chapter: ContentChapter, nextChapterUrl: String?): List<ContentPage> {
 		val links = resolveVideoPages(chapter)
 		if (links.isNotEmpty()) {
-			return links.map { it.toContentPage(source) }
+			return links
 		}
 		if (chapter.url.isDirectPlayableUrl()) {
 			Log.w(
@@ -120,30 +121,6 @@ class CloudstreamContentRepository(
 					url = chapter.url,
 					preview = null,
 					source = source,
-				),
-			)
-		}
-		Log.w(
-			TAG,
-			"loadLinks resolved no playable links source=${source.displayName} chapterId=${chapter.id} url=${chapter.url}",
-		)
-		return emptyList()
-	}
-
-	suspend fun getPlaybackPages(chapter: ContentChapter): List<CloudstreamPlaybackPage> {
-		val links = resolveVideoPages(chapter)
-		if (links.isNotEmpty()) {
-			return links
-		}
-		if (chapter.url.isDirectPlayableUrl()) {
-			Log.w(
-				TAG,
-				"loadLinks empty, falling back to direct url source=${source.displayName} chapterId=${chapter.id} url=${chapter.url}",
-			)
-			return listOf(
-				CloudstreamPlaybackPage(
-					id = chapter.id,
-					url = chapter.url,
 				),
 			)
 		}
@@ -319,7 +296,7 @@ class CloudstreamContentRepository(
 		return key.removePrefix(SECTION_TAG_PREFIX).toIntOrNull()
 	}
 
-	private suspend fun resolveVideoPages(chapter: ContentChapter): List<CloudstreamPlaybackPage> {
+	private suspend fun resolveVideoPages(chapter: ContentChapter): List<ContentPage> {
 		Log.d(
 			TAG,
 			"loadLinks start source=${source.displayName} chapterId=${chapter.id} chapterTitle=${chapter.title} locator=${chapter.url}",
@@ -358,26 +335,28 @@ class CloudstreamContentRepository(
 				.thenByDescending { it.url.contains("/playlist.m3u8", ignoreCase = true) }
 				.thenByDescending { it.quality })
 			.mapIndexed { index, link ->
-				CloudstreamPlaybackPage(
+				ContentPage(
 					id = stableId("${chapter.id}|${link.name}|${link.url}|$index"),
 					url = link.url,
+					preview = null,
 					headers = link.getAllHeaders()
 						.toMutableMap()
 						.apply {
 							putIfAbsent("User-Agent", USER_AGENT)
 						}
 						.takeIf { it.isNotEmpty() },
-					subtitleTracks = subtitles.map { subtitle ->
-						CloudstreamPlaybackSubtitle(
-							url = subtitle.url,
-							lang = subtitle.lang,
-							headers = subtitle.headers,
-						)
-					},
-					playbackLabel = link.name.takeIf { it.isNotBlank() },
-					playbackQuality = link.quality.takeIf { it > 0 },
-				)
-			}
+						externalSubtitleTracks = subtitles.map { subtitle ->
+							ContentExternalTrack(
+								url = subtitle.url,
+								lang = subtitle.lang,
+								headers = subtitle.headers,
+							)
+						},
+						playbackLabel = link.name.takeIf { it.isNotBlank() },
+						playbackQuality = link.quality.takeIf { it > 0 },
+						source = source,
+					)
+				}
 		Log.d(
 			TAG,
 			"loadLinks done source=${source.displayName} chapterId=${chapter.id} success=$success links=${pages.size} " +

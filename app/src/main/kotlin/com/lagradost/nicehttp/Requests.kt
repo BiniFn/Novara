@@ -252,17 +252,17 @@ fun requestCreator(
 }
 
 fun OkHttpClient.Builder.ignoreAllSSLErrors(): OkHttpClient.Builder {
-	val trustAll = arrayOf<javax.net.ssl.TrustManager>(object : javax.net.ssl.X509TrustManager {
-		override fun checkClientTrusted(chain: Array<out java.security.cert.X509Certificate>?, authType: String?) = Unit
+	val trustAll = arrayOf<TrustManager>(object : X509TrustManager {
+		override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
 
-		override fun checkServerTrusted(chain: Array<out java.security.cert.X509Certificate>?, authType: String?) = Unit
+		override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
 
-		override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = emptyArray()
+		override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
 	})
-	val sslContext = javax.net.ssl.SSLContext.getInstance("SSL").apply {
-		init(null, trustAll, java.security.SecureRandom())
-	}
-	sslSocketFactory(sslContext.socketFactory, trustAll[0] as javax.net.ssl.X509TrustManager)
+	val trustManager = trustAll[0] as X509TrustManager
+	val sslContext = SSLContext.getInstance("SSL")
+	sslContext.init(null, trustAll, SecureRandom())
+	sslSocketFactory(sslContext.socketFactory, trustManager)
 	hostnameVerifier { _, _ -> true }
 	return this
 }

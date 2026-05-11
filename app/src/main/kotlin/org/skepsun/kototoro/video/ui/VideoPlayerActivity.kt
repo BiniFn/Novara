@@ -37,8 +37,6 @@ import okhttp3.Request
 import okhttp3.Response
 import org.skepsun.kototoro.core.model.ContentSource
 import org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository
-import org.skepsun.kototoro.cloudstream.runtime.CloudstreamContentRepository
-import org.skepsun.kototoro.cloudstream.runtime.CloudstreamPlaybackPage
 import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.network.CommonHeaders
@@ -1169,12 +1167,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                                     return@runCatching true
                                 }
                             }
-                            val cloudstreamPages = (repo as? CloudstreamContentRepository)
-                                ?.getPlaybackPages(currentChapter)
-                            val pages = cloudstreamPages?.map { it.toContentPage(manga.source) }
-                                ?: repo.getPages(currentChapter)
-                            val fallbackVideos = cloudstreamPages?.toFallbackVideos()
-                                ?: pages.toFallbackVideos(repo)
+                            val pages = repo.getPages(currentChapter)
+                            val fallbackVideos = pages.toFallbackVideos(repo)
                             if (fallbackVideos.isNotEmpty()) {
                                 availableVideos = fallbackVideos
                                 updateQualityButtonVisibility()
@@ -1194,27 +1188,6 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                                     mergedHeaders,
                                     startMs = startMs,
                                 )
-                                return@runCatching true
-                            }
-                            val cloudstreamPage = cloudstreamPages?.firstOrNull()
-                            if (cloudstreamPage != null) {
-                                val streamHeaders = mergeHeaders(repo.getRequestHeaders(), cloudstreamPage.headers)
-                                pendingExternalSubtitles = cloudstreamPage.subtitleTracks.map { track ->
-                                    eu.kanade.tachiyomi.animesource.model.Track(
-                                        url = resolveExternalSubtitleUrl(track.url, track.headers),
-                                        lang = track.lang,
-                                    )
-                                }
-                                pendingExternalAudio = emptyList()
-                                Log.d(
-                                    "VideoPlayerActivity",
-                                    "Selected cloudstream fallback page for chapter=${currentChapter.id} url=${cloudstreamPage.url} headers=${streamHeaders.keys} source=${manga.source.name} subtitles=${cloudstreamPage.subtitleTracks.size}",
-                                )
-                                availableVideos = emptyList()
-                                currentVideoIndex = 0
-                                updateQualityButtonVisibility()
-                                currentVideoSource = manga.source
-                                prepareAndPlay(cloudstreamPage.url, manga.source, streamHeaders, startMs = startMs)
                                 return@runCatching true
                             }
                             val page = pages.firstOrNull()
@@ -1709,34 +1682,6 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                         Headers.headersOf(*headers.flatMap { listOf(it.key, it.value) }.toTypedArray())
                     },
                 subtitleTracks = emptyList(),
-            )
-        }
-    }
-
-    private fun List<CloudstreamPlaybackPage>.toFallbackVideos(): List<Video> {
-        return map { page ->
-            val title = buildString {
-                page.playbackLabel?.trim()?.takeIf { it.isNotEmpty() }?.let { append(it) }
-                page.playbackQuality?.takeIf { it > 0 }?.let { quality ->
-                    if (isNotEmpty()) append(" ")
-                    append("${quality}p")
-                }
-            }
-            Video(
-                videoUrl = page.url,
-                videoTitle = title,
-                resolution = page.playbackQuality,
-                headers = page.headers
-                    ?.takeIf { it.isNotEmpty() }
-                    ?.let { headers ->
-                        Headers.headersOf(*headers.flatMap { listOf(it.key, it.value) }.toTypedArray())
-                    },
-                subtitleTracks = page.subtitleTracks.map { track ->
-                    eu.kanade.tachiyomi.animesource.model.Track(
-                        url = resolveExternalSubtitleUrl(track.url, track.headers),
-                        lang = track.lang,
-                    )
-                },
             )
         }
     }

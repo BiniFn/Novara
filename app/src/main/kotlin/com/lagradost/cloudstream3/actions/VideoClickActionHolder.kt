@@ -1,9 +1,5 @@
 package com.lagradost.cloudstream3.actions
 
-fun interface VideoClickAction {
-	fun invoke()
-}
-
 object VideoClickActionHolder {
 	@JvmStatic
 	val INSTANCE: VideoClickActionHolder = this
