@@ -299,6 +299,7 @@ fun SpannableStringBuilder.appendIcon(textView: TextView, @DrawableRes resId: In
 private class AnonymousContentSource(override val name: String) : ContentSource {
 	override val locale: String = ""
 	override val contentType: ContentType get() = when {
+		name.startsWith("CLOUDSTREAM_") -> ContentType.VIDEO
 		name.startsWith("ANIYOMI_") -> ContentType.VIDEO
 		name.startsWith("JSON_TVBOX_") -> ContentType.VIDEO
 		name.startsWith("JSON_LNREADER_") -> ContentType.NOVEL
