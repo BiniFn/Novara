@@ -38,6 +38,7 @@ This directory is organized by task, not by internal implementation. Start with 
 
 - [Architecture Review](./architecture/architecture-review.md)
 - [Architecture Roadmap](./architecture/architecture-roadmap.md)
+- [Cloudstream Runtime Source Migration](./architecture/cloudstream-runtime-source-migration.md)
 - [Tracking Site Support Plan (2026-04)](./architecture/tracking-site-support-plan-2026-04.md)
 - [UI Improvement](./architecture/ui_improvement.md)
 - [OCR Pipeline Notes](./architecture/ocr-pipeline-v2.md)
