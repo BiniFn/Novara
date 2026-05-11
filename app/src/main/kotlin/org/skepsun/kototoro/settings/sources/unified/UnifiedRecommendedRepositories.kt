@@ -1,5 +1,7 @@
 package org.skepsun.kototoro.settings.sources.unified
 
+import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
+
 object UnifiedRecommendedRepositories {
 
 	private val extensionRepoCapabilities = setOf(
@@ -43,10 +45,26 @@ object UnifiedRecommendedRepositories {
 			),
 			UnifiedRecommendedRepository(
 				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "Mega Repository",
+				url = "https://raw.githubusercontent.com/self-similarity/MegaRepo/builds/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+				note = "CloudStream megarepo aggregator",
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
 				name = "Phisher Repo",
 				url = "https://raw.githubusercontent.com/phisher98/cloudstream-extensions-phisher/refs/heads/builds/repo.json",
 				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
 				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "CXXX",
+				url = "https://raw.githubusercontent.com/phisher98/CXXX/builds/CXXX.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+				note = "Maintained 18+ repository",
 			),
 			UnifiedRecommendedRepository(
 				kind = UnifiedSourceKind.CLOUDSTREAM,
@@ -64,8 +82,141 @@ object UnifiedRecommendedRepositories {
 			),
 			UnifiedRecommendedRepository(
 				kind = UnifiedSourceKind.CLOUDSTREAM,
-				name = "CakesTwix Repository",
+				name = "CakesTwix Providers Repository",
 				url = "https://codeberg.org/CakesTwix/cloudstream-extensions-uk/raw/branch/master/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "Italian providers repository",
+				url = "https://raw.githubusercontent.com/Gian-Fr/ItalianProvider/builds/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "Multilingual providers repository",
+				url = "https://codeberg.org/cloudstream/cloudstream-extensions-multilingual/raw/branch/builds/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "Hexated providers repository",
+				url = "https://codeberg.org/cloudstream/cloudstream-extensions-hexated/raw/branch/builds/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "LikDev-256 Providers Repository",
+				url = "https://raw.githubusercontent.com/LikDev-256/likdev256-tamil-providers/builds/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "NSFW Providers",
+				url = "https://codeberg.org/cloudstream/cs3xxx-repo/raw/branch/dev/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "Arabic providers repository",
+				url = "https://raw.githubusercontent.com/yoyzo/arab/builds/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "SkillShare-Repo",
+				url = "https://raw.githubusercontent.com/techtanic/SkillShare-Repo/builds/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "Horis providers repository",
+				url = "https://codeberg.org/cloudstream/cloudstream-extensions-horis/raw/branch/master/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "CSX (Hindi & English)",
+				url = "https://raw.githubusercontent.com/SaurabhKaperwan/CSX/builds/CS.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "CuxPlug",
+				url = "https://raw.githubusercontent.com/ycngmn/CuxPlug/refs/heads/main/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "Turkish Providers Repository | @KekikAkademi",
+				url = "https://raw.githubusercontent.com/keyiflerolsun/Kekik-cloudstream/master/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "FStream (Repo: Francais)",
+				url = "https://git.disroot.org/ayza/FStream/raw/branch/main/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "Luna712's CloudStream extension repository",
+				url = "https://raw.githubusercontent.com/Luna712/Luna712-CloudStream-Extensions/master/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "NetMirror",
+				url = "https://raw.githubusercontent.com/Sushan64/NetMirror-Extension/refs/heads/builds/Netflix.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "Redowan's BDIX repository",
+				url = "https://raw.githubusercontent.com/redowan99/Redowan-CloudStream/master/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "Vietnamese Extension",
+				url = "https://gitlab.com/tearrs/cloudstream-vietnamese/-/raw/main/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "zzikozz",
+				url = "https://codeberg.org/zzikozz/frencharchive/raw/branch/Release/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "Kraptor'un CloudStream Reposu | @kraptor123",
+				url = "https://raw.githubusercontent.com/Kraptor123/cs-kraptor/refs/heads/master/repo.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = cloudstreamRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.CLOUDSTREAM,
+				name = "doGior's Had Enough",
+				url = "https://raw.githubusercontent.com/doGior/doGiorsHadEnough/refs/heads/builds/repo.json",
 				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
 				capabilities = cloudstreamRepoCapabilities,
 			),
@@ -146,5 +297,17 @@ object UnifiedRecommendedRepositories {
 
 	fun byKind(kind: UnifiedSourceKind): List<UnifiedRecommendedRepository> {
 		return all.filter { it.kind == kind }
+	}
+
+	fun byExternalType(type: ExternalExtensionType): List<UnifiedRecommendedRepository> {
+		return byKind(
+			when (type) {
+				ExternalExtensionType.MIHON -> UnifiedSourceKind.MIHON
+				ExternalExtensionType.ANIYOMI -> UnifiedSourceKind.ANIYOMI
+				ExternalExtensionType.IREADER -> UnifiedSourceKind.IREADER
+				ExternalExtensionType.JAR -> UnifiedSourceKind.JAR
+				ExternalExtensionType.CLOUDSTREAM -> UnifiedSourceKind.CLOUDSTREAM
+			},
+		)
 	}
 }

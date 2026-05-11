@@ -331,6 +331,7 @@ fun UnifiedSourcesRoute(
 			UnifiedSourcesDialogState.AddRepositoryKind -> UnifiedSelectionDialog(
 				title = stringResource(R.string.add_repository),
 			options = listOf(
+				UnifiedSourceKind.CLOUDSTREAM,
 				UnifiedSourceKind.LEGADO,
 				UnifiedSourceKind.TVBOX,
 				UnifiedSourceKind.LNREADER,

@@ -1,5 +1,4 @@
 package org.skepsun.kototoro.settings.sources.extensions
-import org.skepsun.kototoro.core.util.ext.setSupportTitle
 
 import android.os.Bundle
 import android.text.InputType
@@ -25,10 +24,12 @@ import org.skepsun.kototoro.core.ui.BaseFragment
 import org.skepsun.kototoro.core.util.ext.addSupportMenuProvider
 import org.skepsun.kototoro.core.util.ext.observe
 import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.core.util.ext.setSupportTitle
 import org.skepsun.kototoro.databinding.FragmentInstalledExtensionsBinding
 import org.skepsun.kototoro.databinding.ViewDialogAutocompleteBinding
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepo
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
+import org.skepsun.kototoro.settings.sources.unified.UnifiedRecommendedRepositories
 import org.skepsun.kototoro.settings.sources.unified.redirectToUnifiedSources
 import org.skepsun.kototoro.settings.sources.unified.toUnifiedSourceKind
 
@@ -51,7 +52,7 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 		adapter = ExtensionRepositoriesAdapter(
 			onOpenWebsite = ::openWebsite,
 			onDelete = ::deleteRepo,
-			onUpdate = { repo -> viewModel.performUpdate(repo) }
+			onUpdate = { repo -> viewModel.performUpdate(repo) },
 		)
 		with(binding) {
 			recyclerView.layoutManager = LinearLayoutManager(context)
@@ -79,14 +80,14 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 			return
 		}
 		setSupportTitle(
-				when (viewModel.type) {
-					ExternalExtensionType.MIHON -> R.string.mihon_extension_repositories
-					ExternalExtensionType.ANIYOMI -> R.string.aniyomi_extension_repositories
-					ExternalExtensionType.IREADER -> R.string.ireader_extension_repositories
-					ExternalExtensionType.JAR -> R.string.jar_extension_repositories
-					ExternalExtensionType.CLOUDSTREAM -> R.string.cloudstream_extension_repositories
-				},
-			)
+			when (viewModel.type) {
+				ExternalExtensionType.MIHON -> R.string.mihon_extension_repositories
+				ExternalExtensionType.ANIYOMI -> R.string.aniyomi_extension_repositories
+				ExternalExtensionType.IREADER -> R.string.ireader_extension_repositories
+				ExternalExtensionType.JAR -> R.string.jar_extension_repositories
+				ExternalExtensionType.CLOUDSTREAM -> R.string.cloudstream_extension_repositories
+			},
+		)
 	}
 
 	override fun onDestroyView() {
@@ -142,11 +143,9 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 		if (!prefillUrl.isNullOrEmpty()) {
 			input.setText(prefillUrl)
 		}
-		input.post(
-			{
-				input.setSelection(input.text?.length ?: 0)
-			},
-		)
+		input.post {
+			input.setSelection(input.text?.length ?: 0)
+		}
 
 		val dialog = builder
 			.setTitle(R.string.add_extension_repository)
@@ -156,8 +155,8 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 			.setNeutralButton(R.string.recommended_repositories, null)
 			.create()
 		dialog.setOnShowListener {
-			dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-				val popupMenu = androidx.appcompat.widget.PopupMenu(requireContext(), it)
+			dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener { anchor ->
+				val popupMenu = androidx.appcompat.widget.PopupMenu(requireContext(), anchor)
 				recommendedRepos.forEachIndexed { index, repo ->
 					popupMenu.menu.add(0, index, 0, repo.name)
 				}
@@ -190,75 +189,13 @@ class ExtensionRepositoriesFragment : BaseFragment<FragmentInstalledExtensionsBi
 	}
 
 	private fun getRecommendedRepos(): List<RecommendedRepo> {
-		return when (viewModel.type) {
-			ExternalExtensionType.MIHON -> listOf(
-				RecommendedRepo(
-					name = "Keiyoushi",
-					url = "https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json",
-				),
-				RecommendedRepo(
-					name = "Yuzono Manga Repo",
-					url = "https://raw.githubusercontent.com/yuzono/manga-repo/repo/index.min.json",
-				),
-				RecommendedRepo(
-					name = "拷贝漫画仓库（For chinese user）",
-					url = "https://raw.githubusercontent.com/LittleSurvival/copymanga-copy20/repo/index.min.json",
-				),
+		return UnifiedRecommendedRepositories.byExternalType(viewModel.type).map { repo ->
+			RecommendedRepo(
+				name = repo.name,
+				url = repo.url,
 			)
-
-			ExternalExtensionType.ANIYOMI -> listOf(
-				RecommendedRepo(
-					name = "Aniyomi Official",
-					url = "https://raw.githubusercontent.com/aniyomiorg/aniyomi-extensions/repo/index.min.json",
-				),
-				RecommendedRepo(
-					name = "Yuzono Anime Repo",
-					url = "https://raw.githubusercontent.com/yuzono/anime-repo/repo/index.min.json",
-				),
-				RecommendedRepo(
-					name = "KudoAni",
-					url = "https://raw.githubusercontent.com/KudoAni/aniyomi-extensions/repo/index.min.json",
-				),
-			)
-
-			ExternalExtensionType.IREADER -> listOf(
-				RecommendedRepo(
-					name = "IReader Official",
-					url = "https://raw.githubusercontent.com/IReaderorg/IReader-extensions/repov2/index.min.json",
-				),
-			)
-
-				ExternalExtensionType.JAR -> listOf(
-					RecommendedRepo(
-						name = "Kototoro Parsers",
-						url = "https://raw.githubusercontent.com/skepsun/kototoro-parsers/repo/index.min.json",
-					),
-				)
-
-				ExternalExtensionType.CLOUDSTREAM -> listOf(
-					RecommendedRepo(
-						name = "CloudStream Providers",
-						url = "https://raw.githubusercontent.com/recloudstream/extensions/master/repo.json",
-					),
-					RecommendedRepo(
-						name = "Phisher Repo",
-						url = "https://raw.githubusercontent.com/phisher98/cloudstream-extensions-phisher/refs/heads/builds/repo.json",
-					),
-					RecommendedRepo(
-						name = "IndoStream Repo",
-						url = "https://raw.githubusercontent.com/TeKuma25/IndoStream/builds/repo.json",
-					),
-					RecommendedRepo(
-						name = "CloudX Repository",
-						url = "https://raw.githubusercontent.com/Asm0d3usX/CloudX/builds/repo.json",
-					),
-					RecommendedRepo(
-						name = "CakesTwix Repository",
-						url = "https://codeberg.org/CakesTwix/cloudstream-extensions-uk/raw/branch/master/repo.json",
-					),
-				)
-			}
 		}
+	}
 
 	private fun openWebsite(repo: ExternalExtensionRepo) {
 		startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, repo.website.toUri()))
