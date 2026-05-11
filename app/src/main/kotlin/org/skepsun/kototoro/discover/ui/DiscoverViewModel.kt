@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
@@ -71,6 +72,16 @@ class DiscoverViewModel @Inject constructor(
 			SharingStarted.Eagerly,
 			ScrobblerService.BANGUMI,
 		)
+
+	private val isBrowseTrackingRecommendationsEnabled = settings.observe(
+		AppSettings.KEY_BROWSE_TRACKING_RECOMMENDATIONS,
+	).mapLatest {
+		settings.isBrowseTrackingRecommendationsEnabled
+	}.stateIn(
+		viewModelScope + Dispatchers.Default,
+		SharingStarted.Eagerly,
+		settings.isBrowseTrackingRecommendationsEnabled,
+	)
 
 	val availableServices = preferredService
 		.map(::resolveAvailableServices)
@@ -129,17 +140,31 @@ class DiscoverViewModel @Inject constructor(
 
 	init {
 		viewModelScope.launch {
-			combine(activeService, activeCategory, refreshTrigger, searchQuery) { service, category, refreshVersion, query ->
+			combine(
+				activeService,
+				activeCategory,
+				refreshTrigger,
+				searchQuery,
+				isBrowseTrackingRecommendationsEnabled,
+			) { service, category, refreshVersion, query, isEnabled ->
 				DiscoverRequest(
 					service = service,
 					category = category,
 					query = query.trim(),
 					refreshVersion = refreshVersion,
+					isEnabled = isEnabled,
 				)
 			}
 				.debounce(200) // Wait for all StateFlows to settle
 				.distinctUntilChanged()
 				.collect { request ->
+					if (!request.isEnabled && request.query.isBlank()) {
+						loadJob?.cancel()
+						_items.value = emptyList()
+						_page.value = 0
+						_contentState.value = emptyList()
+						return@collect
+					}
 					val service = request.service
 					val category = request.category
 					val query = request.query
@@ -569,10 +594,11 @@ class DiscoverViewModel @Inject constructor(
 		}
 	}
 
-	private data class DiscoverRequest(
-		val service: ScrobblerService,
-		val category: String?,
-		val query: String,
-		val refreshVersion: Int,
-	)
+private data class DiscoverRequest(
+	val service: ScrobblerService,
+	val category: String?,
+	val query: String,
+	val refreshVersion: Int,
+	val isEnabled: Boolean,
+)
 }

@@ -199,6 +199,11 @@ fun KototoroApp(
             isSourceTagFilterVisible = isShowSourceTagFilter,
         )
     }
+    val isSharedElementTransitionsEnabled by appSettings.observeAsState(
+        AppSettings.KEY_SHARED_ELEMENT_TRANSITIONS,
+    ) {
+        isSharedElementTransitionsEnabled
+    }
     val isNavBarPinned = navigationPrefs.isNavBarPinned
     val isFloating = navigationPrefs.isFloating
     val activeSourcePresetId = displayPrefs.activeSourcePresetId
@@ -224,6 +229,7 @@ fun KototoroApp(
     var isSearchOverlayMounted by rememberSaveable { mutableStateOf(false) }
     var searchOverlayInitialQuery by rememberSaveable { mutableStateOf("") }
     var isSearchOverlayQueryCommitted by rememberSaveable { mutableStateOf(false) }
+    var isDetailsChromeTransitionPending by rememberSaveable { mutableStateOf(false) }
     var topBarOverrideState by remember { mutableStateOf<TopBarOverrideState?>(null) }
     var contextualMenuActions by remember { mutableStateOf<List<KototoroTopBarMenuAction>>(emptyList()) }
 
@@ -287,23 +293,44 @@ fun KototoroApp(
     val isSearchRoute = currentDestination?.hasRoute<SearchRoute>() == true
     val isDetailsRoute = currentDestination?.hasRoute<DetailsRoute>() == true
     val shouldShowChrome = !isSearchRoute
-    var shouldKeepChromeVisible by remember {
-        mutableStateOf(shouldShowChrome && !isDetailsRoute)
-    }
-    LaunchedEffect(shouldShowChrome, isDetailsRoute) {
+    var isChromeVisible by rememberSaveable { mutableStateOf(shouldShowChrome && !isDetailsRoute) }
+    var lastResolvedWasDetailsRoute by rememberSaveable { mutableStateOf(isDetailsRoute) }
+    LaunchedEffect(currentDestination, shouldShowChrome, isDetailsRoute, isDetailsChromeTransitionPending) {
+        if (currentDestination == null) {
+            return@LaunchedEffect
+        }
         when {
-            !shouldShowChrome -> shouldKeepChromeVisible = false
-            !isDetailsRoute -> shouldKeepChromeVisible = true
-            else -> {
-                shouldKeepChromeVisible = true
-                delay(220)
-                if (isDetailsRoute && shouldShowChrome) {
-                    shouldKeepChromeVisible = false
+            !shouldShowChrome -> {
+                isChromeVisible = false
+                lastResolvedWasDetailsRoute = false
+                isDetailsChromeTransitionPending = false
+            }
+            isDetailsRoute -> {
+                lastResolvedWasDetailsRoute = true
+                if (!isDetailsChromeTransitionPending) {
+                    isChromeVisible = false
+                    return@LaunchedEffect
                 }
+                isChromeVisible = true
+                delay(220)
+                isChromeVisible = false
+                isDetailsChromeTransitionPending = false
+            }
+            lastResolvedWasDetailsRoute -> {
+                // Wait until the details pop animation settles before restoring the main chrome.
+                isChromeVisible = false
+                delay(220)
+                isChromeVisible = true
+                lastResolvedWasDetailsRoute = false
+                isDetailsChromeTransitionPending = false
+            }
+            else -> {
+                isChromeVisible = true
+                lastResolvedWasDetailsRoute = false
+                isDetailsChromeTransitionPending = false
             }
         }
     }
-    val isChromeVisible = shouldShowChrome && (!isDetailsRoute || shouldKeepChromeVisible)
     val scrollAlpha = if (!isChromeVisible) 0f else {
         val maxCollapse = topBarHeightPx.toFloat()
         if (maxCollapse <= 0f) 1f
@@ -412,7 +439,13 @@ fun KototoroApp(
                 .background(MaterialTheme.colorScheme.background)
                 .nestedScroll(nestedScrollConnection)) {
                 SharedTransitionLayout {
-                    CompositionLocalProvider(LocalSharedTransitionScope provides this@SharedTransitionLayout) {
+                    CompositionLocalProvider(
+                        LocalSharedTransitionScope provides if (isSharedElementTransitionsEnabled) {
+                            this@SharedTransitionLayout
+                        } else {
+                            null
+                        },
+                    ) {
                         AppNavGraph(
                             navController = navController,
                             startDestination = startDestination,
@@ -420,6 +453,9 @@ fun KototoroApp(
                             bottomBarOffsetPx = bottomNavOffset,
                             bottomBarHeightPx = bottomNavHeightPx,
                             pageSaveHelper = pageSaveHelper,
+                            onDetailsTransitionRequested = {
+                                isDetailsChromeTransitionPending = true
+                            },
                             onExploreSourceSelectionTopBarChanged = { topBarOverrideState = it },
                             onContextualMenuActionsChanged = { contextualMenuActions = it },
                             onOpenSearch = { request ->

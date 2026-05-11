@@ -91,6 +91,6 @@ sealed class BrowseGroupTab(
 		All -> true
 		Content -> tag == SourceTag.BUILTIN || tag == SourceTag.MIHON || tag == SourceTag.LEGADO
 		Novel -> tag == SourceTag.BUILTIN || tag == SourceTag.LEGADO || tag == SourceTag.IREADER || tag == SourceTag.LNREADER
-		Video -> tag == SourceTag.BUILTIN || tag == SourceTag.ANIYOMI || tag == SourceTag.TVBOX
+		Video -> tag == SourceTag.BUILTIN || tag == SourceTag.ANIYOMI || tag == SourceTag.TVBOX || tag == SourceTag.CLOUDSTREAM
 	}
 }

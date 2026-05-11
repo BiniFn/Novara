@@ -38,7 +38,9 @@ import org.skepsun.kototoro.search.ui.compose.SearchResultsRoute
 import org.skepsun.kototoro.search.ui.compose.SearchRoute
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -74,6 +76,7 @@ fun AppNavGraph(
     onExploreSourceSelectionTopBarChanged: (TopBarOverrideState?) -> Unit = {},
     onContextualMenuActionsChanged: (List<KototoroTopBarMenuAction>) -> Unit = {},
     onOpenSearch: (SearchNavigationRequest) -> Unit = {},
+    onDetailsTransitionRequested: () -> Unit = {},
 ) {
     val activity = LocalContext.current as FragmentActivity
     val appRouter = activity.router
@@ -81,12 +84,14 @@ fun AppNavGraph(
     val rootView = LocalView.current
     val navigateToDetailsWithContent = remember(navController) {
         { content: Content, sharedElementKey: String? ->
+            onDetailsTransitionRequested()
             PendingDetailsNavigation.set(content, sharedElementKey)
             navController.navigate(DetailsRoute)
         }
     }
     val navigateToDetailsWithOrigin = remember(navController) {
         { origin: org.skepsun.kototoro.details.ui.model.DetailsOrigin, sharedElementKey: String? ->
+            onDetailsTransitionRequested()
             PendingDetailsNavigation.set(origin, sharedElementKey)
             navController.navigate(DetailsRoute)
         }
@@ -95,7 +100,11 @@ fun AppNavGraph(
     NavHost(
         navController = navController,
         startDestination = startDestination,
-        modifier = modifier
+        modifier = modifier,
+        enterTransition = { EnterTransition.None },
+        exitTransition = { ExitTransition.None },
+        popEnterTransition = { EnterTransition.None },
+        popExitTransition = { ExitTransition.None },
     ) {
         composable<HomeRoute> {
             val viewModel = hiltViewModel<HomeViewModel>()
@@ -682,11 +691,13 @@ fun AppNavGraph(
                     override fun getSelectedSourceTags(): Set<org.skepsun.kototoro.explore.ui.model.SourceTag> = selectedSourceTags
 
                     override fun onSourceTagSelected(tag: org.skepsun.kototoro.explore.ui.model.SourceTag?) {
-                        if (tag == null) {
-                            selectedSourceTags.forEach(viewModel::toggleSourceTag)
-                        } else {
-                            viewModel.toggleSourceTag(tag)
-                        }
+                        viewModel.setSelectedSourceTags(
+                            when {
+                                tag == null -> emptySet()
+                                tag in selectedSourceTags -> selectedSourceTags - tag
+                                else -> selectedSourceTags + tag
+                            }
+                        )
                     }
                 }
                 mainActivity?.setActiveFilterCallback(callback)
@@ -869,6 +880,35 @@ fun AppNavGraph(
         }
         composable<BookmarksRoute> {
             val viewModel = hiltViewModel<org.skepsun.kototoro.bookmarks.ui.AllBookmarksViewModel>()
+            val selectedGroupTab by viewModel.currentGroupTab.collectAsStateWithLifecycle(initialValue = BrowseGroupTab.All)
+            val selectedSourceTags by viewModel.currentSourceTags.collectAsStateWithLifecycle(initialValue = emptySet())
+
+            DisposableEffect(mainActivity, viewModel, selectedGroupTab, selectedSourceTags) {
+                val callback = object : SearchBarFilterViewController.Callback {
+                    override fun getSelectedContentType(): BrowseGroupTab = selectedGroupTab
+
+                    override fun onContentTypeSelected(tab: BrowseGroupTab) {
+                        viewModel.setSelectedGroupTab(if (selectedGroupTab == tab) BrowseGroupTab.All else tab)
+                    }
+
+                    override fun getSelectedSourceTags(): Set<org.skepsun.kototoro.explore.ui.model.SourceTag> = selectedSourceTags
+
+                    override fun onSourceTagSelected(tag: org.skepsun.kototoro.explore.ui.model.SourceTag?) {
+                        viewModel.setSelectedSourceTags(
+                            when {
+                                tag == null -> emptySet()
+                                tag in selectedSourceTags -> selectedSourceTags - tag
+                                else -> selectedSourceTags + tag
+                            },
+                        )
+                    }
+                }
+                mainActivity?.setActiveFilterCallback(callback)
+                onDispose {
+                    mainActivity?.clearActiveFilterCallback(callback)
+                }
+            }
+
             org.skepsun.kototoro.bookmarks.ui.compose.AppBookmarksRoute(
                 viewModel = viewModel,
                 contentPadding = contentPadding,

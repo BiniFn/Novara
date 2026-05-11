@@ -22,6 +22,8 @@ import org.skepsun.kototoro.core.nav.PendingDetailsNavigation
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.os.AppShortcutManager
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.BaseComposeActivity
 import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
 import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
@@ -84,9 +86,20 @@ class ContentListActivity : BaseComposeActivity(), FilterCoordinator.Owner {
     private fun ContentListNavHost() {
         val navController = rememberNavController()
         val appRouter = router
+        val settings = remember(applicationContext) { AppSettings(applicationContext) }
+        val isSharedElementTransitionsEnabled =
+            settings.observeAsState(AppSettings.KEY_SHARED_ELEMENT_TRANSITIONS) {
+                isSharedElementTransitionsEnabled
+            }.value
 
         SharedTransitionLayout {
-            CompositionLocalProvider(LocalSharedTransitionScope provides this@SharedTransitionLayout) {
+            CompositionLocalProvider(
+                LocalSharedTransitionScope provides if (isSharedElementTransitionsEnabled) {
+                    this@SharedTransitionLayout
+                } else {
+                    null
+                },
+            ) {
                 NavHost(
                     navController = navController,
                     startDestination = ContentListRoute,

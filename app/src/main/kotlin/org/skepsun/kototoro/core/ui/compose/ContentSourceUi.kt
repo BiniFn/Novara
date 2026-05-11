@@ -13,7 +13,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import coil3.Image
 import coil3.compose.AsyncImage
+import coil3.asImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import dagger.hilt.android.EntryPointAccessors
@@ -25,10 +27,11 @@ import org.skepsun.kototoro.core.model.getOriginLabel
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.BaseAppHolder
 import org.skepsun.kototoro.core.parser.favicon.faviconUri
-import org.skepsun.kototoro.core.ui.image.sourceFallbackImage
+import org.skepsun.kototoro.core.ui.image.FaviconDrawable
 import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
 import org.skepsun.kototoro.parsers.model.ContentSource
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 data class ContentSourceChipMeta(
     val iconRes: Int,
@@ -111,20 +114,41 @@ fun ContentSourceIcon(
     animated: Boolean = false,
     contentDescription: String? = null,
 ) {
-    val context = LocalContext.current
     val resolvedSource = rememberResolvedContentSource(source)
-    val fallbackDrawable = remember(resolvedSource.name, resolvedSource.locale, styleResId) {
-        sourceFallbackImage(
-            context = context,
-            styleResId = styleResId,
-            source = resolvedSource,
-            animated = false,
-        )
-    }
-    
-    var hasError by remember(resolvedSource.name) { androidx.compose.runtime.mutableStateOf(false) }
+    ContentSourceResolvedIcon(
+        source = resolvedSource,
+        modifier = modifier,
+        styleResId = styleResId,
+        animated = animated,
+        contentDescription = contentDescription,
+    )
+}
 
-    val request = remember(resolvedSource.name, resolvedSource.locale, styleResId, animated, hasError) {
+@Composable
+fun ContentSourceResolvedIcon(
+    source: ContentSource,
+    modifier: Modifier = Modifier,
+    styleResId: Int = R.style.FaviconDrawable_Small,
+    animated: Boolean = false,
+    contentDescription: String? = null,
+) {
+    val context = LocalContext.current
+    val resolvedSource = source
+    val sourceFailureKey = remember(resolvedSource.name, styleResId) {
+        "${resolvedSource.name}#$styleResId"
+    }
+    val fallbackDrawable = remember(resolvedSource.name, resolvedSource.locale, styleResId) {
+        FaviconDrawable(context, styleResId, resolveFallbackTitle(context, resolvedSource)).asImage()
+    }
+    val fallbackFactory: (ImageRequest) -> Image? = remember(fallbackDrawable) {
+        { fallbackDrawable }
+    }
+
+    var hasError by remember(sourceFailureKey) {
+        androidx.compose.runtime.mutableStateOf(failedSourceIcons.contains(sourceFailureKey))
+    }
+
+    val request: Any = remember(resolvedSource.name, resolvedSource.locale, styleResId, animated, hasError) {
         if (hasError) {
             fallbackDrawable
         } else {
@@ -133,9 +157,9 @@ fun ContentSourceIcon(
                 .crossfade(animated)
                 .mangaSourceExtra(resolvedSource)
                 .suppressCaptchaErrors()
-                .placeholder(fallbackDrawable)
-                .fallback(fallbackDrawable)
-                .error(fallbackDrawable)
+                .placeholder(fallbackFactory)
+                .fallback(fallbackFactory)
+                .error(fallbackFactory)
                 .build()
         }
     }
@@ -144,14 +168,28 @@ fun ContentSourceIcon(
         model = request,
         contentDescription = contentDescription,
         contentScale = ContentScale.Fit,
-        modifier = modifier
-            .size(16.dp)
-            .clip(RoundedCornerShape(4.dp)),
-        onError = { 
-            android.util.Log.e("DetailsFavicon", "ContentSourceIcon AsyncImage error for model $request. Throwable: ${it.result.throwable}")
-            hasError = true 
+        modifier = modifier.clip(RoundedCornerShape(4.dp)),
+        onError = {
+            failedSourceIcons[sourceFailureKey] = true
+            hasError = true
         }
     )
+}
+
+private val failedSourceIcons = ConcurrentHashMap<String, Boolean>()
+
+fun clearFailedContentSourceIcons() {
+    failedSourceIcons.clear()
+}
+
+private fun resolveFallbackTitle(
+    context: Context,
+    source: ContentSource,
+): String {
+    val title = source.getTitle(context)
+    return title.takeIf { it.isNotBlank() && !it.startsWith("Loading ", ignoreCase = true) }
+        ?: source.getOriginLabel(context)
+        ?: source.name
 }
 
 private fun resolveDynamicContentSource(

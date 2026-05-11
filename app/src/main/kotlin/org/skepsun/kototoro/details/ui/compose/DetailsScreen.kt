@@ -421,17 +421,20 @@ fun DetailsScreen(
     val toolbarTitle = translatedTitle ?: content?.title.orEmpty()
     val isCompactPaneFullyExpanded = !isWideAdaptiveLayout && compactPaneAnchor == CompactDetailsPaneAnchor.Full
     val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val overlayTopBarInset = remember(isWideAdaptiveLayout, toolbarBottomPx, lastToolbarBottomPx, density, statusBarTopPadding) {
+    var stableStatusBarTopPadding by remember { mutableStateOf(statusBarTopPadding) }
+    LaunchedEffect(isWideAdaptiveLayout, statusBarTopPadding) {
+        if (isWideAdaptiveLayout) {
+            stableStatusBarTopPadding = 0.dp
+        } else if (statusBarTopPadding > stableStatusBarTopPadding) {
+            stableStatusBarTopPadding = statusBarTopPadding
+        }
+    }
+    val overlayTopBarInset = remember(isWideAdaptiveLayout, stableStatusBarTopPadding) {
         if (isWideAdaptiveLayout) {
             0.dp
         } else {
-            with(density) {
-                when {
-                    toolbarBottomPx.isFinite() && toolbarBottomPx > 0f -> toolbarBottomPx.toDp()
-                    lastToolbarBottomPx.isFinite() && lastToolbarBottomPx > 0f -> lastToolbarBottomPx.toDp()
-                    else -> statusBarTopPadding + 64.dp
-                }
-            }
+            // Keep the content start position stable when returning from fullscreen surfaces that briefly report zero insets.
+            stableStatusBarTopPadding + 64.dp
         }
     }
     val panoramaExtraHeightDp = panoramaPrefs.extraHeight.coerceAtLeast(0).dp

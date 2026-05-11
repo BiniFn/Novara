@@ -1,6 +1,5 @@
 package org.skepsun.kototoro.explore.ui.compose
 
-import androidx.annotation.DrawableRes
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -20,7 +19,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -91,13 +89,14 @@ import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.observeAsState
-import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
+import org.skepsun.kototoro.core.ui.compose.ContentSourceResolvedIcon
 import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
 import org.skepsun.kototoro.core.ui.compose.rememberRailAnimationFactor
 import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
 import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
 import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
 import org.skepsun.kototoro.core.ui.compose.VerticalRailAnimatedVisibility
+import org.skepsun.kototoro.core.ui.compose.clearFailedContentSourceIcons
 import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
 import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
 import org.skepsun.kototoro.core.ui.compose.rememberHorizontalRailScrollIntensity
@@ -141,10 +140,6 @@ private data class ExploreScreenPrefs(
     val browseListMode: ListMode,
     val isBrowseTrackingRecommendationsEnabled: Boolean,
     val panoramaCoverBlur: Int,
-)
-
-private data class SourceOriginBadgeInfo(
-    @DrawableRes val iconRes: Int,
 )
 
 private data class SourceQuickAccessGroup(
@@ -507,7 +502,10 @@ fun KototoroExploreHostRoute(
 
     KototoroPullToRefreshBox(
         isRefreshing = isDiscoverLoading && !isLoadingOnly,
-        onRefresh = { discoverViewModel.refresh() },
+        onRefresh = {
+            clearFailedContentSourceIcons()
+            discoverViewModel.refresh()
+        },
         modifier = Modifier.fillMaxSize(),
         indicatorTopInset = contentPadding,
     ) {
@@ -1036,185 +1034,122 @@ private fun SourceQuickAccessCard(
 ) {
     val context = LocalContext.current
     val actualSource = source.source.mangaSource
-    val title = actualSource.getTitle(context)
-    val originBadge = remember(actualSource.name) {
-        sourceOriginBadgeInfo(actualSource.name)
+    val title = if (source.source.isPinned) {
+        "📌 ${actualSource.getTitle(context)}"
+    } else {
+        actualSource.getTitle(context)
     }
-
     val isGridCard = browseListMode == ListMode.GRID
+    val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(if (isGridCard) 14.dp else 12.dp)
+    val cardBackground = if (isSelected) {
+        MaterialTheme.colorScheme.secondaryContainer
+    } else {
+        MaterialTheme.colorScheme.background
+    }
+    val iconBackground = MaterialTheme.colorScheme.surfaceVariant.copy(
+        alpha = if (isGridCard) 0.44f else 0.52f,
+    )
 
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(if (isGridCard) metrics.cardHeight else 70.dp)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick,
-            ),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-        color = if (isSelected) {
-            MaterialTheme.colorScheme.secondaryContainer
-        } else {
-            MaterialTheme.colorScheme.background
-        },
-        tonalElevation = 0.dp,
-    ) {
-        if (isGridCard) {
-            Column(
+    if (isGridCard) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(metrics.cardHeight)
+                .clip(cardShape)
+                .background(cardBackground)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                )
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Top,
+        ) {
+            Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 6.dp, vertical = 6.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Top,
+                    .size(metrics.iconContainerSize)
+                    .clip(cardShape)
+                    .background(iconBackground),
+                contentAlignment = Alignment.Center,
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(metrics.iconContainerSize)
-                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
-                        .background(
-                            sourceTypeAccent(actualSource.contentType).copy(
-                                alpha = if (isSelected) 0.32f else 0.18f,
-                            ),
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    ContentSourceIcon(
-                        source = source.source,
-                        modifier = Modifier.size(metrics.iconSize),
-                        contentDescription = title,
-                    )
-                    if (originBadge != null) {
-                        SourceOriginBadge(
-                            badge = originBadge,
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .offset(x = 2.dp, y = 2.dp),
-                        )
-                    }
-                    if (source.source.isPinned) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_pin_small),
-                            contentDescription = stringResource(R.string.pin),
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .offset(x = (-4).dp, y = 4.dp)
-                                .background(
-                                    MaterialTheme.colorScheme.background.copy(alpha = 0.85f),
-                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
-                                )
-                                .padding(1.dp)
-                                .size(10.dp),
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
+                ContentSourceResolvedIcon(
+                    source = actualSource,
+                    modifier = Modifier.size(metrics.iconSize),
+                    contentDescription = title,
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                color = if (isSelected) {
+                    MaterialTheme.colorScheme.onSecondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+        }
+    } else {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .clip(cardShape)
+                .background(cardBackground)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                )
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(cardShape)
+                    .background(iconBackground),
+                contentAlignment = Alignment.Center,
+            ) {
+                ContentSourceResolvedIcon(
+                    source = actualSource,
+                    modifier = Modifier.size(28.dp),
+                    contentDescription = title,
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(if (browseListMode == ListMode.DETAILED_LIST) 2.dp else 0.dp),
+            ) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.labelSmall.copy(lineHeight = 13.sp),
+                    style = if (browseListMode == ListMode.DETAILED_LIST) {
+                        MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                    } else {
+                        MaterialTheme.typography.bodyMedium
+                    },
                     color = if (isSelected) {
                         MaterialTheme.colorScheme.onSecondaryContainer
                     } else {
                         MaterialTheme.colorScheme.onSurface
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 1.dp),
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
-            }
-        } else {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                        .background(
-                            sourceTypeAccent(actualSource.contentType).copy(
-                                alpha = if (isSelected) 0.32f else 0.18f,
-                            ),
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    ContentSourceIcon(
-                        source = source.source,
-                        modifier = Modifier.size(28.dp),
-                        contentDescription = title,
-                    )
-                }
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(if (browseListMode == ListMode.DETAILED_LIST) 2.dp else 0.dp),
-                ) {
+                if (browseListMode == ListMode.DETAILED_LIST) {
                     Text(
-                        text = title,
-                        style = if (browseListMode == ListMode.DETAILED_LIST) {
-                            MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
-                        } else {
-                            MaterialTheme.typography.bodyMedium
-                        },
-                        color = if (isSelected) {
-                            MaterialTheme.colorScheme.onSecondaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
+                        text = actualSource.getLocale()?.getDisplayName(Locale.getDefault()).orEmpty(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                    )
-                    if (browseListMode == ListMode.DETAILED_LIST) {
-                        Text(
-                            text = actualSource.getLocale()?.getDisplayName(Locale.getDefault()).orEmpty(),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-                if (source.source.isPinned) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_pin_small),
-                        contentDescription = stringResource(R.string.pin),
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(14.dp),
                     )
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun SourceOriginBadge(
-    badge: SourceOriginBadgeInfo,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier
-            .size(16.dp)
-            .clip(androidx.compose.foundation.shape.CircleShape)
-            .background(MaterialTheme.colorScheme.surface)
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.75f),
-                shape = androidx.compose.foundation.shape.CircleShape,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            painter = rememberSafePainter(badge.iconRes),
-            contentDescription = null,
-            modifier = Modifier.size(10.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 
@@ -1229,15 +1164,6 @@ private fun sourceTypeAccent(contentType: ContentType): Color = when (contentTyp
     else -> MaterialTheme.colorScheme.primary
 }
 
-private fun sourceOriginBadgeInfo(sourceName: String): SourceOriginBadgeInfo? = when {
-    sourceName.startsWith("MIHON_") -> SourceOriginBadgeInfo(R.drawable.ic_source_mihon)
-    sourceName.startsWith("ANIYOMI_") -> SourceOriginBadgeInfo(R.drawable.ic_source_aniyomi)
-    sourceName.startsWith("JSON_LEGADO_") -> SourceOriginBadgeInfo(R.drawable.ic_source_legado)
-    sourceName.startsWith("JSON_TVBOX_") -> SourceOriginBadgeInfo(R.drawable.ic_source_tvbox)
-    sourceName.startsWith("IREADER_") -> SourceOriginBadgeInfo(R.drawable.ic_source_ireader)
-    sourceName.startsWith("JSON_LNREADER_") -> SourceOriginBadgeInfo(R.drawable.ic_source_lnreader)
-    else -> null
-}
 
 private fun List<ContentSourceItem>.toQuickAccessGroups(
     isGroupedByLanguage: Boolean,

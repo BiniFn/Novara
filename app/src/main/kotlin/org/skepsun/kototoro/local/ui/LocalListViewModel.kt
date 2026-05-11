@@ -61,6 +61,7 @@ class LocalListViewModel @Inject constructor(
 	private val localStorageManager: LocalStorageManager,
 	sourcesRepository: ContentSourcesRepository,
 	mangaDataRepository: ContentDataRepository,
+	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
 ) : RemoteListViewModel(
 	savedStateHandle = savedStateHandle,
 	mangaRepositoryFactory = mangaRepositoryFactory,
@@ -83,6 +84,8 @@ class LocalListViewModel @Inject constructor(
 	/** 当前已选中的标签 key */
 	private val _filterSelectedTagKeys = MutableStateFlow<Set<String>>(emptySet())
 	val filterSelectedTagKeys: StateFlow<Set<String>> get() = _filterSelectedTagKeys
+
+	override val currentGroupTab: StateFlow<BrowseGroupTab> = globalFavoritesState.selectedGroupTab
 
 	init {
 		launchJob(Dispatchers.Default) {
@@ -156,7 +159,7 @@ class LocalListViewModel @Inject constructor(
 	 * 本地内容支持漫画/小说/视频三种类型，通过 LocalMangaRepository.getList() 的 filter.types 过滤。
 	 */
 	override fun setSelectedGroupTab(tab: BrowseGroupTab) {
-		super.setSelectedGroupTab(tab)
+		globalFavoritesState.setSelectedGroupTab(tab)
 		val types = when (tab) {
 			BrowseGroupTab.Content -> setOf(ContentType.MANGA, ContentType.HENTAI_MANGA)
 			BrowseGroupTab.Novel -> setOf(ContentType.NOVEL, ContentType.HENTAI_NOVEL)

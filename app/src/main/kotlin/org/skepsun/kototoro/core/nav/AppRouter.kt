@@ -537,7 +537,7 @@ class AppRouter private constructor(
                 .putExtra(KEY_SOURCE, source?.name)
                 .putExtra(KEY_TITLE, title)
                 .putExtra(ReaderIntent.EXTRA_STATE, state),
-            anchor?.let { scaleUpActivityOptionsOf(it) },
+            null,
         )
     }
 
@@ -556,7 +556,7 @@ class AppRouter private constructor(
                 .putExtra(KEY_TITLE, manga.title)
                 .putExtra(KEY_MANGA, ParcelableContent(manga, withChapters = !manga.chapters.isNullOrEmpty()))
                 .putExtra(ReaderIntent.EXTRA_STATE, state),
-            anchor?.let { scaleUpActivityOptionsOf(it) },
+            null,
         )
     }
 

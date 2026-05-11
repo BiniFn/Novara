@@ -90,8 +90,8 @@ class UpdatesViewModel @Inject constructor(
 		quickFilter.appliedOptions,
 		settings.observeAsFlow(AppSettings.KEY_UPDATED_GROUPING) { isUpdatedGroupingEnabled },
 		observeListModeWithTriggers(),
-		selectedGroupTab,
-		selectedSourceTags,
+		currentGroupTab,
+		currentSourceTags,
 		mangaListMapper.observeDisplayChanges().onStart { emit(Unit) },
 	) { values: Array<Any?> ->
 		val mangaList = values[0] as List<ContentTracking>

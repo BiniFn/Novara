@@ -6,16 +6,20 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.bookmarks.domain.Bookmark
 import org.skepsun.kototoro.bookmarks.domain.BookmarksRepository
+import org.skepsun.kototoro.core.jsonsource.SourceGroupManager
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.core.ui.util.ReversibleAction
 import org.skepsun.kototoro.core.util.ext.MutableEventFlow
 import org.skepsun.kototoro.core.util.ext.call
+import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
+import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.list.ui.model.EmptyState
 import org.skepsun.kototoro.list.ui.model.ListHeader
 import org.skepsun.kototoro.list.ui.model.ListModel
@@ -28,13 +32,23 @@ import javax.inject.Inject
 @HiltViewModel
 class AllBookmarksViewModel @Inject constructor(
 	private val repository: BookmarksRepository,
+	private val sourceGroupManager: SourceGroupManager,
+	private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
 ) : BaseViewModel() {
 
 	val onActionDone = MutableEventFlow<ReversibleAction>()
 
-	val content: StateFlow<List<ListModel>> = repository.observeBookmarks()
-		.map { list ->
-			if (list.isEmpty()) {
+	val currentGroupTab: StateFlow<BrowseGroupTab> = globalFavoritesState.selectedGroupTab
+	val currentSourceTags: StateFlow<Set<SourceTag>> = globalFavoritesState.selectedSourceTags
+
+	val content: StateFlow<List<ListModel>> = combine(
+		repository.observeBookmarks(),
+		currentGroupTab,
+		currentSourceTags,
+	) { bookmarks, groupTab, sourceTags ->
+		bookmarks.filterByTopBar(groupTab, sourceTags)
+	}.map { filteredBookmarks ->
+			if (filteredBookmarks.isEmpty()) {
 				listOf(
 					EmptyState(
 						icon = R.drawable.ic_empty_favourites,
@@ -44,11 +58,19 @@ class AllBookmarksViewModel @Inject constructor(
 					),
 				)
 			} else {
-				mapList(list)
+				mapList(filteredBookmarks)
 			}
 		}
 		.catch { e -> emit(listOf(e.toErrorState(canRetry = false))) }
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, listOf(LoadingState))
+
+	fun setSelectedGroupTab(tab: BrowseGroupTab) {
+		globalFavoritesState.setSelectedGroupTab(tab)
+	}
+
+	fun setSelectedSourceTags(tags: Set<SourceTag>) {
+		globalFavoritesState.setSelectedSourceTags(tags)
+	}
 
 	fun removeBookmarks(ids: Set<Long>) {
 		launchJob(Dispatchers.Default) {
@@ -79,6 +101,27 @@ class AllBookmarksViewModel @Inject constructor(
 		for ((manga, bookmarks) in data) {
 			result.add(ListHeader(manga.title, R.string.more, manga))
 			result.addAll(bookmarks)
+		}
+		return result
+	}
+
+	private fun Map<Content, List<Bookmark>>.filterByTopBar(
+		groupTab: BrowseGroupTab,
+		sourceTags: Set<SourceTag>,
+	): Map<Content, List<Bookmark>> {
+		if (groupTab == BrowseGroupTab.All && sourceTags.isEmpty()) {
+			return this
+		}
+		val result = LinkedHashMap<Content, List<Bookmark>>(size)
+		for ((content, bookmarks) in this) {
+			val source = content.source
+			val contentGroup = sourceGroupManager.getContentGroup(source)
+			val originGroup = sourceGroupManager.getOriginGroup(source)
+			val matchesGroup = groupTab.matchesContentGroup(contentGroup) && groupTab.matchesOriginGroup(originGroup)
+			val matchesSourceTag = sourceTags.isEmpty() || sourceTags.any { it.matches(contentGroup, originGroup) }
+			if (matchesGroup && matchesSourceTag) {
+				result[content] = bookmarks
+			}
 		}
 		return result
 	}

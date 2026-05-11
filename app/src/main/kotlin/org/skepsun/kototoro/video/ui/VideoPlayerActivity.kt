@@ -854,6 +854,16 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
         // 外部控制器初始由 Activity 管理显隐；不直接改动 DockedToolbar 的可见?
     }
+
+    override fun finishAfterTransition() {
+        finish()
+    }
+
+    override fun finish() {
+        super.finish()
+        // Skip the closing window animation so the host screen chrome does not flash during player teardown.
+        overridePendingTransition(0, 0)
+    }
     
     private fun wireControllerButtons() {
         val parcelable = intent.getParcelableExtraCompat<ParcelableContent>(AppRouter.KEY_MANGA)

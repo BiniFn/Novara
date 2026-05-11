@@ -205,6 +205,10 @@ class FeedViewModel @Inject constructor(
 		globalFavoritesState.setSelectedGroupTab(tab)
 	}
 
+	fun setSelectedSourceTags(tags: Set<SourceTag>) {
+		globalFavoritesState.setSelectedSourceTags(tags)
+	}
+
 	fun toggleSourceTag(tag: SourceTag) {
 		globalFavoritesState.toggleSourceTag(tag)
 	}
