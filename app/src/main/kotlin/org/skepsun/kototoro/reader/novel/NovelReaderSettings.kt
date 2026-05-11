@@ -11,9 +11,9 @@ import androidx.core.content.edit
 data class NovelReaderSettings(
     val fontSizeSp: Float = 17f,
     val lineSpacing: Float = 1.6f,
-    val paragraphSpacing: Float = 10f,
-    val marginHorizontal: Int = 28,
-    val marginVertical: Int = 28,
+    val paragraphSpacing: Float = 0f,
+    val marginHorizontal: Int = 36,
+    val marginVertical: Int = 36,
     val themePreset: NovelReaderThemePreset = NovelReaderThemePreset.PAPER,
     val readingMode: ReadingMode = ReadingMode.PAGED,
     val textDirection: TextDirection = TextDirection.LTR,
@@ -26,27 +26,67 @@ data class NovelReaderSettings(
     val translationDisplayMode: NovelTranslationDisplayMode = NovelTranslationDisplayMode.TRANSLATION_ONLY,
 ) {
 
+    fun normalized(): NovelReaderSettings {
+        return copy(
+            fontSizeSp = snapFloat(fontSizeSp, FONT_SIZE_RANGE.start, FONT_SIZE_RANGE.endInclusive, FONT_SIZE_STEP),
+            lineSpacing = snapFloat(
+                lineSpacing,
+                LINE_SPACING_RANGE.start,
+                LINE_SPACING_RANGE.endInclusive,
+                LINE_SPACING_STEP,
+            ),
+            paragraphSpacing = snapFloat(
+                paragraphSpacing,
+                PARAGRAPH_SPACING_RANGE.start,
+                PARAGRAPH_SPACING_RANGE.endInclusive,
+                PARAGRAPH_SPACING_STEP,
+            ),
+            marginHorizontal = snapInt(
+                marginHorizontal,
+                MARGIN_RANGE.first,
+                MARGIN_RANGE.last,
+                MARGIN_STEP,
+            ),
+            marginVertical = snapInt(
+                marginVertical,
+                MARGIN_RANGE.first,
+                MARGIN_RANGE.last,
+                MARGIN_STEP,
+            ),
+        )
+    }
+
     fun save(context: Context) {
+        val normalized = normalized()
         getPrefs(context).edit {
-            putFloat(KEY_FONT_SIZE, fontSizeSp)
-            putFloat(KEY_LINE_SPACING, lineSpacing)
-            putFloat(KEY_PARAGRAPH_SPACING, paragraphSpacing)
-            putInt(KEY_MARGIN_HORIZONTAL, marginHorizontal)
-            putInt(KEY_MARGIN_VERTICAL, marginVertical)
-            putString(KEY_THEME_PRESET, themePreset.name)
-            putString(KEY_READING_MODE, readingMode.name)
-            putString(KEY_TEXT_DIRECTION, textDirection.name)
-            putBoolean(KEY_DUAL_PAGE, enableDualPage)
-            putBoolean(KEY_FULLSCREEN, enableFullscreen)
-            putBoolean(KEY_SHOW_READING_STATUS, showReadingStatus)
-            putBoolean(KEY_READING_STATUS_TRANSPARENT, isReadingStatusTransparent)
-            putBoolean(KEY_PARAGRAPH_INDENT, enableParagraphIndent)
+            putFloat(KEY_FONT_SIZE, normalized.fontSizeSp)
+            putFloat(KEY_LINE_SPACING, normalized.lineSpacing)
+            putFloat(KEY_PARAGRAPH_SPACING, normalized.paragraphSpacing)
+            putInt(KEY_MARGIN_HORIZONTAL, normalized.marginHorizontal)
+            putInt(KEY_MARGIN_VERTICAL, normalized.marginVertical)
+            putString(KEY_THEME_PRESET, normalized.themePreset.name)
+            putString(KEY_READING_MODE, normalized.readingMode.name)
+            putString(KEY_TEXT_DIRECTION, normalized.textDirection.name)
+            putBoolean(KEY_DUAL_PAGE, normalized.enableDualPage)
+            putBoolean(KEY_FULLSCREEN, normalized.enableFullscreen)
+            putBoolean(KEY_SHOW_READING_STATUS, normalized.showReadingStatus)
+            putBoolean(KEY_READING_STATUS_TRANSPARENT, normalized.isReadingStatusTransparent)
+            putBoolean(KEY_PARAGRAPH_INDENT, normalized.enableParagraphIndent)
             remove(KEY_TRANSLATION_ENABLED)
-            putString(KEY_TRANSLATION_DISPLAY_MODE, translationDisplayMode.name)
+            putString(KEY_TRANSLATION_DISPLAY_MODE, normalized.translationDisplayMode.name)
         }
     }
 
     companion object {
+        const val FONT_SIZE_STEP = 0.5f
+        const val LINE_SPACING_STEP = 0.1f
+        const val PARAGRAPH_SPACING_STEP = 1f
+        const val MARGIN_STEP = 4
+        val FONT_SIZE_RANGE = 14f..24f
+        val LINE_SPACING_RANGE = 1.2f..2.0f
+        val PARAGRAPH_SPACING_RANGE = 0f..24f
+        val MARGIN_RANGE = 12..72
+
         private const val PREF_NAME = "novel_reader_settings"
         private const val KEY_FONT_SIZE = "font_size"
         private const val KEY_LINE_SPACING = "line_spacing"
@@ -69,9 +109,9 @@ data class NovelReaderSettings(
             return NovelReaderSettings(
                 fontSizeSp = prefs.getFloat(KEY_FONT_SIZE, 17f),
                 lineSpacing = prefs.getFloat(KEY_LINE_SPACING, 1.6f),
-                paragraphSpacing = prefs.getFloat(KEY_PARAGRAPH_SPACING, 10f),
-                marginHorizontal = prefs.getInt(KEY_MARGIN_HORIZONTAL, 28),
-                marginVertical = prefs.getInt(KEY_MARGIN_VERTICAL, 28),
+                paragraphSpacing = prefs.getFloat(KEY_PARAGRAPH_SPACING, 0f),
+                marginHorizontal = prefs.getInt(KEY_MARGIN_HORIZONTAL, 36),
+                marginVertical = prefs.getInt(KEY_MARGIN_VERTICAL, 36),
                 themePreset = runCatching {
                     NovelReaderThemePreset.valueOf(
                         prefs.getString(KEY_THEME_PRESET, null) ?: NovelReaderThemePreset.PAPER.name
@@ -95,11 +135,28 @@ data class NovelReaderSettings(
                             ?: NovelTranslationDisplayMode.TRANSLATION_ONLY.name
                     )
                 }.getOrDefault(NovelTranslationDisplayMode.TRANSLATION_ONLY),
-            )
+            ).normalized()
         }
 
         private fun getPrefs(context: Context): SharedPreferences {
             return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+        }
+
+        private fun snapFloat(value: Float, min: Float, max: Float, step: Float): Float {
+            val clamped = value.coerceIn(min, max)
+            val snappedSteps = ((clamped - min) / step).toInt()
+            val remainder = (clamped - min) - (snappedSteps * step)
+            val rounded = if (remainder >= step / 2f) snappedSteps + 1 else snappedSteps
+            val snapped = min + rounded * step
+            return snapped.coerceIn(min, max)
+        }
+
+        private fun snapInt(value: Int, min: Int, max: Int, step: Int): Int {
+            val clamped = value.coerceIn(min, max)
+            val snappedSteps = (clamped - min) / step
+            val remainder = (clamped - min) % step
+            val rounded = if (remainder >= step / 2f) snappedSteps + 1 else snappedSteps
+            return (min + rounded * step).coerceIn(min, max)
         }
     }
 }

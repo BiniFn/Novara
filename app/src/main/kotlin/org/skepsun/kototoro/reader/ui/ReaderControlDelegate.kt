@@ -154,6 +154,10 @@ class ReaderControlDelegate(
 
 		fun onDownloadClick() = Unit
 
+		fun onPagesButtonClick(): Boolean = false
+
+		fun onPagesButtonLongClick(): Boolean = false
+
 		fun isReaderResumed(): Boolean
 	}
 }

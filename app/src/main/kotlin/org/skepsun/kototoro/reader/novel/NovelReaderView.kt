@@ -1,5 +1,8 @@
 package org.skepsun.kototoro.reader.novel
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -15,6 +18,7 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
+import android.view.animation.DecelerateInterpolator
 import androidx.collection.LruCache
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GestureDetectorCompat
@@ -44,6 +48,7 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.sign
 
 /**
  * 小说阅读器视图 - 基于 TextView 的自定义实现
@@ -115,6 +120,15 @@ class NovelReaderView @JvmOverloads constructor(
 
     private val gestureDetector: GestureDetectorCompat
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+    private val pageTurnThresholdFraction = 0.18f
+    private val pageTurnInterpolator = DecelerateInterpolator()
+    private var pageSwipeStartX: Float = 0f
+    private var pageSwipeStartY: Float = 0f
+    private var isPageDragging: Boolean = false
+    private var pageSwipeBaseIndex: Int = -1
+    private var pageSwipeTargetIndex: Int = -1
+    private var pageSwipeOffsetX: Float = 0f
+    private var pageSwipeAnimator: ValueAnimator? = null
 
     var onPageChangeListener: ((page: Int, total: Int) -> Unit)? = null
     var onTapListener: ((x: Float, y: Float) -> Unit)? = null
@@ -190,32 +204,16 @@ class NovelReaderView @JvmOverloads constructor(
                     return false
                 }
                 
-                if (e1 == null) return false
-                val deltaX = e2.x - e1.x
-                val deltaY = e2.y - e1.y
-                
-                if (abs(deltaX) > abs(deltaY) && abs(deltaX) > touchSlop) {
-                    if (deltaX > 0) {
-                        // 向右滑动 - 上一页，如果失败则请求上一章
-                        if (!previousPage()) {
-                            onChapterChangeRequestListener?.invoke(-1)
-                        }
-                    } else {
-                        // 向左滑动 - 下一页，如果失败则请求下一章
-                        if (!nextPage()) {
-                            onChapterChangeRequestListener?.invoke(1)
-                        }
-                    }
-                    return true
-                }
                 return false
             }
         })
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (settings.readingMode != ReadingMode.SCROLL && handlePagedTouch(event)) {
+            return true
+        }
         val handled = gestureDetector.onTouchEvent(event)
-        // 确保消费所有触摸事件
         return handled || super.onTouchEvent(event)
     }
 
@@ -264,16 +262,33 @@ class NovelReaderView @JvmOverloads constructor(
             return
         }
 
-        val page = pages.getOrNull(currentPageIndex) ?: return
-        
-        if (isDualPage && currentPageIndex < pages.lastIndex) {
-            // 双页模式
-            val nextPage = pages[currentPageIndex + 1]
-            drawPage(canvas, page, 0f, width / 2f)
-            drawPage(canvas, nextPage, width / 2f, width.toFloat())
+        if (pageSwipeBaseIndex >= 0 && pageSwipeTargetIndex >= 0 && pageSwipeOffsetX != 0f) {
+            drawPageSwipe(canvas)
+            return
+        }
+
+        if (currentPageIndex !in pages.indices) return
+        drawSpread(canvas, currentPageIndex, 0f)
+    }
+
+    private fun drawPageSwipe(canvas: Canvas) {
+        drawSpread(canvas, pageSwipeBaseIndex, pageSwipeOffsetX)
+        val targetOffset = if (pageSwipeOffsetX < 0f) {
+            pageSwipeOffsetX + width
         } else {
-            // 单页模式
-            drawPage(canvas, page, 0f, width.toFloat())
+            pageSwipeOffsetX - width
+        }
+        drawSpread(canvas, pageSwipeTargetIndex, targetOffset)
+    }
+
+    private fun drawSpread(canvas: Canvas, startIndex: Int, offsetX: Float) {
+        val page = pages.getOrNull(startIndex) ?: return
+        if (isDualPage && startIndex < pages.lastIndex) {
+            val nextPage = pages[startIndex + 1]
+            drawPage(canvas, page, offsetX, offsetX + width / 2f)
+            drawPage(canvas, nextPage, offsetX + width / 2f, offsetX + width.toFloat())
+        } else {
+            drawPage(canvas, page, offsetX, offsetX + width.toFloat())
         }
     }
     private fun drawPage(canvas: Canvas, page: PageInfo, left: Float, right: Float) {
@@ -513,9 +528,7 @@ class NovelReaderView @JvmOverloads constructor(
         }
         val step = if (isDualPage) 2 else 1
         if (currentPageIndex + step < pages.size) {
-            currentPageIndex += step
-            invalidate()
-            notifyPageChanged()
+            animatePageSettle(targetIndex = currentPageIndex + step, commit = true, direction = -1)
             return true
         }
         return false
@@ -537,9 +550,7 @@ class NovelReaderView @JvmOverloads constructor(
         }
         val step = if (isDualPage) 2 else 1
         if (currentPageIndex - step >= 0) {
-            currentPageIndex -= step
-            invalidate()
-            notifyPageChanged()
+            animatePageSettle(targetIndex = currentPageIndex - step, commit = true, direction = 1)
             return true
         }
         return false
@@ -686,6 +697,7 @@ class NovelReaderView @JvmOverloads constructor(
      * 重新分页
      */
     private fun repaginate() {
+        resetPageSwipeState()
         if (width == 0 || height == 0 || chapterContent.isEmpty()) {
             pages = emptyList()
             invalidate()
@@ -818,15 +830,19 @@ class NovelReaderView @JvmOverloads constructor(
         if (paragraphs.isEmpty()) return content
 
         val sb = StringBuilder()
-        for ((i, para) in paragraphs.withIndex()) {
-            if (i > 0) sb.append("\n\n")
+        var hasVisibleParagraph = false
+        for (para in paragraphs) {
+            if (para.originalText.isBlank()) continue
+            if (hasVisibleParagraph) sb.append("\n\n")
             if (para.type == NovelParagraphType.IMAGE) {
                 sb.append(para.originalText)
+                hasVisibleParagraph = true
                 continue
             }
             val translated = translation.translations[para.index]
             if (translated.isNullOrBlank()) {
                 sb.append(para.originalText)
+                hasVisibleParagraph = true
                 continue
             }
             when (translation.displayMode) {
@@ -837,6 +853,7 @@ class NovelReaderView @JvmOverloads constructor(
                     sb.append(translated)
                 }
             }
+            hasVisibleParagraph = true
         }
         return sb.toString()
     }
@@ -1285,6 +1302,7 @@ class NovelReaderView @JvmOverloads constructor(
     
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        pageSwipeAnimator?.cancel()
         scope.cancel()
     }
 
@@ -1423,6 +1441,120 @@ class NovelReaderView @JvmOverloads constructor(
                 android.util.Log.w("NovelReaderView", "Coil failed to decode EPUB image: $imagePath", result.throwable)
                 throw result.throwable
             }
+        }
+    }
+
+    private fun handlePagedTouch(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                pageSwipeAnimator?.cancel()
+                pageSwipeStartX = event.x
+                pageSwipeStartY = event.y
+                isPageDragging = false
+                resetPageSwipeState(keepOffset = false)
+            }
+
+            MotionEvent.ACTION_MOVE -> {
+                val deltaX = event.x - pageSwipeStartX
+                val deltaY = event.y - pageSwipeStartY
+                if (!isPageDragging && abs(deltaX) > touchSlop && abs(deltaX) > abs(deltaY)) {
+                    val targetIndex = resolveSwipeTargetIndex(deltaX)
+                    if (targetIndex >= 0) {
+                        isPageDragging = true
+                        pageSwipeBaseIndex = currentPageIndex
+                        pageSwipeTargetIndex = targetIndex
+                        parent?.requestDisallowInterceptTouchEvent(true)
+                    } else {
+                        return false
+                    }
+                }
+                if (isPageDragging) {
+                    pageSwipeOffsetX = deltaX.coerceIn(-width.toFloat(), width.toFloat())
+                    invalidate()
+                    return true
+                }
+            }
+
+            MotionEvent.ACTION_CANCEL,
+            MotionEvent.ACTION_UP -> {
+                if (isPageDragging) {
+                    val shouldCommit = abs(pageSwipeOffsetX) >= width * pageTurnThresholdFraction
+                    animatePageSettle(
+                        targetIndex = pageSwipeTargetIndex,
+                        commit = shouldCommit,
+                        direction = pageSwipeOffsetX.sign.toInt(),
+                    )
+                    isPageDragging = false
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    private fun animatePageSettle(targetIndex: Int, commit: Boolean, direction: Int) {
+        if (direction == 0 || pageSwipeBaseIndex == -1) {
+            pageSwipeBaseIndex = currentPageIndex
+            pageSwipeTargetIndex = targetIndex
+        }
+        val resolvedDirection = if (direction == 0) {
+            when {
+                targetIndex > currentPageIndex -> -1
+                targetIndex < currentPageIndex -> 1
+                else -> 0
+            }
+        } else {
+            direction
+        }
+        if (resolvedDirection == 0) return
+
+        pageSwipeAnimator?.cancel()
+        val targetOffset = if (commit) {
+            if (resolvedDirection > 0) width.toFloat() else -width.toFloat()
+        } else {
+            0f
+        }
+        pageSwipeAnimator = ValueAnimator.ofFloat(pageSwipeOffsetX, targetOffset).apply {
+            var cancelled = false
+            duration = 180L
+            interpolator = pageTurnInterpolator
+            addUpdateListener { animator ->
+                pageSwipeOffsetX = animator.animatedValue as Float
+                invalidate()
+            }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationCancel(animation: Animator) {
+                    cancelled = true
+                }
+
+                override fun onAnimationEnd(animation: Animator) {
+                    if (!cancelled && commit) {
+                        currentPageIndex = targetIndex
+                        notifyPageChanged()
+                    }
+                    resetPageSwipeState()
+                    invalidate()
+                }
+            })
+            start()
+        }
+    }
+
+    private fun resolveSwipeTargetIndex(deltaX: Float): Int {
+        val step = if (isDualPage) 2 else 1
+        return when {
+            deltaX < 0f && currentPageIndex + step < pages.size -> currentPageIndex + step
+            deltaX > 0f && currentPageIndex - step >= 0 -> currentPageIndex - step
+            else -> -1
+        }
+    }
+
+    private fun resetPageSwipeState(keepOffset: Boolean = false) {
+        isPageDragging = false
+        pageSwipeBaseIndex = -1
+        pageSwipeTargetIndex = -1
+        if (!keepOffset) {
+            pageSwipeOffsetX = 0f
         }
     }
 

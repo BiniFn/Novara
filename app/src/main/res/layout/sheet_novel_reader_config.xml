@@ -212,7 +212,7 @@
                 android:id="@+id/textParagraphSpacingValue"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="10dp"
+                android:text="@string/novel_paragraph_spacing_follow_line"
                 android:textAppearance="?attr/textAppearanceBodyMedium"
                 android:textColor="?attr/colorPrimary" />
 
@@ -224,8 +224,8 @@
             android:layout_height="wrap_content"
             android:valueFrom="0"
             android:valueTo="24"
-            android:stepSize="2"
-            android:value="10" />
+            android:stepSize="1"
+            android:value="0" />
 
         <!-- 页边距 -->
         <LinearLayout
@@ -246,7 +246,7 @@
                 android:id="@+id/textMarginValue"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="28dp"
+                android:text="36dp"
                 android:textAppearance="?attr/textAppearanceBodyMedium"
                 android:textColor="?attr/colorPrimary" />
 
@@ -256,10 +256,10 @@
             android:id="@+id/sliderMargin"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:valueFrom="16"
-            android:valueTo="40"
+            android:valueFrom="12"
+            android:valueTo="72"
             android:stepSize="4"
-            android:value="28" />
+            android:value="36" />
 
         <TextView
             android:layout_width="match_parent"

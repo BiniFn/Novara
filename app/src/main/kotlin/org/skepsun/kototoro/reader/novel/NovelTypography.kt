@@ -108,8 +108,10 @@ object NovelTypography {
     }
 
     private fun normalizeParagraphs(text: String): String {
-        return text.replace(Regex("\\n{3,}"), "\n\n")
-            .replace("\r\n", "\n")
+        return text.replace("\r\n", "\n")
+            .replace(Regex("""[ \t]+\n"""), "\n")
+            .replace(Regex("""\n[ \t]+"""), "\n")
+            .replace(Regex("\\n{3,}"), "\n\n")
             .replace(Regex("""(?m)^([《【].+[》】]|第[0-9一二三四五六七八九十百千零〇两]+[章节卷回部篇话集].*)$"""), "\n$1\n")
             .replace(Regex("\\n{3,}"), "\n\n")
             .trim()
@@ -120,7 +122,11 @@ object NovelTypography {
         settings: NovelReaderSettings,
         textPaint: TextPaint,
     ): String {
-        val spacingPx = settings.paragraphSpacing * textPaint.density
+        val spacingPx = if (settings.paragraphSpacing <= 0f) {
+            ((settings.lineSpacing - 1f).coerceAtLeast(0f) * textPaint.textSize)
+        } else {
+            settings.paragraphSpacing * textPaint.density
+        }
         val lineHeight = (textPaint.fontMetrics.descent - textPaint.fontMetrics.ascent) * settings.lineSpacing
         val extraLines = if (spacingPx > 0) max(1, ceil(spacingPx / lineHeight).toInt()) else 0
         if (extraLines == 0) return text

@@ -331,15 +331,19 @@ class NovelChapterView @JvmOverloads constructor(
         if (paragraphs.isEmpty()) return content
 
         val sb = StringBuilder()
-        for ((i, para) in paragraphs.withIndex()) {
-            if (i > 0) sb.append("\n\n")
+        var hasVisibleParagraph = false
+        for (para in paragraphs) {
+            if (para.originalText.isBlank()) continue
+            if (hasVisibleParagraph) sb.append("\n\n")
             if (para.type == NovelParagraphType.IMAGE) {
                 sb.append(para.originalText)
+                hasVisibleParagraph = true
                 continue
             }
             val translated = translation.translations[para.index]
             if (translated.isNullOrBlank()) {
                 sb.append(para.originalText)
+                hasVisibleParagraph = true
                 continue
             }
             when (translation.displayMode) {
@@ -350,6 +354,7 @@ class NovelChapterView @JvmOverloads constructor(
                     sb.append(translated)
                 }
             }
+            hasVisibleParagraph = true
         }
         return sb.toString()
     }

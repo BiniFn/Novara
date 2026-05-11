@@ -340,15 +340,11 @@ class NovelReaderActivity :
         viewBinding.toolbar.subtitle = getString(R.string.loading_)
 
         viewBinding.actionsView.listener = this
+        viewBinding.actionsView.setCompactNavigationMode(true)
         viewBinding.actionsView.setTranslateButtonVisible(true)
         viewBinding.actionsView.setTranslateActive(false)
         setupImageHeaders()
         setupTtsControls()
-
-        // 设置章节列表按钮点击事件
-        viewBinding.actionsView.findViewById<View>(R.id.button_pages_thumbs)?.setOnClickListener {
-            showChaptersSheet()
-        }
 
         viewBinding.readerView.onPageChangeListener = { page, total ->
             // 显示用页码按双页 spread 计数，实际进度用字符比例
@@ -376,16 +372,8 @@ class NovelReaderActivity :
             switchChapterBy(delta)
         }
 
-        // 修正：动态更新 readerView 的 headerHeight，考虑 paddingTop 已经避开了状态栏
         viewBinding.infoBar.addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ ->
-            if (viewBinding.infoBar.isVisible) {
-                val totalH = bottom - top
-                // infoBar 已经包含了针对状态栏的 padding，而 readerView 也已经设置了对应的 paddingTop
-                // 所以这里只传递“额外”占用的高度
-                viewBinding.readerView.setHeaderHeight(maxOf(0, totalH - viewBinding.readerView.paddingTop))
-            } else {
-                viewBinding.readerView.setHeaderHeight(0)
-            }
+            viewBinding.readerView.setHeaderHeight(0)
         }
 
         viewBinding.readerView.updateSettings(readerSettings)
@@ -456,10 +444,7 @@ class NovelReaderActivity :
             updateToolbarFloatingStyle(isFloating)
         }.launchIn(lifecycleScope)
 
-        // 初始状态：显示工具栏
-        isUiVisible = true
-        viewBinding.appbarTop.isVisible = true
-        viewBinding.toolbarDocked.isVisible = true
+        applyInitialUiVisibility()
 
         loadChapters()
     }
@@ -549,6 +534,13 @@ class NovelReaderActivity :
 
     override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
         val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+        val fullscreenEnabled = if (::readerSettings.isInitialized) {
+            readerSettings.enableFullscreen
+        } else {
+            true
+        }
+        val contentTopInset = if (fullscreenEnabled) 0 else systemBars.top
+        val contentBottomInset = if (fullscreenEnabled) 0 else systemBars.bottom
         
         viewBinding.toolbar.updateLayoutParams<ViewGroup.MarginLayoutParams> {
             topMargin = systemBars.top
@@ -574,22 +566,24 @@ class NovelReaderActivity :
 
         viewBinding.infoBar.updatePadding(top = systemBars.top)
 
-        // 核心修复：保持 readerView 的 padding 稳定，避免在 UI 切换时发生“压缩”
-        // 只避开系统栏（状态栏和导航栏），而不避开随 UI 浮动的工具栏
         viewBinding.readerView.updatePadding(
-            top = systemBars.top,
+            top = contentTopInset,
             left = systemBars.left,
             right = systemBars.right,
-            bottom = systemBars.bottom
+            bottom = contentBottomInset,
+        )
+        viewBinding.continuousScrollView.updatePadding(
+            top = contentTopInset,
+            left = systemBars.left,
+            right = systemBars.right,
+            bottom = contentBottomInset,
         )
 
-        // innerInsets 用于给 CoordinatorLayout 子视图的行为提供信息（如果使用了 appbar_scrolling_view_behavior）
-        // 这里手动设置以告知顶栏和底栏避开的空间
         val innerInsets = Insets.of(
             systemBars.left,
-            if (viewBinding.appbarTop.isVisible) viewBinding.appbarTop.height else systemBars.top,
+            contentTopInset,
             systemBars.right,
-            if (viewBinding.toolbarDocked.isVisible) viewBinding.toolbarDocked.height else systemBars.bottom,
+            contentBottomInset,
         )
 
         return WindowInsetsCompat.Builder(insets)
@@ -662,6 +656,20 @@ class NovelReaderActivity :
 
     override fun openMenu() {
         showConfigSheet()
+    }
+
+    override fun onPagesButtonClick(): Boolean {
+        if (!viewBinding.actionsView.isSecondaryNavigationExpanded()) {
+            viewBinding.actionsView.setSecondaryNavigationExpanded(true)
+        } else {
+            showChaptersSheet()
+        }
+        return true
+    }
+
+    override fun onPagesButtonLongClick(): Boolean {
+        showChaptersSheet()
+        return true
     }
 
     override fun onTranslateClick() {
@@ -2393,6 +2401,9 @@ class NovelReaderActivity :
     }
 
     private fun setUiVisible(visible: Boolean) {
+        if (!visible) {
+            viewBinding.actionsView.setSecondaryNavigationExpanded(false)
+        }
         if (viewBinding.appbarTop.isVisible != visible) {
             val isTtsBarActive = viewBinding.ttsControlBar.visibility == View.VISIBLE
             
@@ -2536,6 +2547,7 @@ class NovelReaderActivity :
      * 显示章节选择器
      */
     private fun showChaptersSheet() {
+        viewBinding.actionsView.setSecondaryNavigationExpanded(false)
         android.util.Log.d("NovelReaderActivity", "showChaptersSheet: chapters.size=${chapters.size}, currentChapterIndex=$currentChapterIndex")
         if (chapters.isEmpty()) {
             viewBinding.toastView.showTemporary("暂无章节", 1500L)
@@ -2555,8 +2567,22 @@ class NovelReaderActivity :
      * 显示设置面板
      */
     private fun showConfigSheet() {
+        viewBinding.actionsView.setSecondaryNavigationExpanded(false)
         val sheet = NovelReaderConfigSheet.newInstance()
         sheet.show(supportFragmentManager, "novel_config")
+    }
+
+    private fun applyInitialUiVisibility() {
+        val visible = !readerSettings.enableFullscreen
+        isUiVisible = visible
+        viewBinding.appbarTop.isVisible = visible
+        viewBinding.toolbarDocked.isVisible = visible
+        viewBinding.actionsView.isVisible = visible
+        viewBinding.infoBar.isGone = visible || !readerSettings.showReadingStatus
+        viewBinding.infoBar.isTimeVisible = readerSettings.enableFullscreen
+        systemUiController.setSystemUiVisible(!readerSettings.enableFullscreen || visible)
+        updateSystemBarsColors()
+        viewBinding.root.requestApplyInsets()
     }
 
     // NovelChaptersSheet.Callback 实现
@@ -3007,6 +3033,12 @@ class NovelReaderActivity :
         viewBinding.appbarTop.backgroundTintList = toolbarBackground
         viewBinding.toolbarDocked.backgroundTintList = toolbarBackground
         viewBinding.layoutLoading.backgroundTintList = toolbarBackground
+        viewBinding.actionsView.setSliderColors(
+            activeColor = ColorUtils.setAlphaComponent(palette.chromeTextColor, if (palette.isDark) 214 else 196),
+            inactiveColor = ColorUtils.setAlphaComponent(palette.chromeTextColor, if (palette.isDark) 74 else 62),
+            thumbColor = palette.chromeTextColor,
+            haloColor = ColorUtils.setAlphaComponent(palette.chromeTextColor, if (palette.isDark) 56 else 44),
+        )
 
         viewBinding.textViewLoading.setTextColor(palette.chromeTextColor)
         viewBinding.progressBar.setIndicatorColor(palette.chromeTextColor)

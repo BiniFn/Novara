@@ -20,8 +20,12 @@ object NovelParagraphSplitter {
     fun split(content: String): List<NovelParagraph> {
         if (content.isBlank()) return emptyList()
 
-        // 先将 3 个及以上连续换行规范化为 2 个，保证分段一致性
-        val normalized = content.replace(Regex("\\n{3,}"), "\n\n")
+        // 将多余空行折叠，避免正文出现人为撑开的留白。
+        val normalized = content
+            .replace("\r\n", "\n")
+            .replace(Regex("""[ \t]+\n"""), "\n")
+            .replace(Regex("""\n[ \t]+"""), "\n")
+            .replace(Regex("\\n{3,}"), "\n\n")
         val rawParagraphs = normalized.split("\n\n")
 
         val result = mutableListOf<NovelParagraph>()
