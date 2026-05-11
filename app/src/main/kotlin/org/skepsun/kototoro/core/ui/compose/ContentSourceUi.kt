@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import coil3.Image
 import coil3.compose.AsyncImage
 import coil3.asImage
+import coil3.asDrawable
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import dagger.hilt.android.EntryPointAccessors
@@ -164,16 +165,26 @@ fun ContentSourceResolvedIcon(
         }
     }
 
-    AsyncImage(
-        model = request,
-        contentDescription = contentDescription,
-        contentScale = ContentScale.Fit,
-        modifier = modifier.clip(RoundedCornerShape(4.dp)),
-        onError = {
-            failedSourceIcons[sourceFailureKey] = true
-            hasError = true
-        }
-    )
+    if (hasError) {
+        val fallbackPainter = rememberDrawablePainter(fallbackDrawable?.asDrawable(context.resources))
+        androidx.compose.foundation.Image(
+            painter = fallbackPainter,
+            contentDescription = contentDescription,
+            contentScale = ContentScale.Fit,
+            modifier = modifier.clip(RoundedCornerShape(4.dp)),
+        )
+    } else {
+        AsyncImage(
+            model = request,
+            contentDescription = contentDescription,
+            contentScale = ContentScale.Fit,
+            modifier = modifier.clip(RoundedCornerShape(4.dp)),
+            onError = {
+                failedSourceIcons[sourceFailureKey] = true
+                hasError = true
+            }
+        )
+    }
 }
 
 private val failedSourceIcons = ConcurrentHashMap<String, Boolean>()

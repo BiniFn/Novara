@@ -22,13 +22,18 @@ fun rememberSafePainter(@DrawableRes id: Int): Painter {
     val context = LocalContext.current
     return remember(id, context) {
         val drawable = ContextCompat.getDrawable(context, id)
-        if (drawable != null) {
-            DrawablePainter(drawable.mutate())
-        } else {
-            ColorPainter(Color.Transparent)
-        }
+        drawable?.toPainter() ?: ColorPainter(Color.Transparent)
     }
 }
+
+@Composable
+fun rememberDrawablePainter(drawable: Drawable?): Painter {
+    return remember(drawable) {
+        drawable?.toPainter() ?: ColorPainter(Color.Transparent)
+    }
+}
+
+private fun Drawable.toPainter(): Painter = DrawablePainter(mutate())
 
 private class DrawablePainter(
     private val drawable: Drawable,
