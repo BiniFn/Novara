@@ -111,7 +111,7 @@
     <!-- 外层 PlayerControlView 包裹 DockedToolbar，使播放控件自动绑定到 ExoPlayer -->
     <!-- 横屏布局 -->
     <androidx.media3.ui.PlayerControlView
-        android:id="@+id/controller"
+        android:id="@+id/controller_land"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
@@ -119,6 +119,16 @@
         android:visibility="gone"
         app:show_timeout="0"
         app:controller_layout_id="@layout/video_player_docked_toolbar" />
+
+    <androidx.media3.ui.PlayerControlView
+        android:id="@+id/controller_portrait"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="@android:color/transparent"
+        android:visibility="gone"
+        app:show_timeout="0"
+        app:controller_layout_id="@layout/video_player_docked_toolbar_portrait" />
 
     <!-- 左右双击/长按手势提示浮层 -->
     <TextView

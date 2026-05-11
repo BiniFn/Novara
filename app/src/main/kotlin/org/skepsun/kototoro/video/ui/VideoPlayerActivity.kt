@@ -27,6 +27,7 @@ import android.app.PictureInPictureParams
 import android.provider.MediaStore
 import android.util.Rational
 import android.view.PixelCopy
+import androidx.appcompat.widget.PopupMenu
 import android.util.Log
 import org.skepsun.kototoro.core.util.ext.consumeAll
 import org.skepsun.kototoro.R
@@ -36,6 +37,8 @@ import okhttp3.Request
 import okhttp3.Response
 import org.skepsun.kototoro.core.model.ContentSource
 import org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository
+import org.skepsun.kototoro.cloudstream.runtime.CloudstreamContentRepository
+import org.skepsun.kototoro.cloudstream.runtime.CloudstreamPlaybackPage
 import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.network.CommonHeaders
@@ -75,7 +78,6 @@ import org.skepsun.kototoro.history.domain.HistoryUpdateUseCase
 import org.skepsun.kototoro.reader.ui.ReaderNavigationCallback
 import org.skepsun.kototoro.parsers.model.ContentChapter
 import org.skepsun.kototoro.parsers.model.ContentPage
-import org.skepsun.kototoro.parsers.model.ContentExternalTrack
 import org.skepsun.kototoro.reader.ui.pager.ReaderPage
 import org.skepsun.kototoro.bookmarks.domain.Bookmark
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -112,6 +114,12 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         private const val ENABLE_M3U8_PROXY_CACHE = true
     }
 
+    private enum class PlayerUiState {
+        Hidden,
+        ControlsVisible,
+        Locked,
+    }
+
     private val chaptersViewModel: VideoChaptersViewModel by viewModels()
 
     @Inject
@@ -130,6 +138,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     private var mpvPlayer: MpvPlayer? = null
     internal fun getMpvPlayer(): MpvPlayer? = mpvPlayer
     private var isUiVisible: Boolean = false
+    private var playerUiState: PlayerUiState = PlayerUiState.Hidden
     private var autoNextTriggered: Boolean = false
     // Screen lock state
     private var isScreenLocked: Boolean = false
@@ -179,7 +188,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     // 标志：用户是否正在拖动底部进度条（避免定时刷新抢占用户交互）
     private var isUserScrubbing: Boolean = false
     // 防止重复绑定 TimeBar listener（wireControllerButtons 会被多次调用?
-    private var isTimeBarListenerBound: Boolean = false
+    private val timeBarBoundControllerIds = mutableSetOf<Int>()
     private var currentMediaUrl: String? = null
     private var lastSubtitleTextFromPoll: String? = null
     private var subtitlePollCounter = 0
@@ -471,6 +480,20 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     private fun isLandscapeOrientation(): Boolean =
         resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
+    private fun allControllers(): List<PlayerControlView> = listOfNotNull(
+        findViewById(org.skepsun.kototoro.R.id.controller_land),
+        findViewById(org.skepsun.kototoro.R.id.controller_portrait),
+    )
+
+    private fun currentController(): PlayerControlView? {
+        val controllerId = if (isLandscapeOrientation()) {
+            org.skepsun.kototoro.R.id.controller_land
+        } else {
+            org.skepsun.kototoro.R.id.controller_portrait
+        }
+        return findViewById(controllerId)
+    }
+
     private fun bindDanmakuOverlay() {
         val danmakuView = findViewById<DanmakuView>(
             org.skepsun.kototoro.R.id.danmaku_view
@@ -568,7 +591,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     true
                 }
                 org.skepsun.kototoro.R.id.action_more -> {
-                    showVideoSettingsSheet()
+                    showOverflowMenu()
                     true
                 }
                 else -> false
@@ -835,187 +858,141 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
     
     private fun wireControllerButtons() {
-        val ctl = findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)
-        ctl?.bringToFront()
+        val parcelable = intent.getParcelableExtraCompat<ParcelableContent>(AppRouter.KEY_MANGA)
+        allControllers().forEach { ctl ->
+            ctl.bringToFront()
 
-        // 进度条可拖拽/点击快进快退：显式监听用?scrub，避免定时刷新覆盖拖动状?
-        if (!isTimeBarListenerBound) {
-            ctl?.findViewById<androidx.media3.ui.DefaultTimeBar>(androidx.media3.ui.R.id.exo_progress)?.let { timeBar ->
-                timeBar.isClickable = true
-                timeBar.isFocusable = true
-                timeBar.isFocusableInTouchMode = true
-                // 避免父级的点?手势拦截 TimeBar 的拖动事?
-                timeBar.setOnTouchListener { v, ev ->
-                    v.parent?.requestDisallowInterceptTouchEvent(true)
-                    false
-                }
-                val controlView = ctl
-                timeBar.addListener(object : TimeBar.OnScrubListener {
-                    override fun onScrubStart(timeBar: TimeBar, position: Long) {
-                        isUserScrubbing = true
+            // 进度条可拖拽/点击快进快退：显式监听用?scrub，避免定时刷新覆盖拖动状?
+            if (timeBarBoundControllerIds.add(ctl.id)) {
+                ctl.findViewById<androidx.media3.ui.DefaultTimeBar>(androidx.media3.ui.R.id.exo_progress)?.let { timeBar ->
+                    timeBar.isClickable = true
+                    timeBar.isFocusable = true
+                    timeBar.isFocusableInTouchMode = true
+                    // 避免父级的点?手势拦截 TimeBar 的拖动事?
+                    timeBar.setOnTouchListener { v, ev ->
+                        v.parent?.requestDisallowInterceptTouchEvent(true)
+                        false
                     }
+                    val controlView = ctl
+                    timeBar.addListener(object : TimeBar.OnScrubListener {
+                        override fun onScrubStart(timeBar: TimeBar, position: Long) {
+                            isUserScrubbing = true
+                        }
 
-                    override fun onScrubMove(timeBar: TimeBar, position: Long) {
-                        // 拖动时同步显示当前拖动位置，提升反馈一致?
-                        val showHours = (mpvPlayer?.durationMs ?: 0L) >= 3600_000L
-                        controlView?.findViewById<TextView>(androidx.media3.ui.R.id.exo_position)?.text = formatTimeMs(position, forceHours = showHours)
-                    }
+                        override fun onScrubMove(timeBar: TimeBar, position: Long) {
+                            // 拖动时同步显示当前拖动位置，提升反馈一致?
+                            val showHours = (mpvPlayer?.durationMs ?: 0L) >= 3600_000L
+                            controlView.findViewById<TextView>(androidx.media3.ui.R.id.exo_position)?.text =
+                                formatTimeMs(position, forceHours = showHours)
+                        }
 
-                    override fun onScrubStop(timeBar: TimeBar, position: Long, canceled: Boolean) {
-                        isUserScrubbing = false
-                        if (!canceled) {
-                            val p = mpvPlayer
-                            if (p != null && p.durationMs > 0) {
-                                p.seekTo(position)
+                        override fun onScrubStop(timeBar: TimeBar, position: Long, canceled: Boolean) {
+                            isUserScrubbing = false
+                            if (!canceled) {
+                                val p = mpvPlayer
+                                if (p != null && p.durationMs > 0) {
+                                    p.seekTo(position)
+                                }
                             }
                         }
+                    })
+                }
+            }
+
+            ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_pages_thumbs)?.let { btn ->
+                btn.isVisible = parcelable != null
+                btn.setOnClickListener {
+                    AppRouter(this).showChapterPagesSheet()
+                }
+            }
+            ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_quality)?.setOnClickListener {
+                showQualityDialog()
+            }
+            ctl.findViewById<View>(androidx.media3.ui.R.id.exo_rew)?.apply {
+                isVisible = appSettings.videoDoubleTapSeekEnabled
+                setOnClickListener {
+                    mpvPlayer?.let { p ->
+                        val pos = (p.positionMs - appSettings.videoSeekBackwardMs).coerceAtLeast(0)
+                        p.seekTo(pos)
                     }
-                })
-                isTimeBarListenerBound = true
+                }
             }
-        }
-
-        findViewById<View>(org.skepsun.kototoro.R.id.button_pages_thumbs)?.let { btn ->
-            val parcelable = intent.getParcelableExtraCompat<ParcelableContent>(AppRouter.KEY_MANGA)
-            btn.isVisible = parcelable != null
-            btn.setOnClickListener {
-                AppRouter(this).showChapterPagesSheet()
-            }
-        }
-        findViewById<View>(org.skepsun.kototoro.R.id.button_quality)?.setOnClickListener {
-            showQualityDialog()
-        }
-        ctl?.findViewById<View>(androidx.media3.ui.R.id.exo_rew)?.apply {
-            isVisible = appSettings.videoDoubleTapSeekEnabled
-            setOnClickListener {
+            ctl.findViewById<View>(androidx.media3.ui.R.id.exo_play_pause)?.setOnClickListener {
                 mpvPlayer?.let { p ->
-                    val pos = (p.positionMs - appSettings.videoSeekBackwardMs).coerceAtLeast(0)
-                    p.seekTo(pos)
+                    if (p.isPlaying) p.pause() else p.play()
+                    updatePlaybackMenu()
                 }
             }
-        }
-        ctl?.findViewById<View>(androidx.media3.ui.R.id.exo_play_pause)?.setOnClickListener {
-            mpvPlayer?.let { p ->
-                if (p.isPlaying) p.pause() else p.play()
-                updatePlaybackMenu()
+            ctl.findViewById<View>(androidx.media3.ui.R.id.exo_play_pause)?.apply {
+                isEnabled = true
+                isClickable = true
+                alpha = 1f
             }
-        }
-        ctl?.findViewById<View>(androidx.media3.ui.R.id.exo_play_pause)?.apply {
-            isEnabled = true
-            isClickable = true
-            alpha = 1f
-        }
-        ctl?.findViewById<View>(androidx.media3.ui.R.id.exo_ffwd)?.apply {
-            isVisible = appSettings.videoDoubleTapSeekEnabled
-            setOnClickListener {
-                mpvPlayer?.let { p ->
-                    val pos = (p.positionMs + appSettings.videoSeekForwardMs).coerceAtMost(p.durationMs.coerceAtLeast(0))
-                    p.seekTo(pos)
+            ctl.findViewById<View>(androidx.media3.ui.R.id.exo_ffwd)?.apply {
+                isVisible = appSettings.videoDoubleTapSeekEnabled
+                setOnClickListener {
+                    mpvPlayer?.let { p ->
+                        val pos = (p.positionMs + appSettings.videoSeekForwardMs).coerceAtMost(p.durationMs.coerceAtLeast(0))
+                        p.seekTo(pos)
+                    }
                 }
             }
-        }
-        ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_prev_chapter)?.setOnClickListener {
-            navigateChapter(-1)
-        }
-        ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_next_chapter)?.setOnClickListener {
-            navigateChapter(1)
-        }
-        ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_danmaku_settings)?.setOnClickListener {
-            val fm = supportFragmentManager
-            val tag = "VideoDanmakuSettingsSheet"
-            if (fm.findFragmentByTag(tag) == null) {
-                VideoDanmakuSettingsSheet().show(fm, tag)
+            ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_prev_chapter)?.setOnClickListener {
+                navigateChapter(-1)
             }
-        }
-        ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_danmaku_toggle)?.setOnClickListener {
-            appSettings.videoDanmakuEnabled = !appSettings.videoDanmakuEnabled
-            applyDanmakuSettings()
-            updateDanmakuToggleState()
-        }
-        val danmakuInput = ctl?.findViewById<android.widget.EditText>(
-            org.skepsun.kototoro.R.id.edit_danmaku_input
-        )
-        danmakuInput?.setOnFocusChangeListener { _, hasFocus ->
-            if (hasFocus) {
-                setUiIsVisible(true)
-                viewBinding.root.removeCallbacks(hideUiRunnable)
-            } else if (isUiVisible) {
-                viewBinding.root.removeCallbacks(hideUiRunnable)
-                viewBinding.root.postDelayed(hideUiRunnable, autoHideDelayMs.toLong())
+            ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_next_chapter)?.setOnClickListener {
+                navigateChapter(1)
             }
-        }
-        ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_danmaku_send)?.setOnClickListener {
-            val text = danmakuInput?.text?.toString()?.trim().orEmpty()
-            if (text.isBlank()) return@setOnClickListener
-            sendLocalDanmaku(text)
-            danmakuInput?.setText("")
-        }
-        ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_rotate_screen)?.setOnClickListener {
-            orientationHelper.isLandscape = !orientationHelper.isLandscape
-        }
-        danmakuInput?.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEND) {
-                val text = danmakuInput.text?.toString()?.trim().orEmpty()
-                if (text.isNotBlank()) {
-                    sendLocalDanmaku(text)
-                    danmakuInput.setText("")
-                }
-                true
-            } else {
-                false
+            ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_mark_intro)?.setOnClickListener {
+                toggleIntroMarker()
             }
-        }
+            ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_mark_outro)?.setOnClickListener {
+                toggleOutroMarker()
+            }
 
+            // Screen lock button
+            ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_screen_lock)?.setOnClickListener {
+                enterScreenLock()
+            }
+        }
         updateChapterNavButtons()
-
-        // Intro/outro skip buttons
-        ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_mark_intro)?.setOnClickListener {
-            val pos = mpvPlayer?.positionMs ?: return@setOnClickListener
-            if (currentMangaId != 0L) {
-                introEndMs = pos
-                appSettings.setIntroEndMs(currentMangaId, pos)
-                val timeStr = formatTimeMs(pos)
-                Snackbar.make(viewBinding.root, getString(R.string.video_skip_intro_set, timeStr), Snackbar.LENGTH_SHORT).show()
-                updateIntroOutroButtonState()
-            }
-        }
-        ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_mark_intro)?.setOnLongClickListener {
-            if (currentMangaId != 0L && introEndMs > 0) {
-                introEndMs = 0L
-                appSettings.clearIntroEndMs(currentMangaId)
-                Snackbar.make(viewBinding.root, R.string.video_skip_intro_cleared, Snackbar.LENGTH_SHORT).show()
-                updateIntroOutroButtonState()
-            }
-            true
-        }
-        ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_mark_outro)?.setOnClickListener {
-            val pos = mpvPlayer?.positionMs ?: return@setOnClickListener
-            if (currentMangaId != 0L) {
-                outroStartMs = pos
-                appSettings.setOutroStartMs(currentMangaId, pos)
-                val timeStr = formatTimeMs(pos)
-                Snackbar.make(viewBinding.root, getString(R.string.video_skip_outro_set, timeStr), Snackbar.LENGTH_SHORT).show()
-                updateIntroOutroButtonState()
-            }
-        }
-        ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_mark_outro)?.setOnLongClickListener {
-            if (currentMangaId != 0L && outroStartMs > 0) {
-                outroStartMs = 0L
-                appSettings.clearOutroStartMs(currentMangaId)
-                Snackbar.make(viewBinding.root, R.string.video_skip_outro_cleared, Snackbar.LENGTH_SHORT).show()
-                updateIntroOutroButtonState()
-            }
-            true
-        }
-
-        // Screen lock button
-        ctl?.findViewById<View>(org.skepsun.kototoro.R.id.button_screen_lock)?.setOnClickListener {
-            enterScreenLock()
-        }
+        updateScreenLockButtonState()
     }
 
     private fun updateQualityButtonVisibility() {
-        findViewById<View>(org.skepsun.kototoro.R.id.button_quality)?.isVisible = availableVideos.isNotEmpty()
+        allControllers().forEach { ctl ->
+            ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_quality)?.isVisible = availableVideos.isNotEmpty()
+        }
+        updateQualityButtonLabel()
+    }
+
+    private fun updateQualityButtonLabel() {
+        val label = buildQualityButtonLabel()
+        allControllers().forEach { ctl ->
+            ctl.findViewById<com.google.android.material.button.MaterialButton>(
+                org.skepsun.kototoro.R.id.button_quality,
+            )?.apply {
+                text = label
+                contentDescription = getString(org.skepsun.kototoro.R.string.video_quality) + ": " + label
+            }
+        }
+    }
+
+    private fun buildQualityButtonLabel(): String {
+        val video = availableVideos.getOrNull(currentVideoIndex)
+        val title = video?.videoTitle?.trim().orEmpty()
+        if (title.isNotEmpty()) {
+            val resolution = Regex("""\b(\d{3,4}p)\b""", RegexOption.IGNORE_CASE).find(title)?.groupValues?.get(1)
+            if (!resolution.isNullOrBlank()) {
+                return resolution.lowercase()
+            }
+            return title.take(10)
+        }
+        return if (availableVideos.isNotEmpty()) {
+            "线路${currentVideoIndex + 1}"
+        } else {
+            getString(org.skepsun.kototoro.R.string.video_quality)
+        }
     }
 
     private fun observeFoldableStateForOrientation() {
@@ -1192,8 +1169,12 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                                     return@runCatching true
                                 }
                             }
-                            val pages = repo.getPages(currentChapter)
-                            val fallbackVideos = pages.toFallbackVideos(repo)
+                            val cloudstreamPages = (repo as? CloudstreamContentRepository)
+                                ?.getPlaybackPages(currentChapter)
+                            val pages = cloudstreamPages?.map { it.toContentPage(manga.source) }
+                                ?: repo.getPages(currentChapter)
+                            val fallbackVideos = cloudstreamPages?.toFallbackVideos()
+                                ?: pages.toFallbackVideos(repo)
                             if (fallbackVideos.isNotEmpty()) {
                                 availableVideos = fallbackVideos
                                 updateQualityButtonVisibility()
@@ -1215,20 +1196,36 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                                 )
                                 return@runCatching true
                             }
-                            val page = pages.firstOrNull()
-                            if (page != null) {
-                                val streamUrl = repo.getPageUrl(page)
-                                val streamHeaders = mergeHeaders(repo.getRequestHeaders(), page.headers)
-                                pendingExternalSubtitles = page.externalSubtitleTracks.map { track ->
+                            val cloudstreamPage = cloudstreamPages?.firstOrNull()
+                            if (cloudstreamPage != null) {
+                                val streamHeaders = mergeHeaders(repo.getRequestHeaders(), cloudstreamPage.headers)
+                                pendingExternalSubtitles = cloudstreamPage.subtitleTracks.map { track ->
                                     eu.kanade.tachiyomi.animesource.model.Track(
-                                        url = resolveExternalSubtitleUrl(track),
+                                        url = resolveExternalSubtitleUrl(track.url, track.headers),
                                         lang = track.lang,
                                     )
                                 }
                                 pendingExternalAudio = emptyList()
                                 Log.d(
                                     "VideoPlayerActivity",
-                                    "Selected fallback page for chapter=${currentChapter.id} url=$streamUrl headers=${streamHeaders.keys} source=${manga.source.name} subtitles=${page.externalSubtitleTracks.size}",
+                                    "Selected cloudstream fallback page for chapter=${currentChapter.id} url=${cloudstreamPage.url} headers=${streamHeaders.keys} source=${manga.source.name} subtitles=${cloudstreamPage.subtitleTracks.size}",
+                                )
+                                availableVideos = emptyList()
+                                currentVideoIndex = 0
+                                updateQualityButtonVisibility()
+                                currentVideoSource = manga.source
+                                prepareAndPlay(cloudstreamPage.url, manga.source, streamHeaders, startMs = startMs)
+                                return@runCatching true
+                            }
+                            val page = pages.firstOrNull()
+                            if (page != null) {
+                                val streamUrl = repo.getPageUrl(page)
+                                val streamHeaders = mergeHeaders(repo.getRequestHeaders(), page.headers)
+                                pendingExternalSubtitles = emptyList()
+                                pendingExternalAudio = emptyList()
+                                Log.d(
+                                    "VideoPlayerActivity",
+                                    "Selected fallback page for chapter=${currentChapter.id} url=$streamUrl headers=${streamHeaders.keys} source=${manga.source.name}",
                                 )
                                 availableVideos = emptyList()
                                 currentVideoIndex = 0
@@ -1702,6 +1699,22 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 .getOrNull()
                 ?.takeIf { it.isNotBlank() }
                 ?: return@mapNotNull null
+            Video(
+                videoUrl = streamUrl,
+                videoTitle = "",
+                resolution = null,
+                headers = page.headers
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { headers ->
+                        Headers.headersOf(*headers.flatMap { listOf(it.key, it.value) }.toTypedArray())
+                    },
+                subtitleTracks = emptyList(),
+            )
+        }
+    }
+
+    private fun List<CloudstreamPlaybackPage>.toFallbackVideos(): List<Video> {
+        return map { page ->
             val title = buildString {
                 page.playbackLabel?.trim()?.takeIf { it.isNotEmpty() }?.let { append(it) }
                 page.playbackQuality?.takeIf { it > 0 }?.let { quality ->
@@ -1710,7 +1723,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 }
             }
             Video(
-                videoUrl = streamUrl,
+                videoUrl = page.url,
                 videoTitle = title,
                 resolution = page.playbackQuality,
                 headers = page.headers
@@ -1718,9 +1731,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     ?.let { headers ->
                         Headers.headersOf(*headers.flatMap { listOf(it.key, it.value) }.toTypedArray())
                     },
-                subtitleTracks = page.externalSubtitleTracks.map { track ->
+                subtitleTracks = page.subtitleTracks.map { track ->
                     eu.kanade.tachiyomi.animesource.model.Track(
-                        url = resolveExternalSubtitleUrl(track),
+                        url = resolveExternalSubtitleUrl(track.url, track.headers),
                         lang = track.lang,
                     )
                 },
@@ -1739,21 +1752,11 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        rebuildToolbarMenuForOrientation()
-        adjustToolbarForOrientation()
-        updateStatusBarByToolbar()
-        rearrangeBottomToolbarForOrientation()
-
-		applyControlsAlpha()
+        wireControllerButtons()
+        applyPlayerUiState(playerUiState)
+        applyControlsAlpha()
         applySubtitleOverlayStyle()
-        
-        // Update title/subtitle after configuration change to ensure they persist
         updateTitleAndSubtitle()
-        
-        // 屏幕旋转后重新绑定按钮事件（布局已通过 layout-port 自动切换?
-        findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)?.post {
-            wireControllerButtons()
-        }
     }
 
     private fun toggleUiVisibility() {
@@ -1776,7 +1779,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         viewBinding.toolbar.setTitleTextColor(titleColor)
         viewBinding.toolbar.setSubtitleTextColor(subtitleColor)
 
-        findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)?.let { ctl ->
+        allControllers().forEach { ctl ->
             ctl.alpha = 1f
             ctl.findViewById<View>(org.skepsun.kototoro.R.id.toolbar_docked)
                 ?.setBackgroundColor(if (useGradient) android.graphics.Color.TRANSPARENT else colored)
@@ -1806,42 +1809,62 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
 
     private fun setUiIsVisible(visible: Boolean) {
-        isUiVisible = visible
-        val isLandscape = isLandscapeOrientation()
-        val showTopBar = visible
-        viewBinding.toolbar.isVisible = showTopBar
-        if (!showTopBar) {
-            viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.toolbar_secondary)?.isVisible = false
+        applyPlayerUiState(if (visible) PlayerUiState.ControlsVisible else PlayerUiState.Hidden)
+    }
+
+    private fun applyPlayerUiState(state: PlayerUiState) {
+        playerUiState = state
+        isUiVisible = state == PlayerUiState.ControlsVisible
+
+        val controlsVisible = state == PlayerUiState.ControlsVisible
+        val topBar = viewBinding.toolbar
+        val secondaryToolbar =
+            viewBinding.root.findViewById<com.google.android.material.appbar.MaterialToolbar>(
+                org.skepsun.kototoro.R.id.toolbar_secondary,
+            )
+        val statusBarScrim = viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.status_bar_scrim)
+        val topGradient = viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.top_gradient)
+        val bottomGradient = viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.bottom_gradient)
+        val controller = currentController()
+        val lockOverlay = findViewById<View>(org.skepsun.kototoro.R.id.lock_overlay)
+        val unlockButton = findViewById<View>(org.skepsun.kototoro.R.id.button_screen_unlock)
+        val subtitleOverlay = findViewById<View>(org.skepsun.kototoro.R.id.subtitle_overlay)
+
+        topBar.isVisible = controlsVisible
+        if (!controlsVisible) {
+            secondaryToolbar?.isVisible = false
         }
-        // 顶部状态栏遮罩与工具栏同步显隐（横屏隐藏，避免拥挤?
-        viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.status_bar_scrim)?.isVisible = showTopBar
-        viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.top_gradient)?.isVisible = showTopBar
-        viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.bottom_gradient)?.isVisible = showTopBar
-        if (visible) {
-            // 确保渐变在视频之上，但在控件之下，避免遮住底部控件导致变?
-            viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.top_gradient)?.bringToFront()
-            viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.bottom_gradient)?.bringToFront()
-            viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.status_bar_scrim)?.bringToFront()
+        statusBarScrim?.isVisible = controlsVisible
+        topGradient?.isVisible = controlsVisible
+        bottomGradient?.isVisible = controlsVisible
+
+        if (controlsVisible) {
+            topGradient?.bringToFront()
+            bottomGradient?.bringToFront()
+            statusBarScrim?.bringToFront()
             viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.toolbar_container)?.bringToFront()
-            findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)?.bringToFront()
-            // Make sure feedback overlays are on top of everything including the controller
+            controller?.bringToFront()
             findViewById<View>(org.skepsun.kototoro.R.id.seek_feedback_layout)?.bringToFront()
             findViewById<View>(org.skepsun.kototoro.R.id.overlay_seek_left)?.bringToFront()
             findViewById<View>(org.skepsun.kototoro.R.id.overlay_seek_right)?.bringToFront()
             findViewById<View>(org.skepsun.kototoro.R.id.overlay_play_pause)?.bringToFront()
         }
-        // 播放器控件显隐与系统栏解耦，避免折叠屏任务栏随下工具栏一起唤出并重叠
+
         systemUiController.setSystemUiVisible(false)
         updateStatusBarByToolbar()
-        if (visible) {
+
+        if (controlsVisible) {
             rebuildToolbarMenuForOrientation()
             adjustToolbarForOrientation()
             rearrangeBottomToolbarForOrientation()
             updatePlayPauseButton()
+        } else {
+            viewBinding.toolbar.menu.clear()
+            secondaryToolbar?.menu?.clear()
         }
-        // 同步外部 PlayerControlView 与顶部工具栏显隐
-        findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)?.let { ctl ->
-            if (visible) {
+
+        allControllers().forEach { ctl ->
+            if (controlsVisible && ctl == controller) {
                 ctl.visibility = View.VISIBLE
                 ctl.alpha = 1f
                 applyControllerTint(ctl)
@@ -1849,27 +1872,33 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 ctl.visibility = View.GONE
             }
         }
-        // 由外?PlayerControlView 控制底部显隐
+
+        if (state == PlayerUiState.Locked) {
+            lockOverlay?.isVisible = true
+            lockOverlay?.bringToFront()
+            subtitleOverlay?.bringToFront()
+        } else {
+            lockOverlay?.isVisible = false
+            unlockButton?.isVisible = false
+            unlockButton?.alpha = 1f
+        }
+
         viewBinding.root.requestApplyInsets()
-        if (visible) {
-            viewBinding.root.removeCallbacks(hideUiRunnable)
-            // If user is scrubbing (either horizontal or vertical), DON'T start auto-hide timer
+        viewBinding.root.removeCallbacks(hideUiRunnable)
+        viewBinding.root.removeCallbacks(progressUpdateRunnable)
+        viewBinding.root.removeCallbacks(hideLockUiRunnable)
+        viewBinding.root.removeCallbacks(controllerProgressRunnable)
+
+        if (controlsVisible) {
             if (!isHorizontalScrubbing && !isUserScrubbing && verticalAdjustMode == 0) {
                 viewBinding.root.postDelayed(hideUiRunnable, autoHideDelayMs.toLong())
             }
-            viewBinding.root.removeCallbacks(progressUpdateRunnable)
             updateToolbarProgress()
             viewBinding.root.postDelayed(progressUpdateRunnable, progressUpdateIntervalMs.toLong())
-            // 同步启动底部控制条定时更?
-            viewBinding.root.removeCallbacks(controllerProgressRunnable)
             updateControllerProgress()
             viewBinding.root.postDelayed(controllerProgressRunnable, controllerProgressIntervalMs.toLong())
         } else {
-            viewBinding.root.removeCallbacks(hideUiRunnable)
-            viewBinding.root.removeCallbacks(progressUpdateRunnable)
-            viewBinding.root.removeCallbacks(controllerProgressRunnable)
             viewBinding.toolbarProgress.isVisible = false
-            viewBinding.toolbar.menu.clear()
         }
     }
 
@@ -1880,35 +1909,23 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         findViewById<View>(org.skepsun.kototoro.R.id.button_screen_unlock)?.let {
             it.animate().alpha(0f).setDuration(200).withEndAction { it.isVisible = false }.start()
         }
-        // Also hide the progress bar when locked
-        findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)?.let { ctl ->
-            ctl.animate().alpha(0f).setDuration(200).withEndAction { ctl.visibility = View.GONE }.start()
-        }
-        viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.bottom_gradient)?.isVisible = false
     }
 
     private fun enterScreenLock() {
         isScreenLocked = true
-        // Hide all UI first
-        setUiIsVisible(false)
-        // Show the lock overlay to intercept touches
-        val lockOverlay = findViewById<View>(org.skepsun.kototoro.R.id.lock_overlay)
-        lockOverlay?.isVisible = true
-        lockOverlay?.bringToFront()
-        // Make sure unlock button and subtitle overlay stay on top
-        findViewById<View>(org.skepsun.kototoro.R.id.subtitle_overlay)?.bringToFront()
+        updateScreenLockButtonState()
+        applyPlayerUiState(PlayerUiState.Locked)
     }
 
     private fun exitScreenLock() {
         isScreenLocked = false
+        updateScreenLockButtonState()
         viewBinding.root.removeCallbacks(hideLockUiRunnable)
-        // Hide lock overlay and unlock button
         findViewById<View>(org.skepsun.kototoro.R.id.lock_overlay)?.isVisible = false
         val unlockBtn = findViewById<View>(org.skepsun.kototoro.R.id.button_screen_unlock)
         unlockBtn?.isVisible = false
         unlockBtn?.alpha = 1f
-        // Restore normal UI
-        setUiIsVisible(true)
+        applyPlayerUiState(PlayerUiState.ControlsVisible)
     }
 
     private fun showLockedUi() {
@@ -1919,25 +1936,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         unlockBtn?.isVisible = true
         unlockBtn?.animate()?.alpha(1f)?.setDuration(200)?.start()
         unlockBtn?.bringToFront()
-        // Show the bottom progress bar (controller) in read-only mode
-        findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)?.let { ctl ->
-            ctl.alpha = 0f
-            ctl.visibility = View.VISIBLE
-            ctl.animate().alpha(1f).setDuration(200).start()
-            ctl.bringToFront()
-        }
-        viewBinding.root.findViewById<View>(org.skepsun.kototoro.R.id.bottom_gradient)?.let {
-            it.isVisible = true
-            it.bringToFront()
-            findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)?.bringToFront()
-        }
-        // Make sure lock overlay stays on top of controller so touches are intercepted
         val lockOverlay = findViewById<View>(org.skepsun.kototoro.R.id.lock_overlay)
         lockOverlay?.bringToFront()
         unlockBtn?.bringToFront()
-        // Update progress display
-        updateControllerProgress()
-        // Auto-hide after timeout
         viewBinding.root.postDelayed(hideLockUiRunnable, lockAutoHideDelayMs)
     }
 
@@ -1980,25 +1981,134 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
 
     private fun updateIntroOutroButtonState() {
-        val ctl = findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller)
-        val introBtn = ctl?.findViewById<TextView>(org.skepsun.kototoro.R.id.button_mark_intro)
-        val outroBtn = ctl?.findViewById<TextView>(org.skepsun.kototoro.R.id.button_mark_outro)
-        val activeColor = android.graphics.Color.parseColor("#FF4CAF50") // green
-        val defaultColor = android.graphics.Color.WHITE
+        allControllers().forEach { ctl ->
+            val introButton = ctl.findViewById<com.google.android.material.button.MaterialButton>(
+                org.skepsun.kototoro.R.id.button_mark_intro,
+            )
+            val outroButton = ctl.findViewById<com.google.android.material.button.MaterialButton>(
+                org.skepsun.kototoro.R.id.button_mark_outro,
+            )
+            introButton?.isVisible = isLandscapeOrientation()
+            outroButton?.isVisible = isLandscapeOrientation()
+            introButton?.text = if (introEndMs > 0) formatTimeMs(introEndMs) else getString(R.string.video_mark_intro)
+            outroButton?.text = if (outroStartMs > 0) formatTimeMs(outroStartMs) else getString(R.string.video_mark_outro)
+        }
+    }
+
+    private fun updateScreenLockButtonState() {
+        allControllers().forEach { ctl ->
+            val lockButton = ctl.findViewById<com.google.android.material.button.MaterialButton>(
+                org.skepsun.kototoro.R.id.button_screen_lock,
+            ) ?: return@forEach
+            lockButton.setIconResource(
+                if (isScreenLocked) org.skepsun.kototoro.R.drawable.ic_lock_open
+                else org.skepsun.kototoro.R.drawable.ic_lock,
+            )
+            lockButton.contentDescription = getString(
+                if (isScreenLocked) org.skepsun.kototoro.R.string.video_screen_unlock
+                else org.skepsun.kototoro.R.string.video_screen_lock,
+            )
+        }
+    }
+
+    private fun showOverflowMenu() {
+        val toolbar = if (isLandscapeOrientation()) {
+            viewBinding.toolbar
+        } else {
+            findViewById<com.google.android.material.appbar.MaterialToolbar>(org.skepsun.kototoro.R.id.toolbar_secondary)
+                ?: viewBinding.toolbar
+        }
+        val anchor = toolbar.menuView?.findViewById<View>(org.skepsun.kototoro.R.id.action_more) ?: toolbar
+        val popup = PopupMenu(this, anchor)
+        val showMarkerActions = !isLandscapeOrientation()
+        var order = 0
+        if (showMarkerActions) {
+            popup.menu.add(0, 1, order++, buildIntroMenuTitle())
+            popup.menu.add(0, 2, order++, buildOutroMenuTitle())
+        }
+        popup.menu.add(0, 3, order++, getString(R.string.rotate_screen))
+        popup.menu.add(0, 4, order++, getString(R.string.video_aspect_ratio))
+        popup.menu.add(0, 5, order, getString(R.string.video_more_settings))
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                1 -> {
+                    toggleIntroMarker()
+                    true
+                }
+                2 -> {
+                    toggleOutroMarker()
+                    true
+                }
+                3 -> {
+                    orientationHelper.isLandscape = !orientationHelper.isLandscape
+                    true
+                }
+                4 -> {
+                    showAspectRatioDialog()
+                    true
+                }
+                5 -> {
+                    showVideoSettingsSheet()
+                    true
+                }
+                else -> false
+            }
+        }
+        popup.show()
+    }
+
+    private fun buildIntroMenuTitle(): String {
+        return if (introEndMs > 0) {
+            getString(R.string.video_mark_intro) + ": " + formatTimeMs(introEndMs)
+        } else {
+            getString(R.string.video_mark_intro)
+        }
+    }
+
+    private fun buildOutroMenuTitle(): String {
+        return if (outroStartMs > 0) {
+            getString(R.string.video_mark_outro) + ": " + formatTimeMs(outroStartMs)
+        } else {
+            getString(R.string.video_mark_outro)
+        }
+    }
+
+    private fun toggleIntroMarker() {
+        if (currentMangaId == 0L) return
         if (introEndMs > 0) {
-            introBtn?.text = formatTimeMs(introEndMs)
-            introBtn?.setTextColor(activeColor)
+            introEndMs = 0L
+            appSettings.clearIntroEndMs(currentMangaId)
+            Snackbar.make(viewBinding.root, R.string.video_skip_intro_cleared, Snackbar.LENGTH_SHORT).show()
         } else {
-            introBtn?.text = getString(R.string.video_mark_intro)
-            introBtn?.setTextColor(defaultColor)
+            val pos = mpvPlayer?.positionMs ?: return
+            introEndMs = pos
+            appSettings.setIntroEndMs(currentMangaId, pos)
+            Snackbar.make(
+                viewBinding.root,
+                getString(R.string.video_skip_intro_set, formatTimeMs(pos)),
+                Snackbar.LENGTH_SHORT,
+            ).show()
         }
+        updateIntroOutroButtonState()
+    }
+
+    private fun toggleOutroMarker() {
+        if (currentMangaId == 0L) return
         if (outroStartMs > 0) {
-            outroBtn?.text = formatTimeMs(outroStartMs)
-            outroBtn?.setTextColor(activeColor)
+            outroStartMs = 0L
+            appSettings.clearOutroStartMs(currentMangaId)
+            Snackbar.make(viewBinding.root, R.string.video_skip_outro_cleared, Snackbar.LENGTH_SHORT).show()
         } else {
-            outroBtn?.text = getString(R.string.video_mark_outro)
-            outroBtn?.setTextColor(defaultColor)
+            val pos = mpvPlayer?.positionMs ?: return
+            outroStartMs = pos
+            appSettings.setOutroStartMs(currentMangaId, pos)
+            Snackbar.make(
+                viewBinding.root,
+                getString(R.string.video_skip_outro_set, formatTimeMs(pos)),
+                Snackbar.LENGTH_SHORT,
+            ).show()
         }
+        updateIntroOutroButtonState()
     }
 
     private fun rebuildToolbarMenuForOrientation() {
@@ -2035,38 +2145,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
 
     private fun rearrangeBottomToolbarForOrientation() {
-        // 动态调整底部控制栏布局逻辑：根据方向将第三行的视图合并到第二行，或从第二行拆分到第三行
-        val ctl = findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller) ?: return
-        val row2 = ctl.findViewById<ViewGroup>(org.skepsun.kototoro.R.id.controls_row_2) ?: return
-        val row3 = ctl.findViewById<ViewGroup>(org.skepsun.kototoro.R.id.controls_row_3) ?: return
-
-        if (isLandscapeOrientation()) {
-            // 横屏：将 row3 中的所有子 View 移动?row2 末尾
-            while (row3.childCount > 0) {
-                val child = row3.getChildAt(0)
-                row3.removeView(child)
-                row2.addView(child)
-            }
-            row3.isVisible = false
-            
-            // 调整弹幕设置按钮的左边距 (原来在第三行是从头开始排需?marginStart，现在放到第二行紧跟着需要清除或保持)
-            // 简化处理：保留原样
-        } else {
-            // 竖屏：找?button_danmaku_toggle，将它及其后面的所?View 放回 row3
-            val toggleDanmakuBtn = row2.findViewById<View>(org.skepsun.kototoro.R.id.button_danmaku_toggle)
-            if (toggleDanmakuBtn != null) {
-                val index = row2.indexOfChild(toggleDanmakuBtn)
-                if (index != -1) {
-                    val count = row2.childCount - index
-                    for (i in 0 until count) {
-                        val child = row2.getChildAt(index)
-                        row2.removeView(child)
-                        row3.addView(child)
-                    }
-                }
-            }
-            row3.isVisible = true
-        }
+        updateIntroOutroButtonState()
     }
 
     private fun updatePlaybackMenu() {
@@ -2074,20 +2153,21 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
 
     private fun updatePlayPauseButton() {
-        val ctl = findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller) ?: return
-        val btn = ctl.findViewById<android.widget.ImageButton>(androidx.media3.ui.R.id.exo_play_pause) ?: return
         val isPlaying = mpvPlayer?.isPlaying == true
-        btn.isEnabled = true
-        btn.isClickable = true
-        btn.alpha = 1f
-        btn.setImageResource(
-            if (isPlaying) org.skepsun.kototoro.R.drawable.ic_pause
-            else org.skepsun.kototoro.R.drawable.ic_play
-        )
-        btn.contentDescription = getString(
-            if (isPlaying) org.skepsun.kototoro.R.string.pause
-            else org.skepsun.kototoro.R.string.play
-        )
+        allControllers().forEach { ctl ->
+            val btn = ctl.findViewById<android.widget.ImageButton>(androidx.media3.ui.R.id.exo_play_pause) ?: return@forEach
+            btn.isEnabled = true
+            btn.isClickable = true
+            btn.alpha = 1f
+            btn.setImageResource(
+                if (isPlaying) org.skepsun.kototoro.R.drawable.ic_pause
+                else org.skepsun.kototoro.R.drawable.ic_play,
+            )
+            btn.contentDescription = getString(
+                if (isPlaying) org.skepsun.kototoro.R.string.pause
+                else org.skepsun.kototoro.R.string.play,
+            )
+        }
     }
 
     private fun applyControllerTint(ctl: PlayerControlView) {
@@ -2107,9 +2187,8 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             org.skepsun.kototoro.R.id.button_prev_chapter,
             org.skepsun.kototoro.R.id.button_next_chapter,
             org.skepsun.kototoro.R.id.button_pages_thumbs,
-            org.skepsun.kototoro.R.id.button_danmaku_send,
-            org.skepsun.kototoro.R.id.button_rotate_screen,
             org.skepsun.kototoro.R.id.button_quality,
+            org.skepsun.kototoro.R.id.button_screen_lock,
         )
         iconButtons.forEach { id ->
             val view = ctl.findViewById<View>(id)
@@ -2118,21 +2197,6 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 is com.google.android.material.button.MaterialButton -> view.iconTint = whiteList
             }
         }
-        ctl.findViewById<TextView>(
-            org.skepsun.kototoro.R.id.button_danmaku_toggle,
-        )?.setTextColor(white)
-        ctl.findViewById<android.widget.ImageView>(
-            org.skepsun.kototoro.R.id.button_danmaku_settings,
-        )?.setColorFilter(white)
-        updateDanmakuToggleState()
-    }
-
-    private fun updateDanmakuToggleState() {
-        val ctl = findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller) ?: return
-        val btn = ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_danmaku_toggle) ?: return
-        val enabled = appSettings.videoDanmakuEnabled
-        btn.alpha = if (enabled) 1f else 0.45f
-        btn.setBackgroundResource(org.skepsun.kototoro.R.drawable.bg_danmaku_tv)
     }
 
     private fun updateToolbarProgress() {
@@ -2157,7 +2221,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         if (!isUiVisible) return
         // 用户拖动时不要覆?timebar 的临时位置，否则会导致“拖不动/点不准”的体验
         if (isUserScrubbing) return
-        val ctl = findViewById<androidx.media3.ui.PlayerControlView>(org.skepsun.kototoro.R.id.controller) ?: return
+        val ctl = currentController() ?: return
         if (ctl.visibility != View.VISIBLE) return
 
         val p = mpvPlayer ?: return
@@ -2289,14 +2353,14 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         }
     }
 
-    private fun resolveExternalSubtitleUrl(track: ContentExternalTrack): String {
-        val headers = track.headers.orEmpty()
-        if (headers.isEmpty()) return track.url
+    private fun resolveExternalSubtitleUrl(url: String, headers: Map<String, String>? = null): String {
+        val resolvedHeaders = headers.orEmpty()
+        if (resolvedHeaders.isEmpty()) return url
         return runCatching {
-            videoLocalCacheProxy.getProxyUrl(track.url, headers)
+            videoLocalCacheProxy.getProxyUrl(url, resolvedHeaders)
         }.onFailure { error ->
-            Log.w("VideoPlayerActivity", "Failed to proxy external subtitle: ${track.url}", error)
-        }.getOrDefault(track.url)
+            Log.w("VideoPlayerActivity", "Failed to proxy external subtitle: $url", error)
+        }.getOrDefault(url)
     }
 
     /**
@@ -2685,6 +2749,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 val video = availableVideos[which]
                 val resumeMs = mpvPlayer?.positionMs ?: 0L
                 currentVideoIndex = which
+                updateQualityButtonLabel()
                 pendingExternalSubtitles = video.subtitleTracks
                 pendingExternalAudio = video.audioTracks
                 val repo = currentVideoSource?.let { src -> mangaRepositoryFactory.create(src) }
@@ -2695,6 +2760,27 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     mergedHeaders,
                     resumeMs,
                 )
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showAspectRatioDialog() {
+        val options = arrayOf(
+            R.string.video_aspect_ratio_fit,
+            R.string.video_aspect_ratio_fill,
+            R.string.video_aspect_ratio_16_9,
+            R.string.video_aspect_ratio_4_3,
+            R.string.video_aspect_ratio_stretch,
+        )
+        val labels = options.map(::getString).toTypedArray()
+        val checked = appSettings.videoAspectRatio.coerceIn(0, options.lastIndex)
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.video_aspect_ratio)
+            .setSingleChoiceItems(labels, checked) { dialog, which ->
+                appSettings.videoAspectRatio = which
+                applyAspectRatio()
                 dialog.dismiss()
             }
             .setNegativeButton(android.R.string.cancel, null)
@@ -2749,7 +2835,6 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             maxScreenNum = appSettings.videoDanmakuMaxScreenNum,
         )
         danmakuController.applySettings(settings)
-        updateDanmakuToggleState()
         if (!settings.enabled) {
             danmakuController.setVisible(false)
         } else {
@@ -3323,13 +3408,15 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             rightMargin = bars.right
         }
         // ?DockedToolbar 与系统导航栏视觉合并：使用内边距吸收导航栏高度，避免底部留白
-        val dockedToolbar = findViewById<View>(org.skepsun.kototoro.R.id.toolbar_docked)
-        dockedToolbar?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-            leftMargin = bars.left
-            rightMargin = bars.right
-            bottomMargin = 0
+        allControllers().forEach { ctl ->
+            val dockedToolbar = ctl.findViewById<View>(org.skepsun.kototoro.R.id.toolbar_docked)
+            dockedToolbar?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                leftMargin = bars.left
+                rightMargin = bars.right
+                bottomMargin = 0
+            }
+            dockedToolbar?.updatePadding(bottom = bottomSafeInset)
         }
-        dockedToolbar?.updatePadding(bottom = bottomSafeInset)
         // PlayerView 内容保持与左右系统栏对齐，底部不再额外内边距，避免与 DockedToolbar 重叠留白
         findViewById<View>(org.skepsun.kototoro.R.id.player_view).updatePadding(
             left = bars.left,
@@ -3474,17 +3561,19 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
 
     private fun updateChapterNavButtons() {
-        val ctl = findViewById<PlayerControlView>(org.skepsun.kototoro.R.id.controller) ?: return
-        val prev = ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_prev_chapter)
-        val next = ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_next_chapter)
-
         // 从 ViewModel 读取实时章节列表，而不是 intent 启动时的快照
         val chapters = chaptersViewModel.chapters.value.map { it.chapter }
         if (chapters.isEmpty()) {
-            prev?.isEnabled = false
-            prev?.alpha = 0.4f
-            next?.isEnabled = false
-            next?.alpha = 0.4f
+            allControllers().forEach { ctl ->
+                ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_prev_chapter)?.apply {
+                    isEnabled = false
+                    alpha = 0.4f
+                }
+                ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_next_chapter)?.apply {
+                    isEnabled = false
+                    alpha = 0.4f
+                }
+            }
             return
         }
 
@@ -3493,10 +3582,16 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val hasPrev = currentIndex > 0
         val hasNext = currentIndex < chapters.lastIndex
 
-        prev?.isEnabled = hasPrev
-        prev?.alpha = if (hasPrev) 1f else 0.4f
-        next?.isEnabled = hasNext
-        next?.alpha = if (hasNext) 1f else 0.4f
+        allControllers().forEach { ctl ->
+            ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_prev_chapter)?.apply {
+                isEnabled = hasPrev
+                alpha = if (hasPrev) 1f else 0.4f
+            }
+            ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_next_chapter)?.apply {
+                isEnabled = hasNext
+                alpha = if (hasNext) 1f else 0.4f
+            }
+        }
     }
 
     private fun navigateChapter(offset: Int) {
@@ -3571,12 +3666,13 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
         // Explicitly update the bottom TimeBar during gesture.
         // We use viewBinding since PlayerControlView is not strictly tied to an ExoPlayer here.
-        val progressView = viewBinding.controller.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_progress) as? androidx.media3.ui.TimeBar
+        val progressView = currentController()
+            ?.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_progress) as? androidx.media3.ui.TimeBar
         if (progressView != null && durationMs > 0) {
             progressView.setDuration(durationMs)
             progressView.setPosition(posMs)
         }
-        val posView = viewBinding.controller.findViewById<android.widget.TextView>(androidx.media3.ui.R.id.exo_position)
+        val posView = currentController()?.findViewById<android.widget.TextView>(androidx.media3.ui.R.id.exo_position)
         if (posView != null) {
             posView.text = formatTimeMs(posMs, showHours)
         }
