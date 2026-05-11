@@ -27,14 +27,11 @@
 		android:id="@+id/slider"
 		android:layout_width="0dp"
 		android:layout_height="wrap_content"
-		android:layout_marginHorizontal="10dp"
 		android:layout_weight="1"
 		android:stepSize="1.0"
 		android:valueFrom="0"
 		android:visibility="visible"
-		app:labelBehavior="gone"
-		app:thumbRadius="6dp"
-		app:trackHeight="3dp"
+		app:labelBehavior="floating"
 		tools:value="6"
 		tools:valueTo="20" />
 

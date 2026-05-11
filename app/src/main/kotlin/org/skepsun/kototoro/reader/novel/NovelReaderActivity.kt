@@ -340,11 +340,15 @@ class NovelReaderActivity :
         viewBinding.toolbar.subtitle = getString(R.string.loading_)
 
         viewBinding.actionsView.listener = this
-        viewBinding.actionsView.setCompactNavigationMode(true)
         viewBinding.actionsView.setTranslateButtonVisible(true)
         viewBinding.actionsView.setTranslateActive(false)
         setupImageHeaders()
         setupTtsControls()
+
+        // 设置章节列表按钮点击事件
+        viewBinding.actionsView.findViewById<View>(R.id.button_pages_thumbs)?.setOnClickListener {
+            showChaptersSheet()
+        }
 
         viewBinding.readerView.onPageChangeListener = { page, total ->
             // 显示用页码按双页 spread 计数，实际进度用字符比例
@@ -656,20 +660,6 @@ class NovelReaderActivity :
 
     override fun openMenu() {
         showConfigSheet()
-    }
-
-    override fun onPagesButtonClick(): Boolean {
-        if (!viewBinding.actionsView.isSecondaryNavigationExpanded()) {
-            viewBinding.actionsView.setSecondaryNavigationExpanded(true)
-        } else {
-            showChaptersSheet()
-        }
-        return true
-    }
-
-    override fun onPagesButtonLongClick(): Boolean {
-        showChaptersSheet()
-        return true
     }
 
     override fun onTranslateClick() {
@@ -2401,9 +2391,6 @@ class NovelReaderActivity :
     }
 
     private fun setUiVisible(visible: Boolean) {
-        if (!visible) {
-            viewBinding.actionsView.setSecondaryNavigationExpanded(false)
-        }
         if (viewBinding.appbarTop.isVisible != visible) {
             val isTtsBarActive = viewBinding.ttsControlBar.visibility == View.VISIBLE
             
@@ -2430,6 +2417,7 @@ class NovelReaderActivity :
                 viewBinding.actionsView.isVisible = visible
             } else {
                 viewBinding.toolbarDocked.isVisible = visible
+                viewBinding.actionsView.isVisible = visible
             }
             
             // 只有在工具栏隐藏、全屏模式且开启了阅读状态显示时，才显示 infoBar
@@ -2547,7 +2535,6 @@ class NovelReaderActivity :
      * 显示章节选择器
      */
     private fun showChaptersSheet() {
-        viewBinding.actionsView.setSecondaryNavigationExpanded(false)
         android.util.Log.d("NovelReaderActivity", "showChaptersSheet: chapters.size=${chapters.size}, currentChapterIndex=$currentChapterIndex")
         if (chapters.isEmpty()) {
             viewBinding.toastView.showTemporary("暂无章节", 1500L)
@@ -2567,7 +2554,6 @@ class NovelReaderActivity :
      * 显示设置面板
      */
     private fun showConfigSheet() {
-        viewBinding.actionsView.setSecondaryNavigationExpanded(false)
         val sheet = NovelReaderConfigSheet.newInstance()
         sheet.show(supportFragmentManager, "novel_config")
     }
@@ -3033,12 +3019,6 @@ class NovelReaderActivity :
         viewBinding.appbarTop.backgroundTintList = toolbarBackground
         viewBinding.toolbarDocked.backgroundTintList = toolbarBackground
         viewBinding.layoutLoading.backgroundTintList = toolbarBackground
-        viewBinding.actionsView.setSliderColors(
-            activeColor = ColorUtils.setAlphaComponent(palette.chromeTextColor, if (palette.isDark) 214 else 196),
-            inactiveColor = ColorUtils.setAlphaComponent(palette.chromeTextColor, if (palette.isDark) 74 else 62),
-            thumbColor = palette.chromeTextColor,
-            haloColor = ColorUtils.setAlphaComponent(palette.chromeTextColor, if (palette.isDark) 56 else 44),
-        )
 
         viewBinding.textViewLoading.setTextColor(palette.chromeTextColor)
         viewBinding.progressBar.setIndicatorColor(palette.chromeTextColor)

@@ -1,7 +1,6 @@
 package org.skepsun.kototoro.reader.ui
 
 import android.content.Context
-import android.content.res.ColorStateList
 import android.content.SharedPreferences
 import android.database.ContentObserver
 import android.provider.Settings
@@ -13,12 +12,9 @@ import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import androidx.annotation.AttrRes
-import androidx.core.graphics.ColorUtils
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
-import com.google.android.material.color.MaterialColors
 import com.google.android.material.slider.Slider
-import com.google.android.material.slider.TickVisibilityMode
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.AppRouter
@@ -35,7 +31,6 @@ import org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet.Companion.TAB_PA
 import org.skepsun.kototoro.reader.ui.ReaderControlDelegate.OnInteractionListener
 import javax.inject.Inject
 import com.google.android.material.R as materialR
-import androidx.appcompat.R as appcompatR
 
 @AndroidEntryPoint
 class ReaderActionsView @JvmOverloads constructor(
@@ -63,17 +58,12 @@ class ReaderActionsView @JvmOverloads constructor(
 	private var isSliderTracking = false
 	private var pageLabelFormatter: ((Int, Int) -> String)? = null
 	private var translateButtonRequestedVisible = false
-	private var compactNavigationMode = false
-	private var secondaryNavigationExpanded = false
-	private val sliderThumbSizeCompact by lazy { 12.dpToPx() }
-	private val sliderThumbSizeExpanded by lazy { 16.dpToPx() }
-	private val sliderHaloRadius by lazy { 22.dpToPx() }
 
 	var isSliderEnabled: Boolean
 		get() = binding.slider.isEnabled
 		set(value) {
 			binding.slider.isEnabled = value
-			binding.slider.setThumbVisible(value, expanded = value && isSliderTracking)
+			binding.slider.setThumbVisible(value)
 		}
 
 	var isNextEnabled: Boolean
@@ -112,7 +102,6 @@ class ReaderActionsView @JvmOverloads constructor(
 		binding.buttonDownload.initAction()
 		binding.buttonTranslate.initAction()
 		binding.slider.setLabelFormatter(PageLabelFormatter())
-		configureSliderAppearance()
 		binding.slider.addOnChangeListener(this)
 		binding.slider.addOnSliderTouchListener(this)
 		updateControlsVisibility()
@@ -140,9 +129,7 @@ class ReaderActionsView @JvmOverloads constructor(
 			R.id.button_next -> listener?.switchChapterBy(1)
 			R.id.button_save -> listener?.onSavePageClick()
 			R.id.button_timer -> listener?.onScrollTimerClick(isLongClick = false)
-			R.id.button_pages_thumbs -> if (listener?.onPagesButtonClick() != true) {
-				AppRouter.from(this)?.showChapterPagesSheet()
-			}
+			R.id.button_pages_thumbs -> AppRouter.from(this)?.showChapterPagesSheet()
 			R.id.button_screen_rotation -> listener?.toggleScreenOrientation()
 			R.id.button_options -> listener?.openMenu()
 			R.id.button_bookmark -> listener?.onBookmarkClick()
@@ -159,13 +146,6 @@ class ReaderActionsView @JvmOverloads constructor(
 
 		R.id.button_timer -> {
 			listener?.onScrollTimerClick(isLongClick = true)
-			true
-		}
-
-		R.id.button_pages_thumbs -> {
-			if (listener?.onPagesButtonLongClick() != true) {
-				AppRouter.from(this)?.showChapterPagesSheet()
-			}
 			true
 		}
 
@@ -193,13 +173,11 @@ class ReaderActionsView @JvmOverloads constructor(
 		if (!isSliderTracking) {
 			isSliderChanged = false
 			isSliderTracking = true
-			slider.setThumbVisible(slider.isEnabled, expanded = true)
 		}
 	}
 
 	override fun onStopTrackingTouch(slider: Slider) {
 		isSliderTracking = false
-		slider.setThumbVisible(slider.isEnabled, expanded = false)
 		if (isSliderChanged) {
 			listener?.switchPageTo(slider.value.toInt())
 		}
@@ -233,49 +211,11 @@ class ReaderActionsView @JvmOverloads constructor(
 		binding.slider.isRtl = reversed != isRtl
 	}
 
-	fun setSliderColors(
-		activeColor: Int,
-		inactiveColor: Int,
-		thumbColor: Int = activeColor,
-		haloColor: Int = ColorUtils.setAlphaComponent(activeColor, 72),
-	) {
-		binding.slider.trackActiveTintList = ColorStateList.valueOf(activeColor)
-		binding.slider.trackInactiveTintList = ColorStateList.valueOf(inactiveColor)
-		binding.slider.thumbTintList = ColorStateList.valueOf(thumbColor)
-		binding.slider.haloTintList = ColorStateList.valueOf(haloColor)
-		binding.slider.tickActiveTintList = ColorStateList.valueOf(activeColor)
-		binding.slider.tickInactiveTintList = ColorStateList.valueOf(inactiveColor)
-	}
-
 	fun setTimerActive(isActive: Boolean) {
 		binding.buttonTimer.setIconResource(
 			if (isActive) R.drawable.ic_timer_run else R.drawable.ic_timer,
 		)
 	}
-
-	fun setCompactNavigationMode(enabled: Boolean) {
-		if (compactNavigationMode == enabled) {
-			return
-		}
-		compactNavigationMode = enabled
-		if (!enabled) {
-			secondaryNavigationExpanded = false
-		}
-		updateControlsVisibility()
-	}
-
-	fun setSecondaryNavigationExpanded(expanded: Boolean) {
-		if (!compactNavigationMode) {
-			return
-		}
-		if (secondaryNavigationExpanded == expanded) {
-			return
-		}
-		secondaryNavigationExpanded = expanded
-		updateControlsVisibility()
-	}
-
-	fun isSecondaryNavigationExpanded(): Boolean = secondaryNavigationExpanded
 
 	/**
 	 * 显示/隐藏翻译按钮（仅在小说阅读器中显示）
@@ -322,34 +262,24 @@ class ReaderActionsView @JvmOverloads constructor(
 		binding.buttonDownload.isVisible = ReaderControl.DOWNLOAD in controls
 		binding.slider.isVisible = ReaderControl.SLIDER in controls
 		applyTranslateButtonVisibility()
-		applyCompactNavigationVisibility()
 		adjustLayoutParams()
 	}
 
 	private fun applyTranslateButtonVisibility() {
 		val visible = translateButtonRequestedVisible && ReaderControl.TRANSLATE in settings.readerControls
 		binding.buttonTranslate.isVisible = visible
-		(binding.buttonTranslate.parent as? android.view.View)?.isVisible = visible
+		(binding.buttonTranslate.parent as? View)?.isVisible = visible
 	}
 
 	private fun updatePagesSheetButton() {
 		val isPagesMode = settings.defaultDetailsTab == TAB_PAGES
 		val button = binding.buttonPagesThumbs
-		when {
-			compactNavigationMode && !secondaryNavigationExpanded -> {
-				button.setIconResource(R.drawable.ic_list_group)
-				button.setContentDescriptionAndTooltip(R.string.reader_navigation)
-			}
-
-			else -> {
-				button.setIconResource(
-					if (isPagesMode) R.drawable.ic_grid else R.drawable.ic_list,
-				)
-				button.setContentDescriptionAndTooltip(
-					if (isPagesMode) R.string.pages else R.string.chapters,
-				)
-			}
-		}
+		button.setIconResource(
+			if (isPagesMode) R.drawable.ic_grid else R.drawable.ic_list,
+		)
+		button.setContentDescriptionAndTooltip(
+			if (isPagesMode) R.string.pages else R.string.chapters,
+		)
 	}
 
 	private fun updateBookmarkButton() {
@@ -374,39 +304,6 @@ class ReaderActionsView @JvmOverloads constructor(
 				}
 			}
 		}
-	}
-
-	private fun applyCompactNavigationVisibility() {
-		if (!compactNavigationMode) {
-			updatePagesSheetButton()
-			return
-		}
-		val controls = settings.readerControls
-		val showNavigationEntry = ReaderControl.PAGES_SHEET in controls ||
-			ReaderControl.SLIDER in controls ||
-			ReaderControl.PREV_CHAPTER in controls ||
-			ReaderControl.NEXT_CHAPTER in controls
-		val isExpanded = secondaryNavigationExpanded
-
-		binding.slider.isVisible = isExpanded && ReaderControl.SLIDER in controls
-		binding.buttonPrev.isVisible = isExpanded && ReaderControl.PREV_CHAPTER in controls
-		binding.buttonNext.isVisible = isExpanded && ReaderControl.NEXT_CHAPTER in controls
-		binding.buttonPagesThumbs.isVisible = showNavigationEntry
-
-		binding.buttonSave.isVisible = false
-		binding.buttonTimer.isVisible = false
-		binding.buttonScreenRotation.isVisible = false
-		binding.buttonDownload.isVisible = false
-		binding.buttonBookmark.isVisible = !isExpanded && ReaderControl.BOOKMARK in controls
-
-		val showTranslate = !isExpanded &&
-			translateButtonRequestedVisible &&
-			ReaderControl.TRANSLATE in controls
-		binding.buttonTranslate.isVisible = showTranslate
-		(binding.buttonTranslate.parent as? View)?.isVisible = showTranslate
-		binding.buttonOptions.isVisible = true
-
-		updatePagesSheetButton()
 	}
 
 	private fun updateRotationButton() {
@@ -437,41 +334,16 @@ class ReaderActionsView @JvmOverloads constructor(
 		0,
 	) == 1
 
-	private fun configureSliderAppearance() {
-		binding.slider.apply {
-			trackStopIndicatorSize = 0
-			trackInsideCornerSize = 999.dpToPx()
-			thumbTrackGapSize = 0
-			haloRadius = sliderHaloRadius
-			tickVisibilityMode = TickVisibilityMode.TICK_VISIBILITY_HIDDEN
-			setThumbVisible(isEnabled, expanded = false)
+	private fun Slider.setThumbVisible(visible: Boolean) {
+		thumbWidth = if (visible) {
+			resources.getDimensionPixelSize(materialR.dimen.m3_comp_slider_active_handle_width)
+		} else {
+			0
 		}
-		applyDefaultSliderColors()
-	}
-
-	private fun applyDefaultSliderColors() {
-		val activeColor = MaterialColors.getColor(this, appcompatR.attr.colorPrimary, 0)
-		val inactiveBase = MaterialColors.getColor(this, materialR.attr.colorOnSurface, activeColor)
-		val inactiveColor = ColorUtils.setAlphaComponent(inactiveBase, 70)
-		setSliderColors(
-			activeColor = activeColor,
-			inactiveColor = inactiveColor,
-			thumbColor = activeColor,
-			haloColor = ColorUtils.setAlphaComponent(activeColor, 64),
-		)
-	}
-
-	private fun Slider.setThumbVisible(visible: Boolean, expanded: Boolean) {
-		val size = when {
-			!visible -> 0
-			expanded -> sliderThumbSizeExpanded
-			else -> sliderThumbSizeCompact
+		thumbHeight = if (visible) {
+			resources.getDimensionPixelSize(materialR.dimen.m3_comp_slider_active_handle_height)
+		} else {
+			0
 		}
-		thumbWidth = size
-		thumbHeight = size
-	}
-
-	private fun Int.dpToPx(): Int {
-		return (this * resources.displayMetrics.density).toInt()
 	}
 }

@@ -1286,7 +1286,6 @@
     <string name="novel_translation_progress_started">Novel translation started (%1$d/%2$d paragraphs)</string>
     <string name="novel_translation_progress_update">Novel translation progress %1$d/%2$d paragraphs</string>
     <string name="novel_translation_progress_complete">Novel translation complete (%1$d/%2$d paragraphs)</string>
-    <string name="reader_navigation">Reader navigation</string>
     <string name="reader_translation_task_panel_empty">No page tasks in current chapter.</string>
     <string name="reader_translation_task_panel_empty_for_filter">No tasks for filter: %1$s</string>
     <string name="reader_translation_task_panel_summary">Pages: %1$d | Ready: %2$d | Running: %3$d | Failed: %4$d</string>
