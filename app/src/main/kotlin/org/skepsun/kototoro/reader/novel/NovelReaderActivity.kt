@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.reader.novel
 
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Base64
@@ -9,6 +10,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.graphics.Insets
+import androidx.core.graphics.ColorUtils
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
@@ -39,6 +41,7 @@ import org.skepsun.kototoro.core.prefs.observeAsFlow
 import org.skepsun.kototoro.core.ui.BaseFullscreenActivity
 import org.skepsun.kototoro.core.util.ext.getParcelableExtraCompat
 import org.skepsun.kototoro.core.util.ext.isAnimationsEnabled
+import org.skepsun.kototoro.core.util.ext.isNightMode
 import org.skepsun.kototoro.databinding.ActivityNovelReaderV2Binding
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentChapter
@@ -122,6 +125,7 @@ class NovelReaderActivity :
     private var ttsService: org.skepsun.kototoro.reader.novel.tts.TtsService? = null
     private var isTtsBound = false
     private var ttsScrollModeChapterIndex: Int = -1
+    private var readerPalette: NovelReaderPalette? = null
 
     private val ttsConnection = object : android.content.ServiceConnection {
         override fun onServiceConnected(name: android.content.ComponentName?, service: android.os.IBinder?) {
@@ -385,12 +389,14 @@ class NovelReaderActivity :
         }
 
         viewBinding.readerView.updateSettings(readerSettings)
+        applyReaderPalette()
         
         // Initialize Continuous Scroll Adapter
         continuousAdapter = NovelContinuousAdapter(readerSettings) { image ->
             openInlineImage(image)
         }
         viewBinding.continuousScrollView.adapter = continuousAdapter
+        continuousAdapter?.updatePalette(readerPalette ?: buildReaderPalette())
         viewBinding.continuousScrollView.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: androidx.recyclerview.widget.RecyclerView, dx: Int, dy: Int) {
                 super.onScrolled(recyclerView, dx, dy)
@@ -2494,6 +2500,7 @@ class NovelReaderActivity :
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        applyReaderPalette()
         // 保存当前进度（按字符比例），用于横竖屏/单双页切换后的恢复
         val ratio = viewBinding.readerView.getProgressRatio()
         val currentStart = viewBinding.readerView.getCurrentCharOffset()
@@ -2720,6 +2727,7 @@ class NovelReaderActivity :
         viewBinding.infoBar.isGone = isUiVisible || !readerSettings.showReadingStatus
         // 更新阅读状态背景可见性
         viewBinding.infoBar.drawBackground = !readerSettings.isReadingStatusTransparent
+        viewBinding.infoBar.applyColorScheme(isBlackOnWhite = !(readerPalette?.isDark ?: resources.isNightMode))
         
         // 当 infoBar 可见性变化时，其 layout 监听器会更新 readerView 的 headerHeight
         // 当 isUiVisible 变化时，requestApplyInsets 会更新 readerView 的 padding
@@ -2734,37 +2742,24 @@ class NovelReaderActivity :
      * 更新状态栏和底部导航栏颜色
      */
     private fun updateSystemBarsColors() {
-        val typedValue = android.util.TypedValue()
+        val palette = readerPalette ?: buildReaderPalette()
+        val isDark = palette.isDark
+        val visibleBarColor = palette.chromeBackgroundColor
+        val immersiveBarColor = ColorUtils.setAlphaComponent(palette.backgroundColor, if (isDark) 242 else 248)
         
         // 状态栏
         if (!readerSettings.enableFullscreen) {
-            // 在非全屏模式下，给状态栏添加背景色，避免内容透过状态栏显示
-            theme.resolveAttribute(com.google.android.material.R.attr.colorSurface, typedValue, true)
-            window.statusBarColor = typedValue.data
+            window.statusBarColor = immersiveBarColor
         } else {
-            // 全屏模式下保持透明
             window.statusBarColor = android.graphics.Color.TRANSPARENT
         }
 
-        // 导航栏
-        if (isUiVisible) {
-            // 当底栏工具栏可见时，导航栏颜色应与其一致
-            theme.resolveAttribute(com.google.android.material.R.attr.colorSurface, typedValue, true)
-            val navColor = typedValue.data
-            window.navigationBarColor = navColor
-            
-            // 确保系统栏对比度正确（深色/浅色模式）
-            val isDark = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
-            androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
-                isAppearanceLightNavigationBars = !isDark
-            }
-            
-            // 确保导航栏背景生效
-            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
-        } else {
-            // 否则保持透明（沉浸式）
-            window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        window.navigationBarColor = if (isUiVisible) visibleBarColor else immersiveBarColor
+        androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightNavigationBars = !isDark
+            isAppearanceLightStatusBars = !isDark
         }
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
     }
 
     /**
@@ -2793,6 +2788,7 @@ class NovelReaderActivity :
                 try {
                     viewBinding.readerView.updateSettings(settings)
                     continuousAdapter?.updateSettings(settings)
+                    applyReaderPalette()
                     applyReadingModeToggles()
 
                     updateDualPageMode()
@@ -2949,7 +2945,6 @@ class NovelReaderActivity :
         if (isToolbarFloating == isFloating) return
         isToolbarFloating = isFloating
         val toolbar = viewBinding.toolbarDocked
-        if (toolbar == null) return
         val radius = if (isFloating) 24 * resources.displayMetrics.density else 0f
         
         if (toolbar is com.google.android.material.card.MaterialCardView) {
@@ -2967,12 +2962,12 @@ class NovelReaderActivity :
         val handleBgColor = { targetView: View ->
             if (targetView.background is com.google.android.material.shape.MaterialShapeDrawable) {
                 val bg = targetView.background as com.google.android.material.shape.MaterialShapeDrawable
-                val baseColor = com.google.android.material.color.MaterialColors.getColor(targetView, com.google.android.material.R.attr.colorSurfaceContainer)
+                val baseColor = (readerPalette ?: buildReaderPalette()).chromeBackgroundColor
                 if (isFloating) {
                     val alphaVal = ((hazeOpacityPercent / 100f) * 255).toInt().coerceIn(30, 255)
-                    bg.fillColor = android.content.res.ColorStateList.valueOf(androidx.core.graphics.ColorUtils.setAlphaComponent(baseColor, alphaVal))
+                    bg.fillColor = ColorStateList.valueOf(ColorUtils.setAlphaComponent(baseColor, alphaVal))
                 } else {
-                    bg.fillColor = android.content.res.ColorStateList.valueOf(baseColor)
+                    bg.fillColor = ColorStateList.valueOf(baseColor)
                 }
             }
         }
@@ -2980,5 +2975,55 @@ class NovelReaderActivity :
         handleBgColor(appbarTop)
         
         viewBinding.root.requestApplyInsets()
+    }
+
+    private fun buildReaderPalette(): NovelReaderPalette {
+        return novelReaderPalette(
+            preset = readerSettings.themePreset,
+            isDarkTheme = resources.isNightMode,
+        )
+    }
+
+    private fun applyReaderPalette() {
+        val palette = buildReaderPalette()
+        readerPalette = palette
+
+        viewBinding.root.setBackgroundColor(palette.backgroundColor)
+        viewBinding.readerView.updatePalette(palette)
+        viewBinding.continuousScrollView.setBackgroundColor(palette.backgroundColor)
+        continuousAdapter?.updatePalette(palette)
+
+        val toolbarTitleColor = ColorUtils.setAlphaComponent(palette.chromeTextColor, 215)
+        val toolbarSubtitleColor = ColorUtils.setAlphaComponent(palette.chromeTextColor, 132)
+        val toolbarIconColor = ColorUtils.setAlphaComponent(palette.chromeTextColor, 172)
+        viewBinding.toolbar.setTitleTextColor(toolbarTitleColor)
+        viewBinding.toolbar.setSubtitleTextColor(toolbarSubtitleColor)
+        viewBinding.toolbar.navigationIcon?.setTint(toolbarIconColor)
+        viewBinding.toolbar.overflowIcon?.setTint(toolbarIconColor)
+
+        val toolbarBackground = ColorStateList.valueOf(
+            ColorUtils.setAlphaComponent(palette.chromeBackgroundColor, if (palette.isDark) 222 else 236)
+        )
+        viewBinding.appbarTop.backgroundTintList = toolbarBackground
+        viewBinding.toolbarDocked.backgroundTintList = toolbarBackground
+        viewBinding.layoutLoading.backgroundTintList = toolbarBackground
+
+        viewBinding.textViewLoading.setTextColor(palette.chromeTextColor)
+        viewBinding.progressBar.setIndicatorColor(palette.chromeTextColor)
+
+        val ttsButtons = listOf(
+            viewBinding.btnTtsPrev,
+            viewBinding.btnTtsPlayPause,
+            viewBinding.btnTtsNext,
+            viewBinding.btnTtsVoice,
+            viewBinding.btnTtsClose,
+        )
+        ttsButtons.forEach { button ->
+            button.imageTintList = ColorStateList.valueOf(toolbarIconColor)
+        }
+
+        viewBinding.infoBar.applyColorScheme(isBlackOnWhite = !palette.isDark)
+        updateToolbarFloatingStyle(isToolbarFloating)
+        updateSystemBarsColors()
     }
 }

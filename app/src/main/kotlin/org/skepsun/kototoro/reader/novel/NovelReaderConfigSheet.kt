@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.reader.novel
 
+import android.content.res.ColorStateList
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -7,6 +8,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.CompoundButton
+import androidx.core.graphics.ColorUtils
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.slider.Slider
 import org.skepsun.kototoro.databinding.SheetNovelReaderConfigBinding
@@ -59,6 +61,14 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         binding.switchReadingStatusTransparent.isChecked = settings.isReadingStatusTransparent
         binding.switchParagraphIndent.isChecked = settings.enableParagraphIndent
         binding.toggleGroupReadingMode.check(if (settings.readingMode == ReadingMode.SCROLL) org.skepsun.kototoro.R.id.btnModeScroll else org.skepsun.kototoro.R.id.btnModePaged)
+        binding.toggleGroupThemePreset.check(
+            when (settings.themePreset) {
+                NovelReaderThemePreset.PAPER -> org.skepsun.kototoro.R.id.btnThemePaper
+                NovelReaderThemePreset.SEPIA -> org.skepsun.kototoro.R.id.btnThemeSepia
+                NovelReaderThemePreset.MOSS -> org.skepsun.kototoro.R.id.btnThemeMoss
+                NovelReaderThemePreset.SLATE -> org.skepsun.kototoro.R.id.btnThemeSlate
+            }
+        )
 
         // 初始化翻译展示模式控件
         binding.toggleGroupTranslationMode.check(
@@ -71,6 +81,7 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
 
         // 初始化值显示
         updateValueDisplays()
+        updatePreviewCard()
 
         // 设置监听器
         binding.sliderFontSize.addOnChangeListener(this)
@@ -93,6 +104,22 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
                 settings = settings.copy(
                     readingMode = if (checkedId == org.skepsun.kototoro.R.id.btnModeScroll) ReadingMode.SCROLL else ReadingMode.PAGED
                 )
+                updatePreviewCard()
+                applySettings()
+            }
+        }
+
+        binding.toggleGroupThemePreset.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (isChecked) {
+                settings = settings.copy(
+                    themePreset = when (checkedId) {
+                        org.skepsun.kototoro.R.id.btnThemeSepia -> NovelReaderThemePreset.SEPIA
+                        org.skepsun.kototoro.R.id.btnThemeMoss -> NovelReaderThemePreset.MOSS
+                        org.skepsun.kototoro.R.id.btnThemeSlate -> NovelReaderThemePreset.SLATE
+                        else -> NovelReaderThemePreset.PAPER
+                    }
+                )
+                updatePreviewCard()
                 applySettings()
             }
         }
@@ -107,6 +134,7 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
                         NovelTranslationDisplayMode.TRANSLATION_ONLY
                     }
                 )
+                updatePreviewCard()
                 applySettings()
             }
         }
@@ -135,6 +163,7 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         }
 
         updateValueDisplays()
+        updatePreviewCard()
         applySettingsDebounced()
     }
 
@@ -142,22 +171,27 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         when (buttonView.id) {
             org.skepsun.kototoro.R.id.switchDualPage -> {
                 settings = settings.copy(enableDualPage = isChecked)
+                updatePreviewCard()
                 applySettings()
             }
             org.skepsun.kototoro.R.id.switchFullscreen -> {
                 settings = settings.copy(enableFullscreen = isChecked)
+                updatePreviewCard()
                 applySettings()
             }
             org.skepsun.kototoro.R.id.switchShowReadingStatus -> {
                 settings = settings.copy(showReadingStatus = isChecked)
+                updatePreviewCard()
                 applySettings()
             }
             org.skepsun.kototoro.R.id.switchReadingStatusTransparent -> {
                 settings = settings.copy(isReadingStatusTransparent = isChecked)
+                updatePreviewCard()
                 applySettings()
             }
             org.skepsun.kototoro.R.id.switchParagraphIndent -> {
                 settings = settings.copy(enableParagraphIndent = isChecked)
+                updatePreviewCard()
                 applySettings()
             }
         }
@@ -216,16 +250,71 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         binding.switchShowReadingStatus.isChecked = settings.showReadingStatus
         binding.switchReadingStatusTransparent.isChecked = settings.isReadingStatusTransparent
         binding.switchParagraphIndent.isChecked = settings.enableParagraphIndent
+        binding.toggleGroupThemePreset.check(
+            when (settings.themePreset) {
+                NovelReaderThemePreset.PAPER -> org.skepsun.kototoro.R.id.btnThemePaper
+                NovelReaderThemePreset.SEPIA -> org.skepsun.kototoro.R.id.btnThemeSepia
+                NovelReaderThemePreset.MOSS -> org.skepsun.kototoro.R.id.btnThemeMoss
+                NovelReaderThemePreset.SLATE -> org.skepsun.kototoro.R.id.btnThemeSlate
+            }
+        )
 
         updateValueDisplays()
+        updatePreviewCard()
         applySettings()
     }
 
     private fun updateValueDisplays() {
-        binding.textFontSizeValue.text = "${settings.fontSizeSp.toInt()}sp"
+        binding.textFontSizeValue.text = String.format("%.1fsp", settings.fontSizeSp)
         binding.textLineSpacingValue.text = String.format("%.1f", settings.lineSpacing)
         binding.textParagraphSpacingValue.text = "${settings.paragraphSpacing.toInt()}dp"
         binding.textMarginValue.text = "${settings.marginHorizontal}dp"
+    }
+
+    private fun updatePreviewCard() {
+        val palette = novelReaderPalette(
+            preset = settings.themePreset,
+            isDarkTheme = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES,
+        )
+
+        binding.cardPreview.setCardBackgroundColor(palette.backgroundColor)
+        binding.cardPreview.strokeColor = ColorUtils.setAlphaComponent(palette.secondaryTextColor, 76)
+
+        binding.textPreviewCaption.setTextColor(ColorUtils.setAlphaComponent(palette.secondaryTextColor, 190))
+        binding.textPreviewTitle.setTextColor(palette.secondaryTextColor)
+        binding.textPreviewBody.setTextColor(palette.textColor)
+        binding.textPreviewSecondary.setTextColor(ColorUtils.setAlphaComponent(palette.secondaryTextColor, 230))
+
+        binding.textPreviewTitle.textSize = settings.fontSizeSp + 2f
+        binding.textPreviewBody.textSize = settings.fontSizeSp
+        binding.textPreviewSecondary.textSize = settings.fontSizeSp * 0.86f
+
+        val bodySpacingExtra = ((settings.lineSpacing - 1f) * binding.textPreviewBody.textSize).coerceAtLeast(0f)
+        val secondarySpacingExtra = ((settings.lineSpacing - 1f) * binding.textPreviewSecondary.textSize).coerceAtLeast(0f)
+        binding.textPreviewBody.setLineSpacing(bodySpacingExtra, 1f)
+        binding.textPreviewSecondary.setLineSpacing(secondarySpacingExtra, 1f)
+
+        binding.textPreviewBody.setPadding(settings.marginHorizontal / 2, 0, settings.marginHorizontal / 2, 0)
+        binding.textPreviewSecondary.setPadding(settings.marginHorizontal / 2, 0, settings.marginHorizontal / 2, 0)
+
+        val titleTopMargin = (settings.paragraphSpacing + 2).toInt()
+        val bodyTopMargin = settings.paragraphSpacing.toInt()
+        val secondaryTopMargin = (settings.paragraphSpacing * 0.8f).toInt()
+        (binding.textPreviewTitle.layoutParams as ViewGroup.MarginLayoutParams).topMargin = titleTopMargin
+        (binding.textPreviewBody.layoutParams as ViewGroup.MarginLayoutParams).topMargin = bodyTopMargin
+        (binding.textPreviewSecondary.layoutParams as ViewGroup.MarginLayoutParams).topMargin = secondaryTopMargin
+        binding.textPreviewTitle.requestLayout()
+        binding.textPreviewBody.requestLayout()
+        binding.textPreviewSecondary.requestLayout()
+
+        val indent = if (settings.enableParagraphIndent) "　　" else ""
+        binding.textPreviewBody.text = indent + getString(org.skepsun.kototoro.R.string.novel_preview_body)
+
+        val secondaryVisible = settings.translationDisplayMode == NovelTranslationDisplayMode.BILINGUAL
+        binding.textPreviewSecondary.visibility = if (secondaryVisible) View.VISIBLE else View.GONE
+        if (secondaryVisible) {
+            binding.textPreviewSecondary.text = getString(org.skepsun.kototoro.R.string.novel_preview_body_secondary)
+        }
     }
 
     interface Callback {

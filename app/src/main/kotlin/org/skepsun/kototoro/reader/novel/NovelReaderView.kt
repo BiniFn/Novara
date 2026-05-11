@@ -8,11 +8,8 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
 import android.text.Layout
-import android.text.SpannableStringBuilder
 import android.text.StaticLayout
 import android.text.TextPaint
-import android.text.style.ForegroundColorSpan
-import android.text.style.RelativeSizeSpan
 import android.util.AttributeSet
 import android.view.GestureDetector
 import android.view.MotionEvent
@@ -59,23 +56,19 @@ class NovelReaderView @JvmOverloads constructor(
     defStyleAttr: Int = 0,
 ) : View(context, attrs, defStyleAttr) {
 
+    private var settings: NovelReaderSettings = NovelReaderSettings.load(context)
+    private var palette: NovelReaderPalette = novelReaderPalette(
+        preset = settings.themePreset,
+        isDarkTheme = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES
+    )
+
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        // 使用主题的文本颜色，自动适配暗黑模式
-        val typedValue = android.util.TypedValue()
-        context.theme.resolveAttribute(android.R.attr.textColorPrimary, typedValue, true)
-        // 如果是颜色资源，需要通过 getColor 获取实际颜色值
-        color = if (typedValue.type >= android.util.TypedValue.TYPE_FIRST_COLOR_INT &&
-            typedValue.type <= android.util.TypedValue.TYPE_LAST_COLOR_INT) {
-            // 直接是颜色值
-            typedValue.data
-        } else {
-            // 是颜色资源引用，需要解析
-            androidx.core.content.ContextCompat.getColor(context, typedValue.resourceId)
-        }
-        textSize = resources.resolveSp(18f)
+        color = palette.textColor
+        textSize = resources.resolveSp(17f)
+        isSubpixelText = true
+        letterSpacing = 0.01f
     }
 
-    private var settings: NovelReaderSettings = NovelReaderSettings.load(context)
     var chapterContent: String = ""
         private set
     private var activeTranslation: NovelChapterTranslation? = null
@@ -106,15 +99,7 @@ class NovelReaderView @JvmOverloads constructor(
     private var highlightRange: IntRange? = null
     private val highlightPaint by lazy {
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            val typedValue = android.util.TypedValue()
-            context.theme.resolveAttribute(android.R.attr.colorAccent, typedValue, true)
-            val colorAccent = if (typedValue.type >= android.util.TypedValue.TYPE_FIRST_COLOR_INT &&
-                typedValue.type <= android.util.TypedValue.TYPE_LAST_COLOR_INT) {
-                typedValue.data
-            } else {
-                androidx.core.content.ContextCompat.getColor(context, typedValue.resourceId)
-            }
-            color = Color.argb(80, Color.red(colorAccent), Color.green(colorAccent), Color.blue(colorAccent))
+            color = palette.highlightColor
         }
     }
     
@@ -256,6 +241,7 @@ class NovelReaderView @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        canvas.drawColor(palette.backgroundColor)
         
         if (pages.isEmpty()) {
             // 显示空状态
@@ -328,7 +314,7 @@ class NovelReaderView @JvmOverloads constructor(
             } else {
                 // 绘制占位符（灰色矩形）
                 val placeholderPaint = Paint().apply {
-                    color = 0xFFCCCCCC.toInt()
+                    color = palette.placeholderColor
                     style = Paint.Style.FILL
                 }
                 val placeholderRect = RectF(
@@ -341,7 +327,7 @@ class NovelReaderView @JvmOverloads constructor(
                 
                 // 绘制"图片加载失败"文字
                 val errorPaint = Paint().apply {
-                    color = 0xFF666666.toInt()
+                    color = palette.placeholderTextColor
                     textSize = 14f * resources.displayMetrics.density
                     textAlign = Paint.Align.CENTER
                 }
@@ -435,7 +421,20 @@ class NovelReaderView @JvmOverloads constructor(
     fun updateSettings(newSettings: NovelReaderSettings) {
         settings = newSettings
         textPaint.textSize = resources.resolveSp(settings.fontSizeSp)
+        updatePalette()
         repaginate()
+    }
+
+    fun updatePalette(
+        palette: NovelReaderPalette = novelReaderPalette(
+            preset = settings.themePreset,
+            isDarkTheme = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        )
+    ) {
+        this.palette = palette
+        textPaint.color = palette.textColor
+        highlightPaint.color = palette.highlightColor
+        invalidate()
     }
 
     /**
@@ -803,43 +802,7 @@ class NovelReaderView @JvmOverloads constructor(
     }
 
     private fun prepareContentText(text: String): String {
-        val normalized = text.replace(Regex("\\n{3,}"), "\n\n")
-        val spacedText = if (settings.paragraphSpacing <= 0f) normalized else applyParagraphSpacing(normalized)
-        val indented = applyParagraphIndent(spacedText)
-        return indented
-    }
-
-    private fun applyParagraphSpacing(text: String): String {
-        val spacingDp = settings.paragraphSpacing
-        if (spacingDp <= 0f) return text
-        val spacingPx = spacingDp * resources.displayMetrics.density
-        val lineHeight = (textPaint.fontMetrics.descent - textPaint.fontMetrics.ascent) * settings.lineSpacing
-        // 改进：即使间距小于一行，也至少增加一个换行，确保视觉上有分隔
-        // 除非设置真的非常小。这里使用 ceil 确保 0.1 行也会变成 1 行空行。
-        val extraLines = if (spacingPx > 0) kotlin.math.max(1, kotlin.math.ceil(spacingPx / lineHeight).toInt()) else 0
-        if (extraLines == 0) return text
-        val spacer = "\n".repeat(extraLines)
-        // 使用正则分割，避免空行累加导致无限空行
-        return text.split(Regex("\\n+")).joinToString(separator = "\n$spacer")
-    }
-
-    private fun applyParagraphIndent(text: String): String {
-        if (!settings.enableParagraphIndent) return text
-        val indent = "　　" // 两个全角空格
-        val sb = StringBuilder(text.length + 16)
-        text.split("\n").forEachIndexed { idx, line ->
-            if (idx > 0) sb.append('\n')
-            if (line.isBlank()) {
-                sb.append(line)
-            } else {
-                if (line.startsWith(indent)) {
-                    sb.append(line)
-                } else {
-                    sb.append(indent).append(line.trimStart())
-                }
-            }
-        }
-        return sb.toString()
+        return NovelTypography.prepareContentText(text, settings, textPaint)
     }
     
     /**
@@ -887,41 +850,14 @@ class NovelReaderView @JvmOverloads constructor(
         pageText: String,
         translation: NovelChapterTranslation,
     ): CharSequence {
-        if (translation.translations.isEmpty()) return pageText
-        val grayColor = android.graphics.Color.GRAY
-        val smallSize = 0.8f
-        val ssb = SpannableStringBuilder(pageText)
-        var modified = false
-
-        for (para in translation.paragraphs) {
-            if (para.type != NovelParagraphType.TEXT) continue
-            val translated = translation.translations[para.index] ?: continue
-            if (translated.isBlank()) continue
-
-            val orig = para.originalText
-            var searchFrom = 0
-            while (searchFrom < ssb.length) {
-                val idx = ssb.indexOf(orig, searchFrom)
-                if (idx < 0) break
-                val afterOrig = idx + orig.length
-                if (afterOrig < ssb.length && ssb[afterOrig] == '\n') {
-                    ssb.setSpan(
-                        ForegroundColorSpan(grayColor),
-                        idx, afterOrig,
-                        android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
-                    )
-                    ssb.setSpan(
-                        RelativeSizeSpan(smallSize),
-                        idx, afterOrig,
-                        android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
-                    )
-                    modified = true
-                }
-                searchFrom = afterOrig + 1
-                break
-            }
+        if (translation.translations.isEmpty()) {
+            return NovelTypography.styleChapterTitles(pageText, palette.secondaryTextColor)
         }
-        return if (modified) ssb else pageText
+        return NovelTypography.applyBilingualSpannable(
+            processedText = pageText,
+            translation = translation,
+            secondaryColor = palette.secondaryTextColor,
+        )
     }
 
     /**

@@ -8,11 +8,8 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
 import android.text.Layout
-import android.text.SpannableStringBuilder
 import android.text.StaticLayout
 import android.text.TextPaint
-import android.text.style.ForegroundColorSpan
-import android.text.style.RelativeSizeSpan
 import android.util.AttributeSet
 import android.view.GestureDetector
 import android.view.MotionEvent
@@ -50,19 +47,19 @@ class NovelChapterView @JvmOverloads constructor(
     defStyleAttr: Int = 0,
 ) : View(context, attrs, defStyleAttr) {
 
+    private var settings: NovelReaderSettings = NovelReaderSettings.load(context)
+    private var palette: NovelReaderPalette = novelReaderPalette(
+        preset = settings.themePreset,
+        isDarkTheme = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES
+    )
+
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        val typedValue = android.util.TypedValue()
-        context.theme.resolveAttribute(android.R.attr.textColorPrimary, typedValue, true)
-        color = if (typedValue.type >= android.util.TypedValue.TYPE_FIRST_COLOR_INT &&
-            typedValue.type <= android.util.TypedValue.TYPE_LAST_COLOR_INT) {
-            typedValue.data
-        } else {
-            androidx.core.content.ContextCompat.getColor(context, typedValue.resourceId)
-        }
-        textSize = resources.resolveSp(18f)
+        color = palette.textColor
+        textSize = resources.resolveSp(17f)
+        isSubpixelText = true
+        letterSpacing = 0.01f
     }
 
-    private var settings: NovelReaderSettings = NovelReaderSettings.load(context)
     var chapterContent: String = ""
         private set
     private var activeTranslation: NovelChapterTranslation? = null
@@ -76,7 +73,7 @@ class NovelChapterView @JvmOverloads constructor(
     private var highlightRange: IntRange? = null
     private val highlightPaint by lazy {
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0x4000BFFF // 半透明高亮色
+            color = palette.highlightColor
             style = Paint.Style.FILL
         }
     }
@@ -143,8 +140,21 @@ class NovelChapterView @JvmOverloads constructor(
     fun updateSettings(newSettings: NovelReaderSettings) {
         settings = newSettings
         textPaint.textSize = resources.resolveSp(settings.fontSizeSp)
+        updatePalette()
         displayLayout = null
         requestLayout()
+        invalidate()
+    }
+
+    fun updatePalette(
+        palette: NovelReaderPalette = novelReaderPalette(
+            preset = settings.themePreset,
+            isDarkTheme = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        )
+    ) {
+        this.palette = palette
+        textPaint.color = palette.textColor
+        highlightPaint.color = palette.highlightColor
         invalidate()
     }
 
@@ -302,9 +312,7 @@ class NovelChapterView @JvmOverloads constructor(
     }
 
     private fun prepareContentText(text: String): String {
-        val normalized = text.replace(Regex("\\n{3,}"), "\n\n")
-        val spacedText = if (settings.paragraphSpacing <= 0f) normalized else applyParagraphSpacing(normalized)
-        return applyParagraphIndent(spacedText)
+        return NovelTypography.prepareContentText(text, settings, textPaint)
     }
 
     /**
@@ -355,50 +363,11 @@ class NovelChapterView @JvmOverloads constructor(
         processedText: String,
         translation: NovelChapterTranslation?,
     ): CharSequence {
-        if (translation == null ||
-            translation.displayMode != NovelTranslationDisplayMode.BILINGUAL ||
-            translation.translations.isEmpty()
-        ) {
-            return processedText
-        }
-
-        val ssb = SpannableStringBuilder(processedText)
-        val grayColor = android.graphics.Color.GRAY
-        val smallSize = 0.8f
-
-        for (para in translation.paragraphs) {
-            if (para.type != NovelParagraphType.TEXT) continue
-            val translated = translation.translations[para.index] ?: continue
-            if (translated.isBlank()) continue
-
-            // 在 processedText 中定位原文段落（按照 applyTranslationToContent 拼出的顺序）
-            val originalInText = para.originalText
-            var searchFrom = 0
-            while (searchFrom < ssb.length) {
-                val idx = ssb.indexOf(originalInText, searchFrom)
-                if (idx < 0) break
-                // 原文结束后紧跟 \n + 译文
-                val expectedAfter = idx + originalInText.length
-                if (expectedAfter < ssb.length && ssb[expectedAfter] == '\n') {
-                    // 对原文部分加灰色 + 缩小 Span
-                    ssb.setSpan(
-                        ForegroundColorSpan(grayColor),
-                        idx,
-                        expectedAfter,
-                        android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
-                    )
-                    ssb.setSpan(
-                        RelativeSizeSpan(smallSize),
-                        idx,
-                        expectedAfter,
-                        android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
-                    )
-                }
-                searchFrom = expectedAfter + 1
-                break
-            }
-        }
-        return ssb
+        return NovelTypography.applyBilingualSpannable(
+            processedText = processedText,
+            translation = translation,
+            secondaryColor = palette.secondaryTextColor,
+        )
     }
 
     private fun createStaticLayout(text: CharSequence, width: Int): StaticLayout {
@@ -428,32 +397,10 @@ class NovelChapterView @JvmOverloads constructor(
         }
     }
 
-    private fun applyParagraphSpacing(text: String): String {
-        val spacingDp = settings.paragraphSpacing
-        if (spacingDp <= 0f) return text
-        val spacingPx = spacingDp * resources.displayMetrics.density
-        val lineHeight = (textPaint.fontMetrics.descent - textPaint.fontMetrics.ascent) * settings.lineSpacing
-        val extraLines = if (spacingPx > 0) max(1, kotlin.math.ceil(spacingPx / lineHeight).toInt()) else 0
-        if (extraLines == 0) return text
-        val spacer = "\n".repeat(extraLines)
-        return text.split(Regex("\\n+")).joinToString(separator = "\n$spacer")
-    }
-
-    private fun applyParagraphIndent(text: String): String {
-        if (!settings.enableParagraphIndent) return text
-        val indent = "　　"
-        val sb = StringBuilder(text.length + 16)
-        text.split("\n").forEachIndexed { idx, line ->
-            if (idx > 0) sb.append('\n')
-            if (line.isBlank() || line.startsWith(indent)) sb.append(line)
-            else sb.append(indent).append(line.trimStart())
-        }
-        return sb.toString()
-    }
-
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val layout = displayLayout ?: return
+        canvas.drawColor(palette.backgroundColor)
 
         canvas.save()
         val x = paddingLeft + settings.marginHorizontal.toFloat()
@@ -484,10 +431,10 @@ class NovelChapterView @JvmOverloads constructor(
                 )
                 canvas.drawBitmap(bitmap, srcRect, dstRect, imagePaint)
             } else {
-                val placeholderPaint = Paint().apply { color = 0xFFCCCCCC.toInt(); style = Paint.Style.FILL }
+                val placeholderPaint = Paint().apply { color = palette.placeholderColor; style = Paint.Style.FILL }
                 val placeholderRect = RectF(0f, imageSpan.yPosition, imageSpan.width, imageSpan.yPosition + imageSpan.height)
                 canvas.drawRect(placeholderRect, placeholderPaint)
-                val errorPaint = Paint().apply { color = 0xFF666666.toInt(); textSize = 14f * resources.displayMetrics.density; textAlign = Paint.Align.CENTER }
+                val errorPaint = Paint().apply { color = palette.placeholderTextColor; textSize = 14f * resources.displayMetrics.density; textAlign = Paint.Align.CENTER }
                 canvas.drawText("图片加载失败/Loading", imageSpan.width / 2, imageSpan.yPosition + imageSpan.height / 2, errorPaint)
             }
         }
