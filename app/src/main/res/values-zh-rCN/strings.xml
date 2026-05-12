@@ -1523,6 +1523,7 @@
     <string name="reader_translation_task_filter_exception">异常</string>
     <string name="reader_translation_task_time_unknown">未知</string>
     <string name="fetching_video_quality">正在获取在线画质…</string>
+    <string name="video_quality_line">线路%1$d</string>
     <string name="reader_translation_task_item">第 %1$d 页 [%2$s] %3$s\n%4$s</string>
     <string name="reader_translation_task_detail_title">第 %1$d 页 · %2$s</string>
     <string name="reader_translation_task_state_idle">空闲</string>

@@ -987,8 +987,21 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     }
 
     private fun buildQualityButtonLabel(): String {
-        val video = availableVideos.getOrNull(currentVideoIndex)
-        val title = video?.videoTitle?.trim().orEmpty()
+        availableVideos.getOrNull(currentVideoIndex)?.qualityDisplayLabel(currentVideoIndex)?.let {
+            return it
+        }
+        return if (availableVideos.isNotEmpty()) {
+            getString(org.skepsun.kototoro.R.string.video_quality_line, currentVideoIndex + 1)
+        } else {
+            getString(org.skepsun.kototoro.R.string.video_quality)
+        }
+    }
+
+    private fun Video.qualityDisplayLabel(index: Int): String {
+        resolution?.takeIf { it > 0 }?.let {
+            return "${it}p"
+        }
+        val title = videoTitle.trim()
         if (title.isNotEmpty()) {
             val resolution = Regex("""\b(\d{3,4}p)\b""", RegexOption.IGNORE_CASE).find(title)?.groupValues?.get(1)
             if (!resolution.isNullOrBlank()) {
@@ -996,11 +1009,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             }
             return title.take(10)
         }
-        return if (availableVideos.isNotEmpty()) {
-            "线路${currentVideoIndex + 1}"
-        } else {
-            getString(org.skepsun.kototoro.R.string.video_quality)
-        }
+        return getString(org.skepsun.kototoro.R.string.video_quality_line, index + 1)
     }
 
     private fun observeFoldableStateForOrientation() {
@@ -2690,8 +2699,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             return
         }
         val titles = availableVideos.mapIndexed { index, video ->
-            val title = video.videoTitle.trim()
-            if (title.isNotEmpty()) title else "线路${index + 1}"
+            video.qualityDisplayLabel(index)
         }.toTypedArray()
         val selected = currentVideoIndex.coerceIn(0, titles.lastIndex)
         MaterialAlertDialogBuilder(this)
@@ -2733,10 +2741,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         val checked = appSettings.videoAspectRatio.coerceIn(0, options.lastIndex)
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.video_aspect_ratio)
-            .setSingleChoiceItems(labels, checked) { dialog, which ->
+            .setSingleChoiceItems(labels, checked) { _, which ->
                 appSettings.videoAspectRatio = which
                 applyAspectRatio()
-                dialog.dismiss()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()

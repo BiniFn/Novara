@@ -333,6 +333,7 @@
     <string name="video_aspect_ratio_stretch">Stretch</string>
     <string name="video_double_tap_seek">Double Tap Seek</string>
     <string name="video_quality">Quality</string>
+    <string name="video_quality_line">Line %1$d</string>
     <string name="video_super_resolution">Super resolution</string>
     <string name="video_super_resolution_mode">Mode</string>
     <string name="video_super_resolution_off">Off</string>
