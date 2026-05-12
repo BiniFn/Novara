@@ -598,6 +598,15 @@ class ContentSourcesRepository @Inject constructor(
 		}
 	}
 
+	private fun observeJarParserSourceChanges(): Flow<Unit> {
+		return combine(
+			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.contentSources,
+			org.skepsun.kototoro.core.extensions.GlobalExtensionManager.mangaSources,
+		) { _, _ ->
+			Unit
+		}
+	}
+
 	fun observeEnabledSources(): Flow<List<ContentSourceInfo>> = combine(
 		observeIsNsfwDisabled(),
 		observeAllEnabled(),
@@ -607,10 +616,11 @@ class ContentSourcesRepository @Inject constructor(
 
 		combine(
 			dao.observeAll(false, order),
+			observeJarParserSourceChanges(),
 			mihonExtensionManager.installedExtensions,
 			aniyomiExtensionManager.installedExtensions,
 			jsonSourceManager.observeEnabledJsonSources()
-		) { entities, _, _, _ ->
+		) { entities, _, _, _, _ ->
 			val disabledNames = if (!allEnabled) entities.filter { !it.isEnabled }.mapToSet { it.source } else emptySet<String>()
 			val enabledEntities = if (!allEnabled) entities.filter { it.isEnabled } else entities
 			val sources = enabledEntities.toSources(skipNsfw, order).filter { info ->
