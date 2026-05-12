@@ -290,6 +290,7 @@ fun UnifiedSourcesRoute(
 		onRefreshPackages = { viewModel.refreshPackages() },
 		onUpdateAllPackages = viewModel::onUpdateAllPackagesAction,
 		onPackagePrimaryAction = viewModel::onPackagePrimaryAction,
+		onPackageSystemInstall = viewModel::installPackageWithSystemInstaller,
 		onPackageUninstall = viewModel::uninstallPackage,
 		onPackageCancelInstall = viewModel::cancelPackageInstall,
 		onImportLocalJar = {
@@ -1002,6 +1003,7 @@ fun UnifiedSourcesScreen(
 	onRefreshPackages: () -> Unit,
 	onUpdateAllPackages: () -> Unit,
 	onPackagePrimaryAction: (String) -> Unit,
+	onPackageSystemInstall: (String) -> Unit,
 	onPackageUninstall: (String) -> Unit,
 	onPackageCancelInstall: (String) -> Unit,
 	onImportLocalJar: () -> Unit,
@@ -1196,6 +1198,7 @@ fun UnifiedSourcesScreen(
 									onRefreshPackages = onRefreshPackages,
 									onUpdateAllPackages = onUpdateAllPackages,
 									onPackagePrimaryAction = onPackagePrimaryAction,
+									onPackageSystemInstall = onPackageSystemInstall,
 									onPackageUninstall = onPackageUninstall,
 									onPackageCancelInstall = onPackageCancelInstall,
 									onImportLocalJar = onImportLocalJar,
@@ -1605,6 +1608,15 @@ private fun UnifiedRepositoryList(
 						maxLines = 1,
 						overflow = TextOverflow.Ellipsis,
 					)
+					item.lastError?.takeIf { it.isNotBlank() }?.let { error ->
+						Text(
+							text = stringResource(R.string.unified_sources_repository_last_refresh_failed, error),
+							style = MaterialTheme.typography.bodySmall,
+							color = MaterialTheme.colorScheme.error,
+							maxLines = 2,
+							overflow = TextOverflow.Ellipsis,
+						)
+					}
 				}
 			}
 		}
@@ -1619,6 +1631,7 @@ private fun UnifiedPackageList(
 	onRefreshPackages: () -> Unit,
 	onUpdateAllPackages: () -> Unit,
 	onPackagePrimaryAction: (String) -> Unit,
+	onPackageSystemInstall: (String) -> Unit,
 	onPackageUninstall: (String) -> Unit,
 	onPackageCancelInstall: (String) -> Unit,
 	onImportLocalJar: () -> Unit,
@@ -1666,6 +1679,7 @@ private fun UnifiedPackageList(
 			UnifiedPackageRow(
 				item = item,
 				onPrimaryAction = { onPackagePrimaryAction(item.id) },
+				onSystemInstall = { onPackageSystemInstall(item.id) },
 				onUninstall = { onPackageUninstall(item.id) },
 				onCancelInstall = { onPackageCancelInstall(item.id) },
 			)
@@ -1677,6 +1691,7 @@ private fun UnifiedPackageList(
 private fun UnifiedPackageRow(
 	item: UnifiedSourcePackageItem,
 	onPrimaryAction: () -> Unit,
+	onSystemInstall: () -> Unit,
 	onUninstall: () -> Unit,
 	onCancelInstall: () -> Unit,
 ) {
@@ -1752,7 +1767,18 @@ private fun UnifiedPackageRow(
 			) {
 				when (item.state) {
 					UnifiedSourcePackageState.AVAILABLE,
-					UnifiedSourcePackageState.UPDATE_AVAILABLE,
+					UnifiedSourcePackageState.UPDATE_AVAILABLE -> {
+						if (item.kind.isSideloadKind()) {
+							CompactActionChip(
+								onClick = onSystemInstall,
+								label = { Text(stringResource(R.string.install_extension)) },
+							)
+						}
+						CompactActionChip(
+							onClick = onPrimaryAction,
+							label = { Text(item.primaryActionLabel()) },
+						)
+					}
 					UnifiedSourcePackageState.UNTRUSTED,
 					UnifiedSourcePackageState.INCOMPATIBLE -> {
 						CompactActionChip(

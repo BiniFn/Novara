@@ -296,6 +296,7 @@ class AniyomiExtensionLoader @Inject constructor(
             lang = lang,
             isNsfw = declaredSource.isNsfw,
             sources = sources,
+            isManagedLocal = LocalApkExtensionSupport.isManagedLocalPackage(context, ECOSYSTEM_DIR, appInfo.sourceDir),
         )
     }
     

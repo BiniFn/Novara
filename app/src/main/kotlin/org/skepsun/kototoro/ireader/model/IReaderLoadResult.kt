@@ -11,6 +11,7 @@ sealed class IReaderLoadResult {
 		val libVersion: Double,
 		val isNsfw: Boolean,
 		val sources: List<ireader.core.source.Source>,
+		val isManagedLocal: Boolean = false,
 	) : IReaderLoadResult()
     
     data class Error(

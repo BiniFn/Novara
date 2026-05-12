@@ -125,12 +125,41 @@ class ExternalExtensionRepoRepository @Inject constructor(
 
 	suspend fun getCatalogExtensions(type: ExternalExtensionType): List<RepoAvailableExtension> = coroutineScope {
 		getByType(type)
-			.map { repo -> async { service.fetchAvailableExtensions(repo) } }
+			.map { repo -> async { fetchCatalogExtensions(repo) } }
 			.awaitAll()
 			.flatten()
 			.groupBy { it.pkgName }
 			.map { (_, list) -> list.maxByOrNull { it.versionCode }!! }
 			.sortedWith(compareBy<RepoAvailableExtension> { it.lang }.thenBy { it.name.lowercase() })
+	}
+
+	private suspend fun fetchCatalogExtensions(repo: ExternalExtensionRepo): List<RepoAvailableExtension> {
+		return runCatching {
+			service.fetchAvailableExtensionsOrThrow(repo)
+		}.onSuccess {
+			clearCatalogRefreshError(repo)
+		}.onFailure { error ->
+			markCatalogRefreshFailed(repo, error)
+		}.getOrDefault(emptyList())
+	}
+
+	private suspend fun clearCatalogRefreshError(repo: ExternalExtensionRepo) {
+		if (repo.lastError == null) return
+		dao.upsert(
+			repo.copy(
+				updatedAt = System.currentTimeMillis(),
+				lastError = null,
+			).toEntity(),
+		)
+	}
+
+	private suspend fun markCatalogRefreshFailed(repo: ExternalExtensionRepo, error: Throwable) {
+		dao.upsert(
+			repo.copy(
+				updatedAt = System.currentTimeMillis(),
+				lastError = error.getDisplayMessage(appContext.resources),
+			).toEntity(),
+		)
 	}
 
 	sealed interface AddRepoResult {

@@ -126,6 +126,10 @@
     <string name="domain">内容源域名</string>
     <string name="app_update_available">发现新版本</string>
     <string name="open_in_browser">在浏览器中打开</string>
+    <string name="open_metadata_in_browser">在浏览器中打开元数据页面</string>
+    <string name="open_local_source_in_browser">在浏览器中打开本地来源页面</string>
+    <string name="open_reading_page_in_browser">在浏览器中打开阅读页面</string>
+    <string name="open_playback_page_in_browser">在浏览器中打开播放页面</string>
     <string name="notifications">通知</string>
     <string name="new_chapters">新章节</string>
     <string name="download">下载</string>
@@ -1143,8 +1147,8 @@
 	<string name="auto_double_foldable">折叠设备自动双页</string>
 	<string name="source_type">来源类型</string>
 	<string name="source_type_native">内置源</string>
-	<string name="source_type_mihon">Mihon 扩展</string>
-	<string name="source_type_aniyomi">Aniyomi 扩展</string>
+	<string name="source_type_mihon">Mihon</string>
+	<string name="source_type_aniyomi">Aniyomi</string>
 	<string name="source_type_legado">Legado</string>
 	<string name="source_type_tvbox">TVBox</string>
 	<string name="tvbox_site_key_title">站点 Key</string>
@@ -1268,6 +1272,9 @@
     <string name="filter_extensions_by_selected_content_languages">按语言过滤扩展：已选内容语言</string>
     <string name="filter_extensions_by_language_with_value">按语言过滤扩展：%1$s</string>
     <string name="use_setup_wizard_languages">使用向导语言</string>
+    <string name="unified_sources_refresh_timeout">刷新超时，请检查网络后重试。</string>
+    <string name="unified_sources_refresh_partial_failed">部分仓库刷新失败：%1$s</string>
+    <string name="unified_sources_repository_last_refresh_failed">最近刷新失败：%1$s</string>
     <string name="show_extensions_in_grid">扩展以双列显示</string>
     <string name="show_extensions_in_list">扩展以单列显示</string>
     <string name="local_apk_hot_reload">本地 APK 热加载</string>

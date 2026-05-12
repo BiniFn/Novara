@@ -177,6 +177,11 @@ class ExtensionRepoService @Inject constructor(
 	}
 
 	suspend fun fetchAvailableExtensions(repo: ExternalExtensionRepo): List<RepoAvailableExtension> {
+		return runCatching { fetchAvailableExtensionsOrThrow(repo) }
+			.getOrDefault(emptyList())
+	}
+
+	suspend fun fetchAvailableExtensionsOrThrow(repo: ExternalExtensionRepo): List<RepoAvailableExtension> {
 		val indexUrls = if (repo.type == ExternalExtensionType.CLOUDSTREAM) {
 			fetchCloudstreamPluginListUrls(repo)
 		} else {
@@ -185,8 +190,8 @@ class ExtensionRepoService @Inject constructor(
 		val requestUrls = indexUrls.map(::applyMirror)
 		val startedAt = System.currentTimeMillis()
 		Log.d(TAG, "fetchAvailableExtensions:start type=${repo.type} urls=$requestUrls")
-		return runCatching {
-			withTimeout(CATALOG_TIMEOUT_MS) {
+		return try {
+			val extensions = withTimeout(CATALOG_TIMEOUT_MS) {
 				requestUrls.flatMap { requestUrl ->
 					val body = httpClient.newCall(GET(requestUrl)).awaitSuccess().use { response ->
 						response.body.string()
@@ -213,18 +218,19 @@ class ExtensionRepoService @Inject constructor(
 					}
 				}
 			}
-		}.onSuccess { extensions ->
 			Log.d(
 				TAG,
 				"fetchAvailableExtensions:success type=${repo.type} baseUrl=${repo.baseUrl} count=${extensions.size} elapsedMs=${System.currentTimeMillis() - startedAt}",
 			)
-		}.onFailure { error ->
+			extensions
+		} catch (error: Throwable) {
 			Log.e(
 				TAG,
 				"fetchAvailableExtensions:failed type=${repo.type} baseUrl=${repo.baseUrl} elapsedMs=${System.currentTimeMillis() - startedAt} message=${error.message}",
 				error,
 			)
-		}.getOrDefault(emptyList())
+			throw error
+		}
 	}
 
 	fun normalizeIndexUrl(input: String): String? {
@@ -299,7 +305,7 @@ class ExtensionRepoService @Inject constructor(
 			iconUrl = applyMirror(if (repo.type == ExternalExtensionType.IREADER) "${repo.baseUrl}/icon/${apk.replace(".apk", ".png")}" else "${repo.baseUrl}/icon/$pkg.png"),
 			repoUrl = repo.baseUrl,
 			repoName = repo.displayName,
-			signatureHash = repo.signingKeyFingerprint,
+			signatureHash = if (repo.type == ExternalExtensionType.JAR) "" else repo.signingKeyFingerprint,
 			isCompatible = supported,
 		)
 	}

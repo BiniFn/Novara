@@ -37,6 +37,20 @@ object UnifiedRecommendedRepositories {
 				capabilities = jarRepoCapabilities,
 			),
 			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.JAR,
+				name = "Yakateam Parsers",
+				url = "https://raw.githubusercontent.com/skepsun/k-parsers-y/repo/index.min.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = jarRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
+				kind = UnifiedSourceKind.JAR,
+				name = "Redo Parsers",
+				url = "https://raw.githubusercontent.com/skepsun/k-parsers-r/repo/index.min.json",
+				locationType = UnifiedRepositoryLocationType.REMOTE_URL,
+				capabilities = jarRepoCapabilities,
+			),
+			UnifiedRecommendedRepository(
 				kind = UnifiedSourceKind.CLOUDSTREAM,
 				name = "CloudStream Providers",
 				url = "https://raw.githubusercontent.com/recloudstream/extensions/master/repo.json",

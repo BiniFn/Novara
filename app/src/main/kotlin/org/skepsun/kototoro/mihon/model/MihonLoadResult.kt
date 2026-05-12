@@ -20,6 +20,7 @@ sealed class MihonLoadResult {
         val lang: String,
         val isNsfw: Boolean,
         val sources: List<Source>,
+        val isManagedLocal: Boolean = false,
     ) : MihonLoadResult() {
         
         /**

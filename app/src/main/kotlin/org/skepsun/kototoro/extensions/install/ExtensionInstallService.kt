@@ -52,7 +52,10 @@ class ExtensionInstallService @Inject constructor(
 
 	val downloadStates: StateFlow<Map<String, ExtensionInstallDownloadState>> = _downloadStates.asStateFlow()
 
-	suspend fun install(extension: RepoAvailableExtension): ExtensionInstallResult {
+	suspend fun install(
+		extension: RepoAvailableExtension,
+		mode: ExtensionInstallMode = ExtensionInstallMode.LOCAL_APK,
+	): ExtensionInstallResult {
 		val archiveUrl = when (extension.type) {
 			ExternalExtensionType.CLOUDSTREAM -> extension.archiveUrl?.let(::applyMirror)
 				?: applyMirror("${extension.repoUrl}/${extension.archiveName}")
@@ -119,14 +122,16 @@ class ExtensionInstallService @Inject constructor(
 
 		val ecosystem = extension.type.toLocalApkEcosystem()
 		if (ecosystem != null) {
-			LocalApkExtensionSupport.storeManagedApk(
-				context = context,
-				ecosystem = ecosystem,
-				packageName = extension.pkgName,
-				sourceFile = outputFile,
-			)
-			outputFile.delete()
-			return ExtensionInstallResult.Completed
+			if (mode == ExtensionInstallMode.LOCAL_APK) {
+				LocalApkExtensionSupport.storeManagedApk(
+					context = context,
+					ecosystem = ecosystem,
+					packageName = extension.pkgName,
+					sourceFile = outputFile,
+				)
+				outputFile.delete()
+				return ExtensionInstallResult.Completed
+			}
 		}
 
 		val uri = FileProvider.getUriForFile(context, "${BuildConfig.APPLICATION_ID}.files", outputFile)
@@ -163,6 +168,11 @@ class ExtensionInstallService @Inject constructor(
 sealed interface ExtensionInstallResult {
 	data object Completed : ExtensionInstallResult
 	data class RequiresInstaller(val intent: Intent) : ExtensionInstallResult
+}
+
+enum class ExtensionInstallMode {
+	LOCAL_APK,
+	SYSTEM,
 }
 
 private fun ExternalExtensionType.toLocalApkEcosystem(): String? {

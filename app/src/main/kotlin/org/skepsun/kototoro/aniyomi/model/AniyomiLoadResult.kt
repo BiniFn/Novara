@@ -20,6 +20,7 @@ sealed class AniyomiLoadResult {
         val lang: String,
         val isNsfw: Boolean,
         val sources: List<AnimeSource>,
+        val isManagedLocal: Boolean = false,
     ) : AniyomiLoadResult() {
         
         /**

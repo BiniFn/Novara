@@ -11,6 +11,7 @@ import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
+import org.skepsun.kototoro.extensions.runtime.LocalApkExtensionSupport
 
 @Singleton
 class InstalledExtensionSignatureValidator @Inject constructor(
@@ -27,7 +28,9 @@ class InstalledExtensionSignatureValidator @Inject constructor(
 		return cache.getOrPut(packageName) {
 			runCatching {
 				val packageInfo = context.packageManager.getPackageInfoCompat(packageName)
-				getSignatures(packageInfo)
+					?: getManagedPackageInfo(packageName)
+					?: return@getOrPut emptySet()
+				packageInfo.getSignaturesCompat()
 					.mapTo(LinkedHashSet()) { signature ->
 						MessageDigest.getInstance("SHA-256")
 							.digest(signature.toByteArray())
@@ -37,9 +40,20 @@ class InstalledExtensionSignatureValidator @Inject constructor(
 		}
 	}
 
-	private fun getSignatures(packageInfo: PackageInfo): Array<Signature> = when {
+	private fun getManagedPackageInfo(packageName: String): PackageInfo? {
+		return listOf("mihon", "aniyomi", "ireader").firstNotNullOfOrNull { ecosystem ->
+			LocalApkExtensionSupport.getLocalArchivePackageInfoOrNull(
+				context = context,
+				pkgManager = context.packageManager,
+				ecosystem = ecosystem,
+				packageName = packageName,
+			)
+		}
+	}
+
+	private fun PackageInfo.getSignaturesCompat(): Array<Signature> = when {
 		Build.VERSION.SDK_INT >= Build.VERSION_CODES.P -> {
-			val signingInfo = packageInfo.signingInfo ?: return emptyArray()
+			val signingInfo = signingInfo ?: return emptyArray()
 			if (signingInfo.hasMultipleSigners()) {
 				signingInfo.apkContentsSigners
 			} else {
@@ -49,16 +63,20 @@ class InstalledExtensionSignatureValidator @Inject constructor(
 
 		else -> {
 			@Suppress("DEPRECATION")
-			packageInfo.signatures ?: emptyArray()
+			signatures ?: emptyArray()
 		}
 	}
 
-	private fun PackageManager.getPackageInfoCompat(packageName: String): PackageInfo {
+	private fun PackageManager.getPackageInfoCompat(packageName: String): PackageInfo? {
 		return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-			getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES.toLong()))
+			runCatching {
+				getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES.toLong()))
+			}.getOrNull()
 		} else {
 			@Suppress("DEPRECATION")
-			getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+			runCatching {
+				getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+			}.getOrNull()
 		}
 	}
 }

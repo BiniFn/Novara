@@ -185,6 +185,7 @@ class IReaderExtensionLoader @Inject constructor(
             libVersion = libVersion,
             isNsfw = isNsfw,
             sources = listOf(source),
+            isManagedLocal = LocalApkExtensionSupport.isManagedLocalPackage(context, ECOSYSTEM_DIR, appInfo.sourceDir),
         )
     }
 }

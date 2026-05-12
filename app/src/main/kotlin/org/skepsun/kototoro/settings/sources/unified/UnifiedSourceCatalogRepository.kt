@@ -147,6 +147,11 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 							isNsfw = extension.isNsfw,
 							sourceCount = extension.sources.size,
 							sourceNames = extension.sources.map { it.name },
+							installLocation = if (extension.isManagedLocal) {
+								UnifiedSourcePackageInstallLocation.LOCAL_APK
+							} else {
+								UnifiedSourcePackageInstallLocation.SYSTEM
+							},
 						),
 					)
 				}
@@ -167,6 +172,11 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 							isNsfw = extension.isNsfw,
 							sourceCount = extension.sources.size,
 							sourceNames = extension.sources.map { it.name },
+							installLocation = if (extension.isManagedLocal) {
+								UnifiedSourcePackageInstallLocation.LOCAL_APK
+							} else {
+								UnifiedSourcePackageInstallLocation.SYSTEM
+							},
 						),
 					)
 				}
@@ -187,6 +197,11 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 							isNsfw = extension.isNsfw,
 							sourceCount = extension.sources.size,
 							sourceNames = extension.sources.map { it.name },
+							installLocation = if (extension.isManagedLocal) {
+								UnifiedSourcePackageInstallLocation.LOCAL_APK
+							} else {
+								UnifiedSourcePackageInstallLocation.SYSTEM
+							},
 						),
 					)
 				}

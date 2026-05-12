@@ -22,6 +22,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.extensions.GlobalExtensionManager
@@ -38,6 +40,7 @@ import org.skepsun.kototoro.core.util.ext.getDisplayMessage
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.extensions.runtime.LocalApkExtensionSupport
 import org.skepsun.kototoro.extensions.install.ExtensionInstallDownloadState
+import org.skepsun.kototoro.extensions.install.ExtensionInstallMode
 import org.skepsun.kototoro.extensions.install.ExtensionInstallResult
 import org.skepsun.kototoro.extensions.install.ExtensionInstallService
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepo
@@ -56,6 +59,7 @@ import org.skepsun.kototoro.settings.sources.extensions.toInstalledIReaderPackag
 import javax.inject.Inject
 
 private const val TAG = "UnifiedSourcesVM"
+private const val REFRESH_PACKAGES_TIMEOUT_MS = 30_000L
 
 @HiltViewModel
 class UnifiedSourcesViewModel @Inject constructor(
@@ -195,12 +199,23 @@ class UnifiedSourcesViewModel @Inject constructor(
 		showLoading: Boolean = true,
 	) {
 		val refreshBlock: suspend kotlinx.coroutines.CoroutineScope.() -> Unit = {
-			val types = externalExtensionTypes()
-			if (refreshRepositories) {
-				types.forEach { type -> extensionRepoRepository.refresh(type) }
+			try {
+				withTimeout(REFRESH_PACKAGES_TIMEOUT_MS) {
+					val types = externalExtensionTypes()
+					if (refreshRepositories) {
+						types.forEach { type -> extensionRepoRepository.refresh(type) }
+					}
+					refreshAvailableExternalPackages(types)
+					refreshAvailableLnReaderPackages()
+					if (showLoading) {
+						emitRefreshFailures(types)
+					}
+				}
+			} catch (e: TimeoutCancellationException) {
+				if (showLoading) {
+					emitMessage(appContext.getString(R.string.unified_sources_refresh_timeout))
+				}
 			}
-			refreshAvailableExternalPackages(types)
-			refreshAvailableLnReaderPackages()
 		}
 		if (showLoading) {
 			launchLoadingJob(Dispatchers.IO, block = refreshBlock)
@@ -209,7 +224,27 @@ class UnifiedSourcesViewModel @Inject constructor(
 		}
 	}
 
+	private suspend fun emitRefreshFailures(types: List<ExternalExtensionType>) {
+		val failedRepositories = types
+			.flatMap { type -> extensionRepoRepository.getByType(type) }
+			.filter { !it.lastError.isNullOrBlank() }
+			.map { it.displayName }
+			.distinct()
+		if (failedRepositories.isNotEmpty()) {
+			emitMessage(
+				appContext.getString(
+					R.string.unified_sources_refresh_partial_failed,
+					failedRepositories.take(3).joinToString(", "),
+				),
+			)
+		}
+	}
+
 	fun installPackage(packageId: String) {
+		installPackage(packageId, ExtensionInstallMode.LOCAL_APK)
+	}
+
+	fun installPackage(packageId: String, mode: ExtensionInstallMode) {
 		val item = currentPackage(packageId) ?: return
 		if (item.kind == UnifiedSourceKind.LNREADER && item.lnReaderPayload != null) {
 			requestLnReaderInstall(item)
@@ -218,7 +253,11 @@ class UnifiedSourcesViewModel @Inject constructor(
 		if (item.state == UnifiedSourcePackageState.INSTALLED || item.packageName in installService.downloadStates.value) {
 			return
 		}
-		requestInstall(item, fromBatch = false)
+		requestInstall(item, fromBatch = false, mode = mode)
+	}
+
+	fun installPackageWithSystemInstaller(packageId: String) {
+		installPackage(packageId, ExtensionInstallMode.SYSTEM)
 	}
 
 	fun cancelPackageInstall(packageId: String) {
@@ -579,7 +618,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 		}
 
 		val ecosystem = item.kind.toLocalApkEcosystem()
-		if (ecosystem != null) {
+		if (ecosystem != null && item.installLocation == UnifiedSourcePackageInstallLocation.LOCAL_APK) {
 			val deleted = LocalApkExtensionSupport.deleteManagedLocalPackage(
 				context = appContext,
 				ecosystem = ecosystem,
@@ -634,7 +673,11 @@ class UnifiedSourcesViewModel @Inject constructor(
 		_events.emit(UnifiedSourcesEvent.StartUninstall(next))
 	}
 
-	private fun requestInstall(item: UnifiedSourcePackageItem, fromBatch: Boolean) {
+	private fun requestInstall(
+		item: UnifiedSourcePackageItem,
+		fromBatch: Boolean,
+		mode: ExtensionInstallMode = ExtensionInstallMode.LOCAL_APK,
+	) {
 		val extension = item.installPayload ?: return
 		if (extension.pkgName in installService.downloadStates.value) {
 			return
@@ -644,7 +687,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 		}
 		launchLoadingJob(Dispatchers.IO) {
 			try {
-				when (val result = installService.install(extension)) {
+				when (val result = installService.install(extension, mode)) {
 					is ExtensionInstallResult.RequiresInstaller -> {
 						if (fromBatch) {
 							batchUpdateState.markInstallerIntentDispatched()
@@ -976,7 +1019,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 		}
 		return copy(
 			packages = (installedWithoutCatalogMatch + availablePackages)
-				.sortedWith(compareBy({ it.kind.ordinal }, { it.state.sortOrder }, { it.name.lowercase() })),
+				.sortedWith(packageItemComparator),
 		)
 	}
 
@@ -1004,7 +1047,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 		}
 		return copy(
 			packages = (installedWithoutCatalogMatch + availablePackages)
-				.sortedWith(compareBy({ it.kind.ordinal }, { it.state.sortOrder }, { it.name.lowercase() })),
+				.sortedWith(packageItemComparator),
 		)
 	}
 
@@ -1044,6 +1087,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 			state = state,
 			installedVersionName = installedPackage?.versionName,
 			installProgressPercent = downloadState?.progressPercent,
+			installLocation = installedPackage?.installLocation,
 			installPayload = this,
 		)
 	}
@@ -1135,7 +1179,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 			.filter { filters.locationTypes.isEmpty() || it.repositoryLocationType(repositoriesById) in filters.locationTypes }
 			.filter { filters.languages.isEmpty() || it.language.matchesLanguageFilter(filters.languages) }
 			.filter { filters.query.isBlank() || it.matchesQuery(filters.query) }
-			.sortedWith(compareBy({ it.kind.ordinal }, { it.name.lowercase() }))
+			.sortedWith(packageItemComparator)
 			.toList()
 	}
 
@@ -1320,6 +1364,11 @@ private val UnifiedSourcePackageState.sortOrder: Int
 		UnifiedSourcePackageState.INSTALLED -> 4
 		UnifiedSourcePackageState.AVAILABLE -> 5
 	}
+
+private val packageItemComparator = compareByDescending<UnifiedSourcePackageItem> { it.isInstalled }
+	.thenBy { it.state.sortOrder }
+	.thenBy { it.kind.ordinal }
+	.thenBy { it.name.lowercase() }
 
 private fun externalExtensionTypes(): List<ExternalExtensionType> {
 	return listOf(

@@ -42,6 +42,11 @@ enum class UnifiedSourcePackageState {
 	INCOMPATIBLE,
 }
 
+enum class UnifiedSourcePackageInstallLocation {
+	SYSTEM,
+	LOCAL_APK,
+}
+
 data class UnifiedRecommendedRepository(
 	val kind: UnifiedSourceKind,
 	val name: String,
@@ -89,6 +94,7 @@ data class UnifiedSourcePackageItem(
 	},
 	val installedVersionName: String? = null,
 	val installProgressPercent: Int? = null,
+	val installLocation: UnifiedSourcePackageInstallLocation? = null,
 	val installPayload: RepoAvailableExtension? = null,
 	val lnReaderPayload: LNReaderPluginInfo? = null,
 )

@@ -111,6 +111,8 @@
     <string name="open_in_browser">Open in web browser</string>
     <string name="open_metadata_in_browser">Open metadata page in browser</string>
     <string name="open_local_source_in_browser">Open local source page in browser</string>
+    <string name="open_reading_page_in_browser">Open reading page in browser</string>
+    <string name="open_playback_page_in_browser">Open playback page in browser</string>
     <string name="notifications">Notifications</string>
     <string name="enabled_d_of_d" tools:ignore="PluralsCandidate">%1$d of %2$d on</string>
     <string name="new_chapters">New chapters</string>
@@ -2052,6 +2054,9 @@
     <string name="unified_sources_repository_added">Repository added</string>
     <string name="unified_sources_repository_not_configured">Repository is not configured</string>
     <string name="unified_sources_repository_refreshed">Repository refreshed</string>
+    <string name="unified_sources_refresh_timeout">Refresh timed out. Check your network and try again.</string>
+    <string name="unified_sources_refresh_partial_failed">Some repositories failed to refresh: %1$s</string>
+    <string name="unified_sources_repository_last_refresh_failed">Last refresh failed: %1$s</string>
     <string name="unified_sources_repository_already_exists">Repository already exists</string>
     <string name="unified_sources_cannot_import_json">Cannot import JSON content for %1$s</string>
     <string name="unified_sources_imported_sources">%1$d source(s) imported</string>
