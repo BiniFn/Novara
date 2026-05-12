@@ -87,7 +87,9 @@ fun VerticalRailAnimatedVisibility(
 
     LaunchedEffect(animationKey, listState, index) {
         snapshotFlow {
-            listState.layoutInfo.visibleItemsInfo.any { it.index == index }
+            listState.layoutInfo.visibleItemsInfo.any { item ->
+                item.index == index || item.key == animationKey
+            }
         }
             .distinctUntilChanged()
             .filter { it }

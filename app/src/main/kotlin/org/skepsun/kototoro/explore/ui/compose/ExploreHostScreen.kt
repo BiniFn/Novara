@@ -651,8 +651,9 @@ fun KototoroExploreHostRoute(
                         key = { _, item -> "popular_${item.id}" },
                         contentType = { _, _ -> "popular_item" },
                     ) { index, item ->
+                        val popularItemKey = "popular_${item.id}"
                         VerticalRailAnimatedVisibility(
-                            animationKey = "explore_popular_${item.id}",
+                            animationKey = popularItemKey,
                             index = index + showcaseRows.size + 1,
                             listState = listState,
                             enableScrollLinkedAnimation = false,
