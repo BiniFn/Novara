@@ -1,8 +1,13 @@
 package org.skepsun.kototoro.core.util
 
 import android.app.Activity
+import android.content.Context
+import android.content.res.Configuration
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
+import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.TabletUiMode
 import androidx.window.layout.FoldingFeature
 import androidx.window.layout.WindowInfoTracker
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -63,5 +68,18 @@ object FoldableUtils {
         val config = activity.resources.configuration
         val minWindowDp = minOf(config.screenWidthDp, config.screenHeightDp)
         return minWindowDp >= minWidthDp
+    }
+
+    fun shouldUseTabletLayout(
+        context: Context,
+        settings: AppSettings,
+        configuration: Configuration = context.resources.configuration,
+        minWidthDp: Int = 600,
+    ): Boolean {
+        return when (settings.tabletUiMode) {
+            TabletUiMode.STRICT -> context.resources.getBoolean(R.bool.is_tablet)
+            TabletUiMode.RELAXED -> context.resources.getBoolean(R.bool.is_tablet) ||
+                configuration.screenWidthDp >= minWidthDp
+        }
     }
 }

@@ -1,6 +1,5 @@
 package org.skepsun.kototoro.details.ui.compose
 
-import android.content.res.Configuration
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -137,6 +136,7 @@ import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.util.FoldableUtils
 import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
@@ -343,8 +343,9 @@ fun DetailsScreen(
     val availableTabIds = remember(contentType, settings.isPagesTabEnabled) {
         resolveAvailableDetailsTabIds(contentType, settings)
     }
-    val isWideAdaptiveLayout = remember(configuration.orientation, configuration.screenWidthDp) {
-        configuration.orientation == Configuration.ORIENTATION_LANDSCAPE || configuration.screenWidthDp >= 720
+    val tabletUiMode by settings.observeAsState(AppSettings.KEY_TABLET_UI_MODE) { tabletUiMode }
+    val isWideAdaptiveLayout = remember(context, configuration.orientation, configuration.screenWidthDp, tabletUiMode) {
+        FoldableUtils.shouldUseTabletLayout(context, settings, configuration)
     }
     val density = LocalDensity.current
     val navigationBarBottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()

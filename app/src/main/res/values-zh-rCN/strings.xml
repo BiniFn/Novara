@@ -249,6 +249,9 @@
     <string name="logged_in_as">以 %s 登录</string>
     <string name="chapters_empty">此作品没有章节</string>
     <string name="appearance">外观</string>
+    <string name="tablet_ui_mode">平板布局检测</string>
+    <string name="tablet_ui_mode_relaxed">宽松（宽竖屏也算）</string>
+    <string name="tablet_ui_mode_strict">严格（原 Kotatsu 规则）</string>
     <string name="suggestions_excluded_genres_summary">不希望在推荐中看到的类别</string> <string name="suggestions_preferred_genres_summary">希望在推荐中高优先级展示的类别</string>
     <string name="text_delete_local_manga_batch">确定从设备中永久删除所选内容？</string>
     <string name="removal_completed">删除成功</string>

@@ -1,6 +1,5 @@
 package org.skepsun.kototoro.core.ui.widgets
 
-import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -30,6 +29,7 @@ import org.skepsun.kototoro.core.ui.BaseActivityEntryPoint
 import org.skepsun.kototoro.core.ui.glass.GlassBottomBarContainer
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
+import org.skepsun.kototoro.core.util.FoldableUtils
 import dagger.hilt.android.EntryPointAccessors
 
 @Immutable
@@ -72,9 +72,12 @@ fun KototoroBottomNav(
     val isLabelsVisible = prefs.isLabelsVisible
     val navHeight = prefs.navHeight
     val navFloatingHeight = prefs.navFloatingHeight
+    val tabletUiMode by appSettings.observeAsState(AppSettings.KEY_TABLET_UI_MODE) { tabletUiMode }
 
     val activeItems = navState.items.filter { navState.itemVisibility[it.id] != false }
-    val useNavigationRail = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val useNavigationRail = remember(configuration.orientation, configuration.screenWidthDp, tabletUiMode) {
+        FoldableUtils.shouldUseTabletLayout(context, appSettings, configuration)
+    }
     val systemBarsPadding = WindowInsets.systemBars.asPaddingValues()
     val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val railStartInset = systemBarsPadding.calculateStartPadding(layoutDirection)

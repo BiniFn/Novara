@@ -1,6 +1,5 @@
 package org.skepsun.kototoro.main.ui.compose
 
-import android.content.res.Configuration
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -54,6 +53,7 @@ import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.search.ui.suggestion.model.SearchSuggestionItem
 import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.util.FoldableUtils
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -212,7 +212,15 @@ fun KototoroApp(
     val gridSize = displayPrefs.gridSize
     val cornerRadius = displayPrefs.cornerRadius
     val isBrowseTrackingRecommendationsEnabled = displayPrefs.isBrowseTrackingRecommendationsEnabled
-    val isLandscapeNavigation = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val tabletUiMode by appSettings.observeAsState(AppSettings.KEY_TABLET_UI_MODE) { tabletUiMode }
+    val isLandscapeNavigation = remember(
+        context,
+        configuration.orientation,
+        configuration.screenWidthDp,
+        tabletUiMode,
+    ) {
+        FoldableUtils.shouldUseTabletLayout(context, appSettings, configuration)
+    }
     val isLanguagePresetFilterVisibleSetting = filterVisibilityPrefs.isLanguagePresetFilterVisible
     val isContentTypeFilterVisibleSetting = filterVisibilityPrefs.isContentTypeFilterVisible
     val isSourceTagFilterVisibleSetting = filterVisibilityPrefs.isSourceTagFilterVisible
