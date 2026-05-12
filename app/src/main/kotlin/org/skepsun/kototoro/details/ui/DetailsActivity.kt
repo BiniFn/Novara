@@ -157,7 +157,7 @@ class DetailsActivity :
             DetailsAction.ForgetHistory -> viewModel.removeFromHistory()
             DetailsAction.ManageCategories -> this.router.openFavoriteCategories()
             is DetailsAction.OpenSource -> this.router.openList(action.source, null, null)
-            is DetailsAction.OpenTrackingDiscover -> this.router.openTrackingDiscover(action.service)
+            is DetailsAction.OpenTrackingDiscover -> this.router.openTrackingDiscover(action.service, action.forceLoad)
             is DetailsAction.SearchAuthorOnSource -> this.router.openSearch(action.source, action.author)
             is DetailsAction.SearchAuthorEverywhere -> this.router.openSearch(action.author, SearchKind.AUTHOR)
             is DetailsAction.SearchTagOnSource -> this.router.openSearch(action.tag.source, action.tag.title)

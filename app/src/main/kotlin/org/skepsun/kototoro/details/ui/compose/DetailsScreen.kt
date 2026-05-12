@@ -273,13 +273,38 @@ fun DetailsScreen(
     val downloadDialogViewModel: DownloadDialogViewModel = hiltViewModel()
     val content = mangaDetails?.toContent()
     val contentType = resolvedMetadataContentType
-    val metadataBrowserTarget = remember(content) {
-        content?.takeIf { it.publicUrl.isHttpUrl() }
+    val selectedMetadataOption = metadataSourceOptions.firstOrNull { it.isSelected }
+        ?: metadataSourceOptions.firstOrNull()
+    val metadataBrowserTarget = remember(selectedMetadataOption, content) {
+        selectedMetadataOption?.url
+            ?.takeIf { it.isHttpUrl() }
+            ?.let { url ->
+                BrowserTarget(
+                    url = url,
+                    source = selectedMetadataOption.source,
+                    title = selectedMetadataOption.title ?: content?.title,
+                )
+            }
+            ?: content
+                ?.takeIf { selectedMetadataOption?.trackingService == null && it.publicUrl.isHttpUrl() }
+                ?.let { localContent ->
+                    BrowserTarget(
+                        url = localContent.publicUrl,
+                        source = localContent.source,
+                        title = localContent.title,
+                    )
+                }
     }
     val localBrowserTarget = remember(activeLocalBrowserContent, metadataBrowserTarget) {
         activeLocalBrowserContent?.takeIf { it.publicUrl.isHttpUrl() }?.takeUnless { local ->
-            local.publicUrl == metadataBrowserTarget?.publicUrl &&
+            local.publicUrl == metadataBrowserTarget?.url &&
                 local.source == metadataBrowserTarget.source
+        }?.let { local ->
+            BrowserTarget(
+                url = local.publicUrl,
+                source = local.source,
+                title = local.title,
+            )
         }
     }
     val readingSourceLabelRes = remember(contentType) {
@@ -680,6 +705,11 @@ fun DetailsScreen(
                         isStatsAvailable = isStatsAvailable,
                         hasMetadataBrowserTarget = metadataBrowserTarget != null,
                         hasLocalBrowserTarget = localBrowserTarget != null,
+                        localBrowserTitleRes = when (contentType) {
+                            ContentType.VIDEO,
+                            ContentType.HENTAI_VIDEO -> R.string.open_playback_page_in_browser
+                            else -> R.string.open_reading_page_in_browser
+                        },
                         hasOnlineVariant = remoteContent != null,
                         isDeleteLocalAvailable = content?.source == LocalMangaSource,
                         isEditOverrideAvailable = content != null,
@@ -690,12 +720,12 @@ fun DetailsScreen(
                             when (action) {
                                 is DetailsAction.OpenMetadataInBrowser -> {
                                     metadataBrowserTarget?.let {
-                                        handleActionClick(DetailsAction.OpenBrowserPage(it.publicUrl, it.source, it.title))
+                                        handleActionClick(DetailsAction.OpenBrowserPage(it.url, it.source, it.title))
                                     }
                                 }
                                 is DetailsAction.OpenLocalSourceInBrowser -> {
                                     localBrowserTarget?.let {
-                                        handleActionClick(DetailsAction.OpenBrowserPage(it.publicUrl, it.source, it.title))
+                                        handleActionClick(DetailsAction.OpenBrowserPage(it.url, it.source, it.title))
                                     }
                                 }
                                 DetailsAction.OpenStatistics -> {
@@ -1856,6 +1886,11 @@ private fun DetailsScrollableContent(
             onSelectActiveLocalSource = onSelectActiveLocalSource,
             onSelectMetadataSource = onSelectMetadataSource,
             onSourceClick = { onActionClick(DetailsAction.OpenSource(it)) },
+            onTrackingSourceClick = { option ->
+                option.trackingService?.let { service ->
+                    onActionClick(DetailsAction.OpenTrackingDiscover(service, forceLoad = true))
+                }
+            },
             onOpenTrackingDiscover = { service ->
                 onActionClick(DetailsAction.OpenTrackingDiscover(service))
             },
@@ -2699,7 +2734,10 @@ private fun stableDetailsImageCacheKey(
 sealed interface DetailsAction {
     data object OpenCover : DetailsAction
     data class OpenSource(val source: ContentSource) : DetailsAction
-    data class OpenTrackingDiscover(val service: ScrobblerService) : DetailsAction
+    data class OpenTrackingDiscover(
+        val service: ScrobblerService,
+        val forceLoad: Boolean = false,
+    ) : DetailsAction
     data class SearchAuthorOnSource(val author: String, val source: ContentSource) : DetailsAction
     data class SearchAuthorEverywhere(val author: String) : DetailsAction
     data class SearchTagOnSource(val tag: ContentTag) : DetailsAction
@@ -2756,6 +2794,12 @@ sealed interface DetailsAction {
         val match: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult,
     ) : DetailsAction
 }
+
+private data class BrowserTarget(
+    val url: String,
+    val source: ContentSource?,
+    val title: String?,
+)
 
 @Composable
 private fun ReadDock(
@@ -2973,6 +3017,7 @@ private fun DetailsOverflowMenu(
     isStatsAvailable: Boolean,
     hasMetadataBrowserTarget: Boolean,
     hasLocalBrowserTarget: Boolean,
+    localBrowserTitleRes: Int,
     hasOnlineVariant: Boolean,
     isDeleteLocalAvailable: Boolean,
     isEditOverrideAvailable: Boolean,
@@ -3087,7 +3132,7 @@ private fun DetailsOverflowMenu(
             }
             if (hasLocalBrowserTarget) {
                 DropdownMenuItem(
-                    text = { Text(stringResource(R.string.open_local_source_in_browser)) },
+                    text = { Text(stringResource(localBrowserTitleRes)) },
                     onClick = {
                         expanded = false
                         onActionClick(DetailsAction.OpenLocalSourceInBrowser)

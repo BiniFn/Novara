@@ -47,6 +47,7 @@ import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.model.getPreferredBranch
+import org.skepsun.kototoro.core.db.entity.toContent
 import org.skepsun.kototoro.core.jsonsource.SourceType
 import org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier
 import org.skepsun.kototoro.core.nav.ContentIntent
@@ -1612,8 +1613,25 @@ class DetailsViewModel @Inject constructor(
 		resolvedMetadataContentType.value = currentMetadataContentType()
 		resolvedMetadataLanguage.value = metadataLanguage
 		resolvedReadingLanguage.value = readingLanguage
-		activeLocalBrowserContent.value = baseLoadedDetails?.toContent()?.takeIf { it.publicUrl.isNotBlank() }
+		refreshActiveLocalBrowserContent()
 		refreshTranslateActionVisibility(metadataLanguage)
+	}
+
+	private fun refreshActiveLocalBrowserContent() {
+		val activeLocalId = activeLocalSourceOptions.value.firstOrNull { it.isActive }?.mangaId
+			?: activeMangaIdFlow.value
+		val baseContent = baseLoadedDetails?.toContent()
+		if (activeLocalId == null || activeLocalId == baseLoadedDetails?.id) {
+			activeLocalBrowserContent.value = baseContent?.takeIf { it.publicUrl.isNotBlank() }
+			return
+		}
+		launchJob(Dispatchers.IO) {
+			activeLocalBrowserContent.value = db.getMangaDao()
+				.find(activeLocalId)
+				?.toContent()
+				?.takeIf { it.publicUrl.isNotBlank() }
+				?: baseContent?.takeIf { it.publicUrl.isNotBlank() }
+		}
 	}
 
 	private fun refreshTranslateActionVisibility(metadataLanguage: String?) {
@@ -3503,6 +3521,9 @@ class DetailsViewModel @Inject constructor(
 				runCatchingCancellable {
 					bindReadingCandidateToCurrentEntity(targetContent.id)
 				}
+				activeMangaIdFlow.value = targetContent.id
+				currentLoadIntentOverride = ContentIntent.of(targetContent.id)
+				refreshEntityBoundLocalSources(targetContent.id)
 				if (selection != null) {
 					runCatchingCancellable {
 						trackingSiteMatcher.confirmMatch(selection.service, targetContent.id, selection.remoteId)
@@ -3523,6 +3544,15 @@ class DetailsViewModel @Inject constructor(
 				}
 			}
 		}
+	}
+
+	private suspend fun refreshEntityBoundLocalSources(activeMangaId: Long) {
+		val entityId = resolveContextualEntityId() ?: return
+		val bindings = entityGraphRepository.getBindings(entityId)
+		activeLocalSourceOptions.value = buildActiveLocalSourceOptions(bindings, activeMangaId)
+		entityChapterSourceInfo.value = resolveEntityChapterSourceInfo(activeMangaId)
+		updateSourceOptions()
+		refreshResolvedPresentationState()
 	}
 
 	private suspend fun bindReadingCandidateToCurrentEntity(mangaId: Long) {

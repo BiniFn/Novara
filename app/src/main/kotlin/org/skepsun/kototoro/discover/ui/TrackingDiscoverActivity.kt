@@ -37,6 +37,7 @@ class TrackingDiscoverActivity : FragmentActivity() {
 		val initialService = intent.getStringExtra(AppRouter.KEY_ID)
 			?.let { name -> ScrobblerService.entries.firstOrNull { it.name == name } }
 			?: ScrobblerService.BANGUMI
+		val forceLoad = intent.getBooleanExtra(AppRouter.KEY_FORCE_LOAD, false)
 
 		setContent {
 			KototoroTheme {
@@ -47,8 +48,12 @@ class TrackingDiscoverActivity : FragmentActivity() {
 				val availableServices = viewModel.availableServices.collectAsStateWithLifecycle().value
 				val scheduleCategory = (activeService ?: initialService).let(viewModel::getScheduleCategory)
 
-				LaunchedEffect(initialService) {
+				LaunchedEffect(initialService, forceLoad) {
+					viewModel.setForceLoad(forceLoad)
 					viewModel.selectService(initialService)
+					if (forceLoad) {
+						viewModel.refresh()
+					}
 				}
 
 				Scaffold(

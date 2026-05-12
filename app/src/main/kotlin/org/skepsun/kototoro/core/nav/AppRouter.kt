@@ -253,10 +253,11 @@ class AppRouter private constructor(
         startActivity(detailsIntent(contextOrNull() ?: return, DetailsOrigin.TrackingItem(service.id.toString(), remoteId, url)))
     }
 
-	fun openTrackingDiscover(service: ScrobblerService) {
+	fun openTrackingDiscover(service: ScrobblerService, forceLoad: Boolean = false) {
 		startActivity(
 			Intent(contextOrNull() ?: return, org.skepsun.kototoro.discover.ui.TrackingDiscoverActivity::class.java)
-				.putExtra(KEY_ID, service.name),
+				.putExtra(KEY_ID, service.name)
+				.putExtra(KEY_FORCE_LOAD, forceLoad),
 		)
 	}
 
@@ -1364,6 +1365,7 @@ class AppRouter private constructor(
         const val KEY_EXCLUDE = "exclude"
         const val KEY_FILE = "file"
         const val KEY_FILTER = "filter"
+        const val KEY_FORCE_LOAD = "force_load"
         const val KEY_ID = "id"
         const val KEY_IMAGE_HEADERS = "image_headers"
         const val KEY_IMAGE_PATH = "image_path"

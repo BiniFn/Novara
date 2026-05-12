@@ -54,7 +54,7 @@ internal fun handleDetailsAction(
         DetailsAction.ForgetHistory -> viewModel.removeFromHistory()
         DetailsAction.ManageCategories -> appRouter.openFavoriteCategories()
         is DetailsAction.OpenSource -> appRouter.openList(action.source, null, null)
-        is DetailsAction.OpenTrackingDiscover -> appRouter.openTrackingDiscover(action.service)
+        is DetailsAction.OpenTrackingDiscover -> appRouter.openTrackingDiscover(action.service, action.forceLoad)
         is DetailsAction.SearchAuthorOnSource -> appRouter.openSearch(action.source, action.author)
         is DetailsAction.SearchAuthorEverywhere -> appRouter.openSearch(action.author, SearchKind.AUTHOR)
         is DetailsAction.SearchTagOnSource -> appRouter.openSearch(action.tag.source, action.tag.title)

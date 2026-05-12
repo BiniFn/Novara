@@ -65,6 +65,7 @@ class DiscoverViewModel @Inject constructor(
 	private val searchQuery = MutableStateFlow("")
 	private val selectedServiceOverride = MutableStateFlow<ScrobblerService?>(null)
 	private val selectedCategoryOverride = MutableStateFlow<String?>(null)
+	private val forceLoadRecommendations = MutableStateFlow(false)
 
 	private val preferredService = preferredTrackingSiteProvider.preferredSite
 		.stateIn(
@@ -145,7 +146,9 @@ class DiscoverViewModel @Inject constructor(
 				activeCategory,
 				refreshTrigger,
 				searchQuery,
-				isBrowseTrackingRecommendationsEnabled,
+				combine(isBrowseTrackingRecommendationsEnabled, forceLoadRecommendations) { isEnabled, forceLoad ->
+					isEnabled || forceLoad
+				},
 			) { service, category, refreshVersion, query, isEnabled ->
 				DiscoverRequest(
 					service = service,
@@ -158,7 +161,7 @@ class DiscoverViewModel @Inject constructor(
 				.debounce(200) // Wait for all StateFlows to settle
 				.distinctUntilChanged()
 				.collect { request ->
-					if (!shouldLoadBrowseRecommendations(request.query)) {
+					if (!request.shouldLoad()) {
 						loadJob?.cancel()
 						_items.value = emptyList()
 						_page.value = 0
@@ -480,6 +483,10 @@ class DiscoverViewModel @Inject constructor(
 		preferredTrackingSiteProvider.setPreferredSite(service)
 	}
 
+	fun setForceLoad(forceLoad: Boolean) {
+		forceLoadRecommendations.value = forceLoad
+	}
+
 	fun selectCategory(categoryId: String) {
 		selectedCategoryOverride.value = categoryId
 	}
@@ -523,7 +530,7 @@ class DiscoverViewModel @Inject constructor(
 	}
 
 	private fun shouldLoadBrowseRecommendations(query: String = searchQuery.value.trim()): Boolean {
-		return isBrowseTrackingRecommendationsEnabled.value || query.isNotBlank()
+		return forceLoadRecommendations.value || isBrowseTrackingRecommendationsEnabled.value || query.isNotBlank()
 	}
 
 	private fun resolveAvailableServices(preferred: ScrobblerService): List<ScrobblerService> {
@@ -607,6 +614,7 @@ class DiscoverViewModel @Inject constructor(
 			}
 		}
 	}
+}
 
 private data class DiscoverRequest(
 	val service: ScrobblerService,
@@ -614,5 +622,6 @@ private data class DiscoverRequest(
 	val query: String,
 	val refreshVersion: Int,
 	val isEnabled: Boolean,
-)
+) {
+	fun shouldLoad(): Boolean = isEnabled || query.isNotBlank()
 }

@@ -172,6 +172,7 @@ fun DetailsHeader(
     onSelectActiveLocalSource: (Long) -> Unit,
     onSelectMetadataSource: (DetailsSourceOption) -> Unit,
     onSourceClick: (ContentSource) -> Unit,
+    onTrackingSourceClick: (DetailsSourceOption) -> Unit,
     onOpenTrackingDiscover: (ScrobblerService) -> Unit,
     onOpenMetadataSourceSheet: () -> Unit,
     onOpenReadingSourceSheet: () -> Unit,
@@ -491,7 +492,7 @@ fun DetailsHeader(
                                     onPrimaryClick = {
                                         when {
                                             metadataSourceOption?.source != null -> onSourceClick(metadataSourceOption.source)
-                                            metadataSourceOption?.trackingService != null -> onOpenTrackingDiscover(metadataSourceOption.trackingService)
+                                            metadataSourceOption?.trackingService != null -> onTrackingSourceClick(metadataSourceOption)
                                         }
                                     },
                                     isMenuEnabled = true,
@@ -505,7 +506,12 @@ fun DetailsHeader(
                                 label = stringResource(readingSourceLabelRes),
                                 currentOption = readingSourceOption,
                                 unavailableText = stringResource(R.string.details_reading_source_unavailable),
-                                onPrimaryClick = {},
+                                onPrimaryClick = {
+                                    when {
+                                        readingSourceOption?.source != null -> onSourceClick(readingSourceOption.source)
+                                        readingSourceOption?.trackingService != null -> onTrackingSourceClick(readingSourceOption)
+                                    }
+                                },
                                 isMenuEnabled = true,
                                 onMenuClick = onOpenReadingSourceSheet,
                                 modifier = Modifier.weight(1f),
