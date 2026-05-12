@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.BasicTextField
@@ -1379,7 +1380,10 @@ private fun SourceTagsPinnedRow(
                 ActiveQueryChip(query = query, onClear = onClearActiveQuery)
             }
         }
-        items(tags, key = { it.key }) { tag ->
+        itemsIndexed(
+            items = tags,
+            key = { index, tag -> sourceTagChipKey(tag, index) },
+        ) { _, tag ->
             FilterChip(
                 selected = tag in selectedTags,
                 onClick = { onToggleTag(tag, tag !in selectedTags) },
@@ -1393,6 +1397,11 @@ private fun SourceTagsPinnedRow(
         }
     }
 }
+
+private fun sourceTagChipKey(
+    tag: ContentTag,
+    index: Int,
+): String = "${tag.source.name}:${tag.key}:${tag.title}:$index"
 
 @Composable
 private fun ActiveQueryChip(
