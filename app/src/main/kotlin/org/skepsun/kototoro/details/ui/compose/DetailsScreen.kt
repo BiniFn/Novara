@@ -19,6 +19,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -33,6 +34,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -185,7 +187,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import java.util.Locale
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DetailsScreen(
     viewModel: DetailsViewModel,
@@ -422,8 +424,19 @@ fun DetailsScreen(
     val compactSheetExpansionProgress = detailsPaneState.expansionProgress
     val toolbarTitle = translatedTitle ?: content?.title.orEmpty()
     val isCompactPaneFullyExpanded = !isWideAdaptiveLayout && compactPaneAnchor == CompactDetailsPaneAnchor.Full
-    val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    var stableStatusBarTopPadding by remember { mutableStateOf(statusBarTopPadding) }
+    val visibleStatusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val statusBarTopPadding = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
+    val fallbackStatusBarTopPadding = remember(context, density) {
+        val statusBarHeightResId = context.resources.getIdentifier("status_bar_height", "dimen", "android")
+        if (statusBarHeightResId > 0) {
+            with(density) { context.resources.getDimensionPixelSize(statusBarHeightResId).toDp() }
+        } else {
+            40.dp
+        }
+    }
+    var stableStatusBarTopPadding by remember {
+        mutableStateOf(statusBarTopPadding.takeIf { it > 0.dp } ?: fallbackStatusBarTopPadding)
+    }
     LaunchedEffect(isWideAdaptiveLayout, statusBarTopPadding) {
         if (isWideAdaptiveLayout) {
             stableStatusBarTopPadding = 0.dp
@@ -589,8 +602,16 @@ fun DetailsScreen(
                         ?: content?.coverUrl?.takeIf { it.isNotBlank() }
                     if (panoramaCoverUrl != null) {
                         val request = remember(content?.source?.name, content?.url, panoramaCoverUrl) {
+                            val cacheKey = stableDetailsImageCacheKey(
+                                "details-panorama",
+                                content?.source?.name,
+                                content?.url,
+                                panoramaCoverUrl,
+                            )
                             ImageRequest.Builder(context)
                                 .data(panoramaCoverUrl)
+                                .memoryCacheKey(cacheKey)
+                                .diskCacheKey(cacheKey)
                                 .apply { content?.let { mangaExtra(it) } }
                                 .build()
                         }
@@ -602,7 +623,7 @@ fun DetailsScreen(
                                 0.6f * (1f - compactCollapseProgressProvider())
                             },
                             backgroundColor = MaterialTheme.colorScheme.surface,
-                            crossfadeEnabled = sharedElementKey == null,
+                            crossfadeEnabled = false,
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
@@ -1942,6 +1963,7 @@ private fun shouldOpenTrackingRelationSheet(item: EntityRelationItem): Boolean {
         (!item.subtitle.isNullOrBlank() || !item.supportingText.isNullOrBlank() || item.detailLines.isNotEmpty())
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DetailsPaneContent(
     detailsPaneState: DetailsPaneState,
@@ -1988,7 +2010,7 @@ private fun DetailsPaneContent(
         animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
         label = "detailsPaneActionsExpansion",
     )
-    val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val statusBarTopPadding = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
     val colorScheme = MaterialTheme.colorScheme
     val isCollapsedPane = showCollapsedHandle && detailsPaneState.anchor == CompactDetailsPaneAnchor.Collapsed
     val isDarkTheme = colorScheme.background.luminance() < 0.5f
@@ -2657,6 +2679,21 @@ internal fun DetailsDockActionButton(
             )
         }
     }
+}
+
+private fun stableDetailsImageCacheKey(
+    prefix: String,
+    sourceName: String?,
+    ownerKey: String?,
+    url: String,
+): String = buildString {
+    append(prefix)
+    append('#')
+    append(sourceName.orEmpty())
+    append('#')
+    append(ownerKey.orEmpty())
+    append('#')
+    append(url)
 }
 
 sealed interface DetailsAction {

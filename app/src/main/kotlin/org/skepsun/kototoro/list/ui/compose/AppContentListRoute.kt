@@ -86,7 +86,7 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     onAddMenuProvider: ((androidx.activity.ComponentActivity, VM, androidx.lifecycle.LifecycleOwner) -> androidx.core.view.MenuProvider?)? = null,
     listHeader: (@Composable () -> Unit)? = null,
 ) {
-    val items by viewModel.content.collectAsStateWithLifecycle(initialValue = emptyList())
+    val items by viewModel.content.collectAsStateWithLifecycle()
     val listMode by viewModel.listMode.collectAsStateWithLifecycle(initialValue = org.skepsun.kototoro.core.prefs.ListMode.GRID)
     val gridScale by viewModel.gridScale.collectAsStateWithLifecycle(initialValue = 1f)
     val isRefreshing by viewModel.isLoading.collectAsStateWithLifecycle(initialValue = false)

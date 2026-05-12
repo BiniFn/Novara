@@ -276,9 +276,12 @@ fun DetailsHeader(
 
     val coverModel = remember(content?.source?.name, content?.url, currentCoverUrl) {
         currentCoverUrl?.let {
+            val cacheKey = stableDetailsImageCacheKey("details-cover", content?.source?.name, content?.url, it)
             ImageRequest.Builder(context)
                 .data(it)
-                .crossfade(sharedElementKey == null)
+                .memoryCacheKey(cacheKey)
+                .diskCacheKey(cacheKey)
+                .crossfade(false)
                 .apply { content?.let { mangaExtra(it) } }
                 .build()
         }
@@ -1076,11 +1079,21 @@ private fun SourceOptionCard(
             ) {
                 when {
                     !displayModel.coverUrl.isNullOrBlank() -> {
+                        val cacheKey = remember(displayModel.source?.name, displayModel.coverUrl) {
+                            stableDetailsImageCacheKey(
+                                "details-source-cover",
+                                displayModel.source?.name,
+                                displayModel.title,
+                                displayModel.coverUrl,
+                            )
+                        }
                         AsyncImage(
                             model = ImageRequest.Builder(LocalContext.current)
                                 .data(displayModel.coverUrl)
+                                .memoryCacheKey(cacheKey)
+                                .diskCacheKey(cacheKey)
                                 .apply { displayModel.source?.let(::mangaSourceExtra) }
-                                .crossfade(true)
+                                .crossfade(false)
                                 .build(),
                             contentDescription = displayModel.title,
                             contentScale = ContentScale.Crop,
@@ -1190,6 +1203,21 @@ private fun SourceOptionCard(
             }
         }
     }
+}
+
+private fun stableDetailsImageCacheKey(
+    prefix: String,
+    sourceName: String?,
+    ownerKey: String?,
+    url: String,
+): String = buildString {
+    append(prefix)
+    append('#')
+    append(sourceName.orEmpty())
+    append('#')
+    append(ownerKey.orEmpty())
+    append('#')
+    append(url)
 }
 
 private fun supportedStatusesForService(service: ScrobblerService): List<ScrobblingStatus> {

@@ -155,6 +155,8 @@ fun ContentSourceResolvedIcon(
         } else {
             ImageRequest.Builder(context)
                 .data(resolvedSource.faviconUri())
+                .memoryCacheKey(sourceFailureKey)
+                .diskCacheKey(sourceFailureKey)
                 .crossfade(animated)
                 .mangaSourceExtra(resolvedSource)
                 .suppressCaptchaErrors()
@@ -182,7 +184,7 @@ fun ContentSourceResolvedIcon(
             onError = {
                 failedSourceIcons[sourceFailureKey] = true
                 hasError = true
-            }
+            },
         )
     }
 }

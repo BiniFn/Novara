@@ -42,8 +42,7 @@ fun KototoroFavoritesHostRoute(
     onTopBarOverrideChanged: (TopBarOverrideState?) -> Unit = {},
     viewModel: FavouritesContainerViewModel = hiltViewModel()
 ) {
-    val categories by viewModel.categories.collectAsStateWithLifecycle(emptyList())
-    val isEmpty by viewModel.isEmpty.collectAsStateWithLifecycle(false)
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     val mainActivity = LocalContext.current as? MainActivity
     val globalState = viewModel.globalFavoritesState
@@ -79,14 +78,14 @@ fun KototoroFavoritesHostRoute(
         mainActivity?.refreshFilters()
     }
 
-    if (categories.isEmpty() && !isEmpty) {
+    if (uiState.isLoading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
         return
     }
 
-    if (isEmpty) {
+    if (uiState.isEmpty) {
         Box(Modifier.fillMaxSize().padding(contentPadding), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(painterResource(R.drawable.ic_empty_favourites), null, Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -99,7 +98,8 @@ fun KototoroFavoritesHostRoute(
         return
     }
 
-    val displayCategories = remember(categories, initialCategoryId, initialCategoryTitle) {
+    val displayCategories = remember(uiState.categories, initialCategoryId, initialCategoryTitle) {
+        val categories = uiState.categories
         if (initialCategoryId == NO_ID || categories.any { it.id == initialCategoryId }) {
             categories
         } else {

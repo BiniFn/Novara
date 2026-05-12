@@ -7,6 +7,7 @@ import kotlinx.parcelize.RawValue
 import org.skepsun.kototoro.core.model.parcelable.ContentSourceParceler
 import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.util.longHashCode
 
 enum class ReaderPageSplit {
 	NONE, LEFT, RIGHT
@@ -24,6 +25,9 @@ data class ReaderPage(
 	val source: ContentSource,
 	val split: ReaderPageSplit = ReaderPageSplit.NONE,
 ) : Parcelable {
+
+	val readerKey: Long
+		get() = "$chapterId#$index#$url#${split.name}".longHashCode()
 
 	constructor(page: ContentPage, index: Int, chapterId: Long) : this(
 		id = page.id,

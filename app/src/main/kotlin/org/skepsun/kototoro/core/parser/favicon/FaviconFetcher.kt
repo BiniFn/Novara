@@ -68,7 +68,6 @@ class FaviconFetcher(
 ) : Fetcher {
 
 	override suspend fun fetch(): FetchResult? {
-		android.util.Log.e("DetailsFavicon", "Fetching favicon for uri=$uri")
 		val sourceId = uri.schemeSpecificPart.let {
 			if (it.startsWith("JSON_") && it.endsWith("_json")) {
 				it.removeSuffix("_json")
@@ -300,12 +299,16 @@ class FaviconFetcher(
 		val cacheKey = options.diskCacheKey ?: "${repository.source.name}_$sizePx"
 		if (options.diskCachePolicy.readEnabled) {
 			localStorageCache[cacheKey]?.let { file ->
+				logFaviconCache("hit", repository.source.name, cacheKey, file.length())
 				return SourceFetchResult(
 					source = ImageSource(file.toOkioPath(), FileSystem.SYSTEM),
 					mimeType = MimeTypes.probeMimeType(file)?.toString(),
 					dataSource = DataSource.DISK,
 				)
 			}
+			logFaviconCache("miss", repository.source.name, cacheKey)
+		} else {
+			logFaviconCache("read_disabled", repository.source.name, cacheKey)
 		}
 		var favicons = repository.getFavicons()
 		var lastError: Exception? = null
@@ -316,10 +319,11 @@ class FaviconFetcher(
 				android.util.Log.e("DetailsFavicon", "Fetching kotatsu parser URL: ${icon.url}")
 				val result = imageLoader.fetch(icon.url, options)
 				if (result != null) {
-					android.util.Log.e("DetailsFavicon", "Fetched result successfully for kotatsu: ${icon.url}")
+					logFaviconCache("downstream_${result.dataSourceName()}", repository.source.name, cacheKey)
 					return if (options.diskCachePolicy.writeEnabled) {
 						writeToCache(cacheKey, result)
 					} else {
+						logFaviconCache("write_disabled", repository.source.name, cacheKey)
 						result
 					}
 				} else {
@@ -347,12 +351,16 @@ class FaviconFetcher(
 		val cacheKey = options.diskCacheKey ?: "${repository.source.name}_$sizePx"
 		if (options.diskCachePolicy.readEnabled) {
 			localStorageCache[cacheKey]?.let { file ->
+				logFaviconCache("hit", repository.source.name, cacheKey, file.length())
 				return SourceFetchResult(
 					source = ImageSource(file.toOkioPath(), FileSystem.SYSTEM),
 					mimeType = MimeTypes.probeMimeType(file)?.toString(),
 					dataSource = DataSource.DISK,
 				)
 			}
+			logFaviconCache("miss", repository.source.name, cacheKey)
+		} else {
+			logFaviconCache("read_disabled", repository.source.name, cacheKey)
 		}
 		var favicons = repository.getFavicons()
 		var lastError: Exception? = null
@@ -363,10 +371,11 @@ class FaviconFetcher(
 				android.util.Log.e("DetailsFavicon", "Fetching parser URL: ${icon.url}")
 				val result = imageLoader.fetch(icon.url, options)
 				if (result != null) {
-					android.util.Log.e("DetailsFavicon", "Fetched result successfully for parser: ${icon.url}")
+					logFaviconCache("downstream_${result.dataSourceName()}", repository.source.name, cacheKey)
 					return if (options.diskCachePolicy.writeEnabled) {
 						writeToCache(cacheKey, result)
 					} else {
+						logFaviconCache("write_disabled", repository.source.name, cacheKey)
 						result
 					}
 				} else {
@@ -403,20 +412,16 @@ class FaviconFetcher(
 	private suspend fun writeToCache(key: String, result: FetchResult): FetchResult = runCatchingCancellable {
 		when (result) {
 			is ImageFetchResult -> {
-				if (result.dataSource == DataSource.NETWORK) {
-					localStorageCache.set(key, result.image.toBitmap()).asFetchResult()
-				} else {
-					result
-				}
+				localStorageCache.set(key, result.image.toBitmap()).also {
+					logFaviconCache("write_bitmap_${result.dataSource}", key = key, bytes = it.length())
+				}.asFetchResult()
 			}
 
 			is SourceFetchResult -> {
-				if (result.dataSource == DataSource.NETWORK) {
-					result.source.source().use {
-						localStorageCache.set(key, it, result.mimeType?.toMimeTypeOrNull()).asFetchResult()
-					}
-				} else {
-					result
+				result.source.source().use {
+					localStorageCache.set(key, it, result.mimeType?.toMimeTypeOrNull()).also { file ->
+						logFaviconCache("write_source_${result.dataSource}", key = key, bytes = file.length())
+					}.asFetchResult()
 				}
 			}
 		}
@@ -429,6 +434,11 @@ class FaviconFetcher(
 		mimeType = MimeTypes.probeMimeType(this)?.toString(),
 		dataSource = DataSource.DISK,
 	)
+
+	private fun FetchResult.dataSourceName(): String = when (this) {
+		is ImageFetchResult -> dataSource.name
+		is SourceFetchResult -> dataSource.name
+	}
 
 	class Factory @Inject constructor(
 		private val mangaRepositoryFactory: ContentRepository.Factory,
@@ -451,6 +461,23 @@ class FaviconFetcher(
 	private companion object {
 
 		const val FALLBACK_SIZE = 9999 // largest icon
+
+		private fun logFaviconCache(
+			event: String,
+			source: String? = null,
+			key: String,
+			bytes: Long? = null,
+		) {
+			android.util.Log.d(
+				"FaviconCache",
+				buildString {
+					append(event)
+					source?.let { append(" source=").append(it) }
+					append(" key=").append(key)
+					bytes?.let { append(" bytes=").append(it) }
+				},
+			)
+		}
 
 		private fun defaultIconRes(source: ParserContentSource): Int {
 			return when {

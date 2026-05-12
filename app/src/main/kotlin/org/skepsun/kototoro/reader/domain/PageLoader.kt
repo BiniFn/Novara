@@ -77,6 +77,7 @@ import org.skepsun.kototoro.local.data.PageCache
 import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.util.await
+import org.skepsun.kototoro.parsers.util.longHashCode
 import org.skepsun.kototoro.parsers.util.requireBody
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.reader.ui.pager.ReaderPage
@@ -135,7 +136,7 @@ class PageLoader @Inject constructor(
 	fun prefetch(pages: List<ReaderPage>) = loaderScope.launch {
 		prefetchLock.withLock {
 			for (page in pages.asReversed()) {
-				if (tasks.containsKey(page.id)) {
+				if (tasks.containsKey(page.readerKey)) {
 					continue
 				}
 				prefetchQueue.offerFirst(page.toContentPage())
@@ -188,7 +189,8 @@ class PageLoader @Inject constructor(
 
 	fun loadPageAsync(page: ContentPage, force: Boolean): ProgressDeferred<Uri, Float> {
 		val currentSignature = enhancementController.currentWorkSignature()
-		var task = tasks[page.id]
+		val taskKey = page.taskKey()
+		var task = tasks[taskKey]
 			?.takeIf { it.translationWorkSignature == currentSignature }
 			?.task
 			?.takeIf { it.isValid() }
@@ -199,7 +201,7 @@ class PageLoader @Inject constructor(
 		}
 		task = loadPageAsyncImpl(page, skipCache = force, isPrefetch = false)
 		synchronized(tasks) {
-			tasks[page.id] = PageTaskRecord(
+			tasks[taskKey] = PageTaskRecord(
 				task = task,
 				translationWorkSignature = currentSignature,
 			)
@@ -273,7 +275,7 @@ class PageLoader @Inject constructor(
 			while (prefetchQueue.isNotEmpty()) {
 				val page = prefetchQueue.pollFirst() ?: return@launch
 				synchronized(tasks) {
-					tasks[page.id] = PageTaskRecord(
+					tasks[page.taskKey()] = PageTaskRecord(
 						task = loadPageAsyncImpl(page, skipCache = false, isPrefetch = true),
 						translationWorkSignature = enhancementController.currentWorkSignature(),
 					)
@@ -419,7 +421,7 @@ class PageLoader @Inject constructor(
 				scope = loaderScope,
 			) {
 				synchronized(tasks) {
-					tasks.remove(page.id)
+					tasks.remove(page.taskKey())
 				}
 			}
 		}
@@ -428,6 +430,10 @@ class PageLoader @Inject constructor(
 
 	private fun isLowRam(): Boolean {
 		return context.ramAvailable <= FileSize.MEGABYTES.convert(PREFETCH_MIN_RAM_MB, FileSize.BYTES)
+	}
+
+	private fun ContentPage.taskKey(): Long {
+		return "${source.name}#$id#$url".longHashCode()
 	}
 
 	private fun Image.toImageSource(): ImageSource = if (this is BitmapImage) {

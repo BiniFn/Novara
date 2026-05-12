@@ -31,6 +31,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.geometry.Rect
 import androidx.fragment.app.FragmentActivity
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavDestination
+import androidx.navigation.NavDestination.Companion.hasRoute
 import org.skepsun.kototoro.core.util.ShareHelper
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.search.ui.compose.SearchNavigationRequest
@@ -62,6 +65,36 @@ import kotlinx.coroutines.launch
 private fun <T> eventCollector(block: suspend (T) -> Unit): FlowCollector<T> = FlowCollector { value ->
     block(value)
 }
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.isMainRouteTransition(): Boolean {
+    return initialState.destination.isMainRoute() && targetState.destination.isMainRoute()
+}
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.mainRouteFadeIn(): EnterTransition =
+    if (isMainRouteTransition()) {
+        fadeIn(tween(90, easing = LinearEasing))
+    } else {
+        EnterTransition.None
+    }
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.mainRouteFadeOut(): ExitTransition =
+    if (isMainRouteTransition()) {
+        fadeOut(tween(60, easing = LinearEasing))
+    } else {
+        ExitTransition.None
+    }
+
+private fun NavDestination.isMainRoute(): Boolean =
+    hasRoute<HomeRoute>() ||
+        hasRoute<DiscoverRoute>() ||
+        hasRoute<HistoryRoute>() ||
+        hasRoute<FavoritesRoute>() ||
+        hasRoute<ExploreRoute>() ||
+        hasRoute<FeedRoute>() ||
+        hasRoute<LocalRoute>() ||
+        hasRoute<SuggestionsRoute>() ||
+        hasRoute<BookmarksRoute>() ||
+        hasRoute<UpdatedRoute>()
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -101,10 +134,10 @@ fun AppNavGraph(
         navController = navController,
         startDestination = startDestination,
         modifier = modifier,
-        enterTransition = { EnterTransition.None },
-        exitTransition = { ExitTransition.None },
-        popEnterTransition = { EnterTransition.None },
-        popExitTransition = { ExitTransition.None },
+        enterTransition = { mainRouteFadeIn() },
+        exitTransition = { mainRouteFadeOut() },
+        popEnterTransition = { mainRouteFadeIn() },
+        popExitTransition = { mainRouteFadeOut() },
     ) {
         composable<HomeRoute> {
             val viewModel = hiltViewModel<HomeViewModel>()
@@ -277,8 +310,8 @@ fun AppNavGraph(
         }
         composable<DiscoverRoute> {
             val exploreViewModel = hiltViewModel<org.skepsun.kototoro.explore.ui.ExploreViewModel>()
-            val selectedGroupTab by exploreViewModel.currentGroupTab.collectAsStateWithLifecycle(initialValue = BrowseGroupTab.All)
-            val selectedSourceTags by exploreViewModel.currentSourceTags.collectAsStateWithLifecycle(initialValue = emptySet())
+            val selectedGroupTab by exploreViewModel.currentGroupTab.collectAsStateWithLifecycle()
+            val selectedSourceTags by exploreViewModel.currentSourceTags.collectAsStateWithLifecycle()
 
             DisposableEffect(mainActivity, exploreViewModel, selectedGroupTab, selectedSourceTags) {
                 val callback = object : SearchBarFilterViewController.Callback {
@@ -318,13 +351,13 @@ fun AppNavGraph(
         }
         composable<HistoryRoute> {
             val viewModel = hiltViewModel<org.skepsun.kototoro.history.ui.HistoryListViewModel>()
-            val items by viewModel.content.collectAsStateWithLifecycle(initialValue = emptyList())
-            val listMode by viewModel.listMode.collectAsStateWithLifecycle(initialValue = org.skepsun.kototoro.core.prefs.ListMode.GRID)
-            val isStatsEnabled by viewModel.isStatsEnabled.collectAsStateWithLifecycle(initialValue = false)
+            val items by viewModel.content.collectAsStateWithLifecycle()
+            val listMode by viewModel.listMode.collectAsStateWithLifecycle()
+            val isStatsEnabled by viewModel.isStatsEnabled.collectAsStateWithLifecycle()
             val isResumeEnabled by viewModel.isResumeEnabled.collectAsStateWithLifecycle(initialValue = false)
-            val gridScale by viewModel.gridScale.collectAsStateWithLifecycle(initialValue = 1f)
-            val selectedGroupTab by viewModel.currentGroupTab.collectAsStateWithLifecycle(initialValue = BrowseGroupTab.All)
-            val selectedSourceTags by viewModel.currentSourceTags.collectAsStateWithLifecycle(initialValue = emptySet())
+            val gridScale by viewModel.gridScale.collectAsStateWithLifecycle()
+            val selectedGroupTab by viewModel.currentGroupTab.collectAsStateWithLifecycle()
+            val selectedSourceTags by viewModel.currentSourceTags.collectAsStateWithLifecycle()
             var selectedItemsIds by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(emptySet<Long>()) }
             var showClearDialog by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
             val selectedModels = remember(items, selectedItemsIds) {
@@ -629,8 +662,8 @@ fun AppNavGraph(
         }
         composable<ExploreRoute> {
             val exploreViewModel = hiltViewModel<org.skepsun.kototoro.explore.ui.ExploreViewModel>()
-            val selectedGroupTab by exploreViewModel.currentGroupTab.collectAsStateWithLifecycle(initialValue = BrowseGroupTab.All)
-            val selectedSourceTags by exploreViewModel.currentSourceTags.collectAsStateWithLifecycle(initialValue = emptySet())
+            val selectedGroupTab by exploreViewModel.currentGroupTab.collectAsStateWithLifecycle()
+            val selectedSourceTags by exploreViewModel.currentSourceTags.collectAsStateWithLifecycle()
 
             DisposableEffect(mainActivity, exploreViewModel, selectedGroupTab, selectedSourceTags) {
                 val callback = object : SearchBarFilterViewController.Callback {
@@ -670,12 +703,12 @@ fun AppNavGraph(
         }
         composable<FeedRoute> {
             val viewModel = hiltViewModel<org.skepsun.kototoro.tracker.ui.feed.FeedViewModel>()
-            val items by viewModel.content.collectAsStateWithLifecycle(initialValue = emptyList())
+            val items by viewModel.content.collectAsStateWithLifecycle()
             val isRunning by viewModel.isRunning.collectAsStateWithLifecycle()
-            val categories by viewModel.categories.collectAsStateWithLifecycle(initialValue = emptyList())
-            val selectedCategoryId by viewModel.currentCategoryId.collectAsStateWithLifecycle(initialValue = org.skepsun.kototoro.core.model.FavouriteCategory.NO_ID)
-            val selectedGroupTab by viewModel.currentGroupTab.collectAsStateWithLifecycle(initialValue = BrowseGroupTab.All)
-            val selectedSourceTags by viewModel.currentSourceTags.collectAsStateWithLifecycle(initialValue = emptySet())
+            val categories by viewModel.categories.collectAsStateWithLifecycle()
+            val selectedCategoryId by viewModel.currentCategoryId.collectAsStateWithLifecycle()
+            val selectedGroupTab by viewModel.currentGroupTab.collectAsStateWithLifecycle()
+            val selectedSourceTags by viewModel.currentSourceTags.collectAsStateWithLifecycle()
 
             val activity = androidx.compose.ui.platform.LocalContext.current as? androidx.activity.ComponentActivity
             val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -880,8 +913,8 @@ fun AppNavGraph(
         }
         composable<BookmarksRoute> {
             val viewModel = hiltViewModel<org.skepsun.kototoro.bookmarks.ui.AllBookmarksViewModel>()
-            val selectedGroupTab by viewModel.currentGroupTab.collectAsStateWithLifecycle(initialValue = BrowseGroupTab.All)
-            val selectedSourceTags by viewModel.currentSourceTags.collectAsStateWithLifecycle(initialValue = emptySet())
+            val selectedGroupTab by viewModel.currentGroupTab.collectAsStateWithLifecycle()
+            val selectedSourceTags by viewModel.currentSourceTags.collectAsStateWithLifecycle()
 
             DisposableEffect(mainActivity, viewModel, selectedGroupTab, selectedSourceTags) {
                 val callback = object : SearchBarFilterViewController.Callback {

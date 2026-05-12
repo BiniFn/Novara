@@ -521,9 +521,12 @@ private fun HomeHeroCard(
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
     val shouldCrossfade = sharedTransitionScope == null || animatedVisibilityScope == null
-    val imageRequest = remember(content.coverUrl, content.id, shouldCrossfade) {
+    val imageRequest = remember(content.coverUrl, content.id, content.source.name, shouldCrossfade) {
+        val cacheKey = stableHomeImageCacheKey("home-hero-cover", content.source.name, content.id, content.coverUrl)
         ImageRequest.Builder(context)
             .data(content.coverUrl)
+            .memoryCacheKey(cacheKey)
+            .diskCacheKey(cacheKey)
             .crossfade(shouldCrossfade)
             .apply { mangaExtra(content) }
             .build()
@@ -839,9 +842,12 @@ private fun HomeCoverRowItem(
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
     val shouldCrossfadeCover = sharedTransitionScope == null || animatedVisibilityScope == null
-    val imageRequest = remember(content.coverUrl, content.id, shouldCrossfadeCover) {
+    val imageRequest = remember(content.coverUrl, content.id, content.source.name, shouldCrossfadeCover) {
+        val cacheKey = stableHomeImageCacheKey("home-row-cover", content.source.name, content.id, content.coverUrl)
         ImageRequest.Builder(context)
             .data(content.coverUrl)
+            .memoryCacheKey(cacheKey)
+            .diskCacheKey(cacheKey)
             .crossfade(shouldCrossfadeCover)
             .apply { mangaExtra(content) }
             .build()
@@ -961,6 +967,21 @@ private fun HomeCoverRowItem(
             }
         }
     }
+}
+
+private fun stableHomeImageCacheKey(
+    prefix: String,
+    sourceName: String,
+    contentId: Long,
+    url: String?,
+): String = buildString {
+    append(prefix)
+    append('#')
+    append(sourceName)
+    append('#')
+    append(contentId)
+    append('#')
+    append(url.orEmpty())
 }
 
 @Immutable

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -150,6 +151,7 @@ private data class SourceQuickAccessGroup(
 private data class BrowseSourceItems(
     val sources: List<ContentSourceItem>,
     val selectedSources: List<ContentSourceInfo>,
+    val isLoadingOnly: Boolean,
 )
 
 private fun prepareBrowseSourceItems(
@@ -169,6 +171,7 @@ private fun prepareBrowseSourceItems(
     return BrowseSourceItems(
         sources = sources,
         selectedSources = selectedSources,
+        isLoadingOnly = sources.isEmpty() && items.any { it is LoadingState },
     )
 }
 
@@ -317,13 +320,14 @@ fun KototoroExploreHostRoute(
     val heroItems = if (isBrowseTrackingRecommendationsEnabled) browseDiscoverItems.heroItems else emptyList()
     val showcaseRows = if (isBrowseTrackingRecommendationsEnabled) browseDiscoverItems.showcaseRows else emptyList()
     val popularItems = if (isBrowseTrackingRecommendationsEnabled) browseDiscoverItems.popularItems else emptyList()
-    val isLoadingOnly = browseDiscoverItems.isLoadingOnly
-    val shouldShowBrowseHero = isBrowseTrackingRecommendationsEnabled && (heroItems.isNotEmpty() || isLoadingOnly)
+    val isSourcesLoadingOnly = browseSourceItems.isLoadingOnly
+    val isDiscoverLoadingOnly = browseDiscoverItems.isLoadingOnly
+    val shouldShowBrowseHero = isBrowseTrackingRecommendationsEnabled && (heroItems.isNotEmpty() || isDiscoverLoadingOnly)
     val isBrowseContentReady = sources.isNotEmpty() ||
         heroItems.isNotEmpty() ||
         showcaseRows.isNotEmpty() ||
         popularItems.isNotEmpty()
-    val heroOverlapDp = if (shouldShowBrowseHero && (sources.isNotEmpty() || isLoadingOnly)) {
+    val heroOverlapDp = if (shouldShowBrowseHero && (sources.isNotEmpty() || isSourcesLoadingOnly)) {
         BrowseHeroContentOverlap
     } else {
         0.dp
@@ -340,6 +344,28 @@ fun KototoroExploreHostRoute(
         }
     }
     val selectedSources = browseSourceItems.selectedSources
+    val sourceMetrics = remember(gridScale) { sourceQuickAccessMetrics(gridScale) }
+    var isSourcesExpanded by rememberSaveable(sources.size, browseListMode, isSourcesGroupedByLanguage) {
+        mutableStateOf(false)
+    }
+    val sourceColumns = remember(sourceMetrics, browseListMode) {
+        if (browseListMode == ListMode.GRID) sourceMetrics.columns else 1
+    }
+    val sourceCollapsedVisibleCount = remember(sourceColumns) { sourceColumns * 5 }
+    val sourceGroups = remember(sources, isSourcesGroupedByLanguage, context) {
+        sources.toQuickAccessGroups(
+            isGroupedByLanguage = isSourcesGroupedByLanguage,
+            context = context,
+        )
+    }
+    val shouldForceSourcesExpanded = !isBrowseTrackingRecommendationsEnabled
+    val areSourcesExpanded = shouldForceSourcesExpanded || isSourcesExpanded
+    val visibleSourceGroups = remember(sourceGroups, sourceCollapsedVisibleCount, areSourcesExpanded) {
+        sourceGroups.takeVisibleSourceGroups(
+            maxSources = if (areSourcesExpanded) Int.MAX_VALUE else sourceCollapsedVisibleCount,
+        )
+    }
+    val hasMoreSources = !shouldForceSourcesExpanded && sources.size > sourceCollapsedVisibleCount
 
     BackHandler(enabled = selectedSourceIds.isNotEmpty()) {
         selectedSourceIds = emptySet()
@@ -501,7 +527,7 @@ fun KototoroExploreHostRoute(
     }
 
     KototoroPullToRefreshBox(
-        isRefreshing = isDiscoverLoading && !isLoadingOnly,
+        isRefreshing = isDiscoverLoading && !isDiscoverLoadingOnly,
         onRefresh = {
             clearFailedContentSourceIcons()
             discoverViewModel.refresh()
@@ -527,12 +553,12 @@ fun KototoroExploreHostRoute(
                     }
                 }
 
-                if (sources.isNotEmpty() || isLoadingOnly) {
+                if (isSourcesLoadingOnly) {
                     item(key = "discover_sources") {
                         DetachedBottomContent(
-                            sources = sources,
-                            isLoadingOnly = isLoadingOnly,
-                            metrics = sourceQuickAccessMetrics(gridScale),
+                            sources = emptyList(),
+                            isLoadingOnly = isSourcesLoadingOnly,
+                            metrics = sourceMetrics,
                             browseListMode = browseListMode,
                             isGroupedByLanguage = isSourcesGroupedByLanguage,
                             selectedSourceIds = selectedSourceIds,
@@ -547,10 +573,34 @@ fun KototoroExploreHostRoute(
                                 selectedSourceIds = selectedSourceIds.toggle(source.id)
                             },
                             onManageSourcesClick = appRouter::openManageSources,
-                            forceExpanded = !isBrowseTrackingRecommendationsEnabled,
+                            forceExpanded = shouldForceSourcesExpanded,
                             topBackgroundOverlap = heroOverlapDp,
                         )
                     }
+                }
+                if (sources.isNotEmpty()) {
+                    sourceQuickAccessItems(
+                        metrics = sourceMetrics,
+                        browseListMode = browseListMode,
+                        columns = sourceColumns,
+                        visibleGroups = visibleSourceGroups,
+                        selectedSourceIds = selectedSourceIds,
+                        hasMoreSources = hasMoreSources,
+                        isExpanded = areSourcesExpanded,
+                        topBackgroundOverlap = heroOverlapDp,
+                        onToggleExpanded = { isSourcesExpanded = !isSourcesExpanded },
+                        onManageClick = appRouter::openManageSources,
+                        onSourceClick = { source ->
+                            if (selectedSourceIds.isNotEmpty()) {
+                                selectedSourceIds = selectedSourceIds.toggle(source.id)
+                            } else {
+                                appRouter.openList(source.source, null, null)
+                            }
+                        },
+                        onSourceLongClick = { source ->
+                            selectedSourceIds = selectedSourceIds.toggle(source.id)
+                        },
+                    )
                 }
 
                 items(
@@ -657,7 +707,7 @@ fun KototoroExploreHostRoute(
                     heroItems = heroItems,
                     activeService = activeService,
                     availableServices = availableServices,
-                    isLoadingOnly = isLoadingOnly,
+                    isLoadingOnly = isDiscoverLoadingOnly,
                     topContentInset = contentPadding.calculateTopPadding(),
                     settings = settings,
                     onSelectService = discoverViewModel::selectService,
@@ -1019,6 +1069,175 @@ private fun SourceQuickAccessGrid(
                     Spacer(modifier = Modifier.weight(1f))
                 }
             }
+        }
+    }
+}
+
+private fun LazyListScope.sourceQuickAccessItems(
+    metrics: SourceQuickAccessMetrics,
+    browseListMode: ListMode,
+    columns: Int,
+    visibleGroups: List<SourceQuickAccessGroup>,
+    selectedSourceIds: Set<Long>,
+    hasMoreSources: Boolean,
+    isExpanded: Boolean,
+    topBackgroundOverlap: androidx.compose.ui.unit.Dp,
+    onToggleExpanded: () -> Unit,
+    onManageClick: () -> Unit,
+    onSourceClick: (ContentSourceItem) -> Unit,
+    onSourceLongClick: (ContentSourceItem) -> Unit,
+) {
+    item(key = "source_quick_access_header", contentType = "source_quick_access_header") {
+        SourceQuickAccessHeader(
+            onManageClick = onManageClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = topBackgroundOverlap,
+                    bottom = 4.dp,
+                ),
+        )
+    }
+    visibleGroups.forEachIndexed { groupIndex, group ->
+        group.title?.let { title ->
+            item(
+                key = "source_group_${groupIndex}_$title",
+                contentType = "source_group_header",
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(start = 18.dp, end = 18.dp, top = 4.dp, bottom = 4.dp),
+                )
+            }
+        }
+        val rows = group.sources.chunked(columns)
+        itemsIndexed(
+            items = rows,
+            key = { rowIndex, rowSources ->
+                val firstId = rowSources.firstOrNull()?.id ?: rowIndex.toLong()
+                "source_row_${groupIndex}_${rowIndex}_$firstId"
+            },
+            contentType = { _, _ -> "source_row" },
+        ) { _, rowSources ->
+            SourceQuickAccessRow(
+                metrics = metrics,
+                browseListMode = browseListMode,
+                columns = columns,
+                sources = rowSources,
+                selectedSourceIds = selectedSourceIds,
+                onSourceClick = onSourceClick,
+                onSourceLongClick = onSourceLongClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.background)
+                    .padding(horizontal = 16.dp),
+            )
+        }
+    }
+    if (hasMoreSources) {
+        item(key = "source_quick_access_more", contentType = "source_quick_access_more") {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.background),
+                contentAlignment = Alignment.Center,
+            ) {
+                TextButton(
+                    onClick = onToggleExpanded,
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                ) {
+                    Text(
+                        text = if (isExpanded) {
+                            stringResource(R.string.show_less)
+                        } else {
+                            stringResource(R.string.show_more)
+                        },
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SourceQuickAccessHeader(
+    onManageClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_extension),
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = stringResource(R.string.explore_tab_sources),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        TextButton(
+            onClick = onManageClick,
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.extension_management),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SourceQuickAccessRow(
+    metrics: SourceQuickAccessMetrics,
+    browseListMode: ListMode,
+    columns: Int,
+    sources: List<ContentSourceItem>,
+    selectedSourceIds: Set<Long>,
+    onSourceClick: (ContentSourceItem) -> Unit,
+    onSourceLongClick: (ContentSourceItem) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(metrics.gridSpacing),
+    ) {
+        sources.forEach { source ->
+            Box(modifier = Modifier.weight(1f)) {
+                SourceQuickAccessCard(
+                    metrics = metrics,
+                    browseListMode = browseListMode,
+                    source = source,
+                    isSelected = source.id in selectedSourceIds,
+                    onClick = { onSourceClick(source) },
+                    onLongClick = { onSourceLongClick(source) },
+                )
+            }
+        }
+        repeat(columns - sources.size) {
+            Spacer(modifier = Modifier.weight(1f))
         }
     }
 }

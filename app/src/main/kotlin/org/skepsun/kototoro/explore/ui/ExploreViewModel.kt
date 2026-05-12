@@ -258,8 +258,8 @@ class ExploreViewModel @Inject constructor(
 		} else {
 			result += EmptyHint(
 				icon = R.drawable.ic_empty_common,
-				textPrimary = R.string.no_manga_sources,
-				textSecondary = R.string.no_manga_sources_text,
+				textPrimary = emptySourceTitle(groupTab),
+				textSecondary = emptySourceSubtitle(groupTab),
 				actionStringRes = R.string.catalog,
 			)
 		}
@@ -311,6 +311,18 @@ class ExploreViewModel @Inject constructor(
 	private fun getLoadingStateList() = listOf(
 		LoadingState,
 	)
+
+	private fun emptySourceTitle(groupTab: BrowseGroupTab): Int = when (groupTab) {
+		BrowseGroupTab.Novel -> R.string.no_novel_sources
+		BrowseGroupTab.Video -> R.string.no_video_sources
+		else -> R.string.no_manga_sources
+	}
+
+	private fun emptySourceSubtitle(groupTab: BrowseGroupTab): Int = when (groupTab) {
+		BrowseGroupTab.Novel -> R.string.no_novel_sources_text
+		BrowseGroupTab.Video -> R.string.no_video_sources_text
+		else -> R.string.no_manga_sources_text
+	}
 
 	companion object {
 

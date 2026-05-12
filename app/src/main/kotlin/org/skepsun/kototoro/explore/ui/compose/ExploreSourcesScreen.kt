@@ -44,9 +44,9 @@ fun KototoroExploreSourcesScreen(
     contentPadding: PaddingValues,
     appRouter: AppRouter,
 ) {
-    val items by viewModel.content.collectAsStateWithLifecycle(emptyList())
+    val items by viewModel.content.collectAsStateWithLifecycle()
     var composeSelectionIds: LongSet by remember { mutableStateOf(longSetOf()) }
-    val isGrid by viewModel.isGrid.collectAsStateWithLifecycle(initialValue = false)
+    val isGrid by viewModel.isGrid.collectAsStateWithLifecycle()
 
     val activity = LocalContext.current as? androidx.activity.ComponentActivity
     

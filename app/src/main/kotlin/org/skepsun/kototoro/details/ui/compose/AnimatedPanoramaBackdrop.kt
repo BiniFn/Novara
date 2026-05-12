@@ -147,6 +147,7 @@ fun AnimatedPanoramaBackdrop(
         crossfadeEnabled,
         prefs.blurPercent,
         panoramaRequestSize,
+        useRealtimeBlur,
     ) {
         when (model) {
             is ImageRequest -> model.newBuilder()

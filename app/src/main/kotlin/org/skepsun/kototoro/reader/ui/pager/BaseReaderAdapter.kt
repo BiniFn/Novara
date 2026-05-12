@@ -80,7 +80,7 @@ abstract class BaseReaderAdapter<H : BasePageHolder<*>>(
 	private class DiffCallback : DiffUtil.ItemCallback<ReaderPage>() {
 
 		override fun areItemsTheSame(oldItem: ReaderPage, newItem: ReaderPage): Boolean {
-			return oldItem.id == newItem.id && oldItem.chapterId == newItem.chapterId && oldItem.split == newItem.split
+			return oldItem.readerKey == newItem.readerKey
 		}
 
 		override fun areContentsTheSame(oldItem: ReaderPage, newItem: ReaderPage): Boolean {

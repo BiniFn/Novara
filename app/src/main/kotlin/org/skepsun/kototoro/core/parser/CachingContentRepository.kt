@@ -1,7 +1,6 @@
 package org.skepsun.kototoro.core.parser
 
 import android.util.Log
-import androidx.collection.MutableLongSet
 import coil3.request.CachePolicy
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -93,9 +92,10 @@ abstract class CachingContentRepository(
 			return emptyList()
 		}
 		val result = ArrayList<ContentPage>(size)
-		val set = MutableLongSet(size)
+		val set = HashSet<String>(size)
 		for (page in this) {
-			if (set.add(page.id)) {
+			val key = "${page.id}#${page.url}"
+			if (set.add(key)) {
 				result.add(page)
 			} else if (BuildConfig.DEBUG) {
 				Log.w(null, "Duplicate page: $page")

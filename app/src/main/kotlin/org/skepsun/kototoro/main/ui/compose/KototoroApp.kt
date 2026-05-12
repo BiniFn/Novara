@@ -232,6 +232,7 @@ fun KototoroApp(
     var isDetailsChromeTransitionPending by rememberSaveable { mutableStateOf(false) }
     var topBarOverrideState by remember { mutableStateOf<TopBarOverrideState?>(null) }
     var contextualMenuActions by remember { mutableStateOf<List<KototoroTopBarMenuAction>>(emptyList()) }
+    var offsetDestinationRoute by remember { mutableStateOf<String?>(null) }
 
     val density = androidx.compose.ui.platform.LocalDensity.current
     val statusBarHeightPx = with(density) {
@@ -290,9 +291,20 @@ fun KototoroApp(
     }
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+    val currentDestinationRoute = currentDestination?.route
     val isSearchRoute = currentDestination?.hasRoute<SearchRoute>() == true
     val isDetailsRoute = currentDestination?.hasRoute<DetailsRoute>() == true
     val shouldShowChrome = !isSearchRoute
+    val isChromeOffsetFromCurrentDestination = offsetDestinationRoute == currentDestinationRoute
+    val effectiveTopBarOffset = if (isChromeOffsetFromCurrentDestination) topBarOffset else 0f
+    val effectiveBottomNavOffset = if (isChromeOffsetFromCurrentDestination) bottomNavOffset else 0f
+    LaunchedEffect(currentDestinationRoute) {
+        if (currentDestinationRoute != null && !isDetailsRoute && !isSearchRoute) {
+            topBarOffset = 0f
+            bottomNavOffset = 0f
+            offsetDestinationRoute = currentDestinationRoute
+        }
+    }
     var isChromeVisible by rememberSaveable { mutableStateOf(shouldShowChrome && !isDetailsRoute) }
     var lastResolvedWasDetailsRoute by rememberSaveable { mutableStateOf(isDetailsRoute) }
     LaunchedEffect(currentDestination, shouldShowChrome, isDetailsRoute, isDetailsChromeTransitionPending) {
@@ -334,7 +346,7 @@ fun KototoroApp(
     val scrollAlpha = if (!isChromeVisible) 0f else {
         val maxCollapse = topBarHeightPx.toFloat()
         if (maxCollapse <= 0f) 1f
-        else (1f + topBarOffset / maxCollapse).coerceIn(0f, 1f)
+        else (1f + effectiveTopBarOffset / maxCollapse).coerceIn(0f, 1f)
     }
     val chromeAlpha by animateFloatAsState(
         targetValue = scrollAlpha,
@@ -387,7 +399,7 @@ fun KototoroApp(
 
     val maxCollapsePx = (topBarHeightPx - statusBarHeightPx).coerceAtLeast(0)
     val contentTopInsetPx = if (shouldShowChrome) {
-        (topBarHeightPx + topBarOffset).toInt().coerceIn(maxCollapsePx, topBarHeightPx)
+        (topBarHeightPx + effectiveTopBarOffset).toInt().coerceIn(maxCollapsePx, topBarHeightPx)
     } else {
         0
     }
@@ -397,7 +409,7 @@ fun KototoroApp(
     val visibleBottomNavInsetPx = if (!isNavBarPinned && isFloating) {
         0
     } else {
-        (bottomNavHeightPx - bottomNavOffset).coerceAtLeast(0f).toInt() + extraPinnedBottomInsetPx
+        (bottomNavHeightPx - effectiveBottomNavOffset).coerceAtLeast(0f).toInt() + extraPinnedBottomInsetPx
     }
     val contentBottomInsetPx = if (!shouldShowChrome || isLandscapeNavigation) {
         0
@@ -406,7 +418,7 @@ fun KototoroApp(
     }
     val visibleStartInsetDp = with(density) {
         if (isLandscapeNavigation && isChromeVisible) {
-            (bottomNavHeightPx - bottomNavOffset).coerceAtLeast(0f).toDp()
+            (bottomNavHeightPx - effectiveBottomNavOffset).coerceAtLeast(0f).toDp()
         } else {
             0.dp
         }
@@ -450,7 +462,7 @@ fun KototoroApp(
                             navController = navController,
                             startDestination = startDestination,
                             contentPadding = contentPadding,
-                            bottomBarOffsetPx = bottomNavOffset,
+                            bottomBarOffsetPx = effectiveBottomNavOffset,
                             bottomBarHeightPx = bottomNavHeightPx,
                             pageSaveHelper = pageSaveHelper,
                             onDetailsTransitionRequested = {
@@ -501,7 +513,7 @@ fun KototoroApp(
                                         .align(if (isLandscapeNavigation) Alignment.TopStart else Alignment.TopCenter)
                                         .then(if (isLandscapeNavigation) Modifier.fillMaxWidth() else Modifier)
                                         .padding(start = visibleStartInsetDp)
-                                        .offset { androidx.compose.ui.unit.IntOffset(0, topBarOffset.toInt()) }
+                                        .offset { androidx.compose.ui.unit.IntOffset(0, effectiveTopBarOffset.toInt()) }
                                         .graphicsLayer { alpha = chromeAlpha }
                                         .onGloballyPositioned { coords ->
                                             val newHeight = coords.size.height
@@ -530,7 +542,7 @@ fun KototoroApp(
                                         .align(if (isLandscapeNavigation) Alignment.TopStart else Alignment.TopCenter)
                                         .then(if (isLandscapeNavigation) Modifier.fillMaxWidth() else Modifier)
                                         .padding(start = visibleStartInsetDp)
-                                        .offset { androidx.compose.ui.unit.IntOffset(0, topBarOffset.toInt()) }
+                                        .offset { androidx.compose.ui.unit.IntOffset(0, effectiveTopBarOffset.toInt()) }
                                         .graphicsLayer { alpha = chromeAlpha }
                                         .onGloballyPositioned { coords ->
                                             val newHeight = coords.size.height
@@ -605,7 +617,7 @@ fun KototoroApp(
                                 .align(if (isLandscapeNavigation) Alignment.TopStart else Alignment.TopCenter)
                                 .then(if (isLandscapeNavigation) Modifier.fillMaxWidth() else Modifier)
                                 .padding(start = visibleStartInsetDp)
-                                .offset { androidx.compose.ui.unit.IntOffset(0, topBarOffset.toInt()) }
+                                .offset { androidx.compose.ui.unit.IntOffset(0, effectiveTopBarOffset.toInt()) }
                                 .graphicsLayer { alpha = chromeAlpha }
                                 .onGloballyPositioned { coords ->
                                     val newHeight = coords.size.height
@@ -622,9 +634,9 @@ fun KototoroApp(
                                     .align(if (isLandscapeNavigation) Alignment.CenterStart else Alignment.BottomCenter)
                                     .offset {
                                         if (isLandscapeNavigation) {
-                                    androidx.compose.ui.unit.IntOffset((-bottomNavOffset).toInt(), 0)
+                                    androidx.compose.ui.unit.IntOffset((-effectiveBottomNavOffset).toInt(), 0)
                                         } else {
-                                    androidx.compose.ui.unit.IntOffset(0, bottomNavOffset.toInt())
+                                    androidx.compose.ui.unit.IntOffset(0, effectiveBottomNavOffset.toInt())
                                         }
                                     }
                             .onGloballyPositioned { coords ->

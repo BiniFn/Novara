@@ -55,6 +55,17 @@ class FavouritesContainerViewModel @Inject constructor(
 	internal val globalFavoritesState: GlobalFavoritesState,
 	private val sourceGroupManager: SourceGroupManager,
 ) : BaseViewModel() {
+	data class FavoritesHostUiState(
+		val isLoading: Boolean = true,
+		val categories: List<FavouriteTabModel> = emptyList(),
+		val isEmpty: Boolean = false,
+	)
+
+	private sealed class ActiveCategoryCountsState {
+		object Loading : ActiveCategoryCountsState()
+		object NotFiltered : ActiveCategoryCountsState()
+		data class Filtered(val categoryCounts: Map<Long, Int>) : ActiveCategoryCountsState()
+	}
 
 	val listMode = settings.observeAsFlow(AppSettings.KEY_LIST_MODE) { this.listMode }
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, settings.listMode)
@@ -103,47 +114,41 @@ class FavouritesContainerViewModel @Inject constructor(
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, null)
 
 	private val activeCategoryCounts = combine(
-		favouritesRepository.observeAllRawFavorites(),
 		currentGroupTab,
-		selectedSourceTags
-	) { favorites, groupTab, sourceTags ->
+		selectedSourceTags,
+	) { groupTab, sourceTags ->
+		groupTab to sourceTags
+	}.flatMapLatest { (groupTab, sourceTags) ->
 		if (groupTab == BrowseGroupTab.All && sourceTags.isEmpty()) {
-			return@combine null
-		}
-
-		val categoryCounts = mutableMapOf<Long, Int>()
-		for (fav in favorites) {
-			val sourceName = fav.manga.source
-			val isNsfw = fav.manga.isNsfw
-			val contentGroup = sourceGroupManager.getContentGroupByName(sourceName, isNsfw)
-			val originGroup = sourceGroupManager.getOriginGroupByName(sourceName)
-
-			val groupMatches = groupTab.matchesContentGroup(contentGroup)
-			val originMatches = sourceTags.isEmpty() || sourceTags.any { it.matches(contentGroup, originGroup) }
-
-			if (groupMatches && originMatches) {
-				// Count for each category the favorite belongs to
-				for (cat in fav.categories) {
-					val catId = cat.categoryId.toLong()
-					categoryCounts[catId] = (categoryCounts[catId] ?: 0) + 1
+			flowOf(ActiveCategoryCountsState.NotFiltered)
+		} else {
+			favouritesRepository.observeAllRawFavorites()
+				.map { favorites ->
+					ActiveCategoryCountsState.Filtered(
+						buildActiveCategoryCounts(
+							favorites = favorites,
+							groupTab = groupTab,
+							sourceTags = sourceTags,
+						),
+					) as ActiveCategoryCountsState
 				}
-				// Also count for NO_ID (the 'All' tab)
-				categoryCounts[NO_ID] = (categoryCounts[NO_ID] ?: 0) + 1
-			}
+				.onStart { emit(ActiveCategoryCountsState.Loading) }
 		}
-		categoryCounts
-	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, null)
+	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, ActiveCategoryCountsState.Loading)
 
-	val categories = combine(
-		categoriesStateFlow.filterNotNull(),
+	val uiState = combine(
+		categoriesStateFlow,
 		activeCategoryCounts,
 		observeAllFavouritesVisibility(),
-	) { list, activeCounts, showAll ->
-		val filteredList = if (activeCounts != null) {
-			list.filter { activeCounts.getOrDefault(it.id, 0) > 0 }
-		} else {
-			list
+	) { list, countsState, showAll ->
+		if (list == null || countsState == ActiveCategoryCountsState.Loading) {
+			return@combine FavoritesHostUiState()
 		}
+
+		val activeCounts = (countsState as? ActiveCategoryCountsState.Filtered)?.categoryCounts
+		val filteredList = activeCounts?.let { counts ->
+			list.filter { counts.getOrDefault(it.id, 0) > 0 }
+		} ?: list
 		
 		val result = ArrayList<FavouriteTabModel>(if (showAll) filteredList.size + 1 else filteredList.size)
 		if (showAll) {
@@ -152,20 +157,57 @@ class FavouritesContainerViewModel @Inject constructor(
 			}
 		}
 		filteredList.mapTo(result) { FavouriteTabModel(it.id, it.title) }
-		result
-	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, emptyList())
 
-	val isEmpty = combine(
-		categoriesStateFlow,
-		activeCategoryCounts
-	) { list, activeCounts ->
-		if (list == null) return@combine false
-		if (activeCounts != null) {
-			list.all { activeCounts.getOrDefault(it.id, 0) == 0 } && activeCounts.getOrDefault(NO_ID, 0) == 0
+		val isEmpty = if (activeCounts != null) {
+			list.all { activeCounts.getOrDefault(it.id, 0) == 0 } &&
+				activeCounts.getOrDefault(NO_ID, 0) == 0
 		} else {
-			list.isEmpty() && !settings.isAllFavouritesVisible
+			list.isEmpty() && !showAll
 		}
-	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, false)
+
+		FavoritesHostUiState(
+			isLoading = false,
+			categories = result,
+			isEmpty = isEmpty,
+		)
+	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, FavoritesHostUiState())
+
+	val isCategoriesLoaded = uiState
+		.map { !it.isLoading }
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, false)
+
+	val categories = uiState
+		.map { it.categories }
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, emptyList())
+
+	val isEmpty = uiState
+		.map { it.isEmpty }
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, false)
+
+	private fun buildActiveCategoryCounts(
+		favorites: List<org.skepsun.kototoro.favourites.data.FavouriteContent>,
+		groupTab: BrowseGroupTab,
+		sourceTags: Set<SourceTag>,
+	): Map<Long, Int> {
+		val categoryCounts = mutableMapOf<Long, Int>()
+		for (fav in favorites) {
+			val sourceName = fav.manga.source
+			val isNsfw = fav.manga.isNsfw
+			val contentGroup = sourceGroupManager.getContentGroupByName(sourceName, isNsfw)
+			val originGroup = sourceGroupManager.getOriginGroupByName(sourceName)
+			val groupMatches = groupTab.matchesContentGroup(contentGroup)
+			val originMatches = sourceTags.isEmpty() || sourceTags.any { it.matches(contentGroup, originGroup) }
+			if (!groupMatches || !originMatches) {
+				continue
+			}
+			for (cat in fav.categories) {
+				val catId = cat.categoryId.toLong()
+				categoryCounts[catId] = (categoryCounts[catId] ?: 0) + 1
+			}
+			categoryCounts[NO_ID] = (categoryCounts[NO_ID] ?: 0) + 1
+		}
+		return categoryCounts
+	}
 
 	fun hide(categoryId: Long) {
 		launchJob(Dispatchers.Default) {

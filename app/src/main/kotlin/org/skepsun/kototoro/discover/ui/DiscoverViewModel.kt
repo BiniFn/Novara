@@ -158,7 +158,7 @@ class DiscoverViewModel @Inject constructor(
 				.debounce(200) // Wait for all StateFlows to settle
 				.distinctUntilChanged()
 				.collect { request ->
-					if (!request.isEnabled && request.query.isBlank()) {
+					if (!shouldLoadBrowseRecommendations(request.query)) {
 						loadJob?.cancel()
 						_items.value = emptyList()
 						_page.value = 0
@@ -203,6 +203,10 @@ class DiscoverViewModel @Inject constructor(
 	private suspend fun remapContentState() {
 		val service = activeService.value
 		val query = searchQuery.value.trim()
+		if (!shouldLoadBrowseRecommendations(query)) {
+			_contentState.value = emptyList()
+			return
+		}
 		val currentTab = getCurrentBrowseGroupTab()
 		
 		if (query.isNotBlank()) {
@@ -311,10 +315,11 @@ class DiscoverViewModel @Inject constructor(
 
 	fun loadNextPage() {
 		if (isPageLoading) return
+		val query = searchQuery.value.trim()
+		if (!shouldLoadBrowseRecommendations(query)) return
 		val nextPage = _page.value + 1
 		val service = activeService.value
 		val category = activeCategory.value
-		val query = searchQuery.value.trim()
 		viewModelScope.launch {
 			isPageLoading = true
 			try {
@@ -326,6 +331,10 @@ class DiscoverViewModel @Inject constructor(
 	}
 
 	private suspend fun loadData(service: ScrobblerService, category: String?, query: String, pageRequested: Int) {
+		if (!shouldLoadBrowseRecommendations(query)) {
+			_contentState.value = emptyList()
+			return
+		}
 		val isFirstPage = pageRequested == 0
 
 		if (isFirstPage) {
@@ -449,6 +458,7 @@ class DiscoverViewModel @Inject constructor(
 	}
 
 	fun refresh() {
+		if (!shouldLoadBrowseRecommendations()) return
 		refreshTrigger.value += 1
 	}
 
@@ -510,6 +520,10 @@ class DiscoverViewModel @Inject constructor(
 		return priority.firstNotNullOfOrNull { targetId ->
 			categories.firstOrNull { it.id == targetId }
 		}
+	}
+
+	private fun shouldLoadBrowseRecommendations(query: String = searchQuery.value.trim()): Boolean {
+		return isBrowseTrackingRecommendationsEnabled.value || query.isNotBlank()
 	}
 
 	private fun resolveAvailableServices(preferred: ScrobblerService): List<ScrobblerService> {
