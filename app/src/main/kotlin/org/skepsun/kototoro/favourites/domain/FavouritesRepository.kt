@@ -14,6 +14,7 @@ import org.skepsun.kototoro.core.db.TABLE_FAVOURITE_CATEGORIES
 import org.skepsun.kototoro.core.db.entity.toEntities
 import org.skepsun.kototoro.core.db.entity.toEntity
 import org.skepsun.kototoro.core.db.entity.toContentList
+import org.skepsun.kototoro.core.db.entity.toContentTagsList
 import org.skepsun.kototoro.core.model.FavouriteCategory
 import org.skepsun.kototoro.core.model.toContentSources
 import org.skepsun.kototoro.core.ui.util.ReversibleHandle
@@ -27,6 +28,7 @@ import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.list.domain.ListSortOrder
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.util.levenshteinDistance
 import org.skepsun.kototoro.search.domain.SearchKind
 import javax.inject.Inject
@@ -173,12 +175,17 @@ class FavouritesRepository @Inject constructor(
 
 	suspend fun findPopularSources(categoryId: Long, limit: Int): List<ContentSource> {
 		return db.getFavouritesDao().run {
-			if (categoryId == 0L) {
+			if (categoryId == FavouriteCategory.NO_ID) {
 				findPopularSources(limit)
 			} else {
 				findPopularSources(categoryId, limit)
 			}
 		}.toContentSources()
+	}
+
+	suspend fun findPopularTags(categoryId: Long, limit: Int): List<ContentTag> {
+		val daoCategoryId = if (categoryId == FavouriteCategory.NO_ID) 0L else categoryId
+		return db.getFavouritesDao().findPopularTags(daoCategoryId, limit).toContentTagsList()
 	}
 
 	suspend fun createCategory(

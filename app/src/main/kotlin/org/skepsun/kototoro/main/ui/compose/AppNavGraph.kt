@@ -253,7 +253,15 @@ fun AppNavGraph(
                         }
                     }
                 }
-                val onHomeBookmarksClick = remember(navController) { { navController.navigate(BookmarksRoute) } }
+                val onHomeBookmarksClick = remember(navController) {
+                    {
+                        navController.navigate(BookmarksRoute) {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                }
                 val onHomeLocalClick = remember(navController) {
                     {
                         navController.navigate(LocalRoute) {
@@ -364,6 +372,19 @@ fun AppNavGraph(
                 items
                     .filterIsInstance<org.skepsun.kototoro.list.ui.model.ContentListModel>()
                     .filter { it.id in selectedItemsIds }
+            }
+
+            DisposableEffect(onContextualMenuActionsChanged) {
+                onContextualMenuActionsChanged(
+                    listOf(
+                        KototoroTopBarMenuAction(org.skepsun.kototoro.R.string.clear_history) {
+                            showClearDialog = true
+                        },
+                    ),
+                )
+                onDispose {
+                    onContextualMenuActionsChanged(emptyList())
+                }
             }
 
             BackHandler(enabled = selectedItemsIds.isNotEmpty()) {
@@ -497,9 +518,9 @@ fun AppNavGraph(
                             selectedItemsIds = emptySet()
                         }
                     },
-                    onClearHistoryClick = { showClearDialog = true },
                     onStatsClick = { appRouter.openStatistic() },
                     onContinueReadingClick = { viewModel.openLastReader() },
+                    onQuickFilterOptionClick = viewModel::toggleFilterOption,
                     showContinueReadingButton = isResumeEnabled,
                     bottomBarOffsetPx = bottomBarOffsetPx,
                     bottomBarHeightPx = bottomBarHeightPx,
@@ -792,7 +813,11 @@ fun AppNavGraph(
                         )
                     },
                     onUpdatedContentMoreClick = {
-                        navController.navigate(UpdatedRoute)
+                        navController.navigate(UpdatedRoute) {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     },
                     categories = categories,
                     selectedCategoryId = selectedCategoryId,

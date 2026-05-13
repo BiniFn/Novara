@@ -919,15 +919,19 @@ class ReaderActivity :
         
         val appbarTop = viewBinding.appbarTop
         val hazeOpacityPercent = settings.hazeOpacityPercent
+        val isGlassEffectEnabled = settings.isGlassEffectEnabled
         val handleBgColor = { targetView: View ->
             if (targetView.background is com.google.android.material.shape.MaterialShapeDrawable) {
                 val bg = targetView.background as com.google.android.material.shape.MaterialShapeDrawable
                 val baseColor = com.google.android.material.color.MaterialColors.getColor(targetView, com.google.android.material.R.attr.colorSurfaceContainer)
-                if (isFloating) {
+                if (isFloating && isGlassEffectEnabled) {
                     val alphaVal = ((hazeOpacityPercent / 100f) * 255).toInt().coerceIn(30, 255)
                     bg.fillColor = android.content.res.ColorStateList.valueOf(androidx.core.graphics.ColorUtils.setAlphaComponent(baseColor, alphaVal))
                 } else {
-                    bg.fillColor = android.content.res.ColorStateList.valueOf(baseColor)
+                    val alphaVal = if (isFloating) 248 else 255
+                    bg.fillColor = android.content.res.ColorStateList.valueOf(
+                        androidx.core.graphics.ColorUtils.setAlphaComponent(baseColor, alphaVal)
+                    )
                 }
             }
         }

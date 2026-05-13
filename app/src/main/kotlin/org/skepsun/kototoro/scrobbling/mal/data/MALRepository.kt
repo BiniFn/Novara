@@ -17,6 +17,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.entitygraph.domain.EntityType
+import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.util.await
 import org.skepsun.kototoro.parsers.util.json.getStringOrNull
 import org.skepsun.kototoro.parsers.util.json.mapJSONNotNull
@@ -1213,6 +1214,21 @@ class MALRepository @Inject constructor(
 		}
 	}
 
+	private fun syntheticEpisodes(
+		total: Int?,
+		label: String,
+		url: String,
+	): List<ScrobblerContentInfo.EpisodeInfo> {
+		val count = total?.takeIf { it > 0 } ?: return emptyList()
+		return (1..count).map { number ->
+			ScrobblerContentInfo.EpisodeInfo(
+				number = number.toString(),
+				title = "$label $number",
+				url = url,
+			)
+		}
+	}
+
 	private fun ScrobblerContentInfo(json: JSONObject, mediaType: String): ScrobblerContentInfo {
 		val tags = json.optJSONArray("genres")?.mapJSONNotNull {
 			it.getStringOrNull("name")
@@ -1224,6 +1240,11 @@ class MALRepository @Inject constructor(
 				node.getStringOrNull("last_name")?.takeIf { it.isNotBlank() },
 			).joinToString(" ").ifBlank { null }
 		}.orEmpty()
+		val totalCount = if (mediaType == ANIME_ENDPOINT) {
+			json.optInt("num_episodes")
+		} else {
+			json.optInt("num_chapters")
+		}.takeIf { it > 0 }
 		val infobox = buildList {
 			json.optDouble("mean").takeIf { !it.isNaN() && it > 0.0 }?.let {
 				add("Score" to it.toString())
@@ -1266,9 +1287,20 @@ class MALRepository @Inject constructor(
 			cover = json.optJSONObject("main_picture")?.getStringOrNull("large") ?: "",
 			url = "$BASE_WEB_URL/$mediaType/${json.getLong("id")}",
 			descriptionHtml = json.optString("synopsis", ""),
+			contentType = if (mediaType == ANIME_ENDPOINT) {
+				ContentType.VIDEO
+			} else {
+				ContentType.MANGA
+			},
 			tags = tags,
 			authors = authors,
+			totalEpisodes = totalCount,
 			infoboxProperties = infobox,
+			episodes = syntheticEpisodes(
+				total = totalCount,
+				label = if (mediaType == ANIME_ENDPOINT) "Episode" else "Chapter",
+				url = "$BASE_WEB_URL/$mediaType/${json.getLong("id")}",
+			),
 		)
 	}
 
@@ -1286,6 +1318,7 @@ class MALRepository @Inject constructor(
 			rank = rank,
 			tags = tags,
 			authors = authors,
+			totalEpisodes = totalEpisodes,
 			infoboxProperties = infoboxProperties,
 			episodes = episodes,
 			characters = characters,

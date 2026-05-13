@@ -108,6 +108,8 @@ fun KototoroTopBar(
     onGridSizeChange: (Int) -> Unit = {},
     isBrowseTrackingRecommendationsEnabled: Boolean? = null,
     onBrowseTrackingRecommendationsChange: ((Boolean) -> Unit)? = null,
+    isBrowseMoreTrackingRecommendationsEnabled: Boolean? = null,
+    onBrowseMoreTrackingRecommendationsChange: ((Boolean) -> Unit)? = null,
     showSourceSettingsEntry: Boolean = false,
     contextualMenuActions: List<KototoroTopBarMenuAction> = emptyList(),
     isIncognitoModeEnabled: Boolean = false,
@@ -303,32 +305,26 @@ fun KototoroTopBar(
                 onGridSizeChange = onGridSizeChange,
                 extraContent = if (onBrowseTrackingRecommendationsChange != null && isBrowseTrackingRecommendationsEnabled != null) {
                     {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(2.dp),
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.browse_tracking_recommendations),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                )
-                                Text(
-                                    text = stringResource(R.string.browse_tracking_recommendations_summary),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            Switch(
+                        Column {
+                            DisplayOptionsSwitchRow(
+                                title = stringResource(R.string.browse_tracking_recommendations),
+                                summary = stringResource(R.string.browse_tracking_recommendations_summary),
                                 checked = isBrowseTrackingRecommendationsEnabled,
                                 onCheckedChange = onBrowseTrackingRecommendationsChange,
                             )
+                            if (
+                                isBrowseTrackingRecommendationsEnabled &&
+                                isBrowseMoreTrackingRecommendationsEnabled != null &&
+                                onBrowseMoreTrackingRecommendationsChange != null
+                            ) {
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                                DisplayOptionsSwitchRow(
+                                    title = stringResource(R.string.browse_more_tracking_recommendations),
+                                    summary = stringResource(R.string.browse_more_tracking_recommendations_summary),
+                                    checked = isBrowseMoreTrackingRecommendationsEnabled,
+                                    onCheckedChange = onBrowseMoreTrackingRecommendationsChange,
+                                )
+                            }
                         }
                     }
                 } else {
@@ -337,6 +333,42 @@ fun KototoroTopBar(
                 onDismissRequest = { showDisplayOptionsSheet = false },
             )
         }
+    }
+}
+
+@Composable
+private fun DisplayOptionsSwitchRow(
+    title: String,
+    summary: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = summary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+        )
     }
 }
 

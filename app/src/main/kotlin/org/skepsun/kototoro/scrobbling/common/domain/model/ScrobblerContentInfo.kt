@@ -13,6 +13,7 @@ class ScrobblerContentInfo(
 	val rank: Int? = null,
 	val tags: List<String> = emptyList(),
 	val authors: List<String> = emptyList(),
+	val totalEpisodes: Int? = null,
 	val infoboxProperties: List<Pair<String, String>> = emptyList(),
 	val episodes: List<EpisodeInfo> = emptyList(),
 	val characters: List<CharacterInfo> = emptyList(),

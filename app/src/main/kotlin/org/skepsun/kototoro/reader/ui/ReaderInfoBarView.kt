@@ -234,6 +234,13 @@ class ReaderInfoBarView @JvmOverloads constructor(
 		drawableStateChanged()
 	}
 
+	fun applyColorScheme(textColor: Int, backgroundColor: Int) {
+		colorText = ColorStateList.valueOf(ColorUtils.setAlphaComponent(textColor, ALPHA_TEXT))
+		colorBackground = ColorStateList.valueOf(ColorUtils.setAlphaComponent(backgroundColor, Color.alpha(backgroundColor)))
+		batteryIcon?.setTintList(colorText)
+		drawableStateChanged()
+	}
+
 	@SuppressLint("StringFormatMatches")
 	fun update(state: ReaderUiState?) {
 		text = if (state != null) {

@@ -51,11 +51,18 @@ abstract class ContentListQuickFilter(
 		if (!settings.isQuickFilterEnabled) {
 			return null
 		}
-		val availableOptions = availableFilterOptions.getOrNull()?.map { option ->
-			option.toChipModel(isChecked = option in selectedOptions)
-		}.orEmpty()
-		return if (availableOptions.isNotEmpty()) {
-			QuickFilter(availableOptions)
+		val availableOptions = availableFilterOptions.getOrNull().orEmpty()
+		val selectedOptionsOnly = selectedOptions.filterNot { it in availableOptions }
+		val chips = buildList {
+			selectedOptionsOnly.mapTo(this) { option ->
+				option.toChipModel(isChecked = true)
+			}
+			availableOptions.mapTo(this) { option ->
+				option.toChipModel(isChecked = option in selectedOptions)
+			}
+		}
+		return if (chips.isNotEmpty()) {
+			QuickFilter(chips)
 		} else {
 			null
 		}

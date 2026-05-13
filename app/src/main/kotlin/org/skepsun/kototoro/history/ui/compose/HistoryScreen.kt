@@ -1,13 +1,12 @@
 package org.skepsun.kototoro.history.ui.compose
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -29,6 +28,8 @@ import org.skepsun.kototoro.list.ui.compose.KototoroContentListScreen
 import org.skepsun.kototoro.list.ui.compose.SelectionAction
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.model.QuickFilter
+import org.skepsun.kototoro.list.domain.ListFilterOption
 
 @Composable
 fun HistoryScreen(
@@ -47,15 +48,21 @@ fun HistoryScreen(
     onItemLongClick: (ContentListModel) -> Unit,
     onClearSelection: () -> Unit,
     onSelectionAction: (SelectionAction) -> Unit,
-    onClearHistoryClick: () -> Unit,
     onStatsClick: () -> Unit,
     onContinueReadingClick: () -> Unit,
+    onQuickFilterOptionClick: (ListFilterOption) -> Unit,
     showContinueReadingButton: Boolean,
     bottomBarOffsetPx: Float = 0f,
     bottomBarHeightPx: Int = 0,
     showInlineSelectionTopBar: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
+    val quickFilter = remember(items) {
+        items.firstOrNull { it is QuickFilter } as? QuickFilter
+    }
+    val contentItems = remember(items) {
+        items.filterNot { it is QuickFilter }
+    }
     val listState = rememberLazyListState()
     val detailedListState = rememberLazyListState()
     val gridState = rememberLazyGridState()
@@ -83,7 +90,7 @@ fun HistoryScreen(
     ) {
         KototoroContentListScreen(
             contentPadding = listContentPadding,
-            items = items,
+            items = contentItems,
             listMode = listMode,
             isRefreshing = isRefreshing,
             pullRefreshEnabled = pullRefreshEnabled,
@@ -102,38 +109,12 @@ fun HistoryScreen(
             listState = listState,
             detailedListState = detailedListState,
             listHeader = {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    AssistChip(
-                        onClick = onClearHistoryClick,
-                        leadingIcon = {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_delete_all),
-                                contentDescription = null,
-                                modifier = Modifier.padding(end = 4.dp)
-                            )
-                        },
-                        label = { Text(stringResource(R.string.clear_history)) }
-                    )
-                    
-                    if (isStatsEnabled) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        AssistChip(
-                            onClick = onStatsClick,
-                            leadingIcon = {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_bar_chart),
-                                    contentDescription = null,
-                                    modifier = Modifier.padding(end = 4.dp)
-                                )
-                            },
-                            label = { Text(stringResource(R.string.statistics)) }
-                        )
-                    }
-                }
+                HistoryHeader(
+                    quickFilter = quickFilter,
+                    isStatsEnabled = isStatsEnabled,
+                    onStatsClick = onStatsClick,
+                    onQuickFilterOptionClick = onQuickFilterOptionClick,
+                )
             }
         )
 
@@ -156,4 +137,60 @@ fun HistoryScreen(
             )
         }
     }
+}
+
+@Composable
+private fun HistoryHeader(
+    quickFilter: QuickFilter?,
+    isStatsEnabled: Boolean,
+    onStatsClick: () -> Unit,
+    onQuickFilterOptionClick: (ListFilterOption) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp)
+        ) {
+            if (isStatsEnabled) {
+                AssistChip(
+                    onClick = onStatsClick,
+                    leadingIcon = {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_bar_chart),
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 4.dp)
+                        )
+                    },
+                    label = { Text(stringResource(R.string.statistics)) }
+                )
+            }
+        }
+
+        if (quickFilter != null) {
+            org.skepsun.kototoro.list.ui.compose.QuickFilterSection(
+                quickFilter = quickFilter.withMacroOptionsFirst(),
+                onQuickFilterOptionClick = onQuickFilterOptionClick,
+            )
+        }
+    }
+}
+
+private fun QuickFilter.withMacroOptionsFirst(): QuickFilter {
+    return copy(
+        items = items.sortedBy { chip ->
+            when (chip.data as? ListFilterOption) {
+                ListFilterOption.Downloaded,
+                is ListFilterOption.Macro,
+                is ListFilterOption.Inverted -> 0
+                is ListFilterOption.Tag -> 1
+                is ListFilterOption.Source -> 2
+                else -> 3
+            }
+        },
+    )
 }

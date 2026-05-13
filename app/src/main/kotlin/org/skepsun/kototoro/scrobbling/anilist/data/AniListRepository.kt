@@ -13,9 +13,11 @@ import org.json.JSONObject
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.parsers.exception.GraphQLException
+import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.util.await
 import org.skepsun.kototoro.parsers.util.json.getStringOrNull
 import org.skepsun.kototoro.parsers.util.json.mapJSON
+import org.skepsun.kototoro.parsers.util.json.mapJSONNotNull
 import org.skepsun.kototoro.parsers.util.parseJson
 import org.skepsun.kototoro.parsers.util.toIntUp
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerRepository
@@ -276,6 +278,18 @@ class AniListRepository @Inject constructor(
 				episodes
 				chapters
 				volumes
+				streamingEpisodes {
+					title
+					thumbnail
+					url
+					site
+				}
+				airingSchedule(page: 1, perPage: 50) {
+					nodes {
+						episode
+						airingAt
+					}
+				}
 				season
 				seasonYear
 				meanScore
@@ -984,6 +998,18 @@ class AniListRepository @Inject constructor(
 			infobox.add("Season" to listOfNotNull(season, seasonYear?.toString()).joinToString(" "))
 		}
 
+		val contentType = when (json.getStringOrNull("type")) {
+			"ANIME" -> ContentType.VIDEO
+			"MANGA" -> ContentType.MANGA
+			else -> null
+		}
+		val totalEpisodes = if (contentType == ContentType.VIDEO) {
+			json.optInt("episodes", 0)
+		} else {
+			json.optInt("chapters", 0)
+		}.takeIf { it > 0 }
+		val episodes = parseAniListEpisodes(json, contentType, totalEpisodes)
+
 		val coverImage = json.optJSONObject("coverImage")
 		val cover = coverImage?.getStringOrNull("extraLarge")
 			?: coverImage?.getStringOrNull("large").orEmpty()
@@ -994,14 +1020,91 @@ class AniListRepository @Inject constructor(
 			cover = cover,
 			url = json.getString("siteUrl"),
 			descriptionHtml = json.optString("description", "").normalizeAniListDescriptionHtml(),
+			contentType = contentType,
 			tags = genres,
 			authors = authors,
+			totalEpisodes = totalEpisodes,
 			infoboxProperties = infobox,
+			episodes = episodes,
 			characters = characters.distinctBy { it.id },
 			reviews = reviews,
 			relatedWorks = relatedWorks,
 			recommendations = recommendations,
 		)
+	}
+
+	private fun parseAniListEpisodes(
+		json: JSONObject,
+		contentType: ContentType?,
+		totalEpisodes: Int?,
+	): List<ScrobblerContentInfo.EpisodeInfo> {
+		val mediaUrl = json.getStringOrNull("siteUrl").orEmpty()
+		val fromStreaming = json.optJSONArray("streamingEpisodes")
+			?.mapJSONNotNull { episode ->
+				val title = episode.getStringOrNull("title")?.trim().orEmpty()
+				val url = episode.getStringOrNull("url")?.takeIf { it.isNotBlank() }
+					?: mediaUrl
+				val number = extractEpisodeNumber(title)
+					?: title.takeIf { it.isNotBlank() }
+					?: return@mapJSONNotNull null
+				ScrobblerContentInfo.EpisodeInfo(
+					number = number,
+					title = title.ifBlank {
+						episode.getStringOrNull("site")?.takeIf { it.isNotBlank() }?.let { "Episode $number · $it" }
+							?: "Episode $number"
+					},
+					url = url,
+					thumbnailUrl = episode.getStringOrNull("thumbnail"),
+				)
+			}
+			.orEmpty()
+		if (fromStreaming.isNotEmpty()) {
+			return fromStreaming.distinctBy { it.number to it.url }
+		}
+
+		val fromSchedule = json.optJSONObject("airingSchedule")
+			?.optJSONArray("nodes")
+			?.mapJSONNotNull { node ->
+				val number = node.optInt("episode", 0).takeIf { it > 0 } ?: return@mapJSONNotNull null
+				val airedAt = node.optInt("airingAt", 0).takeIf { it > 0 }?.let(::aniListTimestampToDate)
+				ScrobblerContentInfo.EpisodeInfo(
+					number = number.toString(),
+					title = listOfNotNull("Episode $number", airedAt).joinToString(" · "),
+					url = mediaUrl,
+				)
+			}
+			.orEmpty()
+		if (fromSchedule.isNotEmpty()) {
+			return fromSchedule.distinctBy { it.number }
+		}
+
+		return syntheticEpisodes(
+			total = totalEpisodes,
+			label = if (contentType == ContentType.VIDEO) "Episode" else "Chapter",
+			url = mediaUrl,
+		)
+	}
+
+	private fun extractEpisodeNumber(title: String): String? {
+		return Regex("""(?i)(?:episode|ep)\s*([0-9]+(?:\.[0-9]+)?)""")
+			.find(title)
+			?.groupValues
+			?.getOrNull(1)
+	}
+
+	private fun syntheticEpisodes(
+		total: Int?,
+		label: String,
+		url: String,
+	): List<ScrobblerContentInfo.EpisodeInfo> {
+		val count = total?.takeIf { it > 0 } ?: return emptyList()
+		return (1..count).map { number ->
+			ScrobblerContentInfo.EpisodeInfo(
+				number = number.toString(),
+				title = "$label $number",
+				url = url,
+			)
+		}
 	}
 
 	private fun parseCharacterDetails(json: JSONObject): ScrobblerContentInfo {

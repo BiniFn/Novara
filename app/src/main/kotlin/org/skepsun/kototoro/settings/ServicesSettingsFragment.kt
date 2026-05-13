@@ -99,6 +99,10 @@ fun ServicesSettingsRoute(
     val suggestionsEnabled = settings.observeAsState(AppSettings.KEY_SUGGESTIONS) { isSuggestionsEnabled }.value
     val isBrowseTrackingRecommendationsEnabled =
         settings.observeAsState(AppSettings.KEY_BROWSE_TRACKING_RECOMMENDATIONS) { isBrowseTrackingRecommendationsEnabled }.value
+    val isBrowseMoreTrackingRecommendationsEnabled =
+        settings.observeAsState(AppSettings.KEY_BROWSE_MORE_TRACKING_RECOMMENDATIONS) {
+            isBrowseMoreTrackingRecommendationsEnabled
+        }.value
     val isRelatedContentEnabled =
         settings.observeAsState(AppSettings.KEY_RELATED_MANGA) { isRelatedContentEnabled }.value
     val isStatsEnabled = settings.observeAsState(AppSettings.KEY_STATS_ENABLED) { isStatsEnabled }.value
@@ -116,6 +120,7 @@ fun ServicesSettingsRoute(
         },
         animeOfflineSummary = animeOfflineSummary,
         isBrowseTrackingRecommendationsEnabled = isBrowseTrackingRecommendationsEnabled,
+        isBrowseMoreTrackingRecommendationsEnabled = isBrowseMoreTrackingRecommendationsEnabled,
         isRelatedContentEnabled = isRelatedContentEnabled,
         isStatsEnabled = isStatsEnabled,
         isReadingTimeEstimationEnabled = isReadingTimeEstimationEnabled,
@@ -137,6 +142,7 @@ fun ServicesSettingsRoute(
         },
         onSuggestionsClick = onSuggestionsClick,
         onBrowseTrackingRecommendationsChange = { settings.isBrowseTrackingRecommendationsEnabled = it },
+        onBrowseMoreTrackingRecommendationsChange = { settings.isBrowseMoreTrackingRecommendationsEnabled = it },
         onRelatedContentChange = { settings.isRelatedContentEnabled = it },
         onStatsClick = onStatsClick,
         onStatsEnabledChange = { settings.isStatsEnabled = it },

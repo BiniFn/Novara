@@ -96,7 +96,7 @@ private val DiscoverHeroHeight = 340.dp
 private val DiscoverHeroHeightDetached = 262.dp
 private val DiscoverHeroHeightLandscape = 220.dp
 private val DiscoverHeroBottomBlendHeightLandscape = 128.dp
-private val DiscoverHeroBottomBlendHeightDetachedLandscape = 64.dp
+private val DiscoverHeroBottomBlendHeightDetachedLandscape = 112.dp
 
 @Immutable
 private data class DiscoverHeroPanoramaPrefs(
@@ -178,7 +178,7 @@ fun DiscoverHeroCarousel(
     )
     val heroBottomBlendHeight = when {
         detachedBottomContent && isLandscape -> DiscoverHeroBottomBlendHeightDetachedLandscape
-        detachedBottomContent -> ((panoramaPrefs.blendHeight * 0.54f).toInt()).dp
+        detachedBottomContent -> panoramaPrefs.blendHeight.dp
         isLandscape -> DiscoverHeroBottomBlendHeightLandscape
         else -> panoramaPrefs.blendHeight.dp
     }
@@ -329,11 +329,11 @@ fun DiscoverHeroCarousel(
                         Brush.verticalGradient(
                             colorStops = arrayOf(
                                 0.0f to Color.Transparent,
-                                0.42f to Color.Transparent,
-                                0.62f to pageBackground.copy(alpha = 0.10f * panoramaGradientAlphaFactor),
-                                0.80f to pageBackground.copy(alpha = 0.28f * panoramaGradientAlphaFactor),
-                                0.92f to pageBackground.copy(alpha = 0.54f * panoramaGradientAlphaFactor),
-                                1.0f to pageBackground.copy(alpha = 0.72f * panoramaGradientAlphaFactor),
+                                0.28f to Color.Transparent,
+                                0.52f to pageBackground.copy(alpha = 0.08f * panoramaGradientAlphaFactor),
+                                0.72f to pageBackground.copy(alpha = 0.24f * panoramaGradientAlphaFactor),
+                                0.88f to pageBackground.copy(alpha = 0.50f * panoramaGradientAlphaFactor),
+                                1.0f to pageBackground.copy(alpha = 0.78f * panoramaGradientAlphaFactor),
                             ),
                         )
                     } else {
@@ -365,8 +365,8 @@ fun DiscoverHeroCarousel(
                                 0.0f to Color.Black.copy(alpha = 0.38f),
                                 0.18f to Color.Black.copy(alpha = 0.22f),
                                 0.48f to Color.Black.copy(alpha = 0.18f),
-                                0.72f to Color.Black.copy(alpha = 0.36f),
-                                1.0f to Color.Black.copy(alpha = if (detachedBottomContent) 0.50f else 0.44f),
+                                0.72f to Color.Black.copy(alpha = if (detachedBottomContent) 0.28f else 0.36f),
+                                1.0f to Color.Black.copy(alpha = if (detachedBottomContent) 0.34f else 0.44f),
                             ),
                         ),
                     )
@@ -384,10 +384,10 @@ fun DiscoverHeroCarousel(
                         Brush.verticalGradient(
                             colorStops = arrayOf(
                                 0.0f to Color.Transparent,
-                                0.16f to pageBackground.copy(alpha = 0.06f * panoramaGradientAlphaFactor),
-                                0.42f to pageBackground.copy(alpha = 0.18f * panoramaGradientAlphaFactor),
-                                0.72f to pageBackground.copy(alpha = 0.56f * panoramaGradientAlphaFactor),
-                                0.90f to pageBackground.copy(alpha = 0.86f * panoramaGradientAlphaFactor),
+                                0.18f to pageBackground.copy(alpha = 0.04f * panoramaGradientAlphaFactor),
+                                0.42f to pageBackground.copy(alpha = 0.16f * panoramaGradientAlphaFactor),
+                                0.68f to pageBackground.copy(alpha = 0.42f * panoramaGradientAlphaFactor),
+                                0.88f to pageBackground.copy(alpha = 0.78f * panoramaGradientAlphaFactor),
                                 1.0f to pageBackground,
                             ),
                         )

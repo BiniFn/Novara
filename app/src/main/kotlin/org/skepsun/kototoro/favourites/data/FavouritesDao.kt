@@ -18,6 +18,7 @@ import org.intellij.lang.annotations.Language
 import org.skepsun.kototoro.core.db.MangaQueryBuilder
 import org.skepsun.kototoro.core.db.TABLE_FAVOURITES
 import org.skepsun.kototoro.core.db.entity.MangaWithTags
+import org.skepsun.kototoro.core.db.entity.TagEntity
 import org.skepsun.kototoro.favourites.domain.model.Cover
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.list.domain.ListSortOrder
@@ -142,6 +143,21 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 
 	@Query("SELECT manga.source AS count FROM favourites LEFT JOIN manga ON manga.manga_id = favourites.manga_id WHERE favourites.category_id = :categoryId GROUP BY manga.source ORDER BY COUNT(manga.source) DESC LIMIT :limit")
 	abstract suspend fun findPopularSources(categoryId: Long, limit: Int): List<String>
+
+	@Query(
+		"""SELECT tags.* FROM tags
+		LEFT JOIN manga_tags ON tags.tag_id = manga_tags.tag_id
+		INNER JOIN favourites ON favourites.manga_id = manga_tags.manga_id
+		WHERE favourites.deleted_at = 0
+			AND (
+				(:categoryId = 0 AND (SELECT show_in_lib FROM favourite_categories WHERE favourite_categories.category_id = favourites.category_id) = 1)
+				OR favourites.category_id = :categoryId
+			)
+		GROUP BY manga_tags.tag_id
+		ORDER BY COUNT(manga_tags.manga_id) DESC
+		LIMIT :limit""",
+	)
+	abstract suspend fun findPopularTags(categoryId: Long, limit: Int): List<TagEntity>
 
 	fun dump(): Flow<FavouriteContent> = flow {
 		val window = 10

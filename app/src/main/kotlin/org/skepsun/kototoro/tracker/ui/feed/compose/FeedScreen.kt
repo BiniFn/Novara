@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -182,6 +183,24 @@ private fun FeedFilterBar(
 			FilterChip(
 				selected = selectedCategoryId == category.id,
 				onClick = { onCategorySelected(category.id) },
+				shape = MaterialTheme.shapes.small,
+				colors = FilterChipDefaults.filterChipColors(
+					containerColor = MaterialTheme.colorScheme.surface,
+					labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+					iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+					selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+					selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+					selectedLeadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+				),
+				border = FilterChipDefaults.filterChipBorder(
+					enabled = true,
+					selected = selectedCategoryId == category.id,
+					borderColor = if (selectedCategoryId == category.id) {
+						MaterialTheme.colorScheme.secondary.copy(alpha = 0.45f)
+					} else {
+						MaterialTheme.colorScheme.outlineVariant
+					},
+				),
 				label = {
 					Text(
 						if (category.id == NO_ID) {

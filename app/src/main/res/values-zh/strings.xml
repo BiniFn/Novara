@@ -10,6 +10,15 @@
     <string name="open_telegram_bot">打开 Telegram 机器人</string>
     <string name="open_telegram_bot_summary">在 Telegram 应用中打开备份机器人</string>
     <string name="test_connection">测试连接</string>
+    <string name="browse_tracking_recommendations">显示追踪网站推荐</string>
+    <string name="browse_tracking_recommendations_summary">在浏览页显示来自追踪网站的推荐内容。关闭后，浏览页只显示内容源。</string>
+    <string name="browse_more_tracking_recommendations">显示更多追踪网站推荐</string>
+    <string name="browse_more_tracking_recommendations_summary">在浏览页内容源下方显示额外追踪推荐。关闭后保留顶部 Hero，并展开内容源。</string>
+    <string name="novel_margin_horizontal">左右边距</string>
+    <string name="novel_margin_vertical">上下边距</string>
+    <string name="details_metadata_chapters">元数据章节</string>
+    <string name="details_reading_chapters">阅读章节</string>
+    <string name="details_playback_chapters">播放章节</string>
 
     <string name="webdav_integration">WebDAV 集成</string>
     <string name="send_backups_webdav">上传备份到 WebDAV</string>

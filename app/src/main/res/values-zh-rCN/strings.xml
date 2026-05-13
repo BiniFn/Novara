@@ -37,6 +37,10 @@
     <string name="new_sources_text">发现了新的可用内容源</string>
     <string name="suggestions_summary">根据你的喜好推荐作品</string>
     <string name="suggestions_info">所有数据都在本地分析，不会发送至任何地方</string>
+    <string name="browse_tracking_recommendations">显示追踪网站推荐</string>
+    <string name="browse_tracking_recommendations_summary">在浏览页显示来自追踪网站的推荐内容。关闭后，浏览页只显示内容源。</string>
+    <string name="browse_more_tracking_recommendations">显示更多追踪网站推荐</string>
+    <string name="browse_more_tracking_recommendations_summary">在浏览页内容源下方显示额外追踪推荐。关闭后保留顶部 Hero，并展开内容源。</string>
     <string name="never">从不</string>
     <string name="show_notification_new_chapters_on">接收在读作品的更新通知</string>
     <string name="nsfw">18+</string>
@@ -780,6 +784,8 @@
     <string name="novel_line_spacing">行距</string>
     <string name="novel_paragraph_spacing">段落间距</string>
     <string name="novel_margins">页边距</string>
+    <string name="novel_margin_horizontal">左右边距</string>
+    <string name="novel_margin_vertical">上下边距</string>
     <string name="novel_first_line_indent">段首缩进（两个全角空格）</string>
     <string name="novel_dual_page_mode">双页模式（横屏/平板）</string>
     <string name="novel_fullscreen_mode">全屏模式（隐藏状态栏）</string>
@@ -955,6 +961,9 @@
     <string name="details_original_language_short">原文</string>
     <string name="details_reading_language_short">阅读</string>
     <string name="details_playback_language_short">播放</string>
+    <string name="details_metadata_chapters">元数据章节</string>
+    <string name="details_reading_chapters">阅读章节</string>
+    <string name="details_playback_chapters">播放章节</string>
     <string name="year">年</string>
     <string name="demographics">受众人群</string>
     <string name="demographic_shounen">少年漫</string>
@@ -2031,6 +2040,8 @@
     <string name="reader_super_resolution_anime4k_mode">Anime4K 模式</string>
     <string name="pref_nav_floating">悬浮导航栏</string>
     <string name="pref_nav_floating_summary">在底部导航栏周围添加边距，使其呈现悬浮效果</string>
+    <string name="pref_nav_floating_adaptive_width">悬浮导航栏自适应宽度</string>
+    <string name="pref_nav_floating_adaptive_width_summary">导航按钮较少时自动收窄悬浮导航栏</string>
     <string name="pref_reader_toolbar_floating">悬浮阅读器工具栏</string>
     <string name="pref_reader_toolbar_floating_summary">使阅读器底部工具栏悬浮在屏幕边缘上方</string>
     <string name="pref_loading_circle_style">加载圆圈与进度条样式</string>

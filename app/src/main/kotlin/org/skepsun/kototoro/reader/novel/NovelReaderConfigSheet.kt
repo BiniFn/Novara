@@ -86,7 +86,8 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         binding.sliderFontSize.addOnChangeListener(this)
         binding.sliderLineSpacing.addOnChangeListener(this)
         binding.sliderParagraphSpacing.addOnChangeListener(this)
-        binding.sliderMargin.addOnChangeListener(this)
+        binding.sliderMarginHorizontal.addOnChangeListener(this)
+        binding.sliderMarginVertical.addOnChangeListener(this)
         binding.switchDualPage.setOnCheckedChangeListener(this)
         binding.switchFullscreen.setOnCheckedChangeListener(this)
         binding.switchShowReadingStatus.setOnCheckedChangeListener(this)
@@ -154,10 +155,8 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
             org.skepsun.kototoro.R.id.sliderFontSize -> settings.copy(fontSizeSp = value)
             org.skepsun.kototoro.R.id.sliderLineSpacing -> settings.copy(lineSpacing = value)
             org.skepsun.kototoro.R.id.sliderParagraphSpacing -> settings.copy(paragraphSpacing = value)
-            org.skepsun.kototoro.R.id.sliderMargin -> settings.copy(
-                marginHorizontal = value.toInt(),
-                marginVertical = value.toInt()
-            )
+            org.skepsun.kototoro.R.id.sliderMarginHorizontal -> settings.copy(marginHorizontal = value.toInt())
+            org.skepsun.kototoro.R.id.sliderMarginVertical -> settings.copy(marginVertical = value.toInt())
             else -> return
         }.normalized()
 
@@ -269,7 +268,8 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         } else {
             "${settings.paragraphSpacing.toInt()}dp"
         }
-        binding.textMarginValue.text = "${settings.marginHorizontal}dp"
+        binding.textMarginHorizontalValue.text = "${settings.marginHorizontal}dp"
+        binding.textMarginVerticalValue.text = "${settings.marginVertical}dp"
     }
 
     private fun updatePreviewCard() {
@@ -339,7 +339,12 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
             valueTo = NovelReaderSettings.PARAGRAPH_SPACING_RANGE.endInclusive
             stepSize = NovelReaderSettings.PARAGRAPH_SPACING_STEP
         }
-        binding.sliderMargin.apply {
+        binding.sliderMarginHorizontal.apply {
+            valueFrom = NovelReaderSettings.MARGIN_RANGE.first.toFloat()
+            valueTo = NovelReaderSettings.MARGIN_RANGE.last.toFloat()
+            stepSize = NovelReaderSettings.MARGIN_STEP.toFloat()
+        }
+        binding.sliderMarginVertical.apply {
             valueFrom = NovelReaderSettings.MARGIN_RANGE.first.toFloat()
             valueTo = NovelReaderSettings.MARGIN_RANGE.last.toFloat()
             stepSize = NovelReaderSettings.MARGIN_STEP.toFloat()
@@ -350,7 +355,8 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         binding.sliderFontSize.value = settings.fontSizeSp
         binding.sliderLineSpacing.value = settings.lineSpacing
         binding.sliderParagraphSpacing.value = settings.paragraphSpacing
-        binding.sliderMargin.value = settings.marginHorizontal.toFloat()
+        binding.sliderMarginHorizontal.value = settings.marginHorizontal.toFloat()
+        binding.sliderMarginVertical.value = settings.marginVertical.toFloat()
     }
 
     private fun lineSpacingPx(settings: NovelReaderSettings): Int {

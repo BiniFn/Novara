@@ -155,6 +155,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getBoolean(KEY_NAV_FLOATING, false)
 		set(value) = prefs.edit { putBoolean(KEY_NAV_FLOATING, value) }
 
+	var isNavFloatingAdaptiveWidth: Boolean
+		get() = prefs.getBoolean(KEY_NAV_FLOATING_ADAPTIVE_WIDTH, false)
+		set(value) = prefs.edit { putBoolean(KEY_NAV_FLOATING_ADAPTIVE_WIDTH, value) }
+
 	var navHeight: Int
 		get() = prefs.getSafeInt(KEY_NAV_HEIGHT, 80).coerceIn(48, 88)
 		set(value) = prefs.edit { putInt(KEY_NAV_HEIGHT, value.coerceIn(48, 88)) }
@@ -1194,6 +1198,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getBoolean(KEY_BROWSE_TRACKING_RECOMMENDATIONS, true)
 		set(value) = prefs.edit { putBoolean(KEY_BROWSE_TRACKING_RECOMMENDATIONS, value) }
 
+	var isBrowseMoreTrackingRecommendationsEnabled: Boolean
+		get() = prefs.getBoolean(KEY_BROWSE_MORE_TRACKING_RECOMMENDATIONS, true)
+		set(value) = prefs.edit { putBoolean(KEY_BROWSE_MORE_TRACKING_RECOMMENDATIONS, value) }
+
 	val isSuggestionsWiFiOnly: Boolean
 		get() = prefs.getBoolean(KEY_SUGGESTIONS_WIFI_ONLY, false)
 
@@ -1910,6 +1918,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_PAGES_PRELOAD = "pages_preload"
 		const val KEY_SUGGESTIONS = "suggestions"
 		const val KEY_BROWSE_TRACKING_RECOMMENDATIONS = "browse_tracking_recommendations"
+		const val KEY_BROWSE_MORE_TRACKING_RECOMMENDATIONS = "browse_more_tracking_recommendations"
 		const val KEY_SUGGESTIONS_WIFI_ONLY = "suggestions_wifi"
 		const val KEY_SUGGESTIONS_EXCLUDE_NSFW = "suggestions_exclude_nsfw"
 		const val KEY_SUGGESTIONS_EXCLUDE_TAGS = "suggestions_exclude_tags"
@@ -2057,6 +2066,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_NAV_LABELS = "nav_labels"
 		const val KEY_NAV_PINNED = "nav_pinned"
 		const val KEY_NAV_FLOATING = "nav_floating"
+		const val KEY_NAV_FLOATING_ADAPTIVE_WIDTH = "nav_floating_adaptive_width"
 		const val KEY_NAV_HEIGHT = "nav_height"
 		const val KEY_NAV_FLOATING_HEIGHT = "nav_floating_height"
 		const val KEY_READER_TOOLBAR_FLOATING = "reader_toolbar_floating"

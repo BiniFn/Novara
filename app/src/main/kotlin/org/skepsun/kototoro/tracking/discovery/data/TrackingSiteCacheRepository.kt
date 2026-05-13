@@ -239,6 +239,7 @@ class TrackingSiteCacheRepository @Inject constructor(
 			contentType = payload.optString("contentType").takeIf { it.isNotBlank() }?.let {
 				runCatching { ContentType.valueOf(it) }.getOrNull()
 			} ?: contentType,
+			totalEpisodes = payload.takeIf { it.has("totalEpisodes") }?.optInt("totalEpisodes") ?: totalEpisodes,
 			infoboxProperties = payload.optJSONArray("infoboxProperties")
 				?.toStringPairs()
 				?.ifEmpty { infoboxProperties }

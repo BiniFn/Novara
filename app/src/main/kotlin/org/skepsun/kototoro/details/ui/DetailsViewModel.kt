@@ -890,7 +890,22 @@ class DetailsViewModel @Inject constructor(
 		details: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails,
 		source: org.skepsun.kototoro.parsers.model.ContentSource,
 	): List<ContentChapter> {
-		return details.episodes.mapIndexed { index, episode ->
+		val episodes = details.episodes.ifEmpty {
+			val count = details.totalEpisodes?.takeIf { it > 0 } ?: return emptyList()
+			val label = if (details.contentType == ContentType.VIDEO || details.contentType == ContentType.HENTAI_VIDEO) {
+				"Episode"
+			} else {
+				"Chapter"
+			}
+			(1..count).map { number ->
+				org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails.EpisodeInfo(
+					number = number.toString(),
+					title = "$label $number",
+					url = details.url.orEmpty(),
+				)
+			}
+		}
+		return episodes.mapIndexed { index, episode ->
 			ContentChapter(
 				id = syntheticChapterId(details.service, details.remoteId, episode.url, index),
 				title = episode.title.ifBlank { episode.number },

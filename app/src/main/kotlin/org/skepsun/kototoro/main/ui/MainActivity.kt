@@ -306,8 +306,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
                 isContentTypeFilterVisible = isContentTypeFilterVisible,
                 onContentTypeSelected = { type ->
                     if (type == null || type in enabledContentTypes) {
-                        activeFilterContentType = type
-                        syncSearchSuggestionFilters()
                         val tab = when (type) {
                             ContentType.NOVEL -> BrowseGroupTab.Novel
                             ContentType.VIDEO -> BrowseGroupTab.Video
@@ -315,6 +313,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
                             else -> BrowseGroupTab.All
                         }
                         currentFilterCallback?.onContentTypeSelected(tab)
+                        refreshFilters()
                     }
                 },
                 selectedSourceTags = activeFilterSourceTags,
@@ -324,17 +323,8 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
                 onSourceTagFilterClick = ::onSourceTagFilterClick,
                 onSourceTagSelected = { tag ->
                     if (tag == null || tag in enabledSourceTags) {
-                        activeFilterSourceTags = if (tag == null) {
-                            emptySet()
-                        } else {
-                            activeFilterSourceTags.toMutableSet().apply {
-                                if (!add(tag)) {
-                                    remove(tag)
-                                }
-                            }
-                        }
-                        syncSearchSuggestionFilters()
                         currentFilterCallback?.onSourceTagSelected(tag)
+                        refreshFilters()
                     }
                 },
             )

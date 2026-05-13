@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.list.ui.compose
 
+import coil3.compose.AsyncImage
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -21,7 +22,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -441,7 +444,7 @@ private fun ListHeaderItem(item: ListHeader) {
 }
 
 @Composable
-private fun QuickFilterSection(
+fun QuickFilterSection(
     quickFilter: QuickFilter,
     onQuickFilterOptionClick: (ListFilterOption) -> Unit,
 ) {
@@ -461,6 +464,24 @@ private fun QuickFilterSection(
                 },
                 enabled = option != null,
                 leadingIcon = chipIcon(chip),
+                shape = MaterialTheme.shapes.small,
+                colors = FilterChipDefaults.filterChipColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    selectedLeadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = option != null,
+                    selected = chip.isChecked,
+                    borderColor = if (chip.isChecked) {
+                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.45f)
+                    } else {
+                        MaterialTheme.colorScheme.outlineVariant
+                    },
+                ),
                 label = {
                     Text(
                         text = buildChipLabel(chip),
@@ -689,15 +710,34 @@ private fun SkeletonBlock(
 
 @Composable
 private fun chipIcon(chip: ChipsView.ChipModel): (@Composable () -> Unit)? {
-    if (chip.icon == 0) {
+    if (chip.isChecked) {
+        return {
+            Icon(
+                painter = painterResource(R.drawable.ic_check),
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+    }
+    if (chip.iconData == null && chip.icon == 0) {
         return null
     }
     return {
-        Icon(
-            painter = painterResource(chip.icon),
-            contentDescription = null,
-            tint = if (chip.tint == 0) Color.Unspecified else MaterialTheme.colorScheme.primary,
-        )
+        if (chip.iconData != null) {
+            AsyncImage(
+                model = chip.iconData,
+                contentDescription = null,
+                placeholder = painterResource(chip.icon.takeIf { it != 0 } ?: com.google.android.material.R.drawable.navigation_empty_icon),
+                error = painterResource(chip.icon.takeIf { it != 0 } ?: com.google.android.material.R.drawable.navigation_empty_icon),
+                modifier = Modifier.size(18.dp),
+            )
+        } else {
+            Icon(
+                painter = painterResource(chip.icon),
+                contentDescription = null,
+                tint = if (chip.tint == 0) LocalContentColor.current else MaterialTheme.colorScheme.primary,
+            )
+        }
     }
 }
 

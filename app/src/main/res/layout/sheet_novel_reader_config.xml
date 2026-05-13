@@ -239,11 +239,11 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="@string/novel_margins"
+                android:text="@string/novel_margin_horizontal"
                 android:textAppearance="?attr/textAppearanceTitleMedium" />
 
             <TextView
-                android:id="@+id/textMarginValue"
+                android:id="@+id/textMarginHorizontalValue"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="36dp"
@@ -253,7 +253,40 @@
         </LinearLayout>
 
         <com.google.android.material.slider.Slider
-            android:id="@+id/sliderMargin"
+            android:id="@+id/sliderMarginHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="12"
+            android:valueTo="72"
+            android:stepSize="4"
+            android:value="36" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/novel_margin_vertical"
+                android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+            <TextView
+                android:id="@+id/textMarginVerticalValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="36dp"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?attr/colorPrimary" />
+
+        </LinearLayout>
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/sliderMarginVertical"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:valueFrom="12"

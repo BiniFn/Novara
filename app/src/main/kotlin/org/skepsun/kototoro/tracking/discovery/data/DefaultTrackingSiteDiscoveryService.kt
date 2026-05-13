@@ -986,6 +986,7 @@ class DefaultTrackingSiteDiscoveryService @Inject constructor(
 			rank = rank,
 			tags = tags,
 			authors = authors,
+			totalEpisodes = totalEpisodes,
 			url = url,
 			infoboxProperties = infoboxProperties,
 			episodes = episodes.map { ep ->

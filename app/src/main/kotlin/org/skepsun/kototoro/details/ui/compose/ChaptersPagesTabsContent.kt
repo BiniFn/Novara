@@ -289,6 +289,15 @@ private fun DetailsChapterPanels(
 			selectedModeName = availableModes.first().name
 		}
 	}
+	val readingChapterTitleRes = remember(readingChapterTabs) {
+		val selectedReadingContentType = readingChapterTabs.firstOrNull { it.isSelected }?.source?.getContentType()
+			?: readingChapterTabs.firstOrNull()?.source?.getContentType()
+		if (selectedReadingContentType == ContentType.VIDEO || selectedReadingContentType == ContentType.HENTAI_VIDEO) {
+			R.string.details_playback_chapters
+		} else {
+			R.string.details_reading_chapters
+		}
+	}
 
 	Column(modifier = Modifier.fillMaxSize()) {
 		if (availableModes.size > 1) {
@@ -309,7 +318,7 @@ private fun DetailsChapterPanels(
 									if (index == 0 && mode == ChapterPanelMode.METADATA) {
 										R.string.details_metadata_chapters
 									} else if (mode == ChapterPanelMode.READING) {
-										R.string.details_reading_chapters
+										readingChapterTitleRes
 									} else {
 										R.string.details_metadata_chapters
 									},

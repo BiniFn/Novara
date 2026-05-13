@@ -3,6 +3,7 @@ package org.skepsun.kototoro.favourites.domain
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.CancellationException
 import org.skepsun.kototoro.core.os.NetworkState
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.list.domain.ListFilterOption
@@ -51,9 +52,16 @@ class FavoritesListQuickFilter @AssistedInject constructor(
 		}
 		add(ListFilterOption.Macro.COMPLETED)
 		val hideNsfw = settings.isFavouritesExcludeNsfw
-		repository.findPopularSources(categoryId, 3)
-			.filterNot { hideNsfw && it.isNsfw() }
-			.mapTo(this) { ListFilterOption.Source(it) }
+		try {
+			repository.findPopularTags(categoryId, 3)
+				.mapTo(this) { ListFilterOption.Tag(it) }
+			repository.findPopularSources(categoryId, 3)
+				.filterNot { hideNsfw && it.isNsfw() }
+				.mapTo(this) { ListFilterOption.Source(it) }
+		} catch (e: CancellationException) {
+			throw e
+		} catch (_: Exception) {
+		}
 	}
 
 	@AssistedFactory

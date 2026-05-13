@@ -84,6 +84,27 @@ class DiscoverViewModel @Inject constructor(
 		settings.isBrowseTrackingRecommendationsEnabled,
 	)
 
+	private val isBrowseMoreTrackingRecommendationsEnabled = settings.observe(
+		AppSettings.KEY_BROWSE_MORE_TRACKING_RECOMMENDATIONS,
+	).mapLatest {
+		settings.isBrowseMoreTrackingRecommendationsEnabled
+	}.stateIn(
+		viewModelScope + Dispatchers.Default,
+		SharingStarted.Eagerly,
+		settings.isBrowseMoreTrackingRecommendationsEnabled,
+	)
+
+	private val browseRecommendationPrefs = combine(
+		isBrowseTrackingRecommendationsEnabled,
+		isBrowseMoreTrackingRecommendationsEnabled,
+		forceLoadRecommendations,
+	) { isEnabled, isMoreEnabled, forceLoad ->
+		BrowseRecommendationPrefs(
+			isEnabled = isEnabled || forceLoad,
+			isMoreEnabled = isMoreEnabled || forceLoad,
+		)
+	}
+
 	val availableServices = preferredService
 		.map(::resolveAvailableServices)
 		.stateIn(
@@ -146,16 +167,15 @@ class DiscoverViewModel @Inject constructor(
 				activeCategory,
 				refreshTrigger,
 				searchQuery,
-				combine(isBrowseTrackingRecommendationsEnabled, forceLoadRecommendations) { isEnabled, forceLoad ->
-					isEnabled || forceLoad
-				},
-			) { service, category, refreshVersion, query, isEnabled ->
+				browseRecommendationPrefs,
+			) { service, category, refreshVersion, query, browsePrefs ->
 				DiscoverRequest(
 					service = service,
 					category = category,
 					query = query.trim(),
 					refreshVersion = refreshVersion,
-					isEnabled = isEnabled,
+					isEnabled = browsePrefs.isEnabled,
+					isMoreEnabled = browsePrefs.isMoreEnabled,
 				)
 			}
 				.debounce(200) // Wait for all StateFlows to settle
@@ -177,11 +197,11 @@ class DiscoverViewModel @Inject constructor(
 					loadJob?.cancel()
 					_items.value = emptyList()
 					_page.value = 0
-					if (query.isBlank() && !forceRefresh && tryShowCachedDiscoverContent(service)) {
+					if (query.isBlank() && !forceRefresh && tryShowCachedDiscoverContent(service, request.isMoreEnabled)) {
 						return@collect
 					}
 					loadJob = viewModelScope.launch {
-						loadData(service, category, query, 0)
+						loadData(service, category, query, 0, request.isMoreEnabled)
 					}
 				}
 		}
@@ -196,8 +216,9 @@ class DiscoverViewModel @Inject constructor(
 		viewModelScope.launch {
 			combine(
 				settings.observe(AppSettings.KEY_LIST_MODE),
-				settings.observe(AppSettings.KEY_SELECTED_GROUP_TAB)
-			) { _, _ -> }.drop(1).collect {
+				settings.observe(AppSettings.KEY_SELECTED_GROUP_TAB),
+				settings.observe(AppSettings.KEY_BROWSE_MORE_TRACKING_RECOMMENDATIONS),
+			) { _, _, _ -> }.drop(1).collect {
 				remapContentState()
 			}
 		}
@@ -227,7 +248,9 @@ class DiscoverViewModel @Inject constructor(
 					service = service,
 					categories = caps.discoveryCategories,
 					currentTab = currentTab,
-				)
+				).let { categories ->
+					if (isBrowseMoreTrackingRecommendationsEnabled.value) categories else categories.take(1)
+				}
 				val rows = visibleCategories.mapNotNull { cat ->
 					val cached = cacheRepository.readCategoryCache(service, cat.id)
 					if (cached != null && cached.isNotEmpty()) {
@@ -243,7 +266,7 @@ class DiscoverViewModel @Inject constructor(
 		}
 	}
 
-	private suspend fun tryShowCachedDiscoverContent(service: ScrobblerService): Boolean {
+	private suspend fun tryShowCachedDiscoverContent(service: ScrobblerService, isMoreEnabled: Boolean): Boolean {
 		val currentTab = getCurrentBrowseGroupTab()
 		val caps = discoveryService.getCapabilities(service)
 		if (caps.discoveryCategories.isEmpty()) {
@@ -266,7 +289,9 @@ class DiscoverViewModel @Inject constructor(
 			service = service,
 			categories = caps.discoveryCategories,
 			currentTab = currentTab,
-		)
+		).let { categories ->
+			if (isMoreEnabled) categories else categories.take(1)
+		}
 		val scheduleCategoryId = getScheduleCategory(service)?.id
 		if (scheduleCategoryId != null &&
 			visibleCategories.firstOrNull()?.id == scheduleCategoryId &&
@@ -333,7 +358,13 @@ class DiscoverViewModel @Inject constructor(
 		}
 	}
 
-	private suspend fun loadData(service: ScrobblerService, category: String?, query: String, pageRequested: Int) {
+	private suspend fun loadData(
+		service: ScrobblerService,
+		category: String?,
+		query: String,
+		pageRequested: Int,
+		isMoreEnabled: Boolean = isBrowseMoreTrackingRecommendationsEnabled.value,
+	) {
 		if (!shouldLoadBrowseRecommendations(query)) {
 			_contentState.value = emptyList()
 			return
@@ -370,7 +401,9 @@ class DiscoverViewModel @Inject constructor(
 				service = service,
 				categories = caps.discoveryCategories,
 				currentTab = getCurrentBrowseGroupTab(),
-			)
+			).let { categories ->
+				if (isMoreEnabled) categories else categories.take(1)
+			}
 			val rows = visibleCategories.mapNotNull { cat ->
 
 				viewModelScope.async(Dispatchers.IO) {
@@ -622,6 +655,12 @@ private data class DiscoverRequest(
 	val query: String,
 	val refreshVersion: Int,
 	val isEnabled: Boolean,
+	val isMoreEnabled: Boolean,
 ) {
 	fun shouldLoad(): Boolean = isEnabled || query.isNotBlank()
 }
+
+private data class BrowseRecommendationPrefs(
+	val isEnabled: Boolean,
+	val isMoreEnabled: Boolean,
+)

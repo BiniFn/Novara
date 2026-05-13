@@ -4,10 +4,13 @@ import android.content.Intent
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Base64
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import androidx.core.graphics.Insets
 import androidx.core.graphics.ColorUtils
@@ -112,6 +115,13 @@ class NovelReaderActivity :
     
     // Continuous Scroll mode properties
     private var continuousAdapter: NovelContinuousAdapter? = null
+    private var continuousTapDownX = 0f
+    private var continuousTapDownY = 0f
+    private var continuousTapDownTime = 0L
+    private var lastContinuousGestureTapTime = 0L
+    private var lastContinuousTapHandledTime = 0L
+    private var continuousTouchSequence = 0L
+    private var lastContinuousTapSource = ""
     private var isLoadingPrevious = false
     private var isLoadingNext = false
 
@@ -376,17 +386,19 @@ class NovelReaderActivity :
             switchChapterBy(delta)
         }
 
-        viewBinding.infoBar.addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ ->
-            viewBinding.readerView.setHeaderHeight(0)
+        viewBinding.infoBar.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            updateNovelContentTopInset()
         }
 
         viewBinding.readerView.updateSettings(readerSettings)
         applyReaderPalette()
         
         // Initialize Continuous Scroll Adapter
-        continuousAdapter = NovelContinuousAdapter(readerSettings) { image ->
-            openInlineImage(image)
-        }
+        continuousAdapter = NovelContinuousAdapter(
+            settings = readerSettings,
+            onImageClick = { image -> openInlineImage(image) },
+            onTap = { rawX, rawY, eventTime -> handleContinuousRawTap(rawX, rawY, eventTime, "chapterView") },
+        )
         viewBinding.continuousScrollView.adapter = continuousAdapter
         continuousAdapter?.updatePalette(readerPalette ?: buildReaderPalette())
         viewBinding.continuousScrollView.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
@@ -399,32 +411,14 @@ class NovelReaderActivity :
         val scrollGestureDetector = android.view.GestureDetector(this, object : android.view.GestureDetector.SimpleOnGestureListener() {
             override fun onSingleTapConfirmed(e: android.view.MotionEvent): Boolean {
                 if (readerSettings.readingMode == org.skepsun.kototoro.reader.novel.ReadingMode.SCROLL) {
-                    val width = viewBinding.continuousScrollView.width.toFloat()
-                    val height = viewBinding.continuousScrollView.height.toFloat()
-                    if (width == 0f || height == 0f) return false
-                    
-                    val x = e.x / width
-                    val y = e.y / height
-                    
-                    val area = when {
-                        y < 0.33f -> when {
-                            x < 0.33f -> org.skepsun.kototoro.reader.domain.TapGridArea.TOP_LEFT
-                            x > 0.66f -> org.skepsun.kototoro.reader.domain.TapGridArea.TOP_RIGHT
-                            else -> org.skepsun.kototoro.reader.domain.TapGridArea.TOP_CENTER
-                        }
-                        y > 0.66f -> when {
-                            x < 0.33f -> org.skepsun.kototoro.reader.domain.TapGridArea.BOTTOM_LEFT
-                            x > 0.66f -> org.skepsun.kototoro.reader.domain.TapGridArea.BOTTOM_RIGHT
-                            else -> org.skepsun.kototoro.reader.domain.TapGridArea.BOTTOM_CENTER
-                        }
-                        else -> when {
-                            x < 0.33f -> org.skepsun.kototoro.reader.domain.TapGridArea.CENTER_LEFT
-                            x > 0.66f -> org.skepsun.kototoro.reader.domain.TapGridArea.CENTER_RIGHT
-                            else -> org.skepsun.kototoro.reader.domain.TapGridArea.CENTER
-                        }
-                    }
-                    
-                    handleTapGesture(area)
+                    lastContinuousGestureTapTime = e.eventTime
+                    handleContinuousTap(
+                        x = e.x,
+                        y = e.y,
+                        width = viewBinding.continuousScrollView.width,
+                        height = viewBinding.continuousScrollView.height,
+                        eventTime = e.eventTime,
+                    )
                     return true
                 }
                 return false
@@ -433,6 +427,7 @@ class NovelReaderActivity :
         
         viewBinding.continuousScrollView.setOnTouchListener { _, event ->
             scrollGestureDetector.onTouchEvent(event)
+            handleContinuousTapFallback(event)
             false
         }
         
@@ -543,7 +538,8 @@ class NovelReaderActivity :
         } else {
             true
         }
-        val contentTopInset = if (fullscreenEnabled) 0 else systemBars.top
+        val infoBarHeight = visibleInfoBarHeight()
+        val contentTopInset = if (fullscreenEnabled) infoBarHeight else systemBars.top + infoBarHeight
         val contentBottomInset = if (fullscreenEnabled) 0 else systemBars.bottom
         
         viewBinding.toolbar.updateLayoutParams<ViewGroup.MarginLayoutParams> {
@@ -837,6 +833,11 @@ class NovelReaderActivity :
     override fun scrollBy(delta: Int, smooth: Boolean): Boolean = false
 
     override fun toggleUiVisibility() {
+        android.util.Log.d(
+            NOVEL_SCROLL_TAP_LOG_TAG,
+            "toggleUiVisibility current=$isUiVisible target=${!isUiVisible} " +
+                "toolbarVisible=${viewBinding.toolbarDocked.isVisible} appbarVisible=${viewBinding.appbarTop.isVisible}",
+        )
         setUiVisible(!isUiVisible)
     }
 
@@ -2391,6 +2392,12 @@ class NovelReaderActivity :
     }
 
     private fun setUiVisible(visible: Boolean) {
+        android.util.Log.d(
+            NOVEL_SCROLL_TAP_LOG_TAG,
+            "setUiVisible request=$visible field=$isUiVisible appbar=${viewBinding.appbarTop.isVisible} " +
+                "toolbar=${viewBinding.toolbarDocked.isVisible} actions=${viewBinding.actionsView.isVisible} " +
+                "tts=${viewBinding.ttsControlBar.visibility == View.VISIBLE} animations=$isAnimationsEnabled",
+        )
         if (viewBinding.appbarTop.isVisible != visible) {
             val isTtsBarActive = viewBinding.ttsControlBar.visibility == View.VISIBLE
             
@@ -2434,6 +2441,18 @@ class NovelReaderActivity :
             updateSystemBarsColors()
             
             viewBinding.root.requestApplyInsets()
+            android.util.Log.d(
+                NOVEL_SCROLL_TAP_LOG_TAG,
+                "setUiVisible applied=$visible field=$isUiVisible appbar=${viewBinding.appbarTop.isVisible} " +
+                    "toolbar=${viewBinding.toolbarDocked.isVisible} actions=${viewBinding.actionsView.isVisible} " +
+                    "infoGone=${viewBinding.infoBar.isGone} systemUi=$shouldShowSystemUi",
+            )
+        } else {
+            android.util.Log.d(
+                NOVEL_SCROLL_TAP_LOG_TAG,
+                "setUiVisible ignored request=$visible because appbar already ${viewBinding.appbarTop.isVisible}; " +
+                    "field=$isUiVisible toolbar=${viewBinding.toolbarDocked.isVisible}",
+            )
         }
     }
 
@@ -2529,6 +2548,10 @@ class NovelReaderActivity :
         private const val KEY_PAGE_INDEX = "page_index"
         private const val KEY_UI_VISIBLE = "ui_visible"
         private const val TRANSLATION_PROGRESS_TOAST_DURATION = 1800L
+        private const val DOUBLE_TAP_FALLBACK_SUPPRESS_MS = 120L
+        private const val TAP_FALLBACK_EXTRA_TIMEOUT_MS = 120L
+        private const val CONTINUOUS_TAP_DEBOUNCE_MS = 420L
+        private const val NOVEL_SCROLL_TAP_LOG_TAG = "NovelScrollTap"
     }
 
     /**
@@ -2589,7 +2612,10 @@ class NovelReaderActivity :
      */
     private fun handleTapGesture(area: org.skepsun.kototoro.reader.domain.TapGridArea) {
         val action = tapGridSettings.getTapAction(area, false)
-        android.util.Log.d("NovelReaderActivity", "Tap area: $area, action: $action")
+        android.util.Log.d(
+            NOVEL_SCROLL_TAP_LOG_TAG,
+            "handleTapGesture area=$area action=$action ui=$isUiVisible toolbar=${viewBinding.toolbarDocked.isVisible}",
+        )
         
         when (action) {
             org.skepsun.kototoro.reader.ui.tapgrid.TapAction.PAGE_NEXT -> switchPageBy(1)
@@ -2601,6 +2627,154 @@ class NovelReaderActivity :
             null -> {
                 // 没有配置动作，默认切换 UI
                 toggleUiVisibility()
+            }
+        }
+    }
+
+    private fun handleContinuousTap(
+        x: Float,
+        y: Float,
+        width: Int,
+        height: Int,
+        eventTime: Long = SystemClock.uptimeMillis(),
+        source: String = "unknown",
+    ) {
+        if (width <= 0 || height <= 0) {
+            android.util.Log.d(
+                NOVEL_SCROLL_TAP_LOG_TAG,
+                "continuousTap ignored invalid size source=$source x=$x y=$y width=$width height=$height event=$eventTime",
+            )
+            return
+        }
+        val sinceLast = eventTime - lastContinuousTapHandledTime
+        if (sinceLast < CONTINUOUS_TAP_DEBOUNCE_MS) {
+            android.util.Log.d(
+                NOVEL_SCROLL_TAP_LOG_TAG,
+                "continuousTap ignored debounce source=$source lastSource=$lastContinuousTapSource " +
+                    "event=$eventTime last=$lastContinuousTapHandledTime delta=$sinceLast threshold=$CONTINUOUS_TAP_DEBOUNCE_MS " +
+                    "ui=$isUiVisible toolbar=${viewBinding.toolbarDocked.isVisible}",
+            )
+            return
+        }
+        lastContinuousTapHandledTime = eventTime
+        lastContinuousTapSource = source
+
+        val normalizedX = x / width.toFloat()
+        val normalizedY = y / height.toFloat()
+        val area = when {
+            normalizedY < 0.33f -> when {
+                normalizedX < 0.33f -> org.skepsun.kototoro.reader.domain.TapGridArea.TOP_LEFT
+                normalizedX > 0.66f -> org.skepsun.kototoro.reader.domain.TapGridArea.TOP_RIGHT
+                else -> org.skepsun.kototoro.reader.domain.TapGridArea.TOP_CENTER
+            }
+            normalizedY > 0.66f -> when {
+                normalizedX < 0.33f -> org.skepsun.kototoro.reader.domain.TapGridArea.BOTTOM_LEFT
+                normalizedX > 0.66f -> org.skepsun.kototoro.reader.domain.TapGridArea.BOTTOM_RIGHT
+                else -> org.skepsun.kototoro.reader.domain.TapGridArea.BOTTOM_CENTER
+            }
+            else -> when {
+                normalizedX < 0.33f -> org.skepsun.kototoro.reader.domain.TapGridArea.CENTER_LEFT
+                normalizedX > 0.66f -> org.skepsun.kototoro.reader.domain.TapGridArea.CENTER_RIGHT
+                else -> org.skepsun.kototoro.reader.domain.TapGridArea.CENTER
+            }
+        }
+
+        android.util.Log.d(
+            NOVEL_SCROLL_TAP_LOG_TAG,
+            "continuousTap accepted source=$source event=$eventTime x=$x y=$y width=$width height=$height " +
+                "nx=$normalizedX ny=$normalizedY area=$area ui=$isUiVisible toolbar=${viewBinding.toolbarDocked.isVisible}",
+        )
+        handleTapGesture(area)
+    }
+
+    private fun handleContinuousRawTap(
+        rawX: Float,
+        rawY: Float,
+        eventTime: Long,
+        source: String,
+    ) {
+        val location = IntArray(2)
+        viewBinding.continuousScrollView.getLocationOnScreen(location)
+        val x = rawX - location[0]
+        val y = rawY - location[1]
+        android.util.Log.d(
+            NOVEL_SCROLL_TAP_LOG_TAG,
+            "continuousRawTap source=$source event=$eventTime rawX=$rawX rawY=$rawY " +
+                "rvLeft=${location[0]} rvTop=${location[1]} viewportX=$x viewportY=$y " +
+                "rvWidth=${viewBinding.continuousScrollView.width} rvHeight=${viewBinding.continuousScrollView.height}",
+        )
+        handleContinuousTap(
+            x = x,
+            y = y,
+            width = viewBinding.continuousScrollView.width,
+            height = viewBinding.continuousScrollView.height,
+            eventTime = eventTime,
+            source = source,
+        )
+    }
+
+    private fun handleContinuousTapFallback(event: MotionEvent) {
+        if (readerSettings.readingMode != ReadingMode.SCROLL) {
+            return
+        }
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                continuousTouchSequence += 1
+                val scrollState = viewBinding.continuousScrollView.scrollState
+                val canScrollUp = viewBinding.continuousScrollView.canScrollVertically(-1)
+                val canScrollDown = viewBinding.continuousScrollView.canScrollVertically(1)
+                viewBinding.continuousScrollView.stopScroll()
+                android.util.Log.d(
+                    NOVEL_SCROLL_TAP_LOG_TAG,
+                    "fallback DOWN seq=$continuousTouchSequence event=${event.eventTime} x=${event.x} y=${event.y} " +
+                        "scrollStateBefore=$scrollState canUp=$canScrollUp canDown=$canScrollDown " +
+                        "ui=$isUiVisible toolbar=${viewBinding.toolbarDocked.isVisible}",
+                )
+                continuousTapDownX = event.x
+                continuousTapDownY = event.y
+                continuousTapDownTime = event.eventTime
+            }
+            MotionEvent.ACTION_UP -> {
+                val gestureDelta = event.eventTime - lastContinuousGestureTapTime
+                if (event.eventTime - lastContinuousGestureTapTime < DOUBLE_TAP_FALLBACK_SUPPRESS_MS) {
+                    android.util.Log.d(
+                        NOVEL_SCROLL_TAP_LOG_TAG,
+                        "fallback UP suppressed by gesture seq=$continuousTouchSequence event=${event.eventTime} " +
+                            "gestureLast=$lastContinuousGestureTapTime delta=$gestureDelta threshold=$DOUBLE_TAP_FALLBACK_SUPPRESS_MS " +
+                            "ui=$isUiVisible toolbar=${viewBinding.toolbarDocked.isVisible}",
+                    )
+                    return
+                }
+                val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+                val dx = kotlin.math.abs(event.x - continuousTapDownX)
+                val dy = kotlin.math.abs(event.y - continuousTapDownY)
+                val duration = event.eventTime - continuousTapDownTime
+                val tapTimeout = ViewConfiguration.getTapTimeout() + TAP_FALLBACK_EXTRA_TIMEOUT_MS
+                val isTap = duration <= tapTimeout && dx <= touchSlop && dy <= touchSlop
+                android.util.Log.d(
+                    NOVEL_SCROLL_TAP_LOG_TAG,
+                    "fallback UP seq=$continuousTouchSequence event=${event.eventTime} x=${event.x} y=${event.y} " +
+                        "duration=$duration timeout=$tapTimeout dx=$dx dy=$dy slop=$touchSlop isTap=$isTap " +
+                        "ui=$isUiVisible toolbar=${viewBinding.toolbarDocked.isVisible}",
+                )
+                if (isTap) {
+                    handleContinuousTap(
+                        x = event.x,
+                        y = event.y,
+                        width = viewBinding.continuousScrollView.width,
+                        height = viewBinding.continuousScrollView.height,
+                        eventTime = event.eventTime,
+                        source = "fallback",
+                    )
+                }
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                android.util.Log.d(
+                    NOVEL_SCROLL_TAP_LOG_TAG,
+                    "fallback CANCEL seq=$continuousTouchSequence event=${event.eventTime} " +
+                        "ui=$isUiVisible toolbar=${viewBinding.toolbarDocked.isVisible}",
+                )
+                continuousTapDownTime = 0L
             }
         }
     }
@@ -2738,8 +2912,10 @@ class NovelReaderActivity :
     private fun updateReadingStatusVisibility() {
         viewBinding.infoBar.isGone = isUiVisible || !readerSettings.showReadingStatus
         // 更新阅读状态背景可见性
-        viewBinding.infoBar.drawBackground = !readerSettings.isReadingStatusTransparent
-        viewBinding.infoBar.applyColorScheme(isBlackOnWhite = !(readerPalette?.isDark ?: resources.isNightMode))
+        viewBinding.infoBar.drawBackground = readerSettings.readingMode == ReadingMode.SCROLL ||
+            !readerSettings.isReadingStatusTransparent
+        applyInfoBarColorScheme()
+        updateNovelContentTopInset()
         
         // 当 infoBar 可见性变化时，其 layout 监听器会更新 readerView 的 headerHeight
         // 当 isUiVisible 变化时，requestApplyInsets 会更新 readerView 的 padding
@@ -2971,15 +3147,21 @@ class NovelReaderActivity :
 
         val appbarTop = viewBinding.appbarTop
         val hazeOpacityPercent = settings.hazeOpacityPercent
+        val isGlassEffectEnabled = settings.isGlassEffectEnabled
         val handleBgColor = { targetView: View ->
             if (targetView.background is com.google.android.material.shape.MaterialShapeDrawable) {
                 val bg = targetView.background as com.google.android.material.shape.MaterialShapeDrawable
                 val baseColor = (readerPalette ?: buildReaderPalette()).chromeBackgroundColor
-                if (isFloating) {
+                if (isFloating && isGlassEffectEnabled) {
                     val alphaVal = ((hazeOpacityPercent / 100f) * 255).toInt().coerceIn(30, 255)
                     bg.fillColor = ColorStateList.valueOf(ColorUtils.setAlphaComponent(baseColor, alphaVal))
                 } else {
-                    bg.fillColor = ColorStateList.valueOf(baseColor)
+                    val alphaVal = if (isFloating) {
+                        if ((readerPalette ?: buildReaderPalette()).isDark) 238 else 248
+                    } else {
+                        255
+                    }
+                    bg.fillColor = ColorStateList.valueOf(ColorUtils.setAlphaComponent(baseColor, alphaVal))
                 }
             }
         }
@@ -3034,8 +3216,35 @@ class NovelReaderActivity :
             button.imageTintList = ColorStateList.valueOf(toolbarIconColor)
         }
 
-        viewBinding.infoBar.applyColorScheme(isBlackOnWhite = !palette.isDark)
+        applyInfoBarColorScheme()
         updateToolbarFloatingStyle(isToolbarFloating)
         updateSystemBarsColors()
     }
+
+    private fun applyInfoBarColorScheme() {
+        val palette = readerPalette ?: buildReaderPalette()
+        if (readerSettings.readingMode == ReadingMode.SCROLL) {
+            viewBinding.infoBar.applyColorScheme(
+                textColor = palette.chromeTextColor,
+                backgroundColor = palette.chromeBackgroundColor,
+            )
+        } else {
+            viewBinding.infoBar.applyColorScheme(isBlackOnWhite = !palette.isDark)
+        }
+    }
+
+    private fun visibleInfoBarHeight(): Int {
+        return if (viewBinding.infoBar.isVisible && readerSettings.showReadingStatus) {
+            viewBinding.infoBar.height
+        } else {
+            0
+        }
+    }
+
+    private fun updateNovelContentTopInset() {
+        val infoBarHeight = visibleInfoBarHeight()
+        viewBinding.readerView.setHeaderHeight(infoBarHeight)
+        viewBinding.continuousScrollView.updatePadding(top = infoBarHeight)
+    }
+
 }

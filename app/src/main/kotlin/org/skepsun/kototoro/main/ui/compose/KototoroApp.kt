@@ -88,6 +88,7 @@ private data class KototoroDisplayPrefs(
     val gridSize: Int,
     val cornerRadius: Int,
     val isBrowseTrackingRecommendationsEnabled: Boolean,
+    val isBrowseMoreTrackingRecommendationsEnabled: Boolean,
 )
 
 @Immutable
@@ -178,6 +179,7 @@ fun KototoroApp(
         AppSettings.KEY_GRID_SIZE,
         AppSettings.KEY_POPUP_RADIUS,
         AppSettings.KEY_BROWSE_TRACKING_RECOMMENDATIONS,
+        AppSettings.KEY_BROWSE_MORE_TRACKING_RECOMMENDATIONS,
     ) {
         KototoroDisplayPrefs(
             activeSourcePresetId = activeSourcePresetId,
@@ -186,6 +188,7 @@ fun KototoroApp(
             gridSize = gridSize,
             cornerRadius = cornerRadius,
             isBrowseTrackingRecommendationsEnabled = isBrowseTrackingRecommendationsEnabled,
+            isBrowseMoreTrackingRecommendationsEnabled = isBrowseMoreTrackingRecommendationsEnabled,
         )
     }
     val filterVisibilityPrefs by appSettings.observeAsState(
@@ -212,6 +215,7 @@ fun KototoroApp(
     val gridSize = displayPrefs.gridSize
     val cornerRadius = displayPrefs.cornerRadius
     val isBrowseTrackingRecommendationsEnabled = displayPrefs.isBrowseTrackingRecommendationsEnabled
+    val isBrowseMoreTrackingRecommendationsEnabled = displayPrefs.isBrowseMoreTrackingRecommendationsEnabled
     val tabletUiMode by appSettings.observeAsState(AppSettings.KEY_TABLET_UI_MODE) { tabletUiMode }
     val isLandscapeNavigation = remember(
         context,
@@ -293,6 +297,19 @@ fun KototoroApp(
     }
 
     val navController = rememberNavController()
+    fun navigateToBottomNavItem(itemId: Int) {
+        val route = routeForBottomNavItem(itemId)
+        if (!navController.currentDestination.isBottomNavRoute(itemId)) {
+            navController.navigate(route) {
+                popUpTo<HomeRoute> {
+                    inclusive = false
+                    saveState = true
+                }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
     val mainNavItems by appSettings.observeAsState(AppSettings.KEY_NAV_MAIN) { mainNavItems }
     val startDestination = remember(mainNavItems) {
         mainNavItems.firstOrNull()?.let { routeForBottomNavItem(it.id) } ?: HomeRoute
@@ -619,6 +636,16 @@ fun KototoroApp(
                             } else {
                                 null
                             },
+                            isBrowseMoreTrackingRecommendationsEnabled = if (showBrowseSourceSettingsEntry) {
+                                isBrowseMoreTrackingRecommendationsEnabled
+                            } else {
+                                null
+                            },
+                            onBrowseMoreTrackingRecommendationsChange = if (showBrowseSourceSettingsEntry) {
+                                { appSettings.isBrowseMoreTrackingRecommendationsEnabled = it }
+                            } else {
+                                null
+                            },
                             showSourceSettingsEntry = showBrowseSourceSettingsEntry,
                             contextualMenuActions = contextualMenuActions,
                             modifier = Modifier
@@ -657,16 +684,8 @@ fun KototoroApp(
                     ) {
                         KototoroBottomNav(
                             state = navStateFlow,
-                            onItemSelected = { itemId ->
-                                val route = routeForBottomNavItem(itemId)
-                                val homeRoute = HomeRoute
-                                navController.navigate(route) {
-                                    popUpTo(homeRoute) { inclusive = false; saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            onItemReselected = { },
+                            onItemSelected = ::navigateToBottomNavItem,
+                            onItemReselected = ::navigateToBottomNavItem,
                         )
                     }
                 }
@@ -752,5 +771,21 @@ fun KototoroApp(
             }
         }
         onSearchNavigationHandled()
+    }
+}
+
+private fun androidx.navigation.NavDestination?.isBottomNavRoute(itemId: Int): Boolean {
+    return when (itemId) {
+        org.skepsun.kototoro.R.id.nav_home -> this?.hasRoute<HomeRoute>() == true
+        org.skepsun.kototoro.R.id.nav_history -> this?.hasRoute<HistoryRoute>() == true
+        org.skepsun.kototoro.R.id.nav_favorites -> this?.hasRoute<FavoritesRoute>() == true
+        org.skepsun.kototoro.R.id.nav_explore -> this?.hasRoute<ExploreRoute>() == true
+        org.skepsun.kototoro.R.id.nav_discover -> this?.hasRoute<DiscoverRoute>() == true
+        org.skepsun.kototoro.R.id.nav_feed -> this?.hasRoute<FeedRoute>() == true
+        org.skepsun.kototoro.R.id.nav_local -> this?.hasRoute<LocalRoute>() == true
+        org.skepsun.kototoro.R.id.nav_suggestions -> this?.hasRoute<SuggestionsRoute>() == true
+        org.skepsun.kototoro.R.id.nav_bookmarks -> this?.hasRoute<BookmarksRoute>() == true
+        org.skepsun.kototoro.R.id.nav_updated -> this?.hasRoute<UpdatedRoute>() == true
+        else -> false
     }
 }

@@ -320,6 +320,8 @@
     <string name="suggestions_info">All data is only analyzed locally on this device and never sent anywhere.</string>
     <string name="browse_tracking_recommendations">Show tracking web recommendations</string>
     <string name="browse_tracking_recommendations_summary">Show recommendation rows from tracking websites on the Browse page. When disabled, Browse only shows content sources.</string>
+    <string name="browse_more_tracking_recommendations">Show more tracking web recommendations</string>
+    <string name="browse_more_tracking_recommendations_summary">Show additional tracking rows below content sources on the Browse page. When disabled, the hero stays visible and content sources stay expanded.</string>
     <string name="browse_display_options_summary">This option has moved to Browse page search bar > More > Display options.</string>
     <string name="show_extra_info_on_cards">Show extra info on cards</string>
     <string name="show_extra_info_on_cards_summary">Display rating, status, chapter count and tags on content cards</string>
@@ -471,6 +473,8 @@
     <string name="novel_paragraph_spacing">Paragraph Spacing</string>
     <string name="novel_paragraph_spacing_follow_line">Follow line height</string>
     <string name="novel_margins">Page Margins</string>
+    <string name="novel_margin_horizontal">Horizontal Margins</string>
+    <string name="novel_margin_vertical">Vertical Margins</string>
     <string name="novel_theme_preset">Reading Theme</string>
     <string name="novel_theme_paper">Paper</string>
     <string name="novel_theme_sepia">Sepia</string>
@@ -1611,6 +1615,7 @@
     <string name="details_review_reply_count">%1$d replies</string>
     <string name="details_metadata_chapters">Metadata chapters</string>
     <string name="details_reading_chapters">Reading chapters</string>
+    <string name="details_playback_chapters">Playback chapters</string>
     <string name="details_metadata_chapter_hint">Metadata chapters are for browsing info and chapter pages only. They do not open the reader or player directly.</string>
     <string name="details_metadata_source_label">Metadata source: %1$s</string>
     <string name="details_chapter_number_label">Chapter: %1$s</string>
@@ -2511,6 +2516,8 @@
 
     <string name="pref_nav_floating">Floating navigation bar</string>
     <string name="pref_nav_floating_summary">Add a margin around the bottom navigation bar so it appears floating</string>
+    <string name="pref_nav_floating_adaptive_width">Adaptive floating navigation width</string>
+    <string name="pref_nav_floating_adaptive_width_summary">Reduce the floating navigation bar width when fewer navigation items are shown</string>
     <string name="pref_nav_height">Navigation bar height</string>
     <string name="pref_nav_floating_height">Floating navigation bar height</string>
     <string name="pref_reader_toolbar_floating">Floating bottom toolbar</string>

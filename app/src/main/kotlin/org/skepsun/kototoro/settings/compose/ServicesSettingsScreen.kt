@@ -23,6 +23,7 @@ data class ServicesSettingsUiState(
     val suggestionsSummary: String,
     val animeOfflineSummary: String,
     val isBrowseTrackingRecommendationsEnabled: Boolean,
+    val isBrowseMoreTrackingRecommendationsEnabled: Boolean,
     val isRelatedContentEnabled: Boolean,
     val isStatsEnabled: Boolean,
     val isReadingTimeEstimationEnabled: Boolean,
@@ -36,6 +37,7 @@ fun ServicesSettingsScreen(
     onAnimeOfflineClick: () -> Unit,
     onSuggestionsClick: () -> Unit,
     onBrowseTrackingRecommendationsChange: (Boolean) -> Unit,
+    onBrowseMoreTrackingRecommendationsChange: (Boolean) -> Unit,
     onRelatedContentChange: (Boolean) -> Unit,
     onStatsClick: () -> Unit,
     onStatsEnabledChange: (Boolean) -> Unit,
@@ -82,6 +84,15 @@ fun ServicesSettingsScreen(
                         summary = stringResource(R.string.browse_tracking_recommendations_summary),
                         onCheckedChange = onBrowseTrackingRecommendationsChange,
                     )
+                    if (state.isBrowseTrackingRecommendationsEnabled) {
+                        SettingsSectionDivider()
+                        SettingsSwitchPreference(
+                            title = stringResource(R.string.browse_more_tracking_recommendations),
+                            checked = state.isBrowseMoreTrackingRecommendationsEnabled,
+                            summary = stringResource(R.string.browse_more_tracking_recommendations_summary),
+                            onCheckedChange = onBrowseMoreTrackingRecommendationsChange,
+                        )
+                    }
                     SettingsSectionDivider()
                     SettingsSwitchPreference(
                         title = stringResource(R.string.related_manga),

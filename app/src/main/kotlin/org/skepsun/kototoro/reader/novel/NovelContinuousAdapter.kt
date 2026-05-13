@@ -16,6 +16,7 @@ data class NovelChapterData(
 class NovelContinuousAdapter(
     private var settings: NovelReaderSettings,
     private val onImageClick: (NovelInlineImageRequest) -> Unit,
+    private val onTap: (Float, Float, Long) -> Unit,
 ) : RecyclerView.Adapter<NovelContinuousAdapter.ChapterViewHolder>() {
 
     private val chapters = mutableListOf<NovelChapterData>()
@@ -27,10 +28,12 @@ class NovelContinuousAdapter(
             settings: NovelReaderSettings,
             palette: NovelReaderPalette?,
             onImageClick: (NovelInlineImageRequest) -> Unit,
+            onTap: (Float, Float, Long) -> Unit,
         ) {
             view.updateSettings(settings)
             palette?.let(view::updatePalette)
             view.onImageClickListener = onImageClick
+            view.onTapListener = onTap
             view.setContent(data.content, data.epubFile, data.chapterPath)
             view.setTranslation(data.translation)
         }
@@ -47,7 +50,7 @@ class NovelContinuousAdapter(
     }
 
     override fun onBindViewHolder(holder: ChapterViewHolder, position: Int) {
-        holder.bind(chapters[position], settings, palette, onImageClick)
+        holder.bind(chapters[position], settings, palette, onImageClick, onTap)
     }
 
     override fun getItemCount(): Int = chapters.size

@@ -72,6 +72,7 @@ data class AppearanceSettingsUiState(
     val isNavLabelsVisible: Boolean,
     val isNavBarPinned: Boolean,
     val isNavFloating: Boolean,
+    val isNavFloatingAdaptiveWidth: Boolean,
     val navHeight: Int,
     val navFloatingHeight: Int,
     val isReaderToolbarFloating: Boolean,
@@ -153,6 +154,7 @@ fun AppearanceSettingsScreen(
     onNavLabelsVisibleChange: (Boolean) -> Unit,
     onNavBarPinnedChange: (Boolean) -> Unit,
     onNavFloatingChange: (Boolean) -> Unit,
+    onNavFloatingAdaptiveWidthChange: (Boolean) -> Unit,
     onNavHeightChange: (Int) -> Unit,
     onNavFloatingHeightChange: (Int) -> Unit,
     onReaderToolbarFloatingChange: (Boolean) -> Unit,
@@ -504,6 +506,15 @@ fun AppearanceSettingsScreen(
                     summary = stringResource(R.string.pref_nav_floating_summary),
                     onCheckedChange = onNavFloatingChange,
                 )
+                if (state.isNavFloating) {
+                    SettingsSectionDivider()
+                    SettingsSwitchPreference(
+                        title = stringResource(R.string.pref_nav_floating_adaptive_width),
+                        checked = state.isNavFloatingAdaptiveWidth,
+                        summary = stringResource(R.string.pref_nav_floating_adaptive_width_summary),
+                        onCheckedChange = onNavFloatingAdaptiveWidthChange,
+                    )
+                }
                 SettingsSectionDivider()
                 SettingsSliderPreference(
                     title = stringResource(R.string.pref_nav_height),

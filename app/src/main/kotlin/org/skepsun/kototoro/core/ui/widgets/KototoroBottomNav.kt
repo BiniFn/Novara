@@ -35,6 +35,7 @@ import dagger.hilt.android.EntryPointAccessors
 @Immutable
 private data class BottomNavPrefs(
     val isFloating: Boolean,
+    val isFloatingAdaptiveWidth: Boolean,
     val isLabelsVisible: Boolean,
     val navHeight: Int,
     val navFloatingHeight: Int,
@@ -57,18 +58,21 @@ fun KototoroBottomNav(
 
     val prefs by appSettings.observeAsState(
         AppSettings.KEY_NAV_FLOATING,
+        AppSettings.KEY_NAV_FLOATING_ADAPTIVE_WIDTH,
         AppSettings.KEY_NAV_LABELS,
         AppSettings.KEY_NAV_HEIGHT,
         AppSettings.KEY_NAV_FLOATING_HEIGHT,
     ) {
         BottomNavPrefs(
             isFloating = isNavFloating,
+            isFloatingAdaptiveWidth = isNavFloatingAdaptiveWidth,
             isLabelsVisible = isNavLabelsVisible,
             navHeight = navHeight,
             navFloatingHeight = navFloatingHeight,
         )
     }
     val isFloating = prefs.isFloating
+    val isFloatingAdaptiveWidth = prefs.isFloatingAdaptiveWidth
     val isLabelsVisible = prefs.isLabelsVisible
     val navHeight = prefs.navHeight
     val navFloatingHeight = prefs.navFloatingHeight
@@ -121,6 +125,10 @@ fun KototoroBottomNav(
     val currentExplicitHeight by androidx.compose.animation.core.animateDpAsState(
         if (isFloating && !useNavigationRail) (navFloatingHeight + 4).dp else navHeight.dp
     )
+    val floatingAdaptiveWidth = remember(activeItems.size, isLabelsVisible) {
+        val itemWidth = if (isLabelsVisible) 80 else 68
+        (activeItems.size * itemWidth + 28).dp.coerceIn(220.dp, 520.dp)
+    }
     val railWidth = if (isFloating) 96.dp else 84.dp
 
     val navContainerStyle = if (isFloating) {
@@ -196,23 +204,32 @@ fun KototoroBottomNav(
             }
         }
     } else if (isFloating) {
-        GlassBottomBarContainer(
+        Box(
             modifier = navBarModifier,
-            style = navContainerStyle,
+            contentAlignment = Alignment.Center,
         ) {
-            FloatingBottomNavRow(
-                items = activeItems,
-                selectedItemId = navState.selectedItemId,
-                badges = navState.badges,
-                isLabelsVisible = isLabelsVisible,
-                clickPulses = clickPulses,
-                onItemSelected = onItemSelected,
-                onItemReselected = onItemReselected,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(currentExplicitHeight)
-                    .padding(horizontal = 4.dp),
-            )
+            GlassBottomBarContainer(
+                modifier = if (isFloatingAdaptiveWidth) {
+                    Modifier.width(floatingAdaptiveWidth)
+                } else {
+                    Modifier.fillMaxWidth()
+                },
+                style = navContainerStyle,
+            ) {
+                FloatingBottomNavRow(
+                    items = activeItems,
+                    selectedItemId = navState.selectedItemId,
+                    badges = navState.badges,
+                    isLabelsVisible = isLabelsVisible,
+                    clickPulses = clickPulses,
+                    onItemSelected = onItemSelected,
+                    onItemReselected = onItemReselected,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(currentExplicitHeight)
+                        .padding(horizontal = 4.dp),
+                )
+            }
         }
     } else {
         GlassSurface(

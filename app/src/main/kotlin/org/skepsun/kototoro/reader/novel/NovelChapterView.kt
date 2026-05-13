@@ -84,6 +84,7 @@ class NovelChapterView @JvmOverloads constructor(
     private val imagePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     var imageHeadersProvider: ((String) -> Map<String, String>?)? = null
     var onImageClickListener: ((NovelInlineImageRequest) -> Unit)? = null
+    var onTapListener: ((rawX: Float, rawY: Float, eventTime: Long) -> Unit)? = null
     
     @Inject
     lateinit var imageLoader: ImageLoader
@@ -102,10 +103,20 @@ class NovelChapterView @JvmOverloads constructor(
 
             override fun onSingleTapUp(e: MotionEvent): Boolean {
                 findInlineImageAt(e.x, e.y)?.let { image ->
+                    android.util.Log.d(
+                        "NovelScrollTap",
+                        "chapterView singleTap image event=${e.eventTime} x=${e.x} y=${e.y} width=$width height=$height",
+                    )
                     onImageClickListener?.invoke(image)
                     return true
                 }
-                return false
+                android.util.Log.d(
+                    "NovelScrollTap",
+                    "chapterView singleTap text event=${e.eventTime} localX=${e.x} localY=${e.y} " +
+                        "rawX=${e.rawX} rawY=${e.rawY} width=$width height=$height",
+                )
+                onTapListener?.invoke(e.rawX, e.rawY, e.eventTime)
+                return true
             }
         })
     }
@@ -174,7 +185,7 @@ class NovelChapterView @JvmOverloads constructor(
         val layout = displayLayout ?: return 0f
         return try {
             val line = layout.getLineForOffset(charOffset)
-            layout.getLineTop(line).toFloat() + paddingTop + settings.marginVertical
+            layout.getLineTop(line).toFloat() + paddingTop + contentMarginVertical()
         } catch (e: Exception) {
             0f
         }
@@ -183,7 +194,7 @@ class NovelChapterView @JvmOverloads constructor(
     fun getOffsetForVertical(y: Float): Int {
         val layout = displayLayout ?: return 0
         return try {
-            val adjustedY = y - paddingTop - settings.marginVertical
+            val adjustedY = y - paddingTop - contentMarginVertical()
             val clampedY = adjustedY.coerceIn(0f, layout.height.toFloat())
             val line = layout.getLineForVertical(clampedY.toInt())
             layout.getOffsetForHorizontal(line, 0f)
@@ -209,7 +220,8 @@ class NovelChapterView @JvmOverloads constructor(
 
         val contentHeight = displayLayout?.height ?: 0
         // 对于 continuous 模式，我们只需基于文本高度计算测量高度
-        val desiredHeight = paddingTop + paddingBottom + (settings.marginVertical * 2) + contentHeight
+        val contentMarginVertical = contentMarginVertical()
+        val desiredHeight = paddingTop + paddingBottom + (contentMarginVertical * 2) + contentHeight
         
         val heightMode = MeasureSpec.getMode(heightMeasureSpec)
         val heightSize = MeasureSpec.getSize(heightMeasureSpec)
@@ -409,7 +421,7 @@ class NovelChapterView @JvmOverloads constructor(
 
         canvas.save()
         val x = paddingLeft + settings.marginHorizontal.toFloat()
-        val y = paddingTop + settings.marginVertical.toFloat()
+        val y = paddingTop + contentMarginVertical().toFloat()
         canvas.translate(x, y)
         
         highlightRange?.let { range ->
@@ -448,7 +460,7 @@ class NovelChapterView @JvmOverloads constructor(
 
     private fun findInlineImageAt(x: Float, y: Float): NovelInlineImageRequest? {
         val localX = x - paddingLeft - settings.marginHorizontal
-        val localY = y - paddingTop - settings.marginVertical
+        val localY = y - paddingTop - contentMarginVertical()
         if (localX < 0f || localY < 0f) {
             return null
         }
@@ -477,6 +489,10 @@ class NovelChapterView @JvmOverloads constructor(
             chapterPath = chapterPath,
             headers = imageHeadersProvider?.invoke(image.imagePath).orEmpty(),
         )
+    }
+
+    private fun contentMarginVertical(): Int {
+        return if (settings.readingMode == ReadingMode.SCROLL) 0 else settings.marginVertical
     }
 
     private fun loadImage(imagePath: String): Bitmap? {
