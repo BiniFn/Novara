@@ -73,6 +73,8 @@ import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
 import org.skepsun.kototoro.core.model.jsonsource.TVBoxStoredConfig
 import org.skepsun.kototoro.core.parser.tvbox.TVBoxRepository
+import org.skepsun.kototoro.core.parser.tvbox.TVBoxSupportStatus
+import org.skepsun.kototoro.core.parser.tvbox.TVBoxSupportStatusClassifier
 import org.skepsun.kototoro.settings.utils.EditTextDefaultSummaryProvider
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.skepsun.kototoro.settings.SettingsActivity
@@ -347,22 +349,14 @@ class SourceSettingsFragment :
 	}
 
 	private fun getTvBoxSupportStatusSummary(config: TVBoxStoredConfig, candidates: List<String>): String {
-		val hasPlayableCandidate = candidates.any(::looksLikeTvBoxPlayableCandidate)
-		val hasCmsCandidate = candidates.any(::looksLikeTvBoxCmsCandidate)
-		val hasSpiderArtifacts = hasTvBoxSpiderArtifacts(config)
-		if (config.site.type == 4) {
-			return getString(R.string.tvbox_support_status_quickjs_partial)
-		}
-		if (hasPlayableCandidate || hasCmsCandidate) {
-			return if (hasSpiderArtifacts) {
-				getString(R.string.tvbox_support_status_bridgeable)
-			} else {
-				getString(R.string.tvbox_support_status_partial_runtime)
-			}
-		}
-		return when {
-			hasSpiderArtifacts -> getString(R.string.tvbox_support_status_spider_bridge)
-			else -> getString(R.string.tvbox_support_status_direct)
+		return when (TVBoxSupportStatusClassifier.classify(config, candidates)) {
+			TVBoxSupportStatus.DIRECT -> getString(R.string.tvbox_support_status_direct)
+			TVBoxSupportStatus.PARTIAL_RUNTIME -> getString(R.string.tvbox_support_status_partial_runtime)
+			TVBoxSupportStatus.QUICKJS_PARTIAL -> getString(R.string.tvbox_support_status_quickjs_partial)
+			TVBoxSupportStatus.BRIDGEABLE -> getString(R.string.tvbox_support_status_bridgeable)
+			TVBoxSupportStatus.SPIDER_BRIDGE -> getString(R.string.tvbox_support_status_spider_bridge)
+			TVBoxSupportStatus.ORDINARY_JAR -> getString(R.string.tvbox_support_status_ordinary_jar)
+			TVBoxSupportStatus.GUARD_NATIVE -> getString(R.string.tvbox_support_status_guard_native)
 		}
 	}
 
@@ -388,11 +382,7 @@ class SourceSettingsFragment :
 	}
 
 	private fun hasTvBoxSpiderArtifacts(config: TVBoxStoredConfig): Boolean {
-		return !config.root.spider.isNullOrBlank() ||
-			!config.site.jar.isNullOrBlank() ||
-			config.site.type == 3 ||
-			config.site.type == 4 ||
-			config.site.api.startsWith("csp_", ignoreCase = true)
+		return TVBoxSupportStatusClassifier.hasSpiderArtifacts(config)
 	}
 
 	private fun buildTvBoxResourceCandidates(config: TVBoxStoredConfig): List<String> {
@@ -435,26 +425,6 @@ class SourceSettingsFragment :
 			return baseHttpUrl.resolve(value)?.toString()
 		}
 		return null
-	}
-
-	private fun looksLikeTvBoxPlayableCandidate(url: String): Boolean {
-		val normalized = url.lowercase()
-		return normalized.contains(".m3u8") ||
-			normalized.contains(".mp4") ||
-			normalized.contains(".flv") ||
-			normalized.contains(".mpd") ||
-			normalized.contains(".mkv") ||
-			normalized.contains(".webm") ||
-			normalized.contains(".avi") ||
-			normalized.contains(".mov") ||
-			normalized.endsWith(".m3u")
-	}
-
-	private fun looksLikeTvBoxCmsCandidate(url: String): Boolean {
-		val normalized = url.lowercase()
-		return normalized.contains("provide/vod") ||
-			normalized.contains("api.php") ||
-			normalized.contains(".php")
 	}
 
 	private fun tryAddLegadoVariablePreferences() {

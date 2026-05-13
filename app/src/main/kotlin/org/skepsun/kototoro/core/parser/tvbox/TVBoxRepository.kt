@@ -283,9 +283,12 @@ class TVBoxRepository(
 				continue
 			}
 			Log.d(TAG, "Checking CMS candidate: ${candidate.label} -> ${candidate.url}")
-			val content = runCatching { readTextResource(candidate.url, candidate.headers) }.getOrNull()
+			val content = runCatching { readTextResource(candidate.url, candidate.headers) }
+				.onFailure {
+					logRepositoryFailure("detectCms", it, "candidate=${candidate.url}")
+				}
+				.getOrNull()
 				?: run {
-					Log.d(TAG, "Failed to load CMS candidate: ${candidate.url}")
 					continue
 				}
 			val parsed = parseCmsResponse(candidate, content)
@@ -300,7 +303,7 @@ class TVBoxRepository(
 				)
 			}
 		}
-		Log.d(TAG, "No CMS candidate detected for ${source.name}")
+		logRepositoryFailure("detectCms", null, "no_candidate_detected")
 		return null
 	}
 
@@ -622,6 +625,7 @@ class TVBoxRepository(
 		val candidates = buildResourceCandidates()
 		Log.d(TAG, "Building TVBox catalog for ${source.name} with candidates: ${candidates.joinToString { "${it.label}=${it.url}" }}")
 		if (candidates.isEmpty()) {
+			logRepositoryFailure("buildCatalog", null, "no_resource_candidates")
 			throw if (requiresSpiderRuntime()) {
 				unsupportedSpiderSource()
 			} else {
@@ -637,9 +641,12 @@ class TVBoxRepository(
 				Log.d(TAG, "Using direct TVBox candidate: ${candidate.url}")
 				return buildDirectCatalog(candidate)
 			}
-			val content = runCatching { readTextResource(candidate.url, candidate.headers) }.getOrNull()
+			val content = runCatching { readTextResource(candidate.url, candidate.headers) }
+				.onFailure {
+					logRepositoryFailure("buildCatalog", it, "candidate=${candidate.url}")
+				}
+				.getOrNull()
 				?: run {
-					Log.d(TAG, "Failed to read TVBox candidate document: ${candidate.url}")
 					continue
 				}
 			val catalog = parseCandidateDocument(candidate, content)
@@ -649,6 +656,7 @@ class TVBoxRepository(
 			}
 		}
 
+		logRepositoryFailure("buildCatalog", null, "no_supported_candidate")
 		throw UnsupportedSourceException(
 			"TVBox site is imported but the runtime only supports direct media, M3U playlists, plain-text channel lists, or simple JSON play lists",
 			null,
@@ -1181,7 +1189,7 @@ class TVBoxRepository(
 		val runtimeUnavailability = spiderRuntime?.describeUnavailability(config)
 		return UnsupportedSourceException(
 			buildString {
-				append("TVBox spider/jar/csp source is not supported yet: type=")
+				append("TVBox spider/jar/csp source requires partial local runtime support: type=")
 				append(config.site.type)
 				append(", api=")
 				append(config.site.api)
@@ -1201,8 +1209,21 @@ class TVBoxRepository(
 					append(", note=")
 					append(it)
 				}
+				append(", fallback=direct media, playlists, and simple CMS candidates are handled before this error")
 			},
 			null,
+		)
+	}
+
+	private fun logRepositoryFailure(action: String, error: Throwable?, detail: String? = null) {
+		TVBoxRuntimeDiagnostics.logFailure(
+			tag = TAG,
+			sourceName = source.name,
+			runtimeId = spiderRuntime?.id,
+			action = action,
+			category = TVBoxRuntimeDiagnostics.classifyRepository(error, requiresSpiderRuntime()),
+			error = error,
+			detail = detail,
 		)
 	}
 

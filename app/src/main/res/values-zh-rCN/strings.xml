@@ -1174,11 +1174,13 @@
 	<string name="tvbox_runtime_candidates_title">运行时候选</string>
 	<string name="tvbox_support_status_title">支持状态</string>
 	<string name="tvbox_support_status_direct">当前版本支持直链和播放列表类 TVBox 源。</string>
-	<string name="tvbox_support_status_partial_runtime">当前版本可尝试该站点的直链、播放列表和部分 CMS 接口；spider/csp 运行时能力仍不支持。</string>
+	<string name="tvbox_support_status_partial_runtime">当前版本可尝试该站点的直链、播放列表和部分 CMS 接口。</string>
 	<string name="tvbox_support_status_quickjs_partial">当前版本已为 TVBox type=4 提供基础 QuickJS bridge，可尝试首页、分类、详情和播放解析，但高级 JS 运行时能力仍不完整。</string>
-	<string name="tvbox_support_status_spider">该 TVBox 站点依赖 spider 或 csp 运行时，当前版本暂不支持。</string>
-	<string name="tvbox_support_status_bridgeable">当前版本可尝试该站点的直链、播放列表或部分 CMS 候选；若要完整兼容 spider/jar/csp，仍需要额外运行时或外部桥接。</string>
-	<string name="tvbox_support_status_spider_bridge">该 TVBox 站点依赖 spider、jar 或 csp。当前客户端未接入本地运行时；如需兼容，应通过额外运行时或类似 DecoTV 的外部桥接方案。</string>
+	<string name="tvbox_support_status_spider">该 TVBox 站点依赖 spider 或 csp 运行时。</string>
+	<string name="tvbox_support_status_bridgeable">当前版本可尝试该站点的直链、播放列表或部分 CMS 候选；spider/jar/csp 行为取决于本地运行时路径。</string>
+	<string name="tvbox_support_status_spider_bridge">该 TVBox 站点依赖 spider、jar 或 csp。当前本地运行时支持仍是部分能力；加载失败时请结合运行时诊断判断。</string>
+	<string name="tvbox_support_status_ordinary_jar">该 TVBox 站点看起来使用普通 spider JAR 或 csp 入口。当前版本已有本地 JAR 运行时路径，但兼容性仍取决于该 JAR 使用的 spider API 和 Android framework 调用。</string>
+	<string name="tvbox_support_status_guard_native">该 TVBox 站点存在 Guard-native spider JAR 信号。本地支持有限；如果 JAR 依赖 native Guard 检测、framework hook 或包名敏感行为，仍可能失败。</string>
 	<string name="not_specified">未指定</string>
 	<string name="source_type_js">JavaScript 源（Venera）</string>
 

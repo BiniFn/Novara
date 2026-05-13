@@ -133,7 +133,7 @@ internal class TVBoxJarSpiderRuntime(
 				}
 			}
 		}.onFailure {
-			Log.w(TAG, "TVBox jar getList failed for ${source.name}", it)
+			logJarFailure("getList", it)
 		}.getOrNull()
 	}
 
@@ -147,7 +147,7 @@ internal class TVBoxJarSpiderRuntime(
 				publicUrl = manga.publicUrl,
 			)
 		}.onFailure {
-			Log.w(TAG, "TVBox jar getDetails failed for ${source.name}", it)
+			logJarFailure("getDetails", it)
 		}.getOrNull()
 	}
 
@@ -199,7 +199,7 @@ internal class TVBoxJarSpiderRuntime(
 				),
 			)
 		}.onFailure {
-			Log.w(TAG, "TVBox jar getPages failed for ${source.name}", it)
+			logJarFailure("getPages", it)
 		}.getOrNull()
 	}
 
@@ -226,7 +226,7 @@ internal class TVBoxJarSpiderRuntime(
 					)
 				}
 			}.onFailure {
-				Log.w(TAG, "TVBox jar getFilterOptions failed for ${source.name}", it)
+				logJarFailure("getFilterOptions", it)
 			}.getOrNull()?.also {
 				filterOptionsCache = it
 			}
@@ -260,7 +260,7 @@ internal class TVBoxJarSpiderRuntime(
 					.newInstance() as? Spider
 			}
 		}.getOrElse {
-			Log.w(TAG, "Unable to instantiate TVBox spider class $className for ${source.name}", it)
+			logJarFailure("instantiate", it, "class=$className")
 			null
 		} ?: return@withContext null
 		spider.siteKey = config.site.key
@@ -274,7 +274,7 @@ internal class TVBoxJarSpiderRuntime(
 				spider.init(bridgeApp)
 			}
 		}.onFailure {
-			Log.w(TAG, "TVBox spider init failed for ${source.name}", it)
+			logJarFailure("init", it)
 			logReflectiveFailure("init", it)
 			return@withContext null
 		}
@@ -298,7 +298,7 @@ internal class TVBoxJarSpiderRuntime(
 				downloadJar(jarSpec, jarFile)
 			}
 			if (!isUsableJarCache(jarFile, jarSpec.md5)) {
-				Log.w(TAG, "TVBox spider jar cache is still unusable after download for ${source.name}: ${jarFile.absolutePath}")
+				logJarFailure("loadJar", null, "cache_unusable=${jarFile.absolutePath}")
 				return@withLock null
 			}
 			prepareJarForLoading(jarFile)
@@ -1143,6 +1143,18 @@ internal class TVBoxJarSpiderRuntime(
 				logReflectiveFailure("$action.cause", cause)
 			}
 		}
+	}
+
+	private fun logJarFailure(action: String, error: Throwable?, detail: String? = null) {
+		TVBoxRuntimeDiagnostics.logFailure(
+			tag = TAG,
+			sourceName = source.name,
+			runtimeId = id,
+			action = action,
+			category = TVBoxRuntimeDiagnostics.classifyJar(error, action),
+			error = error,
+			detail = detail,
+		)
 	}
 
 	private fun logSpiderShellState(spider: Spider, stage: String) {

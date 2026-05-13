@@ -1873,11 +1873,13 @@
 	<string name="tvbox_runtime_candidates_title">Runtime candidates</string>
 	<string name="tvbox_support_status_title">Support status</string>
 	<string name="tvbox_support_status_direct">Current build supports direct media and playlist-based TVBox sources.</string>
-	<string name="tvbox_support_status_partial_runtime">Current build can try direct media, playlists, and a subset of CMS-style TVBox sources. Spider/csp runtime features are still unsupported.</string>
+	<string name="tvbox_support_status_partial_runtime">Current build can try direct media, playlists, and a subset of CMS-style TVBox sources.</string>
 	<string name="tvbox_support_status_quickjs_partial">Current build provides a basic QuickJS bridge for TVBox type=4 sources. Home/category/detail/play may work, but advanced JS runtime features are still incomplete.</string>
-	<string name="tvbox_support_status_spider">This TVBox site depends on spider or csp runtime and is not supported yet.</string>
-	<string name="tvbox_support_status_bridgeable">Current build can try direct media, playlists, or some CMS candidates from this site. Full spider/jar/csp compatibility still needs an extra runtime or external bridge.</string>
-	<string name="tvbox_support_status_spider_bridge">This TVBox site depends on spider, jar, or csp. The client does not provide a local runtime yet; compatibility requires an extra runtime or an external bridge like DecoTV.</string>
+	<string name="tvbox_support_status_spider">This TVBox site depends on spider or csp runtime.</string>
+	<string name="tvbox_support_status_bridgeable">Current build can try direct media, playlists, or some CMS candidates from this site. Spider/jar/csp behavior depends on the local runtime path.</string>
+	<string name="tvbox_support_status_spider_bridge">This TVBox site depends on spider, jar, or csp. Current local runtime support is partial; check runtime diagnostics when loading fails.</string>
+	<string name="tvbox_support_status_ordinary_jar">This TVBox site appears to use an ordinary spider JAR or csp entry. Current build has a local JAR runtime path, but compatibility still depends on the spider API and Android framework calls used by that JAR.</string>
+	<string name="tvbox_support_status_guard_native">This TVBox site has signals of a Guard-native spider JAR. Local support is limited and may fail when the JAR depends on native Guard checks, framework hooks, or package-sensitive behavior.</string>
 	<string name="not_specified">Not specified</string>
 	<string name="source_type_js">JavaScript (Venera)</string>
 	<string name="skip_unreachable_sources">Skip unreachable sources (skip if homepage is inaccessible)</string>

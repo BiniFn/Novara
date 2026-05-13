@@ -165,6 +165,15 @@ object JsonSourceLogger {
 	fun logWarning(message: String) {
 		Log.w(TAG, message)
 	}
+
+	fun logTvBoxImportFailure(category: String, action: String, locator: String, detail: String, error: Throwable? = null) {
+		val message = "TVBox import failure: category=$category action=$action locator=$locator detail=$detail"
+		if (error == null) {
+			Log.w(TAG, message)
+		} else {
+			Log.w(TAG, message, error)
+		}
+	}
 	
 	/**
 	 * Log an info message.

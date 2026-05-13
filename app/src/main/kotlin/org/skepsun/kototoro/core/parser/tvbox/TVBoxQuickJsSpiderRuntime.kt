@@ -107,7 +107,7 @@ internal class TVBoxQuickJsSpiderRuntime(
 				}
 			}
 		}.onFailure {
-			Log.w(TAG, "TVBox JS getList failed for ${source.name}", it)
+			logQuickJsFailure("getList", it)
 		}.getOrNull()
 	}
 
@@ -120,7 +120,7 @@ internal class TVBoxQuickJsSpiderRuntime(
 				publicUrl = manga.publicUrl,
 			)
 		}.onFailure {
-			Log.w(TAG, "TVBox JS getDetails failed for ${source.name}", it)
+			logQuickJsFailure("getDetails", it)
 		}.getOrNull()
 	}
 
@@ -162,7 +162,7 @@ internal class TVBoxQuickJsSpiderRuntime(
 				),
 			)
 		}.onFailure {
-			Log.w(TAG, "TVBox JS getPages failed for ${source.name}", it)
+			logQuickJsFailure("getPages", it)
 		}.getOrNull()
 	}
 
@@ -188,7 +188,7 @@ internal class TVBoxQuickJsSpiderRuntime(
 					)
 				}
 			}.onFailure {
-				Log.w(TAG, "TVBox JS getFilterOptions failed for ${source.name}", it)
+				logQuickJsFailure("getFilterOptions", it)
 			}.getOrNull()?.also {
 				filterOptionsCache = it
 			}
@@ -324,7 +324,7 @@ internal class TVBoxQuickJsSpiderRuntime(
 				"<tvbox-init>",
 			)
 			if (!initError.isNullOrBlank()) {
-				Log.w(TAG, "TVBox JS init failed for ${source.name}: $initError")
+				logQuickJsFailure("init", null, initError)
 			}
 			qjs.evaluate<String?>(
 				"""
@@ -381,17 +381,17 @@ internal class TVBoxQuickJsSpiderRuntime(
 	private suspend fun buildExecutableScript(scriptLocator: String): String? {
 		val resolvedLocator = resolveCandidateUrl(scriptLocator) ?: scriptLocator.extractPrimaryUrl()
 		if (resolvedLocator.isNullOrBlank()) {
-			Log.w(TAG, "Unable to resolve TVBox JS locator for ${source.name}: $scriptLocator")
+			logQuickJsFailure("loadScript", null, "unresolved_locator=$scriptLocator")
 			return null
 		}
 		val scriptContent = readTextResource(resolvedLocator, buildHeadersForUrl(resolvedLocator, emptyMap()))
 		val normalized = scriptContent.removePrefix("\uFEFF").trimStart()
 		if (normalized.startsWith("//bb")) {
-			Log.w(TAG, "TVBox //bb bytecode is not supported yet: $resolvedLocator")
+			logQuickJsFailure("loadScript", null, "unsupported_bytecode=$resolvedLocator")
 			return null
 		}
 		if (Regex("""^\s*import\s""", setOf(RegexOption.MULTILINE)).containsMatchIn(normalized)) {
-			Log.w(TAG, "TVBox ES module import is not supported yet: $resolvedLocator")
+			logQuickJsFailure("loadScript", null, "unsupported_module=$resolvedLocator")
 			return null
 		}
 		val rewritten = normalized
@@ -495,7 +495,7 @@ internal class TVBoxQuickJsSpiderRuntime(
 					else -> JSONObject().put("error", "Unsupported bridge method: $method").toString()
 				}
 			} catch (e: Exception) {
-				Log.w(TAG, "TVBox bridge invocation failed", e)
+				logQuickJsFailure("bridgeInvoke", e)
 				JSONObject().put("error", e.message ?: e.toString()).toString()
 			}
 		})
@@ -653,7 +653,7 @@ internal class TVBoxQuickJsSpiderRuntime(
 	private fun parseHomeResult(raw: String): TVBoxHomeResult {
 		val root = raw.toJsonValue() as? JSONObject ?: return TVBoxHomeResult(emptyList())
 		root.optString("error").takeIf { it.isNotBlank() }?.let {
-			Log.w(TAG, "TVBox home error for ${source.name}: $it")
+			logQuickJsFailure("parseHome", null, it)
 		}
 		val categories = root.optJSONArray("class")
 			?.toObjectList()
@@ -671,7 +671,7 @@ internal class TVBoxQuickJsSpiderRuntime(
 		return when (jsonValue) {
 			is JSONObject -> {
 				jsonValue.optString("error").takeIf { it.isNotBlank() }?.let {
-					Log.w(TAG, "TVBox list error for ${source.name}: $it")
+					logQuickJsFailure("parseList", null, it)
 				}
 				when {
 					jsonValue.optJSONArray("list") != null -> {
@@ -739,7 +739,7 @@ internal class TVBoxQuickJsSpiderRuntime(
 			else -> return null
 		}
 		root.optString("error").takeIf { it.isNotBlank() }?.let {
-			Log.w(TAG, "TVBox detail error for ${source.name}: $it")
+			logQuickJsFailure("parseDetail", null, it)
 		}
 		val itemNode = when {
 			root.optJSONArray("list")?.length() ?: 0 > 0 -> root.optJSONArray("list")?.optJSONObject(0)
@@ -867,7 +867,7 @@ internal class TVBoxQuickJsSpiderRuntime(
 	private fun parsePlayResult(raw: String): TVBoxPlayResult? {
 		val root = raw.toJsonValue() as? JSONObject ?: return null
 		root.optString("error").takeIf { it.isNotBlank() }?.let {
-			Log.w(TAG, "TVBox play error for ${source.name}: $it")
+			logQuickJsFailure("parsePlay", null, it)
 		}
 		val url = root.firstNonBlank("url", "playUrl", "realUrl") ?: return null
 		return TVBoxPlayResult(
@@ -954,7 +954,7 @@ internal class TVBoxQuickJsSpiderRuntime(
 				""".trimIndent(),
 				"<tvbox-proxy-init>",
 			)?.takeIf { it.isNotBlank() }?.let { initError ->
-				Log.w(TAG, "TVBox JS proxy init failed for ${source.name}: $initError")
+				logQuickJsFailure("proxyInit", null, initError)
 			}
 			qjs.evaluate<String?>(
 				"""
@@ -1037,7 +1037,7 @@ internal class TVBoxQuickJsSpiderRuntime(
 			}
 		}
 		jsonValue.optString("error").takeIf { it.isNotBlank() }?.let {
-			Log.w(TAG, "TVBox proxy error for ${source.name}: $it")
+			logQuickJsFailure("proxy", null, it)
 			return TVBoxProxyResult(
 				statusCode = 500,
 				contentType = "text/plain; charset=utf-8",
@@ -1319,6 +1319,18 @@ internal class TVBoxQuickJsSpiderRuntime(
 
 	private fun prefKey(scope: String, key: String): String {
 		return "${source.entity.id}:${scope.trim()}:${key.trim()}"
+	}
+
+	private fun logQuickJsFailure(action: String, error: Throwable?, detail: String? = null) {
+		TVBoxRuntimeDiagnostics.logFailure(
+			tag = TAG,
+			sourceName = source.name,
+			runtimeId = id,
+			action = action,
+			category = TVBoxRuntimeDiagnostics.classifyQuickJs(error, detail),
+			error = error,
+			detail = detail,
+		)
 	}
 
 	private data class TVBoxHomeResult(

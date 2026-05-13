@@ -68,6 +68,23 @@ When a TVBox source fails, classify the failure before changing runtime code:
 - `ordinary_jar_proxy`: `proxy` / `proxyLocal` handling is incomplete
 - `guard_native`: a Guard-native spider hits native/JNI failure or is known to require native guard behavior
 
+Runtime failures should be logged with stable fields:
+
+```text
+TVBox runtime failure: category=<category> source=<source> runtime=<runtime> action=<action> detail=<detail>
+```
+
+Import failures use the same category vocabulary where possible:
+
+```text
+TVBox import failure: category=<category> action=<action> locator=<url-or-inline> detail=<detail>
+```
+
+The `action` field should name the narrow operation that failed, such as `parse_root`, `child_http_error`,
+`buildCatalog`, `getList`, `loadScript`, `instantiate`, `init`, `proxy`, or `getPages`. Use this before widening
+runtime shims. For example, `ordinary_jar_missing_class` should lead to a host ABI check, while `guard_native`
+should not be treated as another missing Java stub by default.
+
 This keeps fixes small and prevents unrelated runtime paths from being destabilized.
 
 ## Product Guidance
@@ -82,8 +99,7 @@ Avoid promising full compatibility with every TVBox repository. Many public TVBo
 
 ## Next Engineering Steps
 
-1. Add explicit runtime classification logs for TVBox source failures.
-2. Expose support status per TVBox source using the same categories as the diagnostic policy.
-3. Continue ordinary JAR compatibility work only when logs show Java-layer missing class, missing method, initialization, proxy, or response parsing failures.
-4. Treat Guard-native failures as isolated limitations unless a dedicated safe execution environment is selected later.
-5. Improve multi-repository import diagnostics so each child repository reports fetch, parse, normalization, and emitted-site counts.
+1. Continue ordinary JAR compatibility work only when logs show Java-layer missing class, missing method, initialization, proxy, or response parsing failures.
+2. Treat Guard-native failures as isolated limitations unless a dedicated safe execution environment is selected later.
+3. Improve multi-repository import diagnostics so each child repository reports fetch, parse, normalization, and emitted-site counts.
+4. Add focused regression fixtures for direct media, CMS fallback, QuickJS, ordinary JAR, and Guard-native classification.

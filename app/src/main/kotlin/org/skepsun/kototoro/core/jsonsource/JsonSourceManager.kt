@@ -893,8 +893,12 @@ class JsonSourceManager @Inject constructor(
 		val root = try {
 			parseTvBoxRootObject(normalizedContent)
 		} catch (e: Exception) {
-			JsonSourceLogger.logWarning(
-				"Failed to parse TVBox document: locator=$locatorLabel depth=$depth message=${e.message ?: "invalid TVBox JSON"}",
+			JsonSourceLogger.logTvBoxImportFailure(
+				category = "json_import",
+				action = "parse_root",
+				locator = locatorLabel,
+				detail = "depth=$depth message=${e.message ?: "invalid TVBox JSON"}",
+				error = e,
 			)
 			errors += "${sourceLocator ?: "inline"}: ${e.message ?: "invalid TVBox JSON"}"
 			return
@@ -915,8 +919,11 @@ class JsonSourceManager @Inject constructor(
 			}
 			root.has("urls") -> {
 				if (depth >= MAX_TVBOX_REPOSITORY_DEPTH) {
-					JsonSourceLogger.logWarning(
-						"Skipping nested TVBox repository: locator=$locatorLabel depth=$depth limit=$MAX_TVBOX_REPOSITORY_DEPTH",
+					JsonSourceLogger.logTvBoxImportFailure(
+						category = "multi_repo",
+						action = "depth_limit",
+						locator = locatorLabel,
+						detail = "depth=$depth limit=$MAX_TVBOX_REPOSITORY_DEPTH",
 					)
 					errors += "${sourceLocator ?: "inline"}: nested multi-repository depth exceeds limit"
 					return
@@ -934,8 +941,11 @@ class JsonSourceManager @Inject constructor(
 						"TVBox child repository candidate: parent=$locatorLabel depth=$depth index=$index rawType=${rawEntry?.javaClass?.simpleName ?: "null"} title=${childTitle ?: "-"} url=${childUrl.ifBlank { "<blank>" }}",
 					)
 					if (childUrl.isBlank()) {
-						JsonSourceLogger.logWarning(
-							"Skipping TVBox child repository: parent=$locatorLabel depth=$depth index=$index reason=missing_url",
+						JsonSourceLogger.logTvBoxImportFailure(
+							category = "multi_repo",
+							action = "child_missing_url",
+							locator = locatorLabel,
+							detail = "depth=$depth index=$index",
 						)
 						errors += "${sourceLocator ?: "inline"}: child repository at index $index is missing url"
 						continue
@@ -956,8 +966,11 @@ class JsonSourceManager @Inject constructor(
 					val errorCountBefore = errors.size
 					val childContent = fetchTvBoxChildRepository(childUrl)
 					if (childContent == null) {
-						JsonSourceLogger.logWarning(
-							"TVBox child repository fetch returned empty: parent=$locatorLabel depth=$depth index=$index url=$childUrl",
+						JsonSourceLogger.logTvBoxImportFailure(
+							category = "multi_repo",
+							action = "child_fetch_empty",
+							locator = locatorLabel,
+							detail = "depth=$depth index=$index url=$childUrl",
 						)
 						errors += "$childUrl: fetch failed"
 						continue
@@ -977,8 +990,11 @@ class JsonSourceManager @Inject constructor(
 				}
 			}
 			else -> {
-				JsonSourceLogger.logWarning(
-					"Unsupported TVBox root object: locator=$locatorLabel depth=$depth keys=${root.keySummary()}",
+				JsonSourceLogger.logTvBoxImportFailure(
+					category = "json_import",
+					action = "unsupported_root",
+					locator = locatorLabel,
+					detail = "depth=$depth keys=${root.keySummary()}",
 				)
 				errors += "${sourceLocator ?: "inline"}: unsupported TVBox JSON, expected 'sites' or 'urls'"
 			}
@@ -1060,7 +1076,12 @@ class JsonSourceManager @Inject constructor(
 			val site = sites.optJSONObject(index) ?: continue
 			val name = site.optString("name").trim().ifBlank { site.optString("key").trim() }
 			if (name.isBlank()) {
-				JsonSourceLogger.logWarning("Skipping TVBox site at index $index: missing name/key")
+				JsonSourceLogger.logTvBoxImportFailure(
+					category = "json_import",
+					action = "site_missing_name",
+					locator = sourceLocator?.trim().orEmpty().ifBlank { "inline" },
+					detail = "index=$index",
+				)
 				continue
 			}
 			val sourceId = generateTvBoxSourceId(sourceLocator, site)
@@ -1128,28 +1149,58 @@ class JsonSourceManager @Inject constructor(
 		}
 		val validation = SecurityValidator.validateUrl(requestUrl)
 		if (!validation.isValid) {
-			JsonSourceLogger.logWarning("Skipping TVBox child repository $url: ${validation.errors.joinToString(", ")}")
+			JsonSourceLogger.logTvBoxImportFailure(
+				category = "multi_repo",
+				action = "child_url_invalid",
+				locator = url,
+				detail = validation.errors.joinToString(", "),
+			)
 			return null
 		}
-		val client = legadoHttpClient ?: return null
+		val client = legadoHttpClient ?: run {
+			JsonSourceLogger.logTvBoxImportFailure(
+				category = "multi_repo",
+				action = "http_client_missing",
+				locator = url,
+				detail = "LegadoHttpClient is unavailable",
+			)
+			return null
+		}
 		return try {
 			JsonSourceLogger.logInfo("Fetching TVBox child repository: source=$url request=$requestUrl")
 			val response = client.get(requestUrl)
 			if (!response.isSuccessful) {
-				JsonSourceLogger.logWarning("Failed to fetch TVBox child repository $url: HTTP ${response.code}")
+				JsonSourceLogger.logTvBoxImportFailure(
+					category = "multi_repo",
+					action = "child_http_error",
+					locator = url,
+					detail = "request=$requestUrl status=${response.code}",
+				)
 				response.close()
 				return null
 			}
 			val body = response.body?.string()
 			response.close()
 			if (body.isNullOrBlank()) {
-				JsonSourceLogger.logWarning("Fetched empty TVBox child repository body: source=$url request=$requestUrl")
+				JsonSourceLogger.logTvBoxImportFailure(
+					category = "multi_repo",
+					action = "child_empty_body",
+					locator = url,
+					detail = "request=$requestUrl",
+				)
 				return null
 			}
 			JsonSourceLogger.logInfo("Fetched TVBox child repository: source=$url request=$requestUrl bytes=${body.length}")
 			body
 		} catch (e: Exception) {
 			JsonSourceLogger.logNetworkError(url, e)
+			JsonSourceLogger.logTvBoxImportFailure(
+				category = "multi_repo",
+				action = "child_network_error",
+				locator = url,
+				detail = e.message ?: e.javaClass.simpleName,
+				error = e,
+			)
 			null
 		}
 	}
