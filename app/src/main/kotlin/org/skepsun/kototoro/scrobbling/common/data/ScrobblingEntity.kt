@@ -17,4 +17,7 @@ data class ScrobblingEntity(
 	@ColumnInfo(name = "comment") val comment: String?,
 	@ColumnInfo(name = "rating") val rating: Float,
 	@ColumnInfo(name = "media_type") val mediaType: String = "",
+	@ColumnInfo(name = "remote_title") val remoteTitle: String? = null,
+	@ColumnInfo(name = "remote_cover_url") val remoteCoverUrl: String? = null,
+	@ColumnInfo(name = "remote_url") val remoteUrl: String? = null,
 )

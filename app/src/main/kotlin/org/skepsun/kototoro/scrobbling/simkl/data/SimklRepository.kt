@@ -1143,6 +1143,10 @@ class SimklRepository @Inject constructor(
 				chapter = chapter,
 				comment = item.optJSONObject("memo")?.optString("text").normalizeBlank(),
 				rating = ((item.optIntOrNull("user_rating") ?: 0) / 10f).coerceIn(0f, 1f),
+				mediaType = endpoint.detailPath,
+				remoteTitle = media.optString("title").normalizeBlank(),
+				remoteCoverUrl = media.optString("poster").normalizeBlank()?.let(::buildPosterUrl),
+				remoteUrl = endpoint.buildWebUrl(targetId, media.optJSONObject("ids")?.optString("slug").normalizeBlank()),
 			)
 		}
 	}
@@ -1190,6 +1194,11 @@ class SimklRepository @Inject constructor(
 				},
 				comment = existing?.comment,
 				rating = ((item.optIntOrNull("user_rating") ?: 0) / 10f).coerceIn(0f, 1f),
+				mediaType = endpoint.detailPath,
+				remoteTitle = media.optString("title").normalizeBlank() ?: existing?.remoteTitle,
+				remoteCoverUrl = media.optString("poster").normalizeBlank()?.let(::buildPosterUrl)
+					?: existing?.remoteCoverUrl,
+				remoteUrl = endpoint.buildWebUrl(targetId, media.optJSONObject("ids")?.optString("slug").normalizeBlank()),
 			)
 		}
 	}

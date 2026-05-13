@@ -15,6 +15,9 @@ class ScrobblingBackup(
 	@SerialName("comment") val comment: String?,
 	@SerialName("rating") val rating: Float,
 	@SerialName("media_type") val mediaType: String = "",
+	@SerialName("remote_title") val remoteTitle: String? = null,
+	@SerialName("remote_cover_url") val remoteCoverUrl: String? = null,
+	@SerialName("remote_url") val remoteUrl: String? = null,
 ) {
 
 	constructor(entity: ScrobblingEntity) : this(
@@ -27,6 +30,9 @@ class ScrobblingBackup(
 		comment = entity.comment,
 		rating = entity.rating,
 		mediaType = entity.mediaType,
+		remoteTitle = entity.remoteTitle,
+		remoteCoverUrl = entity.remoteCoverUrl,
+		remoteUrl = entity.remoteUrl,
 	)
 
 	fun toEntity() = ScrobblingEntity(
@@ -39,5 +45,8 @@ class ScrobblingBackup(
 		comment = comment,
 		rating = rating,
 		mediaType = mediaType,
+		remoteTitle = remoteTitle,
+		remoteCoverUrl = remoteCoverUrl,
+		remoteUrl = remoteUrl,
 	)
 }

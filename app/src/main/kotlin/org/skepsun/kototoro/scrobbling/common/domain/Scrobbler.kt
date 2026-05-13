@@ -150,7 +150,7 @@ abstract class Scrobbler(
 			mediaType = mediaType,
 		)
 		val mangaInfo = infoCache[cacheKey] ?: runCatchingCancellable {
-			getContentInfo(this)
+			cachedContentInfo(this) ?: getContentInfo(this)
 		}.onFailure {
 			android.util.Log.w(
 				"Scrobbler",
@@ -180,6 +180,17 @@ abstract class Scrobbler(
 			description = description,
 			externalUrl = externalUrl,
 			mediaType = mediaType.takeIf { it.isNotBlank() },
+		)
+	}
+
+	protected open fun cachedContentInfo(entity: ScrobblingEntity): ScrobblerContentInfo? {
+		val title = entity.remoteTitle?.takeIf { it.isNotBlank() } ?: return null
+		return ScrobblerContentInfo(
+			id = entity.targetId,
+			name = title,
+			cover = entity.remoteCoverUrl.orEmpty(),
+			url = entity.remoteUrl.orEmpty(),
+			descriptionHtml = "",
 		)
 	}
 

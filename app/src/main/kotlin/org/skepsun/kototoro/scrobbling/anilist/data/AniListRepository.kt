@@ -768,6 +768,19 @@ class AniListRepository @Inject constructor(
 							notes
 							score
 							progress
+							media {
+								type
+								siteUrl
+								title {
+									userPreferred
+									english
+									romaji
+								}
+								coverImage {
+									extraLarge
+									large
+								}
+							}
 						}
 					}
 					""",
@@ -780,6 +793,7 @@ class AniListRepository @Inject constructor(
 					val json = mediaList.optJSONObject(i) ?: continue
 					val mediaId = json.optLong("mediaId", 0L)
 					if (mediaId == 0L) continue
+					val media = json.optJSONObject("media")
 					val mappedContentId = oldMappings[mediaId] ?: 0L
 					synced.add(
 						ScrobblingEntity(
@@ -791,6 +805,12 @@ class AniListRepository @Inject constructor(
 							chapter = json.getInt("progress"),
 							comment = json.optString("notes", ""),
 							rating = scoreFormat.normalize(json.getDouble("score").toFloat()),
+							mediaType = media?.getStringOrNull("type").orEmpty(),
+							remoteTitle = media?.optJSONObject("title")?.let(::preferredTitle),
+							remoteCoverUrl = media?.optJSONObject("coverImage")?.let {
+								it.getStringOrNull("extraLarge") ?: it.getStringOrNull("large")
+							},
+							remoteUrl = media?.getStringOrNull("siteUrl"),
 						),
 					)
 				}
@@ -821,6 +841,12 @@ class AniListRepository @Inject constructor(
 			rating = scoreFormat.normalize(json.getDouble("score").toFloat()),
 		)
 		db.getScrobblingDao().upsert(entity)
+	}
+
+	private fun preferredTitle(title: JSONObject): String? {
+		return title.getStringOrNull("userPreferred")
+			?: title.getStringOrNull("english")
+			?: title.getStringOrNull("romaji")
 	}
 
 	private fun ScrobblerContent(json: JSONObject, sourceTitle: String): ScrobblerContent {

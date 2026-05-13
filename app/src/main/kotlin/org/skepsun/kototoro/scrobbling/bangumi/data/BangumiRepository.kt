@@ -1249,6 +1249,7 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 				for (i in 0 until data.length()) {
 					val item = data.optJSONObject(i) ?: continue
 					val subjectId = item.optLong("subject_id").takeIf { it > 0 } ?: item.optJSONObject("subject")?.optLong("id") ?: continue
+					val subject = item.optJSONObject("subject")
 					val mappedContentId = oldMappings[subjectId] ?: 0L
 					val typeInt = item.optInt("type", 0)
 					val statusStr = when (typeInt) {
@@ -1269,6 +1270,15 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 							chapter = item.optInt("ep_status", 0),
 							comment = item.optString("comment", ""),
 							rating = (item.optInt("rate", 0).toFloat() / 10f).coerceIn(0f, 1f),
+							mediaType = subjectType.toString(),
+							remoteTitle = subject?.getStringOrNull("name_cn")
+								?: subject?.getStringOrNull("name"),
+							remoteCoverUrl = subject?.optJSONObject("images")?.let {
+								it.getStringOrNull("large")
+									?: it.getStringOrNull("common")
+									?: it.getStringOrNull("medium")
+							},
+							remoteUrl = "$BASE_URL/subject/$subjectId",
 						),
 					)
 				}

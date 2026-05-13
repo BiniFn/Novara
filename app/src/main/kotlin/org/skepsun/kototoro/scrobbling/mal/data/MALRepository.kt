@@ -54,6 +54,7 @@ class MALRepository @Inject constructor(
 	private val clientId = context.getString(R.string.mal_clientId)
 	private val codeVerifier: String by lazy(::generateCodeVerifier)
 	private val contentTypeHints = java.util.concurrent.ConcurrentHashMap<RemoteListKey, String>()
+	private val contentPreviewCache = java.util.concurrent.ConcurrentHashMap<RemoteListKey, ScrobblerContentInfo>()
 
 	override val oauthUrl: String
 		get() = "$BASE_WEB_URL/v1/oauth2/authorize?" +
@@ -299,26 +300,35 @@ class MALRepository @Inject constructor(
 		val response = requestContentInfo(id, endpoint)
 		if (response.has("id")) {
 			rememberEndpoint(id, endpoint)
+			rememberPreview(id, endpoint, ScrobblerContentInfo(response, endpoint))
 			return buildContentInfo(response, endpoint)
 		}
 		val fallbackEndpoint = alternateEndpoint(endpoint)
 		val fallbackResponse = requestContentInfo(id, fallbackEndpoint)
 		check(fallbackResponse.has("id")) { "Invalid MAL content response for $id: \"$fallbackResponse\"" }
 		rememberEndpoint(id, fallbackEndpoint)
+		rememberPreview(id, fallbackEndpoint, ScrobblerContentInfo(fallbackResponse, fallbackEndpoint))
 		return buildContentInfo(fallbackResponse, fallbackEndpoint)
 	}
 
 	private suspend fun getContentPreview(id: Long, endpoint: String): ScrobblerContentInfo {
+		contentPreviewCache[RemoteListKey(endpoint, id)]?.let {
+			return it
+		}
 		val response = requestContentInfo(id, endpoint)
 		if (response.has("id")) {
 			rememberEndpoint(id, endpoint)
-			return ScrobblerContentInfo(response, endpoint)
+			return ScrobblerContentInfo(response, endpoint).also {
+				rememberPreview(id, endpoint, it)
+			}
 		}
 		val fallbackEndpoint = alternateEndpoint(endpoint)
 		val fallbackResponse = requestContentInfo(id, fallbackEndpoint)
 		check(fallbackResponse.has("id")) { "Invalid MAL content response for $id: \"$fallbackResponse\"" }
 		rememberEndpoint(id, fallbackEndpoint)
-		return ScrobblerContentInfo(fallbackResponse, fallbackEndpoint)
+		return ScrobblerContentInfo(fallbackResponse, fallbackEndpoint).also {
+			rememberPreview(id, fallbackEndpoint, it)
+		}
 	}
 
 	/**
@@ -486,7 +496,7 @@ class MALRepository @Inject constructor(
 			.addPathSegment("users")
 			.addPathSegment("@me")
 			.addPathSegment("${endpoint}list")
-			.addQueryParameter("fields", "list_status{status,score,${progressField(endpoint)},comments}")
+			.addQueryParameter("fields", "main_picture,list_status{status,score,${progressField(endpoint)},comments}")
 			.addQueryParameter("limit", "100")
 			.addQueryParameter("nsfw", "true")
 			.build()
@@ -529,6 +539,11 @@ class MALRepository @Inject constructor(
 						comment = listStatus.optString("comments", ""),
 						rating = (listStatus.optDouble("score", 0.0).toFloat() / 10f).coerceIn(0f, 1f),
 						mediaType = endpoint,
+						remoteTitle = node.getStringOrNull("title"),
+						remoteCoverUrl = node.optJSONObject("main_picture")?.let {
+							it.getStringOrNull("large") ?: it.getStringOrNull("medium")
+						},
+						remoteUrl = "$BASE_WEB_URL/$endpoint/$targetId",
 					),
 				)
 				android.util.Log.d(
@@ -536,6 +551,7 @@ class MALRepository @Inject constructor(
 					"syncLibrary($endpoint): targetId=$targetId, rawStatus=$rawStatus, normalizedStatus=$normalizedStatus, storedMediaType=$endpoint",
 				)
 				rememberEndpoint(targetId, endpoint)
+				rememberPreview(targetId, endpoint, ScrobblerContentInfo(node, endpoint))
 			}
 
 			nextUrl = response.optJSONObject("paging")?.getStringOrNull("next")
@@ -569,6 +585,10 @@ class MALRepository @Inject constructor(
 
 	private fun rememberEndpoint(targetId: Long, endpoint: String) {
 		contentTypeHints[RemoteListKey(endpoint, targetId)] = endpoint
+	}
+
+	private fun rememberPreview(targetId: Long, endpoint: String, info: ScrobblerContentInfo) {
+		contentPreviewCache[RemoteListKey(endpoint, targetId)] = info
 	}
 
 	private fun cachedEndpoint(targetId: Long): String? {
