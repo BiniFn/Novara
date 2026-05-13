@@ -35,7 +35,6 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -872,7 +871,7 @@ fun DetailsScreen(
                 Surface(
                     modifier = Modifier
                         .fillMaxHeight()
-                        .widthIn(min = 360.dp, max = 440.dp)
+                        .weight(1f)
                         .padding(top = statusBarTopPadding),
                     color = Color.Transparent,
                     shape = RoundedCornerShape(28.dp),

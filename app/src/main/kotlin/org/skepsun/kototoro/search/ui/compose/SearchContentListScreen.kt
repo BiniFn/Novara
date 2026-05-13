@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyRow
@@ -484,7 +483,9 @@ fun AppSearchContentListRoute(
                         .background(MaterialTheme.colorScheme.outlineVariant),
                 )
                 Box(
-                    modifier = Modifier.widthIn(min = 320.dp, max = 380.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
                 ) {
                     if (sidePaneMode == SearchSidePaneMode.Preview && previewContent != null) {
                         SearchPreviewPane(
