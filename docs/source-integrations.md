@@ -122,6 +122,17 @@ Legado and TVBox integrations are JSON-based. Instead of detecting extension APK
 - TVBox for JSON-based video source collections
 - Users who maintain source definitions as files or URLs instead of APK extensions
 
+### TVBox Runtime Compatibility
+
+TVBox repositories can mix several runtime styles in one JSON file. Kototoro handles them as a compatibility spectrum:
+
+- direct media, playlists, text live lists, and simpler CMS-style APIs are the most reliable
+- `type = 4` JavaScript sources use the built-in QuickJS bridge, but advanced JS dependencies are still partial
+- ordinary `type = 3` / `csp_*` JAR spiders use the local JAR spider runtime and are still being expanded
+- Guard-native JAR spiders are not treated as ordinary JAR failures because they can depend on native/JNI guard behavior
+
+Read [TVBox Runtime Compatibility](./reference/tvbox-runtime.md) for the current support matrix and diagnostic policy.
+
 ## What Happens After Import
 
 Regardless of source type, the practical result is the same:
@@ -135,7 +146,7 @@ Regardless of source type, the practical result is the same:
 - Source availability depends on what is installed or imported on the device.
 - Mihon, Aniyomi, and IReader compatibility depends on the extension version and upstream website behavior.
 - Legado and TVBox compatibility depends on the JSON definition quality and upstream site stability.
-- TVBox support is still partial for some site types. Direct media, playlist-based sources, and some simpler configurations work better than spider / csp-dependent setups.
+- TVBox support is still partial for some site types. Direct media, playlist-based sources, and simpler CMS configurations work better than advanced JavaScript, ordinary JAR spider, or Guard-native setups.
 - External ecosystems expand coverage, but they also inherit breakage when websites, repositories, or extension APIs change.
 - Kotatsu-Redo parser updates are tied to app releases; a CI pipeline auto-syncs upstream changes.
 
@@ -144,6 +155,7 @@ Regardless of source type, the practical result is the same:
 - [Documentation Hub](./README.md)
 - [Getting Started](./getting-started.md)
 - [Mihon Integration Reference](./reference/mihon-integration.md)
+- [TVBox Runtime Compatibility](./reference/tvbox-runtime.md)
 - [Reader Features](./reader-features.md)
 - [FAQ](./faq.md)
 - [Troubleshooting](./troubleshooting.md)

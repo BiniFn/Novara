@@ -43,6 +43,7 @@ This directory is organized by task, not by internal implementation. Start with 
 - [UI Improvement](./architecture/ui_improvement.md)
 - [OCR Pipeline Notes](./architecture/ocr-pipeline-v2.md)
 - [Mihon Integration Reference](./reference/mihon-integration.md)
+- [TVBox Runtime Compatibility](./reference/tvbox-runtime.md)
 - [Kotatsu-Redo Integration Reference](./KotatsuRedoIntegration.md)
 
 ### For contributors

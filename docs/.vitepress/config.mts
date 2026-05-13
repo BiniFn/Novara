@@ -59,6 +59,7 @@ export default defineConfig({
           { text: "Compose Migration Roadmap", link: "/compose_migration/cmp-liquid-glass-migration" },
           { text: "Compose Migration Log", link: "/compose_migration/progress-log" },
           { text: "Mihon Integration", link: "/reference/mihon-integration" },
+          { text: "TVBox Runtime Compatibility", link: "/reference/tvbox-runtime" },
           { text: "External Extension Integration Guide", link: "/architecture/external-extension-integration-guide" },
         ],
       },

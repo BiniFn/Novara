@@ -47,6 +47,7 @@ features:
 
 - Start with [Getting Started](./getting-started.md) if you are new to the project.
 - Read [Source Integrations](./source-integrations.md) if you need Mihon, Aniyomi, IReader, Legado, or TVBox ecosystems.
+- Read [TVBox Runtime Compatibility](./reference/tvbox-runtime.md) if you need the current TVBox support matrix for direct media, CMS, JavaScript, ordinary JAR, and Guard-native sources.
 - Read [Local Import Guide](./local-import.md) to learn how to import CBZ, EPUB, video files and structured folders.
 - Read [External Extension Integration Guide](./architecture/external-extension-integration-guide.md) if you are a developer looking to integrate Mihon/Tachiyomi extensions into your own app.
 - Read [Architecture Review](./architecture/architecture-review.md) if you want a project-level architectural assessment before changing major subsystems.

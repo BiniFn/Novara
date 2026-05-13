@@ -27,6 +27,15 @@ This page collects the most common setup and integration problems.
 4. Check whether it appears in `Browse -> Content Sources`.
 5. Test with one source first before importing many.
 
+### TVBox sources import but do not load content
+
+1. Check whether the source is direct media, playlist, CMS, JavaScript, ordinary JAR, or Guard-native JAR.
+2. Direct media, playlists, and simpler CMS-style sources should be tested first because they are the most reliable.
+3. If a `type = 4` source fails, it may need a JavaScript bridge feature that is not implemented yet.
+4. If an ordinary `type = 3` / `csp_*` JAR source fails, capture logs for missing classes, missing methods, initialization failures, proxy failures, or response parsing failures.
+5. If a Guard-native JAR source fails, do not treat it as the same problem as an ordinary JAR spider. Guard-native sources can depend on native/JNI behavior that is not reliably supported locally.
+6. See [TVBox Runtime Compatibility](./reference/tvbox-runtime.md) for the support matrix and diagnostic categories.
+
 ### Kotatsu-Redo sources do not load content
 
 1. The source may be Cloudflare-protected. Check if a browser challenge prompt appears.
