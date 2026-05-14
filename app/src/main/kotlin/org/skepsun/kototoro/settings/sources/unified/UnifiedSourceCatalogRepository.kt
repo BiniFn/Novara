@@ -2,6 +2,7 @@ package org.skepsun.kototoro.settings.sources.unified
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -25,6 +26,7 @@ import org.skepsun.kototoro.core.extensions.PluginContentSource
 import org.skepsun.kototoro.core.extensions.PluginMangaSource
 import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.jsonsource.JsonSourceImportMetadata
+import org.skepsun.kototoro.core.jsonsource.JsonSourceListSource
 import org.skepsun.kototoro.core.jsonsource.JsonSourceManager
 import org.skepsun.kototoro.core.lnreader.LNReaderPluginMetadata
 import org.skepsun.kototoro.core.model.getContentType
@@ -97,7 +99,7 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 		return combine(
 			externalRepos,
 			lnReaderRepos,
-			jsonSourceManager.observeAllJsonSources(),
+			database.getJsonSourceDao().observeAllSummaries(),
 		) { external, lnReader, jsonSources ->
 			val configured = external.map { it.toUnifiedRepositoryItem(isPreset = false) } +
 				lnReader.map { url ->
@@ -274,7 +276,7 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 				}
 		}
 
-		val jsonPackages = jsonSourceManager.observeAllJsonSources().map { sources ->
+		val jsonPackages = database.getJsonSourceDao().observeAllSummaries().map { sources ->
 			sources.toJsonPackageItems()
 		}
 
@@ -310,43 +312,66 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 	}
 
 	private suspend fun buildSourceItems(): List<UnifiedSourceItem> {
-		val availableSources = contentSourcesRepository.getAllAvailableSourcesUnfiltered()
+		val availableSources = contentSourcesRepository.getAllAvailableSourcesForListing()
 		val sourceEntities = database.getSourcesDao().findAll().associateBy { it.source }
-		val jsonEntities = jsonSourceManager.observeAllJsonSources().first()
-		val jsonById = jsonEntities.associateBy { it.id }
+		val jsonSummaries = database.getJsonSourceDao().observeAllSummaries().first()
+		val jsonById = jsonSummaries.associateBy { it.id }
 		val sourceMap = LinkedHashMap<String, ContentSource>()
 		availableSources.forEach { sourceMap[it.name] = it }
-		jsonEntities.forEach { sourceMap[it.id] = JsonContentSource(it) }
+		val installedApkSources = getInstalledApkSources()
+		installedApkSources.forEach { sourceMap[it.name] = it }
+		jsonSummaries.forEach { sourceMap[it.id] = JsonSourceListSource(it) }
 
-		return sourceMap.values
+		val items = sourceMap.values
 			.map { source ->
-				val jsonEntity = jsonById[source.name]
+				val jsonSummary = jsonById[source.name]
 				val sourceEntity = sourceEntities[source.name]
-				source.toUnifiedSourceItem(sourceEntity, jsonEntity)
+				source.toUnifiedSourceItem(sourceEntity, jsonSummary)
 			}
 			.sortedWith(compareBy({ it.kind.ordinal }, { it.title.lowercase() }))
+		Log.d(
+			"UnifiedSourceCatalog",
+			"buildSourceItems available=${availableSources.size} installedApk=${installedApkSources.size} " +
+				"mihonWrapped=${mihonExtensionManager.getMihonMangaSources().size} " +
+				"mihonInstalled=${mihonExtensionManager.installedExtensions.value.size} " +
+				"mihonItems=${items.count { it.kind == UnifiedSourceKind.MIHON }} total=${items.size}",
+		)
+		return items
+	}
+
+	private fun getInstalledApkSources(): List<ContentSource> {
+		return buildList {
+			mihonExtensionManager.getMihonMangaSources().forEach { source ->
+				add(source)
+			}
+			aniyomiExtensionManager.getAniyomiAnimeSources().forEach { source ->
+				add(source)
+			}
+			ireaderExtensionManager.getIReaderMangaSources().forEach { source ->
+				add(source)
+			}
+		}
 	}
 
 	private fun ContentSource.toUnifiedSourceItem(
 		sourceEntity: MangaSourceEntity?,
-		jsonEntity: JsonSourceEntity?,
+		jsonSummary: org.skepsun.kototoro.core.db.entity.JsonSourceSummary?,
 	): UnifiedSourceItem {
 		val kind = resolveKind()
-		val jsonRepository = jsonEntity?.jsonRepositoryRef()
-		val packageRef = resolvePackageRef(jsonEntity)
+		val packageRef = resolvePackageRef(jsonSummary)
 		return UnifiedSourceItem(
 			id = name,
 			kind = kind,
 			source = this,
 			title = getTitle(localizedContext),
-			language = resolveLanguage(jsonEntity),
+			language = resolveLanguage(),
 			contentType = getContentType(),
-			repositoryId = jsonRepository?.id,
-			repositoryName = jsonRepository?.title,
+			repositoryId = null,
+			repositoryName = null,
 			packageId = packageRef?.first,
 			packageName = packageRef?.second,
-			isEnabled = jsonEntity?.enabled ?: (settings.isAllSourcesEnabled || sourceEntity?.isEnabled == true),
-			isPinned = jsonEntity?.isPinned ?: (sourceEntity?.isPinned == true),
+			isEnabled = jsonSummary?.enabled ?: (settings.isAllSourcesEnabled || sourceEntity?.isEnabled == true),
+			isPinned = jsonSummary?.isPinned ?: (sourceEntity?.isPinned == true),
 			isAvailable = true,
 			isInstalled = kind != UnifiedSourceKind.NATIVE,
 			isNsfw = isNsfw(),
@@ -354,18 +379,21 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 		)
 	}
 
-	private fun ContentSource.resolveLanguage(jsonEntity: JsonSourceEntity?): String? {
-		val rawLanguage = if (jsonEntity?.type == JsonSourceType.LNREADER) {
-			LNReaderPluginMetadata.extractFromCode(jsonEntity.config, jsonEntity.id)?.lang
-		} else {
-			getLocale()?.language ?: locale.takeIf { it.isNotBlank() }
-		}
+	private fun ContentSource.resolveLanguage(): String? {
+		val rawLanguage = getLocale()?.language ?: locale.takeIf { it.isNotBlank() }
 		return rawLanguage?.normalizeExtensionLanguageCode()
 	}
 
 	private fun ContentSource.resolveKind(): UnifiedSourceKind {
 		return when (this) {
 			is JsonContentSource -> entity.type.toUnifiedKind()
+			is JsonSourceListSource -> when {
+				name.startsWith("JSON_LEGADO_") || name.startsWith("JSON_LEGADO_M_") -> UnifiedSourceKind.LEGADO
+				name.startsWith("JSON_TVBOX_") -> UnifiedSourceKind.TVBOX
+				name.startsWith("JSON_JS_") -> UnifiedSourceKind.JS
+				name.startsWith("JSON_LNREADER_") -> UnifiedSourceKind.LNREADER
+				else -> UnifiedSourceKind.LEGADO
+			}
 			is MihonMangaSource -> UnifiedSourceKind.MIHON
 			is AniyomiAnimeSource -> UnifiedSourceKind.ANIYOMI
 			is IReaderMangaSource -> UnifiedSourceKind.IREADER
@@ -376,7 +404,9 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 		}
 	}
 
-	private fun ContentSource.resolvePackageRef(jsonEntity: JsonSourceEntity?): Pair<String, String>? {
+	private fun ContentSource.resolvePackageRef(
+		jsonSummary: org.skepsun.kototoro.core.db.entity.JsonSourceSummary?,
+	): Pair<String, String>? {
 		return when (this) {
 			is MihonMangaSource -> packageId(UnifiedSourceKind.MIHON, pkgName) to pkgName
 			is AniyomiAnimeSource -> packageId(UnifiedSourceKind.ANIYOMI, pkgName) to pkgName
@@ -392,8 +422,18 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 				val packageName = pluginSource.jarName.removeSuffix(".jar")
 				packageId(UnifiedSourceKind.JAR, packageName) to packageName
 			}
-			is JsonContentSource -> jsonEntity?.jsonPackageRef()
+			is JsonContentSource -> entity.jsonPackageRef()
+			is JsonSourceListSource -> jsonSummary?.jsonPackageRef()
 			else -> null
+		}
+	}
+
+	private fun org.skepsun.kototoro.core.db.entity.JsonSourceSummary.jsonPackageRef(): Pair<String, String>? {
+		return when (type) {
+			JsonSourceType.LEGADO -> packageId(UnifiedSourceKind.LEGADO, "imported") to "Imported Legado JSON"
+			JsonSourceType.TVBOX -> packageId(UnifiedSourceKind.TVBOX, "inline") to "Imported TVBox JSON"
+			JsonSourceType.JS -> packageId(UnifiedSourceKind.JS, id) to name
+			JsonSourceType.LNREADER -> packageId(UnifiedSourceKind.LNREADER, id) to name
 		}
 	}
 
@@ -478,19 +518,23 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 			.sortedWith(compareBy({ it.kind.ordinal }, { !it.isConfigured }, { it.name.lowercase() }))
 	}
 
-	private fun List<JsonSourceEntity>.toJsonRepositoryItems(): List<UnifiedSourceRepositoryItem> {
+	private fun List<org.skepsun.kototoro.core.db.entity.JsonSourceSummary>.toJsonRepositoryItems(): List<UnifiedSourceRepositoryItem> {
 		return asSequence()
 			.filter { it.type == JsonSourceType.LEGADO || it.type == JsonSourceType.TVBOX }
-			.mapNotNull { it.jsonRepositoryRef() }
-			.distinctBy { it.id }
-			.map { ref ->
+			.map { summary ->
+				val kind = summary.type.toUnifiedKind()
+				val key = "${summary.type.name.lowercase()}:imported"
 				UnifiedSourceRepositoryItem(
-					id = ref.id,
-					kind = ref.kind,
-					name = ref.title,
-					url = ref.locator,
-					locationType = resolveLocationType(ref.locator),
-					website = ref.locator,
+					id = repositoryId(kind, key),
+					kind = kind,
+					name = when (summary.type) {
+						JsonSourceType.LEGADO -> "Imported Legado JSON"
+						JsonSourceType.TVBOX -> "Imported TVBox JSON"
+						else -> summary.name
+					},
+					url = key,
+					locationType = UnifiedRepositoryLocationType.INLINE_IMPORT,
+					website = key,
 					isConfigured = true,
 					isPreset = false,
 					capabilities = setOf(
@@ -499,19 +543,14 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 					),
 				)
 			}
+			.distinctBy { it.id }
 			.toList()
 	}
 
-	private fun List<JsonSourceEntity>.toJsonPackageItems(): List<UnifiedSourcePackageItem> {
+	private fun List<org.skepsun.kototoro.core.db.entity.JsonSourceSummary>.toJsonPackageItems(): List<UnifiedSourcePackageItem> {
 		val result = mutableListOf<UnifiedSourcePackageItem>()
 		val legado = filter { it.type == JsonSourceType.LEGADO }
 		if (legado.isNotEmpty()) {
-			val groups = legado.mapNotNull { entity ->
-				runCatching { json.decodeFromString<LegadoBookSource>(entity.config).bookSourceGroup }.getOrNull()
-			}.flatMap { it.split(',', ';', '，', '；') }
-				.map { it.trim() }
-				.filter { it.isNotBlank() }
-				.distinct()
 			result += UnifiedSourcePackageItem(
 				id = packageId(UnifiedSourceKind.LEGADO, "imported"),
 				kind = UnifiedSourceKind.LEGADO,
@@ -528,38 +567,18 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 				sourceNames = legado.map { it.name }.sorted(),
 				iconUrl = null,
 			)
-			if (groups.isNotEmpty()) {
-				result += UnifiedSourcePackageItem(
-					id = packageId(UnifiedSourceKind.LEGADO, "groups"),
-					kind = UnifiedSourceKind.LEGADO,
-					name = "Legado Groups",
-					packageName = null,
-					repositoryId = null,
-					repositoryName = null,
-					versionName = null,
-					versionCode = null,
-					language = null,
-					isInstalled = true,
-					isNsfw = false,
-					sourceCount = groups.size,
-					sourceNames = groups.sorted(),
-					iconUrl = null,
-				)
-			}
 		}
 
 		filter { it.type == JsonSourceType.TVBOX }
-			.groupBy { it.jsonRepositoryRef() }
-			.forEach { (repoRef, sources) ->
-				val packageKey = repoRef?.id ?: "inline"
-				val packageTitle = repoRef?.title ?: "Imported TVBox JSON"
+			.takeIf { it.isNotEmpty() }
+			?.let { sources ->
 				result += UnifiedSourcePackageItem(
-					id = packageId(UnifiedSourceKind.TVBOX, packageKey),
+					id = packageId(UnifiedSourceKind.TVBOX, "inline"),
 					kind = UnifiedSourceKind.TVBOX,
-					name = packageTitle,
+					name = "Imported TVBox JSON",
 					packageName = null,
-					repositoryId = repoRef?.id,
-					repositoryName = repoRef?.title,
+					repositoryId = null,
+					repositoryName = null,
 					versionName = null,
 					versionCode = null,
 					language = null,
@@ -572,22 +591,21 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 			}
 
 		filter { it.type == JsonSourceType.LNREADER }.forEach { entity ->
-			val metadata = LNReaderPluginMetadata.extractFromCode(entity.config, entity.id)
 			result += UnifiedSourcePackageItem(
 				id = packageId(UnifiedSourceKind.LNREADER, entity.id),
 				kind = UnifiedSourceKind.LNREADER,
-				name = metadata?.name ?: entity.name,
-				packageName = metadata?.id,
+				name = entity.name,
+				packageName = entity.id,
 				repositoryId = null,
 				repositoryName = null,
-				versionName = metadata?.version,
+				versionName = null,
 				versionCode = null,
-				language = metadata?.lang?.normalizeExtensionLanguageCode(),
+				language = null,
 				isInstalled = true,
 				isNsfw = false,
 				sourceCount = 1,
 				sourceNames = listOf(entity.name),
-				iconUrl = metadata?.icon,
+				iconUrl = null,
 			)
 		}
 

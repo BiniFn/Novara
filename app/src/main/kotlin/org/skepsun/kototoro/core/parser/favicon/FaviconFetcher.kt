@@ -39,8 +39,10 @@ import org.skepsun.kototoro.core.parser.JsContentRepository
 import org.skepsun.kototoro.mihon.MihonMangaRepository
 import org.skepsun.kototoro.core.util.MimeTypes
 import org.skepsun.kototoro.core.util.ext.fetch
+import org.skepsun.kototoro.core.util.ext.mangaSourceKey
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.toMimeTypeOrNull
+import org.skepsun.kototoro.core.model.unwrap
 import org.skepsun.kototoro.local.data.FaviconCache
 import org.skepsun.kototoro.local.data.LocalMangaRepository
 import org.skepsun.kototoro.local.data.LocalStorageCache
@@ -68,6 +70,16 @@ class FaviconFetcher(
 ) : Fetcher {
 
 	override suspend fun fetch(): FetchResult? {
+		if (uri.isHierarchical) uri.getQueryParameter("url")?.takeIf { it.isNotBlank() }?.let { iconUrl ->
+			val sourceId = uri.authority ?: uri.schemeSpecificPart
+			logFaviconResolve(
+				stage = "direct_start",
+				sourceId = sourceId,
+				source = options.extras[mangaSourceKey]?.unwrap(),
+				directIconUrl = iconUrl,
+			)
+			return fetchDirectFavicon(sourceId, iconUrl)
+		}
 		val sourceId = uri.schemeSpecificPart.let {
 			if (it.startsWith("JSON_") && it.endsWith("_json")) {
 				it.removeSuffix("_json")
@@ -75,7 +87,8 @@ class FaviconFetcher(
 				it
 			}
 		}
-		val mangaSource = if (sourceId.startsWith("JSON_")) {
+		val extraSource = options.extras[mangaSourceKey]?.unwrap()
+		val mangaSource = extraSource ?: if (sourceId.startsWith("JSON_")) {
 			val jsonSources = runBlocking {
 				jsonSourceManager.observeAllJsonSources().first().map {
 					org.skepsun.kototoro.core.jsonsource.JsonContentSource(it)
@@ -85,8 +98,21 @@ class FaviconFetcher(
 		} else {
 			org.skepsun.kototoro.core.model.ContentSource(sourceId)
 		}
+		logFaviconResolve(
+			stage = "source_resolved",
+			sourceId = sourceId,
+			source = mangaSource,
+			usedExtra = extraSource != null,
+		)
 
-		return when (val repo = mangaRepositoryFactory.create(mangaSource)) {
+		val repo = mangaRepositoryFactory.create(mangaSource)
+		logFaviconResolve(
+			stage = "repository_created",
+			sourceId = sourceId,
+			source = mangaSource,
+			repository = repo,
+		)
+		return when (repo) {
 			is ParserContentRepository -> fetchParserFavicon(repo)
 			is KotatsuParserRepository -> fetchKotatsuFavicon(repo)
 			is ExternalContentRepository -> fetchPluginIcon(repo)
@@ -149,7 +175,94 @@ class FaviconFetcher(
 			}
 
 			else -> fetchDefaultIcon(mangaSource)
+		}.also {
+			logFaviconResolve(
+				stage = "fetch_complete",
+				sourceId = sourceId,
+				source = mangaSource,
+				repository = repo,
+				result = it,
+			)
 		}
+	}
+
+	private suspend fun fetchDirectFavicon(sourceId: String, iconUrl: String): FetchResult? {
+		val sizePx = maxOf(
+			options.size.width.pxOrElse { FALLBACK_SIZE },
+			options.size.height.pxOrElse { FALLBACK_SIZE },
+		)
+		val cacheKey = options.diskCacheKey ?: "${sourceId}_${iconUrl.hashCode()}_$sizePx"
+		if (options.diskCachePolicy.readEnabled) {
+			localStorageCache[cacheKey]?.let { file ->
+				logFaviconCache("hit", sourceId, cacheKey, file.length())
+				return file.asFetchResult()
+			}
+			logFaviconCache("miss", sourceId, cacheKey)
+		} else {
+			logFaviconCache("read_disabled", sourceId, cacheKey)
+		}
+		val result = imageLoader.fetch(iconUrl, options) ?: return null
+		logFaviconCache("downstream_${result.dataSourceName()}", sourceId, cacheKey)
+		return if (options.diskCachePolicy.writeEnabled) {
+			writeToCache(cacheKey, result)
+		} else {
+			logFaviconCache("write_disabled", sourceId, cacheKey)
+			result
+		}
+	}
+
+	private fun logFaviconResolve(
+		stage: String,
+		sourceId: String,
+		source: ParserContentSource? = null,
+		usedExtra: Boolean? = null,
+		directIconUrl: String? = null,
+		repository: ContentRepository? = null,
+		result: FetchResult? = null,
+	) {
+		if (sourceId.startsWith("JSON_") && directIconUrl.isNullOrBlank()) return
+		android.util.Log.d(
+			"FaviconFetcher",
+			buildString {
+				append("stage=").append(stage)
+				append(" sourceId=").append(sourceId)
+				source?.let {
+					append(" source=").append(it.name)
+					append(" sourceType=").append(it.javaClass.name)
+				}
+				usedExtra?.let { append(" usedExtra=").append(it) }
+				directIconUrl?.let { append(" directUrl=").append(it) }
+				repository?.let {
+					append(" repository=").append(it.javaClass.name)
+				}
+				result?.let {
+					append(" result=").append(it.javaClass.simpleName)
+					append(" dataSource=").append(it.dataSourceName())
+				}
+			},
+		)
+	}
+
+	private fun logExtensionIcon(
+		stage: String,
+		sourceName: String,
+		packageName: String,
+		iconUrl: String? = null,
+		error: Throwable? = null,
+	) {
+		android.util.Log.d(
+			"FaviconFetcher",
+			buildString {
+				append("stage=").append(stage)
+				append(" source=").append(sourceName)
+				append(" package=").append(packageName)
+				iconUrl?.let { append(" iconUrl=").append(it) }
+				error?.let {
+					append(" error=").append(it.javaClass.name)
+					append(":").append(it.message)
+				}
+			},
+		)
 	}
 
 	private suspend fun fetchDefaultIcon(mangaSource: ParserContentSource): FetchResult? {
@@ -159,6 +272,7 @@ class FaviconFetcher(
     private suspend fun fetchMihonIcon(repository: MihonMangaRepository): FetchResult {
         val pm = options.context.packageManager
         val pkgName = repository.source.pkgName
+        logExtensionIcon("mihon_start", repository.source.name, pkgName)
 
         try {
             val availableExtensions = repoRepository.getAvailableExtensions(ExternalExtensionType.MIHON)
@@ -166,10 +280,13 @@ class FaviconFetcher(
             if (repoExt != null && repoExt.iconUrl.isNotBlank()) {
                 val remoteIcon = imageLoader.fetch(repoExt.iconUrl, options)
                 if (remoteIcon != null) {
+                    logExtensionIcon("mihon_remote_hit", repository.source.name, pkgName, repoExt.iconUrl)
                     return remoteIcon
                 }
+                logExtensionIcon("mihon_remote_null", repository.source.name, pkgName, repoExt.iconUrl)
             }
         } catch (e: Exception) {
+            logExtensionIcon("mihon_remote_error", repository.source.name, pkgName, error = e)
             e.printStackTraceDebug()
         }
 
@@ -181,12 +298,14 @@ class FaviconFetcher(
             }
         }
         return if (icon != null) {
+            logExtensionIcon("mihon_package_icon", repository.source.name, pkgName)
             ImageFetchResult(
                 image = icon.nonAdaptive().asImage(),
                 isSampled = false,
                 dataSource = DataSource.DISK,
             )
         } else {
+            logExtensionIcon("mihon_fallback", repository.source.name, pkgName)
             imageLoader.fetch(R.drawable.ic_storage, options)!!
         }
     }
@@ -216,6 +335,7 @@ class FaviconFetcher(
     private suspend fun fetchAniyomiIcon(repository: org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository): FetchResult {
         val pm = options.context.packageManager
         val pkgName = repository.source.pkgName
+        logExtensionIcon("aniyomi_start", repository.source.name, pkgName)
 
         try {
             val availableExtensions = repoRepository.getAvailableExtensions(ExternalExtensionType.ANIYOMI)
@@ -223,10 +343,13 @@ class FaviconFetcher(
             if (repoExt != null && repoExt.iconUrl.isNotBlank()) {
                 val remoteIcon = imageLoader.fetch(repoExt.iconUrl, options)
                 if (remoteIcon != null) {
+                    logExtensionIcon("aniyomi_remote_hit", repository.source.name, pkgName, repoExt.iconUrl)
                     return remoteIcon
                 }
+                logExtensionIcon("aniyomi_remote_null", repository.source.name, pkgName, repoExt.iconUrl)
             }
         } catch (e: Exception) {
+            logExtensionIcon("aniyomi_remote_error", repository.source.name, pkgName, error = e)
             e.printStackTraceDebug()
         }
 
@@ -238,12 +361,14 @@ class FaviconFetcher(
             }
         }
         return if (icon != null) {
+            logExtensionIcon("aniyomi_package_icon", repository.source.name, pkgName)
             ImageFetchResult(
                 image = icon.nonAdaptive().asImage(),
                 isSampled = false,
                 dataSource = DataSource.DISK,
             )
         } else {
+            logExtensionIcon("aniyomi_fallback", repository.source.name, pkgName)
             imageLoader.fetch(R.drawable.ic_storage, options)!!
         }
     }
@@ -251,6 +376,7 @@ class FaviconFetcher(
     private suspend fun fetchIReaderIcon(repository: org.skepsun.kototoro.ireader.IReaderMangaRepository): FetchResult {
         val pm = options.context.packageManager
         val pkgName = repository.source.pkgName
+        logExtensionIcon("ireader_start", repository.source.name, pkgName)
 
         // IReader extensions often don't package an icon in their APK.
         // Try to fetch the icon URL from the fetched repo extensions first.
@@ -263,10 +389,13 @@ class FaviconFetcher(
             if (repoExt != null && repoExt.iconUrl.isNotBlank()) {
                 val remoteIcon = imageLoader.fetch(repoExt.iconUrl, options)
                 if (remoteIcon != null) {
+                    logExtensionIcon("ireader_remote_hit", repository.source.name, pkgName, repoExt.iconUrl)
                     return remoteIcon
                 }
+                logExtensionIcon("ireader_remote_null", repository.source.name, pkgName, repoExt.iconUrl)
             }
         } catch (e: Exception) {
+            logExtensionIcon("ireader_remote_error", repository.source.name, pkgName, error = e)
             e.printStackTraceDebug()
         }
 
@@ -281,12 +410,14 @@ class FaviconFetcher(
             }
         }
         return if (icon != null) {
+            logExtensionIcon("ireader_package_icon", repository.source.name, pkgName)
             ImageFetchResult(
                 image = icon.nonAdaptive().asImage(),
                 isSampled = false,
                 dataSource = DataSource.DISK,
             )
         } else {
+            logExtensionIcon("ireader_fallback", repository.source.name, pkgName)
             imageLoader.fetch(R.drawable.ic_storage, options)!!
         }
     }

@@ -8,6 +8,7 @@ import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
+import org.skepsun.kototoro.core.db.entity.JsonSourceSummary
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
 
 @Dao
@@ -19,6 +20,41 @@ interface JsonSourceDao {
 	 */
 	@Query("SELECT * FROM json_sources WHERE enabled = 1 ORDER BY name")
 	fun observeEnabled(): Flow<List<JsonSourceEntity>>
+
+	@Query(
+		"""
+		SELECT
+			id,
+			name,
+			type,
+			enabled,
+			last_used_at AS lastUsedAt,
+			is_pinned AS isPinned,
+			1 AS hasExploreUrl,
+			icon_url AS iconUrl
+		FROM json_sources
+		WHERE enabled = 1
+		ORDER BY name
+		""",
+	)
+	fun observeEnabledSummaries(): Flow<List<JsonSourceSummary>>
+
+	@Query(
+		"""
+		SELECT
+			id,
+			name,
+			type,
+			enabled,
+			last_used_at AS lastUsedAt,
+			is_pinned AS isPinned,
+			1 AS hasExploreUrl,
+			icon_url AS iconUrl
+		FROM json_sources
+		ORDER BY name
+		""",
+	)
+	fun observeAllSummaries(): Flow<List<JsonSourceSummary>>
 
 	/**
 	 * Observe all sources, ordered by name

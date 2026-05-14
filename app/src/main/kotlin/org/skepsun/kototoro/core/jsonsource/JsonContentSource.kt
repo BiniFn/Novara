@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.core.jsonsource
 
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
+import org.skepsun.kototoro.core.db.entity.JsonSourceSummary
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
@@ -70,4 +71,36 @@ data class JsonContentSource(
 	override fun toString(): String {
 		return "JsonContentSource(id=${entity.id}, name=${entity.name}, type=${entity.type})"
 	}
+}
+
+data class JsonSourceListSource(
+	private val summary: JsonSourceSummary,
+) : ContentSource {
+
+	override val locale: String = ""
+	override val contentType: ContentType
+		get() = when (summary.type) {
+			JsonSourceType.TVBOX -> ContentType.VIDEO
+			JsonSourceType.JS -> ContentType.MANGA
+			JsonSourceType.LNREADER -> ContentType.NOVEL
+			JsonSourceType.LEGADO -> ContentType.NOVEL
+		}
+
+	override val name: String
+		get() = summary.id
+
+	val displayName: String
+		get() = summary.name
+
+	val isEnabled: Boolean
+		get() = summary.enabled
+
+	val isPinned: Boolean
+		get() = summary.isPinned
+
+	val hasExploreUrl: Boolean
+		get() = summary.hasExploreUrl
+
+	val iconUrl: String?
+		get() = summary.iconUrl
 }

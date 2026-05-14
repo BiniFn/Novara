@@ -296,7 +296,13 @@ fun UnifiedSourcesRoute(
 		onImportLocalJar = {
 			activeDialog = UnifiedSourcesDialogState.ThirdPartyDisclaimer(UnifiedThirdPartyAction.OpenLocalJar)
 		},
-		onPullRefresh = { viewModel.refreshPackages() },
+		onPullRefresh = { tab ->
+			when (tab) {
+				UNIFIED_SOURCES_TAB_REPOSITORIES,
+				UNIFIED_SOURCES_TAB_PACKAGES -> viewModel.refreshPackages()
+				else -> Unit
+			}
+		},
 		modifier = modifier,
 	)
 
@@ -1007,7 +1013,7 @@ fun UnifiedSourcesScreen(
 	onPackageUninstall: (String) -> Unit,
 	onPackageCancelInstall: (String) -> Unit,
 	onImportLocalJar: () -> Unit,
-	onPullRefresh: () -> Unit,
+	onPullRefresh: (Int) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	val readyState = state as? UnifiedSourcesUiState.Ready
@@ -1164,7 +1170,7 @@ fun UnifiedSourcesScreen(
 					}
 					KototoroPullToRefreshBox(
 						isRefreshing = isLoading,
-						onRefresh = onPullRefresh,
+						onRefresh = { onPullRefresh(selectedTab) },
 						modifier = Modifier
 							.fillMaxWidth()
 							.weight(1f),
@@ -1405,6 +1411,18 @@ private fun UnifiedSourceList(
 	}
 }
 
+@Composable
+private fun UnifiedSourceIcon(
+	item: UnifiedSourceItem,
+	modifier: Modifier = Modifier,
+) {
+	ContentSourceIcon(
+		source = item.source,
+		modifier = modifier,
+		contentDescription = item.title,
+	)
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun UnifiedSourceRow(
@@ -1443,10 +1461,9 @@ private fun UnifiedSourceRow(
 				modifier = Modifier.size(32.dp),
 			)
 		} else {
-			ContentSourceIcon(
-				source = item.source,
+			UnifiedSourceIcon(
+				item = item,
 				modifier = Modifier.size(32.dp),
-				contentDescription = item.title,
 			)
 		}
 		Spacer(modifier = Modifier.width(16.dp))

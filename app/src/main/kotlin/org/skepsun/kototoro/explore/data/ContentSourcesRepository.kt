@@ -24,7 +24,12 @@ import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.core.LocalizedAppContext
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.db.dao.MangaSourcesDao
+import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
+import org.skepsun.kototoro.core.db.entity.JsonSourceSummary
+import org.skepsun.kototoro.core.db.entity.JsonSourceType
 import org.skepsun.kototoro.core.db.entity.MangaSourceEntity
+import org.skepsun.kototoro.core.jsonsource.JsonContentSource
+import org.skepsun.kototoro.core.jsonsource.JsonSourceListSource
 import org.skepsun.kototoro.core.model.ContentSourceInfo
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.isNsfw
@@ -46,8 +51,6 @@ import java.util.LinkedHashSet
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.serialization.json.Json
-import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
 import org.skepsun.kototoro.parsers.network.CloudFlareHelper
 
 @Singleton
@@ -65,13 +68,9 @@ class ContentSourcesRepository @Inject constructor(
 ) {
 
 	private val dao get() = db.getSourcesDao()
+	private val jsonDao get() = db.getJsonSourceDao()
 	private val isNewSourcesAssimilated = AtomicBoolean(false)
 	private val cachedKotatsuSources = java.util.concurrent.ConcurrentHashMap<String, org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource>()
-	private val legadoJson = Json {
-		ignoreUnknownKeys = true
-		isLenient = true
-		allowTrailingComma = true
-	}
 
 	init {
 		org.skepsun.kototoro.core.util.ext.processLifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -124,6 +123,18 @@ class ContentSourcesRepository @Inject constructor(
 			addAll(allContentSources)
 			addAll(getExternalSources())
 			addAll(getEnabledJsonSources())
+			addAll(getEnabledMihonSources())
+			addAll(getEnabledAniyomiSources())
+			addAll(getEnabledIReaderSources())
+		}
+	}
+
+	suspend fun getAllAvailableSourcesForListing(): List<ContentSource> {
+		assimilateNewSources()
+		return buildList {
+			addAll(allContentSources)
+			addAll(getExternalSources())
+			addAll(jsonDao.observeAllSummaries().first().map(::JsonSourceListSource))
 			addAll(getEnabledMihonSources())
 			addAll(getEnabledAniyomiSources())
 			addAll(getEnabledIReaderSources())
@@ -237,14 +248,13 @@ class ContentSourcesRepository @Inject constructor(
 		val jsonSources = jsonSourceManager.observeEnabledJsonSources()
 			.map { entities ->
 				val filteredEntities = filterActiveTvBoxEntities(entities, settings.activeTvBoxRepositoryLocator)
-				android.util.Log.d("ContentSourcesRepository", "getEnabledJsonSources: found ${filteredEntities.size} enabled JSON sources after TVBox repository filter")
-				filteredEntities.forEach { entity ->
-					android.util.Log.d("ContentSourcesRepository", "  JSON source: id=${entity.id}, name=${entity.name}, enabled=${entity.enabled}")
-				}
-				filteredEntities.map { org.skepsun.kototoro.core.jsonsource.JsonContentSource(it) }
+				android.util.Log.d(
+					"ContentSourcesRepository",
+					"getEnabledJsonSources: count=${filteredEntities.size} after TVBox repository filter",
+				)
+				filteredEntities.map(::JsonContentSource)
 			}
 			.first()
-		android.util.Log.d("ContentSourcesRepository", "getEnabledJsonSources: returning ${jsonSources.size} JsonContentSource instances")
 		return jsonSources
 	}
 
@@ -490,9 +500,9 @@ class ContentSourcesRepository @Inject constructor(
 		isDisabledOnly: Boolean,
 		query: String?,
 		sourceTypes: Set<org.skepsun.kototoro.core.jsonsource.SourceType>?,
-	): List<org.skepsun.kototoro.core.jsonsource.JsonContentSource> {
+	): List<JsonSourceListSource> {
 		// Get all JSON sources
-		val allJsonSources = jsonSourceManager.observeAllJsonSources().first()
+		val allJsonSources = jsonDao.observeAllSummaries().first()
 		
 		// Filter by enabled/disabled
 		var filtered = if (isDisabledOnly) {
@@ -517,7 +527,7 @@ class ContentSourcesRepository @Inject constructor(
 			}
 		}
 		
-		return filtered.map { org.skepsun.kototoro.core.jsonsource.JsonContentSource(it) }
+		return filtered.map(::JsonSourceListSource)
 	}
 	
 	fun observeIsEnabled(source: ContentSource): Flow<Boolean> {
@@ -696,16 +706,7 @@ class ContentSourcesRepository @Inject constructor(
 	 */
 	fun observeEnabledBrowseSources(): Flow<List<ContentSourceInfo>> {
 		return observeEnabledSources().mapLatest { sources ->
-			sources.filterNot { info ->
-				val src = info.mangaSource
-				if (src !is org.skepsun.kototoro.core.jsonsource.JsonContentSource) return@filterNot false
-				if (sourceTypeIdentifier.getSourceType(src.name) != org.skepsun.kototoro.core.jsonsource.SourceType.JSON_LEGADO) {
-					return@filterNot false
-				}
-				val config = runCatching { legadoJson.decodeFromString<LegadoBookSource>(src.entity.config) }.getOrNull()
-					?: return@filterNot false
-				config.exploreUrl.isNullOrBlank()
-			}
+			sources
 		}
 	}
 	
@@ -726,22 +727,22 @@ class ContentSourcesRepository @Inject constructor(
 	 * 
 	 * @return Flow emitting list of JSON sources wrapped as ContentSource
 	 */
-	private fun observeJsonSources(): Flow<List<org.skepsun.kototoro.core.jsonsource.JsonContentSource>> {
+	private fun observeJsonSources(): Flow<List<JsonSourceListSource>> {
 		return combine(
-			jsonSourceManager.observeEnabledJsonSources(),
+			jsonDao.observeEnabledSummaries(),
 			observeIsNsfwDisabled(),
 			settings.observeAsFlow(AppSettings.KEY_TVBOX_ACTIVE_REPOSITORY) { activeTvBoxRepositoryLocator }
 		) { entities, skipNsfw, activeTvBoxRepositoryLocator ->
-			filterActiveTvBoxEntities(entities, activeTvBoxRepositoryLocator)
-				.map { org.skepsun.kototoro.core.jsonsource.JsonContentSource(it) }
+			filterActiveTvBoxSummaries(entities, activeTvBoxRepositoryLocator)
+				.map(::JsonSourceListSource)
 				.filter { source -> !skipNsfw || !source.isNsfw() }
 		}
 	}
 
 	private fun filterActiveTvBoxEntities(
-		entities: List<org.skepsun.kototoro.core.db.entity.JsonSourceEntity>,
+		entities: List<JsonSourceEntity>,
 		activeLocator: String?,
-	): List<org.skepsun.kototoro.core.db.entity.JsonSourceEntity> {
+	): List<JsonSourceEntity> {
 		val normalizedActiveLocator = activeLocator?.trim().orEmpty()
 		val effectiveLocator = if (normalizedActiveLocator.isNotBlank()) {
 			normalizedActiveLocator
@@ -760,6 +761,13 @@ class ContentSourcesRepository @Inject constructor(
 			entity.type != org.skepsun.kototoro.core.db.entity.JsonSourceType.TVBOX ||
 				extractTvBoxSourceLocator(entity.config) == effectiveLocator
 		}
+	}
+
+	private fun filterActiveTvBoxSummaries(
+		summaries: List<JsonSourceSummary>,
+		@Suppress("UNUSED_PARAMETER") activeLocator: String?,
+	): List<JsonSourceSummary> {
+		return summaries
 	}
 
 	private fun extractTvBoxSourceLocator(rawConfig: String): String? {

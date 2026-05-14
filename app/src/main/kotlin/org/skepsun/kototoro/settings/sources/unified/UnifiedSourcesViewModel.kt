@@ -117,10 +117,6 @@ class UnifiedSourcesViewModel @Inject constructor(
 		initialValue = UnifiedSourcesUiState.Loading,
 	)
 
-	init {
-		refreshPackages(refreshRepositories = false, showLoading = false)
-	}
-
 	fun setSearchQuery(query: String) {
 		filterState.update { it.copy(query = query.trim()) }
 	}

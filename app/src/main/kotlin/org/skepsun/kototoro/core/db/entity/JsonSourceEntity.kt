@@ -28,6 +28,19 @@ data class JsonSourceEntity(
 	val lastUsedAt: Long = 0,
 	@ColumnInfo(name = "is_pinned")
 	val isPinned: Boolean = false,
+	@ColumnInfo(name = "icon_url")
+	val iconUrl: String? = null,
+)
+
+data class JsonSourceSummary(
+	val id: String,
+	val name: String,
+	val type: JsonSourceType,
+	val enabled: Boolean,
+	val lastUsedAt: Long = 0,
+	val isPinned: Boolean = false,
+	val hasExploreUrl: Boolean = true,
+	val iconUrl: String? = null,
 )
 
 enum class JsonSourceType {

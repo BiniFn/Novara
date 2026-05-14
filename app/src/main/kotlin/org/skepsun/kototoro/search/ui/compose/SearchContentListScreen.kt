@@ -94,7 +94,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
+import coil3.request.SuccessResult
 import coil3.request.ImageRequest
 import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
@@ -107,10 +109,12 @@ import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.util.FoldableUtils
 import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
+import org.skepsun.kototoro.core.ui.compose.clearFailedContentSourceIcon
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.ui.model.titleRes
 import org.skepsun.kototoro.core.util.ShareHelper
 import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
+import org.skepsun.kototoro.core.parser.favicon.directFaviconUriOrNull
 import org.skepsun.kototoro.list.ui.compose.KototoroSelectionTopBar
 import org.skepsun.kototoro.list.ui.compose.SelectionAction
 
@@ -203,6 +207,21 @@ fun AppSearchContentListRoute(
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
     val exceptionResolver = (context as? org.skepsun.kototoro.core.ui.BaseComposeActivity)?.exceptionResolver
         ?: (context as? org.skepsun.kototoro.core.ui.BaseActivity<*>)?.exceptionResolver
+
+    LaunchedEffect(viewModel.source.name) {
+        clearFailedContentSourceIcon(viewModel.source.name)
+        val faviconUri = viewModel.source.directFaviconUriOrNull() ?: return@LaunchedEffect
+        val cacheKey = "${viewModel.source.name}#${R.style.FaviconDrawable_Small}"
+        val request = ImageRequest.Builder(context)
+            .data(faviconUri)
+            .memoryCacheKey(cacheKey)
+            .diskCacheKey(cacheKey)
+            .mangaSourceExtra(viewModel.source)
+            .build()
+        if (SingletonImageLoader.get(context).execute(request) is SuccessResult) {
+            clearFailedContentSourceIcon(viewModel.source.name)
+        }
+    }
 
     var searchMode by rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf(filterSnapshot.listFilter.query.orEmpty()) }

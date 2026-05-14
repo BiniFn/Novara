@@ -61,6 +61,8 @@ class FaviconView @JvmOverloads constructor(
 		return enqueueRequest(
 			newRequestBuilder()
 				.data(mangaSource.faviconUri())
+				.memoryCacheKey(mangaSource.faviconCacheKey(iconStyle))
+				.diskCacheKey(mangaSource.faviconCacheKey(iconStyle))
 				.error(fallbackFactory)
 				.fallback(fallbackFactory)
 				.placeholder(placeholderFactory)
@@ -68,5 +70,9 @@ class FaviconView @JvmOverloads constructor(
 				.suppressCaptchaErrors()
 				.build(),
 		)
+	}
+
+	private fun ContentSource.faviconCacheKey(styleResId: Int): String {
+		return "$name#favicon-v2#${javaClass.name}#$styleResId"
 	}
 }

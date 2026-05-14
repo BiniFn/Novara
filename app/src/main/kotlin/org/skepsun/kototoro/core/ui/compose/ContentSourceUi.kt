@@ -23,6 +23,7 @@ import dagger.hilt.android.EntryPointAccessors
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.BaseApp
 import org.skepsun.kototoro.core.exceptions.resolve.CaptchaHandler.Companion.suppressCaptchaErrors
+import org.skepsun.kototoro.core.jsonsource.JsonSourceListSource
 import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.core.model.getOriginLabel
 import org.skepsun.kototoro.core.model.getTitle
@@ -135,28 +136,51 @@ fun ContentSourceResolvedIcon(
 ) {
     val context = LocalContext.current
     val resolvedSource = source
-    val sourceFailureKey = remember(resolvedSource.name, styleResId) {
-        "${resolvedSource.name}#$styleResId"
+    val listIconUrl = (resolvedSource as? JsonSourceListSource)?.iconUrl?.takeIf { it.isNotBlank() }
+    val sourceFailureKey = remember(resolvedSource.name, resolvedSource.javaClass.name, styleResId, listIconUrl) {
+        val iconPart = listIconUrl?.let { "#${it.hashCode()}" }.orEmpty()
+        "${resolvedSource.name}#$SOURCE_ICON_CACHE_VERSION#${resolvedSource.javaClass.name}#$styleResId$iconPart"
     }
-    val fallbackDrawable = remember(resolvedSource.name, resolvedSource.locale, styleResId) {
+    val fallbackDrawable = remember(resolvedSource.name, resolvedSource.javaClass.name, resolvedSource.locale, styleResId) {
         FaviconDrawable(context, styleResId, resolveFallbackTitle(context, resolvedSource)).asImage()
     }
     val fallbackFactory: (ImageRequest) -> Image? = remember(fallbackDrawable) {
         { fallbackDrawable }
     }
+    val useFallbackOnly = resolvedSource is JsonSourceListSource && listIconUrl == null
+    val useNegativeCache = resolvedSource is JsonSourceListSource && listIconUrl != null
 
     var hasError by remember(sourceFailureKey) {
-        androidx.compose.runtime.mutableStateOf(failedSourceIcons.contains(sourceFailureKey))
+        androidx.compose.runtime.mutableStateOf(useNegativeCache && failedSourceIcons.contains(sourceFailureKey))
     }
 
-    val request: Any = remember(resolvedSource.name, resolvedSource.locale, styleResId, animated, hasError) {
-        if (hasError) {
+    val request: Any = remember(
+        resolvedSource.name,
+        resolvedSource.javaClass.name,
+        resolvedSource.locale,
+        styleResId,
+        animated,
+        hasError,
+        useFallbackOnly,
+        useNegativeCache,
+        listIconUrl,
+    ) {
+        if (hasError || useFallbackOnly) {
             fallbackDrawable
         } else {
+            val iconCacheKey = listIconUrl?.let {
+                "${resolvedSource.name}#$SOURCE_ICON_CACHE_VERSION#${resolvedSource.javaClass.name}#$styleResId#${it.hashCode()}"
+            }
+                ?: sourceFailureKey
+            logSourceIconRequest(
+                source = resolvedSource,
+                cacheKey = iconCacheKey,
+                directIconUrl = listIconUrl,
+            )
             ImageRequest.Builder(context)
                 .data(resolvedSource.faviconUri())
-                .memoryCacheKey(sourceFailureKey)
-                .diskCacheKey(sourceFailureKey)
+                .memoryCacheKey(iconCacheKey)
+                .diskCacheKey(iconCacheKey)
                 .crossfade(animated)
                 .mangaSourceExtra(resolvedSource)
                 .suppressCaptchaErrors()
@@ -167,7 +191,7 @@ fun ContentSourceResolvedIcon(
         }
     }
 
-    if (hasError) {
+    if (hasError || useFallbackOnly) {
         val fallbackPainter = rememberDrawablePainter(fallbackDrawable?.asDrawable(context.resources))
         androidx.compose.foundation.Image(
             painter = fallbackPainter,
@@ -182,17 +206,48 @@ fun ContentSourceResolvedIcon(
             contentScale = ContentScale.Fit,
             modifier = modifier.clip(RoundedCornerShape(4.dp)),
             onError = {
-                failedSourceIcons[sourceFailureKey] = true
-                hasError = true
+                logSourceIconError(resolvedSource, it.result.throwable)
+                if (useNegativeCache) {
+                    failedSourceIcons[sourceFailureKey] = true
+                    hasError = true
+                }
             },
         )
     }
 }
 
 private val failedSourceIcons = ConcurrentHashMap<String, Boolean>()
+private const val SOURCE_ICON_CACHE_VERSION = "v2"
+private const val SOURCE_ICON_LOG_TAG = "SourceIcon"
+
+private fun logSourceIconRequest(
+    source: ContentSource,
+    cacheKey: String,
+    directIconUrl: String?,
+) {
+    if (source is JsonSourceListSource) return
+    android.util.Log.d(
+        SOURCE_ICON_LOG_TAG,
+        "request source=${source.name} type=${source.javaClass.name} cacheKey=$cacheKey " +
+            "direct=${!directIconUrl.isNullOrBlank()}",
+    )
+}
+
+private fun logSourceIconError(source: ContentSource, throwable: Throwable?) {
+    if (source is JsonSourceListSource) return
+    android.util.Log.w(
+        SOURCE_ICON_LOG_TAG,
+        "error source=${source.name} type=${source.javaClass.name} " +
+            "error=${throwable?.javaClass?.name}:${throwable?.message}",
+    )
+}
 
 fun clearFailedContentSourceIcons() {
     failedSourceIcons.clear()
+}
+
+fun clearFailedContentSourceIcon(sourceName: String) {
+    failedSourceIcons.keys.removeAll { it.startsWith("$sourceName#") }
 }
 
 private fun resolveFallbackTitle(

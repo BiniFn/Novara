@@ -453,6 +453,7 @@ class JsonSourceManager @Inject constructor(
 				updatedAt = timestamp,
 				lastUsedAt = 0,
 				isPinned = false,
+				iconUrl = deriveFaviconUrl(meta.homepage),
 			)
 			
 			jsonSourceDao.insert(entity)
@@ -494,6 +495,7 @@ class JsonSourceManager @Inject constructor(
 				updatedAt = timestamp,
 				lastUsedAt = 0,
 				isPinned = false,
+				iconUrl = meta.icon.takeIf { it.isNotBlank() },
 			)
 			
 			jsonSourceDao.insert(entity)
@@ -759,12 +761,34 @@ class JsonSourceManager @Inject constructor(
 				updatedAt = timestamp,
 				lastUsedAt = 0,
 				isPinned = false,
+				iconUrl = deriveFaviconUrl(source.bookSourceUrl),
 			)
 			
 			SourceProcessResult.Success(entity)
 		} catch (e: Exception) {
 			SourceProcessResult.Error("Source ${index + 1} (${source.bookSourceName}): ${e.message}")
 		}
+	}
+
+	private fun deriveTvBoxIconUrl(site: JSONObject): String? {
+		val directIcon = sequenceOf("logo", "icon", "pic")
+			.map { key -> site.optString(key).trim() }
+			.firstOrNull { it.startsWith("http://", ignoreCase = true) || it.startsWith("https://", ignoreCase = true) }
+		return directIcon ?: deriveFaviconUrl(site.optString("api"))
+	}
+
+	private fun deriveFaviconUrl(siteUrl: String?): String? {
+		val trimmed = siteUrl?.trim().orEmpty()
+		if (!trimmed.startsWith("http://", ignoreCase = true) && !trimmed.startsWith("https://", ignoreCase = true)) {
+			return null
+		}
+		return runCatching {
+			val uri = java.net.URI(trimmed)
+			val scheme = uri.scheme?.takeIf { it.equals("http", true) || it.equals("https", true) } ?: return null
+			val host = uri.host?.takeIf { it.isNotBlank() } ?: return null
+			val port = uri.port.takeIf { it >= 0 }?.let { ":$it" }.orEmpty()
+			"$scheme://$host$port/favicon.ico"
+		}.getOrNull()
 	}
 
 	private fun resolveImportKind(sourceLocator: String): String {
@@ -1109,6 +1133,7 @@ class JsonSourceManager @Inject constructor(
 				updatedAt = timestamp,
 				lastUsedAt = 0,
 				isPinned = false,
+				iconUrl = deriveTvBoxIconUrl(site),
 			)
 		}
 		return entities

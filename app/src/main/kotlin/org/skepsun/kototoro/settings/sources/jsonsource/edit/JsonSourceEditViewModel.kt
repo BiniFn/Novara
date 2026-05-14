@@ -84,7 +84,8 @@ class JsonSourceEditViewModel @Inject constructor(
 						createdAt = timestamp,
 						updatedAt = timestamp,
 						lastUsedAt = 0,
-						isPinned = false
+						isPinned = false,
+						iconUrl = deriveFaviconUrl(data.url),
 					)
 					jsonSourceManager.insertSource(newEntity)
 				} else {
@@ -115,7 +116,8 @@ class JsonSourceEditViewModel @Inject constructor(
 						name = data.name,
 						config = updatedConfig,
 						enabled = data.enabled,
-						updatedAt = timestamp
+						updatedAt = timestamp,
+						iconUrl = deriveFaviconUrl(data.url),
 					)
 					
 					jsonSourceManager.updateSource(updatedEntity)
@@ -126,6 +128,20 @@ class JsonSourceEditViewModel @Inject constructor(
 				_saveResult.value = SaveResult.Error("Failed to save: ${e.message}")
 			}
 		}
+	}
+
+	private fun deriveFaviconUrl(siteUrl: String?): String? {
+		val trimmed = siteUrl?.trim().orEmpty()
+		if (!trimmed.startsWith("http://", ignoreCase = true) && !trimmed.startsWith("https://", ignoreCase = true)) {
+			return null
+		}
+		return runCatching {
+			val uri = java.net.URI(trimmed)
+			val scheme = uri.scheme?.takeIf { it.equals("http", true) || it.equals("https", true) } ?: return null
+			val host = uri.host?.takeIf { it.isNotBlank() } ?: return null
+			val port = uri.port.takeIf { it >= 0 }?.let { ":$it" }.orEmpty()
+			"$scheme://$host$port/favicon.ico"
+		}.getOrNull()
 	}
 }
 

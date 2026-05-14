@@ -199,7 +199,8 @@ fun ContentSource.getOriginLabel(context: Context): String? = when (this) {
 	is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> "Aniyomi"
 	is org.skepsun.kototoro.ireader.model.IReaderMangaSource -> "IReader"
 	is org.skepsun.kototoro.cloudstream.model.CloudstreamSource -> "Cloudstream"
-	is org.skepsun.kototoro.core.jsonsource.JsonContentSource -> {
+	is org.skepsun.kototoro.core.jsonsource.JsonContentSource,
+	is org.skepsun.kototoro.core.jsonsource.JsonSourceListSource -> {
 		val type = org.skepsun.kototoro.core.jsonsource.SourceTypeIdentifier().getSourceType(name)
 		when (type) {
 			org.skepsun.kototoro.core.jsonsource.SourceType.JSON_LEGADO -> "Legado"
@@ -234,6 +235,7 @@ fun ContentSource.getTitle(context: Context): String {
 		TestContentSource -> context.getString(R.string.test_parser)
 		is ExternalContentSource -> source.resolveName(context)
 		is org.skepsun.kototoro.core.jsonsource.JsonContentSource -> source.displayName.ifBlank { source.name }
+		is org.skepsun.kototoro.core.jsonsource.JsonSourceListSource -> source.displayName.ifBlank { source.name }
 		is org.skepsun.kototoro.mihon.model.MihonMangaSource -> source.displayName
 		is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> source.displayName
 		is org.skepsun.kototoro.ireader.model.IReaderMangaSource -> source.displayName
