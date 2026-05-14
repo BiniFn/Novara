@@ -165,6 +165,7 @@ class ReaderViewModel @Inject constructor(
     val translationTaskPanelVersion = MutableStateFlow(0L)
     private val translationStateByPageId = linkedMapOf<Long, TranslationLayerState>()
     private val translationStateUpdatedAtByPageId = linkedMapOf<Long, Long>()
+    private val pageReloadNonces = linkedMapOf<Long, Long>()
 
     val isIncognitoMode = MutableStateFlow(savedStateHandle.get<Boolean>(ReaderIntent.EXTRA_INCOGNITO))
 
@@ -287,7 +288,7 @@ class ReaderViewModel @Inject constructor(
 
     private fun getSplitPagesSnapshot(): List<org.skepsun.kototoro.reader.ui.pager.ReaderPage> {
         val originalPages = chaptersLoader.snapshot()
-        if (!settings.isReaderSplitPagesEnabled) return originalPages
+        if (!settings.isReaderSplitPagesEnabled) return originalPages.map { it.withReloadNonce() }
         val newPages = mutableListOf<org.skepsun.kototoro.reader.ui.pager.ReaderPage>()
         val mode = readerMode.value
         val isRtl = mode == org.skepsun.kototoro.core.prefs.ReaderMode.REVERSED
@@ -295,17 +296,25 @@ class ReaderViewModel @Inject constructor(
         for (page in originalPages) {
             if (widePageIds.contains(page.id)) {
                 if (isRtl) {
-                    newPages.add(page.copy(split = org.skepsun.kototoro.reader.ui.pager.ReaderPageSplit.RIGHT))
-                    newPages.add(page.copy(split = org.skepsun.kototoro.reader.ui.pager.ReaderPageSplit.LEFT))
+                    newPages.add(page.copy(split = org.skepsun.kototoro.reader.ui.pager.ReaderPageSplit.RIGHT).withReloadNonce())
+                    newPages.add(page.copy(split = org.skepsun.kototoro.reader.ui.pager.ReaderPageSplit.LEFT).withReloadNonce())
                 } else {
-                    newPages.add(page.copy(split = org.skepsun.kototoro.reader.ui.pager.ReaderPageSplit.LEFT))
-                    newPages.add(page.copy(split = org.skepsun.kototoro.reader.ui.pager.ReaderPageSplit.RIGHT))
+                    newPages.add(page.copy(split = org.skepsun.kototoro.reader.ui.pager.ReaderPageSplit.LEFT).withReloadNonce())
+                    newPages.add(page.copy(split = org.skepsun.kototoro.reader.ui.pager.ReaderPageSplit.RIGHT).withReloadNonce())
                 }
             } else {
-                newPages.add(page)
+                newPages.add(page.withReloadNonce())
             }
         }
         return newPages
+    }
+
+    private fun org.skepsun.kototoro.reader.ui.pager.ReaderPage.withReloadNonce() = copy(
+        reloadNonce = pageReloadNonces[id] ?: 0L,
+    )
+
+    private fun markPageForReload(pageId: Long) {
+        pageReloadNonces[pageId] = (pageReloadNonces[pageId] ?: 0L) + 1L
     }
 
     fun reload() {
@@ -316,10 +325,11 @@ class ReaderViewModel @Inject constructor(
     fun retranslateCurrent() {
         launchJob(Dispatchers.Default) {
             val page = getCurrentPage() ?: return@launchJob
-            pageLoader.invalidateTask(page.id)
+            pageLoader.invalidateTask(page)
             enhancementController.invalidateTranslationTask(page.id)
             enhancementController.invalidateTranslationCacheForPage(page.id)
-            reload()
+            markPageForReload(page.id)
+            rebuildPages()
             onShowToast.call(R.string.reader_translation_retranslate_started)
         }
     }
@@ -331,9 +341,10 @@ class ReaderViewModel @Inject constructor(
             var retries = 0
             pages.forEach { page ->
                 if (translationStateByPageId[page.id] == TranslationLayerState.FAILED) {
-                    pageLoader.invalidateTask(page.id)
+                    pageLoader.invalidateTask(page)
                     enhancementController.invalidateTranslationTask(page.id)
                     enhancementController.invalidateTranslationCacheForPage(page.id)
+                    markPageForReload(page.id)
                     retries++
                 }
             }
@@ -341,7 +352,7 @@ class ReaderViewModel @Inject constructor(
                 onShowToast.call(R.string.reader_translation_retry_failed_none)
                 return@launchJob
             }
-            reload()
+            rebuildPages()
             onShowToast.call(R.string.reader_translation_retry_failed_started)
         }
     }
@@ -351,23 +362,30 @@ class ReaderViewModel @Inject constructor(
             val chapterPages = getCurrentChapterPages().orEmpty()
             if (chapterPages.isEmpty()) return@launchJob
             chapterPages.forEach { page ->
-                pageLoader.invalidateTask(page.id)
+                pageLoader.invalidateTask(page)
                 enhancementController.invalidateTranslationTask(page.id)
                 enhancementController.invalidateTranslationCacheForPage(page.id)
+                markPageForReload(page.id)
             }
-            reload()
+            rebuildPages()
             onShowToast.call(R.string.reader_translation_retranslate_chapter_started)
         }
     }
 
     fun retryTranslationForPage(pageId: Long) {
         launchJob(Dispatchers.Default) {
-            pageLoader.invalidateTask(pageId)
+            val page = getCurrentChapterPages().orEmpty().firstOrNull { it.id == pageId }
+            if (page != null) {
+                pageLoader.invalidateTask(page)
+            } else {
+                pageLoader.invalidateTask(pageId)
+            }
             enhancementController.invalidateTranslationTask(pageId)
             enhancementController.invalidateTranslationCacheForPage(pageId)
+            markPageForReload(pageId)
             val currentPageId = getCurrentPage()?.id
             if (currentPageId == pageId) {
-                reload()
+                rebuildPages()
             }
         }
     }

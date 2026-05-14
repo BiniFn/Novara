@@ -935,7 +935,10 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		return groups.mapIndexedNotNull { index, group ->
 			val orderedFragments = sortFragmentsForReadingOrder(group.fragments, sourceLang)
 			val mergedRect = group.bubbleRect ?: mergeRects(group.fragments.map { it.rect }) ?: return@mapIndexedNotNull null
-			val sourceText = composeGroupedText(orderedFragments, sourceLang).trim()
+			val sourceText = normalizeTextForTranslation(
+				composeGroupedText(orderedFragments, sourceLang),
+				sourceLang,
+			)
 			if (sourceText.isBlank()) {
 				return@mapIndexedNotNull null
 			}
@@ -1152,6 +1155,16 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		val sorted = sortFragmentsForReadingOrder(group, sourceLang)
 		val separator = if (isJa && isLikelyColumnLayout(group)) "\n" else ""
 		return sorted.joinToString(separator) { it.text.trim() }.trim()
+	}
+
+	private fun normalizeTextForTranslation(text: String, sourceLang: String): String {
+		val trimmed = text.trim()
+		if (trimmed.isEmpty() || sourceLang.startsWith("ja")) return trimmed
+		return trimmed
+			.replace(HYPHENATED_LINE_BREAK_REGEX, "")
+			.replace(INLINE_HYPHENATED_WORD_REGEX, "")
+			.replace(Regex("""[ \t]{2,}"""), " ")
+			.trim()
 	}
 
 	private fun sortFragmentsForReadingOrder(
@@ -3095,10 +3108,18 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			settings.readerTranslationApiEndpoint,
 			settings.readerTranslationApiModel,
 			settings.readerTranslationOcrEngine.name,
+			settings.readerTranslationPipelineMode.name,
+			settings.readerTranslationOcrPipelineStrategy,
 			settings.readerTranslationBubbleGroupingTuning,
 			settings.isReaderTranslationBubbleGroupingEnabled.toString(),
 			settings.readerTranslationOverlayCompactness,
 			settings.isReaderTranslationQualityFilterEnabled.toString(),
+			settings.readerTranslationPaddleOfficialModelId,
+			settings.readerTranslationPaddleDetModelId,
+			settings.readerTranslationPaddleRecModelUrl,
+			settings.readerTranslationPaddleRecModelVersion,
+			settings.readerTranslationPaddleRecModelSha256,
+			settings.readerTranslationBubbleDetectorModelId,
 		).joinToString("|")
 		return "${RENDER_CACHE_PREFIX}${raw.sha256()}"
 	}
@@ -3133,7 +3154,14 @@ class ReaderPageTranslationProcessor @Inject constructor(
 			sourceUri,
 			sourceLang,
 			settings.readerTranslationOcrEngine.name,
+			settings.readerTranslationPipelineMode.name,
+			settings.readerTranslationOcrPipelineStrategy,
 			settings.readerTranslationPaddleOfficialModelId,
+			settings.readerTranslationPaddleDetModelId,
+			settings.readerTranslationPaddleRecModelUrl,
+			settings.readerTranslationPaddleRecModelVersion,
+			settings.readerTranslationPaddleRecModelSha256,
+			settings.readerTranslationBubbleDetectorModelId,
 		).joinToString("|")
 		return "${OCR_CACHE_PREFIX}${raw.sha256()}"
 	}
@@ -3251,6 +3279,8 @@ class ReaderPageTranslationProcessor @Inject constructor(
 		const val SEGMENT_MAX_SIZE_EXPANSION_SCALE = 1.28f
 		const val SEGMENT_MAX_OVERLAP_RATIO = 0.18f
 		val THINK_TAG_REGEX = Regex("(?is)<think>.*?</think>")
+		val HYPHENATED_LINE_BREAK_REGEX = Regex("""(?<=\p{L})[\-‐‑‒–—]\s*[\r\n]+\s*(?=\p{L})""")
+		val INLINE_HYPHENATED_WORD_REGEX = Regex("""(?<=\p{L})[\-‐‑‒–—]\s+(?=\p{L})""")
 		val BUBBLE_EXPAND_SCALES = floatArrayOf(1f, 1.12f, 1.24f)
 		val DETECTOR_ANCHORED_EXPAND_SCALES = floatArrayOf(1f, 1.18f, 1.34f, 1.52f)
 		const val TEXT_CACHE_PREFIX = "reader_translate_text_"

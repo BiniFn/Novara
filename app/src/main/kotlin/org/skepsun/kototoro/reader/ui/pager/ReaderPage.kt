@@ -24,6 +24,7 @@ data class ReaderPage(
 	val index: Int,
 	val source: ContentSource,
 	val split: ReaderPageSplit = ReaderPageSplit.NONE,
+	val reloadNonce: Long = 0L,
 ) : Parcelable {
 
 	val readerKey: Long
@@ -37,6 +38,7 @@ data class ReaderPage(
 		chapterId = chapterId,
 		index = index,
 		source = page.source,
+		reloadNonce = 0L,
 	)
 
 	fun toContentPage() = ContentPage(

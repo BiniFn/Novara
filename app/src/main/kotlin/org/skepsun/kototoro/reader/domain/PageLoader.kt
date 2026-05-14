@@ -270,6 +270,14 @@ class PageLoader @Inject constructor(
 		}
 	}
 
+	fun invalidateTask(page: ContentPage) {
+		synchronized(tasks) {
+			val taskKey = page.taskKey()
+			tasks[taskKey]?.task?.cancel()
+			tasks.remove(taskKey)
+		}
+	}
+
 	private fun onIdle() = loaderScope.launch {
 		prefetchLock.withLock {
 			while (prefetchQueue.isNotEmpty()) {

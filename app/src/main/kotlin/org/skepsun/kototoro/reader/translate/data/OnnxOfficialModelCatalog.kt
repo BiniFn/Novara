@@ -26,7 +26,7 @@ data class OnnxModelFile(
 )
 
 object OnnxOfficialModelCatalog {
-	const val source = "https://github.com/niedev/OnnxModelsEnhancer/releases, https://github.com/niedev/RTranslator/releases, https://huggingface.co/ilaylow/PP_OCRv5_mobile_onnx, https://huggingface.co/l0wgear/manga-ocr-2025-onnx"
+	const val source = "https://github.com/niedev/OnnxModelsEnhancer/releases, https://github.com/niedev/RTranslator/releases, https://huggingface.co/ilaylow/PP_OCRv5_mobile_onnx, https://huggingface.co/monkt/paddleocr-onnx, https://huggingface.co/l0wgear/manga-ocr-2025-onnx"
 
 	val models = listOf(
 		OnnxOfficialModel(
@@ -167,31 +167,31 @@ object OnnxOfficialModelCatalog {
 			files = listOf(
 				OnnxModelFile(
 					fileName = "ppocrv5_rec_en.onnx",
-					downloadUrl = "https://huggingface.co/ilaylow/PP_OCRv5_mobile_onnx/resolve/main/en_PP-OCRv5_rec.onnx",
+					downloadUrl = "https://huggingface.co/monkt/paddleocr-onnx/resolve/main/languages/english/rec.onnx",
 				),
 				OnnxModelFile(
 					fileName = "en_dict.txt",
-					downloadUrl = "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/en_dict.txt",
+					downloadUrl = "https://huggingface.co/monkt/paddleocr-onnx/resolve/main/languages/english/dict.txt",
 				),
 			),
 			description = "PaddleOCR PP-OCRv5 mobile recognizer optimized for English text.",
 		),
 		OnnxOfficialModel(
 			id = "korean_ppocrv3_mobile_rec_onnx",
-			title = "PP-OCRv3 Mobile Recognizer (Korean)",
+			title = "PP-OCRv5 Mobile Recognizer (Korean)",
 			version = "hf-main",
 			category = OnnxModelCategory.OCR_RECOGNIZER,
 			files = listOf(
 				OnnxModelFile(
 					fileName = "ppocrv3_rec_ko.onnx",
-					downloadUrl = "https://huggingface.co/ilaylow/PP_OCRv3_mobile_onnx/resolve/main/korean_PP-OCRv3_rec.onnx",
+					downloadUrl = "https://huggingface.co/monkt/paddleocr-onnx/resolve/main/languages/korean/rec.onnx",
 				),
 				OnnxModelFile(
 					fileName = "korean_dict.txt",
-					downloadUrl = "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/dict/korean_dict.txt",
+					downloadUrl = "https://huggingface.co/monkt/paddleocr-onnx/resolve/main/languages/korean/dict.txt",
 				),
 			),
-			description = "PaddleOCR PP-OCRv3 mobile recognizer optimized for Korean text.",
+			description = "PaddleOCR PP-OCRv5 mobile recognizer optimized for Korean text.",
 		),
 		OnnxOfficialModel(
 			id = "mangaocr_2025_onnx",
