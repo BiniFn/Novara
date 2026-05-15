@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -26,6 +27,7 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.db.entity.JsonSourceType
 import org.skepsun.kototoro.core.extensions.GlobalExtensionManager
 import org.skepsun.kototoro.core.jsonsource.JsonSourceManager
 import org.skepsun.kototoro.core.lnreader.LNReaderPluginInfo
@@ -980,6 +982,29 @@ class UnifiedSourcesViewModel @Inject constructor(
 				}
 		}
 		availableLnReaderPlugins.value = plugins.distinctBy { it.repoUrl to it.plugin.id }
+		fillMissingLnReaderIcons(availableLnReaderPlugins.value.map { it.plugin })
+	}
+
+	private suspend fun fillMissingLnReaderIcons(plugins: List<LNReaderPluginInfo>) {
+		val iconsById = plugins
+			.asSequence()
+			.filter { it.id.isNotBlank() && it.iconUrl.isNotBlank() }
+			.associate { it.id to it.iconUrl }
+		if (iconsById.isEmpty()) return
+
+		val timestamp = System.currentTimeMillis()
+		jsonSourceManager.observeAllJsonSources()
+			.first()
+			.asSequence()
+			.filter { it.type == JsonSourceType.LNREADER && it.iconUrl.isNullOrBlank() }
+			.mapNotNull { source ->
+				val metadata = LNReaderPluginMetadata.extractFromCode(source.config, source.id)
+				val iconUrl = metadata?.id?.let(iconsById::get) ?: return@mapNotNull null
+				source.id to iconUrl
+			}
+			.forEach { (sourceId, iconUrl) ->
+				jsonSourceManager.fillMissingIconUrl(sourceId, iconUrl, timestamp)
+			}
 	}
 
 	private suspend fun reloadExternalExtensionManagers() {
@@ -1023,15 +1048,19 @@ class UnifiedSourcesViewModel @Inject constructor(
 		availablePlugins: List<LnReaderAvailablePlugin>,
 		installingPackageIds: Set<String>,
 	): UnifiedSourceCatalogState {
-		val installedByPluginId = packages
+		val installedLnReaderPackages = packages
 			.filter { it.kind == UnifiedSourceKind.LNREADER && !it.packageName.isNullOrBlank() }
-			.associateBy { it.packageName.orEmpty() }
+		val installedByPluginId = installedLnReaderPackages.associateBy { it.packageName.orEmpty() }
+		val installedBySourceId = installedLnReaderPackages.associateBy { it.id.substringAfterLast(':') }
 		val handledPluginIds = LinkedHashSet<String>()
+		val handledInstalledIds = LinkedHashSet<String>()
 		val availablePackages = availablePlugins.map { available ->
 			val plugin = available.plugin
 			val installedPackage = installedByPluginId[plugin.id]
+				?: installedBySourceId[lnReaderSourceId(plugin)]
 			if (installedPackage != null) {
 				handledPluginIds += plugin.id
+				handledInstalledIds += installedPackage.id
 			}
 			available.toUnifiedPackageItem(
 				installedPackage = installedPackage,
@@ -1039,12 +1068,17 @@ class UnifiedSourcesViewModel @Inject constructor(
 			)
 		}
 		val installedWithoutCatalogMatch = packages.filterNot { item ->
-			item.kind == UnifiedSourceKind.LNREADER && item.packageName in handledPluginIds
+			item.kind == UnifiedSourceKind.LNREADER && (item.packageName in handledPluginIds || item.id in handledInstalledIds)
 		}
 		return copy(
 			packages = (installedWithoutCatalogMatch + availablePackages)
 				.sortedWith(packageItemComparator),
 		)
+	}
+
+	private fun lnReaderSourceId(plugin: LNReaderPluginInfo): String {
+		val sourceKey = plugin.site.ifBlank { plugin.id }
+		return "JSON_LNREADER_${sourceKey.hashCode().toUInt().toString(16).uppercase()}"
 	}
 
 	private fun RepoAvailableExtension.toUnifiedPackageItem(
@@ -1111,7 +1145,7 @@ class UnifiedSourcesViewModel @Inject constructor(
 			isNsfw = false,
 			sourceCount = installedPackage?.sourceCount ?: 1,
 			sourceNames = installedPackage?.sourceNames ?: listOf(plugin.name.ifBlank { plugin.id }),
-			iconUrl = plugin.iconUrl.takeIf { it.isNotBlank() },
+			iconUrl = plugin.iconUrl.takeIf { it.isNotBlank() } ?: installedPackage?.iconUrl,
 			state = state,
 			installedVersionName = installedPackage?.versionName,
 			lnReaderPayload = plugin,

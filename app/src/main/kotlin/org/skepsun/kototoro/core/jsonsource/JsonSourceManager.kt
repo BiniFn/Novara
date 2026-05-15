@@ -292,6 +292,12 @@ class JsonSourceManager @Inject constructor(
 			// Just log the error and continue
 		}
 	}
+
+	suspend fun fillMissingIconUrl(sourceId: String, iconUrl: String, timestamp: Long = System.currentTimeMillis()) {
+		if (iconUrl.isBlank()) return
+		jsonSourceDao.fillMissingIconUrl(sourceId, iconUrl, timestamp)
+		invalidateCache(sourceId)
+	}
 	
 	/**
 	 * Inserts a new JSON source into the database.

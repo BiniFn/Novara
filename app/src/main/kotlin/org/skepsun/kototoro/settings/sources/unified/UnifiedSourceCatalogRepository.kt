@@ -588,7 +588,7 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 					sourceNames = sources.map { it.name }.sorted(),
 					iconUrl = null,
 				)
-			}
+		}
 
 		filter { it.type == JsonSourceType.LNREADER }.forEach { entity ->
 			result += UnifiedSourcePackageItem(
@@ -605,7 +605,7 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 				isNsfw = false,
 				sourceCount = 1,
 				sourceNames = listOf(entity.name),
-				iconUrl = null,
+				iconUrl = entity.iconUrl,
 			)
 		}
 

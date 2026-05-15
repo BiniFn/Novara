@@ -164,6 +164,9 @@ interface JsonSourceDao {
 	@Query("UPDATE json_sources SET last_used_at = :timestamp WHERE id = :id")
 	suspend fun setLastUsed(id: String, timestamp: Long)
 
+	@Query("UPDATE json_sources SET icon_url = :iconUrl, updated_at = :timestamp WHERE id = :id AND (icon_url IS NULL OR icon_url = '')")
+	suspend fun fillMissingIconUrl(id: String, iconUrl: String, timestamp: Long)
+
 	/**
 	 * Delete a source entity
 	 */
