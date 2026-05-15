@@ -17,6 +17,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.ui.compose.PanoramaAnimationSpeedMaxPercent
+import org.skepsun.kototoro.core.ui.compose.PanoramaAnimationSpeedMinPercent
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ColorScheme
 import org.skepsun.kototoro.core.prefs.ListMode
@@ -369,8 +371,8 @@ fun AppearanceSettingsScreen(
                         SettingsSliderPreference(
                             title = stringResource(R.string.pref_panorama_animation_speed),
                             value = state.panoramaAnimationSpeed,
-                            valueRange = 50..200,
-                            step = 5,
+                            valueRange = PanoramaAnimationSpeedMinPercent..PanoramaAnimationSpeedMaxPercent,
+                            step = 25,
                             valueText = { "${it}%" },
                             onValueChange = onPanoramaAnimationSpeedChange,
                         )

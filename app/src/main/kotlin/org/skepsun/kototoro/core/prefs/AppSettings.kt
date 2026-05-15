@@ -25,6 +25,8 @@ import kotlinx.coroutines.flow.onStart
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.ZoomMode
 import org.skepsun.kototoro.core.network.DoHProvider
+import org.skepsun.kototoro.core.ui.compose.PanoramaAnimationSpeedMaxPercent
+import org.skepsun.kototoro.core.ui.compose.PanoramaAnimationSpeedMinPercent
 import org.skepsun.kototoro.explore.data.SourcesSortOrder
 import org.skepsun.kototoro.list.domain.ListSortOrder
 import org.skepsun.kototoro.core.prefs.VideoDecoderMode
@@ -234,8 +236,19 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putBoolean(KEY_PANORAMA_ANIMATION_ENABLED, value) }
 
 	var panoramaAnimationSpeed: Int
-		get() = prefs.getSafeInt(KEY_PANORAMA_ANIMATION_SPEED, 100).coerceIn(50, 200)
-		set(value) = prefs.edit { putInt(KEY_PANORAMA_ANIMATION_SPEED, value.coerceIn(50, 200)) }
+		get() = prefs.getSafeInt(KEY_PANORAMA_ANIMATION_SPEED, 100).coerceIn(
+			PanoramaAnimationSpeedMinPercent,
+			PanoramaAnimationSpeedMaxPercent,
+		)
+		set(value) = prefs.edit {
+			putInt(
+				KEY_PANORAMA_ANIMATION_SPEED,
+				value.coerceIn(
+					PanoramaAnimationSpeedMinPercent,
+					PanoramaAnimationSpeedMaxPercent,
+				),
+			)
+		}
 
 	var panoramaCoverExtraHeight: Int
 		get() = prefs.getSafeInt(KEY_PANORAMA_EXTRA_HEIGHT, 50).coerceIn(0, 100)

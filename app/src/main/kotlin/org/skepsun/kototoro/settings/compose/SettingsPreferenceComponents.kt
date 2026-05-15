@@ -515,6 +515,7 @@ fun SettingsSliderPreference(
     onValueChange: (Int) -> Unit,
 ) {
     var sliderValue by remember(value) { mutableStateOf(value.toFloat()) }
+    var committedValue by remember(value) { mutableStateOf(value.coerceIn(valueRange.first, valueRange.last)) }
     val steps = ((valueRange.last - valueRange.first) / step - 1).coerceAtLeast(0)
     val currentValue = sliderValue.roundToInt().coerceIn(valueRange.first, valueRange.last)
 
@@ -544,12 +545,22 @@ fun SettingsSliderPreference(
         }
         Slider(
             value = sliderValue,
-            onValueChange = { sliderValue = it },
+            onValueChange = {
+                sliderValue = it
+                val nextValue = it.roundToInt().coerceIn(valueRange.first, valueRange.last)
+                if (nextValue != committedValue) {
+                    committedValue = nextValue
+                    onValueChange(nextValue)
+                }
+            },
             valueRange = valueRange.first.toFloat()..valueRange.last.toFloat(),
             steps = steps,
             enabled = enabled,
             onValueChangeFinished = {
-                onValueChange(currentValue)
+                if (currentValue != committedValue) {
+                    committedValue = currentValue
+                    onValueChange(currentValue)
+                }
             },
         )
     }

@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
@@ -29,6 +30,8 @@ import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.image.rememberPanoramaRequestSize
 import org.skepsun.kototoro.core.ui.image.panoramaBlur
+import org.skepsun.kototoro.core.ui.compose.panoramaAnimationDurations
+import org.skepsun.kototoro.core.ui.compose.panoramaAnimationMotion
 
 @Immutable
 data class PanoramaBackdropPrefs(
@@ -79,10 +82,11 @@ fun AnimatedPanoramaBackdrop(
     if (!prefs.isEnabled) return
 
     val panoramaGradientAlphaFactor = (prefs.bottomGradientAlphaPercent / 100f).coerceIn(0f, 1f)
-    val panoramaAnimationSpeedFactor = (prefs.animationSpeedPercent.coerceIn(50, 200)) / 100f
-    val scaleAnimationDuration = (7000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(2000)
-    val horizontalPanAnimationDuration = (8000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(2250)
-    val verticalPanAnimationDuration = (6000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(1750)
+    val animationDurations = panoramaAnimationDurations(prefs.animationSpeedPercent)
+    val animationMotion = panoramaAnimationMotion()
+    val density = LocalDensity.current
+    val horizontalPanPx = with(density) { animationMotion.horizontalPan.toPx() }
+    val verticalPanPx = with(density) { animationMotion.verticalPan.toPx() }
 
     val infiniteTransition = if (prefs.isAnimationEnabled) {
         rememberInfiniteTransition(label = "details_panorama_background")
@@ -91,10 +95,10 @@ fun AnimatedPanoramaBackdrop(
     }
     val backgroundScaleState = if (infiniteTransition != null) {
         infiniteTransition.animateFloat(
-            initialValue = 1.15f,
-            targetValue = 1.22f,
+            initialValue = animationMotion.initialScale,
+            targetValue = animationMotion.targetScale,
             animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = scaleAnimationDuration, easing = LinearEasing),
+                animation = tween(durationMillis = animationDurations.scaleMillis, easing = LinearEasing),
                 repeatMode = RepeatMode.Reverse,
             ),
             label = "details_panorama_background_scale",
@@ -104,10 +108,10 @@ fun AnimatedPanoramaBackdrop(
     }
     val backgroundTranslationXState = if (infiniteTransition != null) {
         infiniteTransition.animateFloat(
-            initialValue = -18f,
-            targetValue = 18f,
+            initialValue = -horizontalPanPx,
+            targetValue = horizontalPanPx,
             animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = horizontalPanAnimationDuration, easing = LinearEasing),
+                animation = tween(durationMillis = animationDurations.horizontalPanMillis, easing = LinearEasing),
                 repeatMode = RepeatMode.Reverse,
             ),
             label = "details_panorama_background_translation_x",
@@ -117,10 +121,10 @@ fun AnimatedPanoramaBackdrop(
     }
     val backgroundTranslationYState = if (infiniteTransition != null) {
         infiniteTransition.animateFloat(
-            initialValue = -12f,
-            targetValue = 12f,
+            initialValue = -verticalPanPx,
+            targetValue = verticalPanPx,
             animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = verticalPanAnimationDuration, easing = LinearEasing),
+                animation = tween(durationMillis = animationDurations.verticalPanMillis, easing = LinearEasing),
                 repeatMode = RepeatMode.Reverse,
             ),
             label = "details_panorama_background_translation_y",

@@ -63,6 +63,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -81,6 +82,8 @@ import org.skepsun.kototoro.core.ui.compose.HeroAutoAdvanceEffect
 import org.skepsun.kototoro.core.ui.compose.unclippedBoundsInWindow
 import org.skepsun.kototoro.core.ui.compose.HeroPagerIndicator
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
+import org.skepsun.kototoro.core.ui.compose.panoramaAnimationDurations
+import org.skepsun.kototoro.core.ui.compose.panoramaAnimationMotion
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
 import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
@@ -188,10 +191,11 @@ fun DiscoverHeroCarousel(
     val heroControlContainerColor = Color.Black.copy(alpha = 0.42f)
 
     val panoramaGradientAlphaFactor = (panoramaPrefs.bottomGradientAlphaPercent / 100f).coerceIn(0f, 1f)
-    val panoramaAnimationSpeedFactor = (panoramaPrefs.animationSpeedPercent.coerceIn(50, 200)) / 100f
-    val scaleAnimationDuration = (7000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(2000)
-    val horizontalPanAnimationDuration = (8000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(2250)
-    val verticalPanAnimationDuration = (6000 / panoramaAnimationSpeedFactor).toInt().coerceAtLeast(1750)
+    val animationDurations = panoramaAnimationDurations(panoramaPrefs.animationSpeedPercent)
+    val animationMotion = panoramaAnimationMotion()
+    val density = LocalDensity.current
+    val horizontalPanPx = with(density) { animationMotion.horizontalPan.toPx() }
+    val verticalPanPx = with(density) { animationMotion.verticalPan.toPx() }
     val pagerState = rememberPagerState(pageCount = { items.size })
     val selectedIndex by remember(items, pagerState) {
         derivedStateOf { pagerState.currentPage.coerceIn(0, items.lastIndex) }
@@ -206,10 +210,10 @@ fun DiscoverHeroCarousel(
     }
     val backgroundScaleState = if (infiniteTransition != null) {
         infiniteTransition.animateFloat(
-            initialValue = 1.15f,
-            targetValue = 1.22f,
+            initialValue = animationMotion.initialScale,
+            targetValue = animationMotion.targetScale,
             animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = scaleAnimationDuration, easing = LinearEasing),
+                animation = tween(durationMillis = animationDurations.scaleMillis, easing = LinearEasing),
                 repeatMode = RepeatMode.Reverse,
             ),
             label = "discover_hero_background_scale",
@@ -219,10 +223,10 @@ fun DiscoverHeroCarousel(
     }
     val backgroundTranslationXState = if (infiniteTransition != null) {
         infiniteTransition.animateFloat(
-            initialValue = -18f,
-            targetValue = 18f,
+            initialValue = -horizontalPanPx,
+            targetValue = horizontalPanPx,
             animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = horizontalPanAnimationDuration, easing = LinearEasing),
+                animation = tween(durationMillis = animationDurations.horizontalPanMillis, easing = LinearEasing),
                 repeatMode = RepeatMode.Reverse,
             ),
             label = "discover_hero_background_translation_x",
@@ -232,10 +236,10 @@ fun DiscoverHeroCarousel(
     }
     val backgroundTranslationYState = if (infiniteTransition != null) {
         infiniteTransition.animateFloat(
-            initialValue = -12f,
-            targetValue = 12f,
+            initialValue = -verticalPanPx,
+            targetValue = verticalPanPx,
             animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = verticalPanAnimationDuration, easing = LinearEasing),
+                animation = tween(durationMillis = animationDurations.verticalPanMillis, easing = LinearEasing),
                 repeatMode = RepeatMode.Reverse,
             ),
             label = "discover_hero_background_translation_y",
