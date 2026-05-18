@@ -13,6 +13,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.network.BaseHttpClient
 import org.skepsun.kototoro.core.network.CurlLoggingInterceptor
+import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
 import org.skepsun.kototoro.scrobbling.anilist.data.AniListAuthenticator
 import org.skepsun.kototoro.scrobbling.anilist.data.AniListInterceptor
 import org.skepsun.kototoro.scrobbling.anilist.domain.AniListScrobbler
@@ -163,17 +164,20 @@ object ScrobblingModule {
 	@Provides
 	@Singleton
 	fun provideMangaUpdatesRepository(
-		@ApplicationContext context: Context,
+		@BaseHttpClient baseHttpClient: OkHttpClient,
+		cookieJar: MutableCookieJar,
 		@ScrobblerType(ScrobblerService.MANGAUPDATES) storage: ScrobblerStorage,
 		database: MangaDatabase,
 	): org.skepsun.kototoro.scrobbling.mangaupdates.data.MangaUpdatesRepository {
-		val okHttp = OkHttpClient.Builder().apply {
-			addInterceptor(org.skepsun.kototoro.scrobbling.mangaupdates.data.MangaUpdatesInterceptor(storage))
-			if (BuildConfig.DEBUG) {
-				addInterceptor(CurlLoggingInterceptor())
-			}
+		val okHttp = baseHttpClient.newBuilder().apply {
+			addInterceptor(org.skepsun.kototoro.scrobbling.mangaupdates.data.MangaUpdatesInterceptor(storage, cookieJar))
 		}.build()
-		return org.skepsun.kototoro.scrobbling.mangaupdates.data.MangaUpdatesRepository(context, okHttp, storage, database)
+		return org.skepsun.kototoro.scrobbling.mangaupdates.data.MangaUpdatesRepository(
+			okHttp = okHttp,
+			cookieJar = cookieJar,
+			storage = storage,
+			db = database,
+		)
 	}
 
 	@Provides

@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -1383,11 +1384,7 @@ private fun SourceQuickAccessCard(
 ) {
     val context = LocalContext.current
     val actualSource = source.source.mangaSource
-    val title = if (source.source.isPinned) {
-        "📌 ${actualSource.getTitle(context)}"
-    } else {
-        actualSource.getTitle(context)
-    }
+    val title = actualSource.getTitle(context)
     val isGridCard = browseListMode == ListMode.GRID
     val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(if (isGridCard) 14.dp else 12.dp)
     val cardBackground = if (isSelected) {
@@ -1426,6 +1423,25 @@ private fun SourceQuickAccessCard(
                     modifier = Modifier.size(metrics.iconSize),
                     contentDescription = title,
                 )
+                if (source.source.isPinned) {
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(4.dp),
+                        shape = RoundedCornerShape(999.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+                        tonalElevation = 1.dp,
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_pin_small),
+                            contentDescription = stringResource(R.string.source_pinned),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .padding(3.dp)
+                                .size(10.dp),
+                        )
+                    }
+                }
             }
             Spacer(modifier = Modifier.height(6.dp))
             Text(
@@ -1468,6 +1484,25 @@ private fun SourceQuickAccessCard(
                     modifier = Modifier.size(28.dp),
                     contentDescription = title,
                 )
+                if (source.source.isPinned) {
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(3.dp),
+                        shape = RoundedCornerShape(999.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+                        tonalElevation = 1.dp,
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_pin_small),
+                            contentDescription = stringResource(R.string.source_pinned),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .padding(2.dp)
+                                .size(9.dp),
+                        )
+                    }
+                }
             }
             Column(
                 modifier = Modifier.weight(1f),

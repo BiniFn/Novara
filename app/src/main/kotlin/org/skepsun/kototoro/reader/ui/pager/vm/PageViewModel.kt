@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.annotation.WorkerThread
 import androidx.core.net.toFile
 import coil3.ImageLoader
+import com.davemorrissey.labs.subscaleview.decoder.ImageDecodeException
 import com.davemorrissey.labs.subscaleview.DefaultOnImageEventListener
 import com.davemorrissey.labs.subscaleview.ImageSource
 import kotlinx.coroutines.CancellationException
@@ -182,7 +183,10 @@ class PageViewModel(
 		state.update { currentState ->
 			if (currentState is PageState.Loaded) {
 				val uri = (currentState.source as? ImageSource.Uri)?.uri
-				if (!currentState.isConverted && uri != null && e is IOException) {
+				val shouldTryConvert = !currentState.isConverted &&
+					uri != null &&
+					(e is IOException || e is ImageDecodeException || e.message?.contains("Unsupported image format") == true)
+				if (shouldTryConvert) {
 					tryConvert(uri, e)
 					PageState.Converting()
 				} else {
@@ -194,7 +198,7 @@ class PageViewModel(
 		}
 	}
 
-	private fun tryConvert(uri: Uri, e: Exception) {
+	private fun tryConvert(uri: Uri, e: Throwable) {
 		val prevJob = job
 		job = scope.launch(Dispatchers.Default) {
 			prevJob?.join()

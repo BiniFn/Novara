@@ -325,17 +325,38 @@ class DownloadsViewModel @Inject constructor(
 
 		suspend fun mapChapters(): List<DownloadChapter> {
 			val size = chapterIds?.size ?: chapters.size
-			val localChapters =
-				localContentRepository.findSavedContent(manga)?.manga?.chapters
-					?.filter { it.source.isLocal }
-					?.mapToSet { it.id }
-					.orEmpty()
+			val localChapters = localContentRepository.findSavedContent(manga)
+				?.manga
+				?.chapters
+				?.filter { it.source.isLocal }
+				.orEmpty()
+			val unmatchedLocalChapters = localChapters.toMutableList()
 			return chapters.mapNotNullTo(ArrayList(size)) {
 				if (chapterIds == null || it.id in chapterIds) {
+					val matchedLocalChapter = unmatchedLocalChapters.find { localChapter ->
+						localChapter.id == it.id
+					} ?: unmatchedLocalChapters.find { localChapter ->
+						localChapter.number == it.number &&
+							localChapter.title == it.title &&
+							(it.number > 0f || !it.title.isNullOrBlank())
+					} ?: unmatchedLocalChapters.find { localChapter ->
+						localChapter.number == it.number && it.number > 0f
+					} ?: unmatchedLocalChapters.find { localChapter ->
+						localChapter.title == it.title && !it.title.isNullOrBlank()
+					}
+					if (matchedLocalChapter != null) {
+						unmatchedLocalChapters.remove(matchedLocalChapter)
+					}
 					DownloadChapter(
 						number = it.numberString(),
-						name = it.name,
-						isDownloaded = it.id in localChapters,
+						name = it.title?.takeIf { title -> title.isNotBlank() } ?: buildString {
+							if (it.number > 0f) {
+								append("Chapter ").append(it.numberString())
+							} else {
+								append("Unnamed")
+							}
+						},
+						isDownloaded = matchedLocalChapter != null,
 					)
 				} else {
 					null

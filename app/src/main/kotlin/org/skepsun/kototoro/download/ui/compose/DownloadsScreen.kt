@@ -7,6 +7,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -198,15 +199,15 @@ fun AppDownloadsRoute(
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(items, key = {
-                when (it) {
-                    is DownloadItemModel -> "model_${it.id}"
-                    is ListHeader -> "header_${it.hashCode()}"
+            itemsIndexed(items, key = { index, item ->
+                when (item) {
+                    is DownloadItemModel -> "model_${item.id}"
+                    is ListHeader -> "header_$index"
                     is EmptyState -> "empty"
                     LoadingState -> "loading"
-                    else -> it.hashCode().toString()
+                    else -> item.hashCode().toString()
                 }
-            }) { item ->
+            }) { _, item ->
                 when (item) {
                     is LoadingState -> {
                         Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
@@ -419,7 +420,12 @@ fun DownloadItemRow(
                                 modifier = Modifier.weight(1f)
                             )
                             if (chapter.isDownloaded) {
-                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
                             }
                         }
                     }

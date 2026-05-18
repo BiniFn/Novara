@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.details.ui.compose
 
+import android.text.format.Formatter
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -64,6 +65,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -117,6 +119,7 @@ import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
 import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
+import org.skepsun.kototoro.core.util.ext.computeSize
 import org.skepsun.kototoro.core.util.ext.toLocaleOrNull
 import org.skepsun.kototoro.details.data.ContentDetails
 import org.skepsun.kototoro.discover.ui.details.LocalSearchState
@@ -242,6 +245,15 @@ fun DetailsHeader(
     } else {
         "-"
     }
+    val localContent = mangaDetails?.local
+    val onDeviceSizeLabel by produceState<String?>(initialValue = null, key1 = localContent?.file?.absolutePath) {
+        val file = localContent?.file
+        value = if (file != null && file.exists()) {
+            Formatter.formatFileSize(context, file.computeSize())
+        } else {
+            null
+        }
+    }
     val metadataSourceOption = metadataSourceOptions.firstOrNull { it.isSelected } ?: metadataSourceOptions.firstOrNull()
     val readingSourceOption = readingSourceOptions.firstOrNull { it.isSelected } ?: readingSourceOptions.firstOrNull()
     val commentsLabel = stringResource(R.string.details_comments)
@@ -331,6 +343,15 @@ fun DetailsHeader(
                 iconRes = R.drawable.ic_book_page,
             ),
         )
+        if (localContent != null) {
+            add(
+                DetailsInfoItem(
+                    label = stringResource(R.string.on_device),
+                    value = onDeviceSizeLabel ?: "-",
+                    iconRes = R.drawable.ic_storage,
+                ),
+            )
+        }
     }
 
     Column(

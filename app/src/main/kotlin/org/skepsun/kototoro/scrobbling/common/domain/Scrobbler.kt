@@ -37,6 +37,9 @@ abstract class Scrobbler(
 	protected val statuses = EnumMap<ScrobblingStatus, String>(ScrobblingStatus::class.java)
 
 	val user: Flow<ScrobblerUser> = flow {
+		if (!repository.isAuthorized) {
+			return@flow
+		}
 		repository.cachedUser?.let {
 			emit(it)
 		}

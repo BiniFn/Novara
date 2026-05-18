@@ -66,6 +66,7 @@ import org.skepsun.kototoro.core.util.ext.lifecycleScope
 import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.ramAvailable
+import org.skepsun.kototoro.core.util.ext.toBitmapOrNull
 import org.skepsun.kototoro.core.util.ext.toMimeType
 import org.skepsun.kototoro.core.util.ext.toMimeTypeOrNull
 import org.skepsun.kototoro.core.util.ext.use
@@ -216,28 +217,68 @@ class PageLoader @Inject constructor(
 	@CheckResult
 	suspend fun convertBimap(uri: Uri): Uri = convertLock.withLock {
 		if (uri.isZipUri()) {
-			runInterruptible(Dispatchers.IO) {
-				ZipFile(uri.schemeSpecificPart).use { zip ->
-					val entry = zip.getEntry(uri.fragment)
-					context.ensureRamAtLeast(entry.size * 2)
-					zip.getInputStream(entry).use {
-						BitmapDecoderCompat.decode(it, MimeTypes.getMimeTypeFromExtension(entry.name))
-					}
-				}
-			}.use { image ->
+			val image = decodeZipBitmap(uri)
+			image.use {
 				cache.set(uri.toString(), image).toUri()
 			}
 		} else {
 			val file = uri.toFile()
-			runInterruptible(Dispatchers.IO) {
-				context.ensureRamAtLeast(file.length() * 2)
-				BitmapDecoderCompat.decode(file)
-			}.use { image ->
+			val image = decodeFileBitmap(file)
+			image.use {
 				image.compressToPNG(file)
 			}
 			uri
 		}
 	}
+
+	private suspend fun decodeZipBitmap(uri: Uri): android.graphics.Bitmap {
+		val svgBytes = runInterruptible(Dispatchers.IO) {
+			ZipFile(uri.schemeSpecificPart).use { zip ->
+				val entry = checkNotNull(zip.getEntry(uri.fragment)) {
+					"Zip entry not found: ${uri.fragment}"
+				}
+				val mimeType = MimeTypes.getMimeTypeFromExtension(entry.name)
+				if (mimeType?.subtype == "svg+xml") {
+					zip.getInputStream(entry).use { it.readBytes() }
+				} else {
+					null
+				}
+			}
+		}
+		if (svgBytes != null) {
+			return decodeSvgBitmap(svgBytes)
+		}
+		return runInterruptible(Dispatchers.IO) {
+			ZipFile(uri.schemeSpecificPart).use { zip ->
+				val entry = checkNotNull(zip.getEntry(uri.fragment)) {
+					"Zip entry not found: ${uri.fragment}"
+				}
+				context.ensureRamAtLeast(entry.size * 2)
+				zip.getInputStream(entry).use {
+					BitmapDecoderCompat.decode(it, MimeTypes.getMimeTypeFromExtension(entry.name))
+				}
+			}
+		}
+	}
+
+	private suspend fun decodeFileBitmap(file: File): android.graphics.Bitmap {
+		val mimeType = runInterruptible(Dispatchers.IO) {
+			BitmapDecoderCompat.probeMimeType(file)
+		}
+		if (mimeType?.subtype == "svg+xml") {
+			return decodeSvgBitmap(file)
+		}
+		return runInterruptible(Dispatchers.IO) {
+			context.ensureRamAtLeast(file.length() * 2)
+			BitmapDecoderCompat.decode(file)
+		}
+	}
+
+	private suspend fun decodeSvgBitmap(data: Any) = imageLoader.execute(
+		ImageRequest.Builder(context)
+			.data(data)
+			.build(),
+	).toBitmapOrNull() ?: error("Failed to decode svg image")
 
 	suspend fun getTrimmedBounds(uri: Uri): Rect? = runCatchingCancellable {
 		edgeDetector.getBounds(ImageSource.uri(uri))

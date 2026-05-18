@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -111,19 +112,19 @@ fun FeedScreen(
 					onCategorySelected = onCategorySelected,
 				)
 			}
-			items(
+			itemsIndexed(
 				items = items,
-				key = { item ->
+				key = { index, item ->
 					when (item) {
 						is FeedItem -> "feed_${item.id}"
 						is UpdatedContentHeader -> "updates_header"
-						is ListHeader -> "header_${item.hashCode()}"
+						is ListHeader -> "header_${item.getText(context)}_$index"
 						is LoadingState -> "loading"
 						is EmptyState -> "empty"
 						else -> item.hashCode().toString()
 					}
 				},
-				contentType = { item ->
+				contentType = { _, item ->
 					when (item) {
 						is FeedItem -> "feed_item"
 						is UpdatedContentHeader -> "updated_carousel"
@@ -131,7 +132,7 @@ fun FeedScreen(
 						else -> "feed_other"
 					}
 				},
-			) { item ->
+			) { _, item ->
 				when (item) {
 					is FeedItem -> {
 						FeedItemCard(

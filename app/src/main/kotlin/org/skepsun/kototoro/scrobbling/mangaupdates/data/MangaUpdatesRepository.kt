@@ -1,8 +1,6 @@
 package org.skepsun.kototoro.scrobbling.mangaupdates.data
 
-import android.content.Context
 import androidx.room.withTransaction
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -12,6 +10,8 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.json.JSONArray
@@ -42,8 +42,8 @@ private const val DISCOVERY_PAGE_SIZE = 25
 private val CONTENT_TYPE = "application/vnd.api+json".toMediaType()
 
 class MangaUpdatesRepository(
-	@ApplicationContext context: Context,
 	private val okHttp: OkHttpClient,
+	private val cookieJar: MutableCookieJar,
 	private val storage: ScrobblerStorage,
 	private val db: MangaDatabase,
 ) : ScrobblerRepository {
@@ -51,7 +51,7 @@ class MangaUpdatesRepository(
 	override val oauthUrl: String = "kototoro+mangaupdates://auth"
 
 	override val isAuthorized: Boolean
-		get() = storage.accessToken != null
+		get() = storage.accessToken != null || storage.user != null
 
 	override val cachedUser: ScrobblerUser?
 		get() = storage.user
@@ -71,10 +71,24 @@ class MangaUpdatesRepository(
 			.put(payload.toString().toRequestBody(CONTENT_TYPE))
 			.url("$BASE_API_URL/account/login")
 		
-		val response = okHttp.newCall(request.build()).await().parseJson()
-		val contextJson = response.getJSONObject("context")
-		storage.accessToken = contextJson.getString("session_token")
-		// Save the uid as refresh_token just for id purpose or keep it in user info
+		val response = okHttp.newCall(request.build()).await().use { rawResponse ->
+			val body = rawResponse.body.string()
+			val json = body.toJsonObject("login")
+			if (!rawResponse.isSuccessful || json.isExceptionResponse()) {
+				throw IOException(
+					json.extractFailureReason()
+						?: "MangaUpdates login failed with HTTP ${rawResponse.code}",
+				)
+			}
+			json
+		}
+		storage.accessToken = response.extractSessionToken()
+		if (storage.accessToken == null && !hasSessionCookies()) {
+			throw IOException(
+				response.extractFailureReason()
+					?: "MangaUpdates login succeeded but no reusable session was returned",
+			)
+		}
 	}
 
 	override suspend fun loadUser(): ScrobblerUser {
@@ -101,6 +115,35 @@ class MangaUpdatesRepository(
 		).also { storage.user = it }
 	}
 
+	private fun JSONObject.extractSessionToken(): String? {
+		optJSONObject("context")
+			?.getStringOrNull("session_token")
+			?.takeIf { it.isNotBlank() }
+			?.let { return it }
+		return getStringOrNull("session_token")?.takeIf { it.isNotBlank() }
+	}
+
+	private fun JSONObject.extractFailureReason(): String? {
+		return getStringOrNull("reason")?.takeIf { it.isNotBlank() }
+	}
+
+	private fun JSONObject.isExceptionResponse(): Boolean {
+		return optString("status").equals("exception", ignoreCase = true)
+	}
+
+	private fun String.toJsonObject(responseName: String): JSONObject {
+		return try {
+			JSONObject(this)
+		} catch (e: JSONException) {
+			throw IOException("Invalid MangaUpdates $responseName response: ${take(200)}", e)
+		}
+	}
+
+	private fun hasSessionCookies(): Boolean {
+		return cookieJar.loadForRequest("$BASE_API_URL/".toHttpUrl()).isNotEmpty() ||
+			cookieJar.loadForRequest("$BASE_WEB_URL/".toHttpUrl()).isNotEmpty()
+	}
+
 	override fun logout() {
 		runCatching {
 			// Try to call logout api
@@ -109,6 +152,8 @@ class MangaUpdatesRepository(
 				.url("$BASE_API_URL/account/logout")
 			okHttp.newCall(request.build()).execute()
 		}
+		cookieJar.removeCookies("$BASE_API_URL/".toHttpUrl(), null)
+		cookieJar.removeCookies("$BASE_WEB_URL/".toHttpUrl(), null)
 		storage.clear()
 	}
 
