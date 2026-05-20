@@ -37,11 +37,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.LocalContext
+import dagger.hilt.android.EntryPointAccessors
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlin.math.floor
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.BaseApp
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.widgets.ChipsView
@@ -448,6 +450,15 @@ fun QuickFilterSection(
     quickFilter: QuickFilter,
     onQuickFilterOptionClick: (ListFilterOption) -> Unit,
 ) {
+    val context = LocalContext.current
+    val entryPoint = remember(context.applicationContext) {
+        runCatching {
+            EntryPointAccessors.fromApplication(
+                context.applicationContext,
+                BaseApp.BaseAppEntryPoint::class.java,
+            )
+        }.getOrNull()
+    }
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -484,7 +495,7 @@ fun QuickFilterSection(
                 ),
                 label = {
                     Text(
-                        text = buildChipLabel(chip),
+                        text = buildChipLabel(chip, entryPoint),
                         maxLines = 1,
                     )
                 },
@@ -770,15 +781,35 @@ private fun listModelComposeKey(
 }
 
 @Composable
-private fun buildChipLabel(chip: ChipsView.ChipModel): String {
+private fun buildChipLabel(
+    chip: ChipsView.ChipModel,
+    entryPoint: BaseApp.BaseAppEntryPoint?,
+): String {
     val title = when {
         chip.titleResId != 0 -> stringResource(chip.titleResId)
-        chip.title != null -> chip.title.toString()
-        else -> ""
+        else -> resolveFilterChipTitle(chip, entryPoint)
     }
     return if (chip.counter > 0) {
         "$title ${chip.counter}"
     } else {
         title
     }
+}
+
+private fun resolveFilterChipTitle(
+    chip: ChipsView.ChipModel,
+    entryPoint: BaseApp.BaseAppEntryPoint?,
+): String {
+    val sourceOption = chip.data as? ListFilterOption.Source
+    if (sourceOption != null && sourceOption.mangaSource.name.startsWith("MIHON_")) {
+        val resolvedTitle = entryPoint
+            ?.mihonExtensionManager()
+            ?.getMihonMangaSourceByName(sourceOption.mangaSource.name)
+            ?.displayName
+            ?.takeIf { it.isNotBlank() }
+        if (resolvedTitle != null) {
+            return resolvedTitle
+        }
+    }
+    return chip.title?.toString().orEmpty()
 }
