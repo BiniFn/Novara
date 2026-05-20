@@ -259,8 +259,8 @@ class DetailsPaneState internal constructor(
         isCompactLayout: Boolean,
     ): DetailsPaneTopBarMode {
         return when {
+            isGridSizeControlsVisible -> DetailsPaneTopBarMode.GridSizeControls
             chapterSelectionState != null && selectedTabId == chaptersTabId -> DetailsPaneTopBarMode.ChapterSelection
-            isGridSizeControlsVisible && selectedTabId != chaptersTabId -> DetailsPaneTopBarMode.GridSizeControls
             selectedTabId == chaptersTabId && (anchor == CompactDetailsPaneAnchor.Full || !isCompactLayout) -> DetailsPaneTopBarMode.ExpandedChapterTools
             anchor == CompactDetailsPaneAnchor.Full || !isCompactLayout -> DetailsPaneTopBarMode.ExpandedGridTools
             else -> DetailsPaneTopBarMode.CollapsedReadDock

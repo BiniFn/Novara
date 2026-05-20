@@ -29,6 +29,8 @@ import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.ReaderIntent
+import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.util.ext.findActivity
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.observeEvent
@@ -60,6 +62,12 @@ fun ChaptersScreenRoot(
 	val chapters by viewModel.chapters.collectAsStateWithLifecycle(initialValue = emptyList())
 	val selectedBranch by viewModel.selectedBranch.collectAsStateWithLifecycle(initialValue = null)
 	var qualityProbeResult by remember { mutableStateOf<ChaptersPagesViewModel.QualityProbeResult?>(null) }
+
+	val appContext = context.applicationContext
+	val settings = remember(appContext) { AppSettings(appContext) }
+	val gridSize by settings.observeAsState(AppSettings.KEY_GRID_SIZE_PAGES) { gridSizePages }
+
+	val gridScale = (gridSize / 100f)
 	
 	val chaptersWithHeaders = remember(chapters) {
 		chapters.withVolumeHeaders(context)
@@ -226,7 +234,7 @@ fun ChaptersScreenRoot(
 			isGridView = isGridView,
 			isScrollEnabled = isScrollEnabled,
 			detailsPaneState = detailsPaneState,
-			gridSpanCount = 2,
+			gridScale = gridScale,
 			selectedItemIds = selectedIds,
 			filterChips = quickFilter,
 			isLoading = isLoading,

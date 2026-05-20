@@ -410,7 +410,7 @@ private fun MetadataChapterPanel(
 			items = items,
 			isGridView = isGridView,
 			isScrollEnabled = isScrollEnabled,
-			gridSpanCount = 2,
+			gridScale = 1.0f,
 			selectedItemIds = emptySet(),
 			filterChips = emptyList(),
 			isLoading = false,

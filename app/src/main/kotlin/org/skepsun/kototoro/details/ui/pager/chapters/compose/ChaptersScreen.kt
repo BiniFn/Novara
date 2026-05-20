@@ -3,6 +3,7 @@ package org.skepsun.kototoro.details.ui.pager.chapters.compose
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -45,6 +46,7 @@ import org.skepsun.kototoro.details.ui.model.chapterFastScrollLabelAt
 import org.skepsun.kototoro.details.ui.model.ChapterListItem
 import org.skepsun.kototoro.list.ui.model.CollapsibleListHeader
 import org.skepsun.kototoro.list.ui.model.ListModel
+import kotlin.math.floor
 
 @Composable
 fun ChaptersScreen(
@@ -52,7 +54,7 @@ fun ChaptersScreen(
     isGridView: Boolean,
     isScrollEnabled: Boolean = true,
     detailsPaneState: DetailsPaneState? = null,
-    gridSpanCount: Int,
+    gridScale: Float,
     selectedItemIds: Set<Long>,
     filterChips: List<ChipModel>,
     isLoading: Boolean,
@@ -158,17 +160,31 @@ fun ChaptersScreen(
                             .padding(16.dp),
                     )
                 } else if (isGridView) {
-                    LazyVerticalGrid(
-                        state = gridState,
-                        columns = GridCells.Fixed(gridSpanCount),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        userScrollEnabled = isScrollEnabled,
+                    BoxWithConstraints(
                         modifier = Modifier
                             .fillMaxSize()
                             .then(paneNestedScrollModifier),
                     ) {
+                        val gridSpacing = 4.dp
+                        val horizontalPadding = 16.dp * 2
+                        val availableWidth = maxWidth - horizontalPadding
+                        val targetCardWidthDp = (gridScale * 100).dp.coerceIn(60.dp, 200.dp)
+                        val gridSpanCount = remember(availableWidth, targetCardWidthDp, gridSpacing) {
+                            floor(
+                                ((availableWidth + gridSpacing) / (targetCardWidthDp + gridSpacing))
+                                    .toDouble(),
+                            ).toInt().coerceAtLeast(2)
+                        }
+
+                        LazyVerticalGrid(
+                            state = gridState,
+                            columns = GridCells.Fixed(gridSpanCount),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(gridSpacing),
+                            horizontalArrangement = Arrangement.spacedBy(gridSpacing),
+                            userScrollEnabled = isScrollEnabled,
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
                         items(
                             count = items.size,
                             key = { index ->
@@ -201,12 +217,13 @@ fun ChaptersScreen(
                                 }
                             }
                         }
+                        }
+                        VerticalScrollbar(
+                            state = gridState,
+                            draggable = isScrollEnabled,
+                            labelProvider = fastScrollLabelProvider,
+                        )
                     }
-                    VerticalScrollbar(
-                        state = gridState,
-                        draggable = isScrollEnabled,
-                        labelProvider = fastScrollLabelProvider,
-                    )
                 } else {
                     LazyColumn(
                         state = listState,

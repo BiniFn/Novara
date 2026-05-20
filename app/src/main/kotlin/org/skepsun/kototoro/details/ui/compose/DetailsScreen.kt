@@ -135,8 +135,8 @@ import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
-import org.skepsun.kototoro.core.util.FoldableUtils
 import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
+import org.skepsun.kototoro.core.util.FoldableUtils
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
@@ -2368,6 +2368,7 @@ private fun DetailsPaneActionsRow(
                                 onToggleChaptersReversed = onToggleChaptersReversed,
                                 onToggleChaptersGrid = onToggleChaptersGrid,
                                 onToggleDownloadedOnly = onToggleDownloadedOnly,
+                                onShowGridSizeControls = detailsPaneState::showGridSizeControls,
                             )
                         } else {
                             ReadDock(
@@ -2402,6 +2403,7 @@ private fun DetailsPaneActionsRow(
                                 onToggleChaptersReversed = onToggleChaptersReversed,
                                 onToggleChaptersGrid = onToggleChaptersGrid,
                                 onToggleDownloadedOnly = onToggleDownloadedOnly,
+                                onShowGridSizeControls = detailsPaneState::showGridSizeControls,
                             )
                         }
                     }
@@ -2572,6 +2574,7 @@ private fun ExpandedPaneUtilityDock(
     onToggleChaptersReversed: () -> Unit,
     onToggleChaptersGrid: () -> Unit,
     onToggleDownloadedOnly: () -> Unit,
+    onShowGridSizeControls: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -2636,6 +2639,15 @@ private fun ExpandedPaneUtilityDock(
                             onToggleChaptersGrid()
                         },
                     )
+                    if (isChaptersInGridView) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.display_options)) },
+                            onClick = {
+                                expanded = false
+                                onShowGridSizeControls()
+                            },
+                        )
+                    }
                     if (isDownloadedFilterVisible) {
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.downloaded)) },
