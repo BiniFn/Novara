@@ -147,7 +147,7 @@ fun ChaptersScreen(
                     .fillMaxSize()
                     .weight(1f),
             ) {
-                if (isLoading) {
+                if (isLoading && items.isEmpty()) {
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 } else if (items.isEmpty() && emptyMessageResId != null && emptyMessageResId != 0) {
                     Text(
