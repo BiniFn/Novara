@@ -1,13 +1,13 @@
-﻿package org.skepsun.kototoro.details.ui.pager
+package org.skepsun.kototoro.details.ui.pager
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -16,11 +16,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.tabs.TabLayout
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -30,7 +34,6 @@ import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.ui.sheet.AdaptiveSheetBehavior.Companion.STATE_COLLAPSED
 import org.skepsun.kototoro.core.ui.sheet.AdaptiveSheetBehavior.Companion.STATE_DRAGGING
 import org.skepsun.kototoro.core.ui.sheet.AdaptiveSheetBehavior.Companion.STATE_EXPANDED
 import org.skepsun.kototoro.core.ui.sheet.AdaptiveSheetBehavior.Companion.STATE_SETTLING
@@ -47,9 +50,9 @@ import org.skepsun.kototoro.details.ui.DetailsViewModel
 import org.skepsun.kototoro.details.ui.ReadButtonDelegate
 import org.skepsun.kototoro.details.ui.pager.bookmarks.BookmarksViewModel
 import org.skepsun.kototoro.details.ui.pager.bookmarks.compose.BookmarksScreenRoot
-import org.skepsun.kototoro.details.ui.pager.chapters.compose.ChaptersScreenRoot
 import org.skepsun.kototoro.details.ui.pager.chapters.compose.ChapterSelectionBar
 import org.skepsun.kototoro.details.ui.pager.chapters.compose.ChapterSelectionUiState
+import org.skepsun.kototoro.details.ui.pager.chapters.compose.ChaptersScreenRoot
 import org.skepsun.kototoro.details.ui.pager.pages.PagesViewModel
 import org.skepsun.kototoro.details.ui.pager.pages.compose.PagesScreenRoot
 import org.skepsun.kototoro.download.ui.worker.DownloadStartedObserver
@@ -74,6 +77,16 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
 
     private var isFoldUnfolded: Boolean = false
     private var activeTabs: List<Int> = emptyList()
+    private var halfHeightPx: Int = BottomSheetBehavior.PEEK_HEIGHT_AUTO
+    private var threeQuarterHeightPx: Int = BottomSheetBehavior.PEEK_HEIGHT_AUTO
+    private var hasAppliedInitialState: Boolean = false
+    private var lastKnownSheetTop: Int = -1
+    private var pendingSnapBottomSheet: View? = null
+    private val snapAfterSlideIdle = Runnable {
+        val bottomSheet = pendingSnapBottomSheet ?: return@Runnable
+        Log.d(LOG_TAG, "snapAfterSlideIdle: top=$lastKnownSheetTop")
+        snapToNearestAnchor(bottomSheet)
+    }
 
     override fun onCreateViewBinding(inflater: LayoutInflater, container: ViewGroup?): SheetChaptersPagesBinding {
         return SheetChaptersPagesBinding.inflate(inflater, container, false)
@@ -203,6 +216,8 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
         }
         binding.tabs.isVisible = tabsList.size > 1
 
+        installThreeStateSheetBehavior(binding)
+
         val menuProvider = ChapterPagesMenuProvider(
             viewModel = viewModel,
             sheet = this,
@@ -238,7 +253,12 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
 
     override fun onStateChanged(bottomSheet: View, newState: Int) {
         val binding = viewBinding ?: return
-        binding.layoutTouchBlock.isTouchEventsAllowed = dialog != null || newState != STATE_COLLAPSED
+        lastKnownSheetTop = bottomSheet.top
+        binding.layoutTouchBlock.isTouchEventsAllowed = dialog != null || newState != BottomSheetBehavior.STATE_HIDDEN
+        Log.d(
+            LOG_TAG,
+            "onStateChanged: state=${stateName(newState)}, top=${bottomSheet.top}, height=${bottomSheet.height}, halfHeightPx=$halfHeightPx, threeQuarterHeightPx=$threeQuarterHeightPx",
+        )
         if (newState == STATE_DRAGGING || newState == STATE_SETTLING) {
             return
         }
@@ -246,7 +266,13 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
         binding.splitButtonRead.isVisible = newState != STATE_EXPANDED && viewModel is DetailsViewModel
     }
 
-    override fun onSlide(bottomSheet: View, slideOffset: Float) = Unit
+    override fun onSlide(bottomSheet: View, slideOffset: Float) {
+        lastKnownSheetTop = bottomSheet.top
+        pendingSnapBottomSheet = bottomSheet
+        viewBinding?.root?.removeCallbacks(snapAfterSlideIdle)
+        viewBinding?.root?.postDelayed(snapAfterSlideIdle, SNAP_IDLE_DELAY_MS)
+        Log.d(LOG_TAG, "onSlide: offset=$slideOffset, top=${bottomSheet.top}, height=${bottomSheet.height}")
+    }
 
     override fun onTabSelected(tab: TabLayout.Tab?) = Unit
 
@@ -262,6 +288,99 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
     override fun unlock() {
         super.unlock()
         adjustLockState()
+    }
+
+    private fun installThreeStateSheetBehavior(binding: SheetChaptersPagesBinding) {
+        val bottomDialog = dialog as? BottomSheetDialog ?: return
+        val behavior = bottomDialog.behavior
+        val bottomSheet = bottomDialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
+        pendingSnapBottomSheet = bottomSheet
+        binding.root.doOnLayout {
+            val windowHeight = (binding.root.rootView.height).takeIf { it > 0 } ?: binding.root.height
+            if (windowHeight <= 0) {
+                return@doOnLayout
+            }
+            val halfHeight = (windowHeight * HALF_HEIGHT_RATIO)
+                .toInt()
+                .coerceAtLeast(MIN_HALF_HEIGHT_PX)
+                .coerceAtMost(windowHeight)
+            val threeQuarterHeight = (windowHeight * THREE_QUARTER_HEIGHT_RATIO)
+                .toInt()
+                .coerceAtLeast(halfHeight)
+                .coerceAtMost(windowHeight)
+            halfHeightPx = halfHeight
+            threeQuarterHeightPx = threeQuarterHeight
+            behavior.isFitToContents = false
+            behavior.skipCollapsed = false
+            behavior.isHideable = true
+            behavior.halfExpandedRatio = ((windowHeight - halfHeight).toFloat() / windowHeight)
+                .coerceIn(0.1f, 0.9f)
+            behavior.peekHeight = threeQuarterHeight
+            behavior.expandedOffset = 0
+            Log.d(
+                LOG_TAG,
+                "installThreeStateSheetBehavior: windowHeight=$windowHeight, halfHeight=$halfHeight, threeQuarterHeight=$threeQuarterHeight, peekHeight=${behavior.peekHeight}, halfExpandedRatio=${behavior.halfExpandedRatio}, skipCollapsed=${behavior.skipCollapsed}, isHideable=${behavior.isHideable}, state=${stateName(behavior.state)}"
+            )
+            if (!hasAppliedInitialState) {
+                hasAppliedInitialState = true
+                binding.root.post {
+                    if (behavior.state != BottomSheetBehavior.STATE_EXPANDED) {
+                        Log.d(LOG_TAG, "installThreeStateSheetBehavior: set initial state to THREE_QUARTERS")
+                        behavior.state = BottomSheetBehavior.STATE_COLLAPSED
+                    }
+                }
+            }
+        }
+    }
+
+    private fun snapToNearestAnchor(bottomSheet: View) {
+        val behavior = (dialog as? BottomSheetDialog)?.behavior ?: return
+        if (halfHeightPx <= 0 || threeQuarterHeightPx <= 0) {
+            return
+        }
+        val parentHeight = (bottomSheet.parent as? View)?.height ?: return
+        val fullTop = 0
+        val threeQuarterTop = (parentHeight - threeQuarterHeightPx).coerceAtLeast(0)
+        val halfTop = (parentHeight - halfHeightPx).coerceAtLeast(0)
+        val hiddenTop = parentHeight
+        val currentTop = lastKnownSheetTop.takeIf { it >= 0 } ?: bottomSheet.top
+        val targets = listOf(
+            BottomSheetBehavior.STATE_EXPANDED to fullTop,
+            BottomSheetBehavior.STATE_COLLAPSED to threeQuarterTop,
+            BottomSheetBehavior.STATE_HALF_EXPANDED to halfTop,
+            BottomSheetBehavior.STATE_HIDDEN to hiddenTop,
+        )
+        val targetState = targets.minByOrNull { (_, top) ->
+            kotlin.math.abs(currentTop - top)
+        }?.first ?: return
+        val targetTop = targets.first { it.first == targetState }.second
+        val currentState = behavior.state
+        if (
+            currentState == BottomSheetBehavior.STATE_EXPANDED ||
+            currentState == BottomSheetBehavior.STATE_COLLAPSED ||
+            currentState == BottomSheetBehavior.STATE_HALF_EXPANDED ||
+            currentState == BottomSheetBehavior.STATE_HIDDEN
+        ) {
+            val currentStateTop = when (currentState) {
+                BottomSheetBehavior.STATE_EXPANDED -> fullTop
+                BottomSheetBehavior.STATE_COLLAPSED -> threeQuarterTop
+                BottomSheetBehavior.STATE_HALF_EXPANDED -> halfTop
+                BottomSheetBehavior.STATE_HIDDEN -> hiddenTop
+                else -> currentTop
+            }
+            if (kotlin.math.abs(currentTop - currentStateTop) <= SNAP_POSITION_TOLERANCE_PX) {
+                viewBinding?.root?.removeCallbacks(snapAfterSlideIdle)
+                return
+            }
+        }
+        Log.d(
+            LOG_TAG,
+            "snapToNearestAnchor: currentTop=$currentTop, fullTop=$fullTop, threeQuarterTop=$threeQuarterTop, halfTop=$halfTop, hiddenTop=$hiddenTop, currentState=${stateName(currentState)}, target=${stateName(targetState)}, targetTop=$targetTop"
+        )
+        viewBinding?.root?.removeCallbacks(snapAfterSlideIdle)
+        if (behavior.state != targetState) {
+            behavior.state = targetState
+        }
     }
 
     private fun adjustLockState() {
@@ -365,7 +484,24 @@ class ChaptersPagesSheet : BaseAdaptiveSheet<SheetChaptersPagesBinding>(),
         else -> R.drawable.ic_list
     }
 
+    private fun stateName(state: Int): String = when (state) {
+        BottomSheetBehavior.STATE_COLLAPSED -> "THREE_QUARTERS"
+        BottomSheetBehavior.STATE_HALF_EXPANDED -> "HALF"
+        BottomSheetBehavior.STATE_EXPANDED -> "FULL"
+        BottomSheetBehavior.STATE_DRAGGING -> "DRAGGING"
+        BottomSheetBehavior.STATE_SETTLING -> "SETTLING"
+        BottomSheetBehavior.STATE_HIDDEN -> "HIDDEN"
+        else -> state.toString()
+    }
+
     companion object {
+        private const val LOG_TAG = "ChaptersPagesSheet"
+        private const val HALF_HEIGHT_RATIO = 0.5f
+        private const val THREE_QUARTER_HEIGHT_RATIO = 0.75f
+        private const val MIN_HALF_HEIGHT_PX = 360
+        private const val SNAP_IDLE_DELAY_MS = 90L
+        private const val SNAP_POSITION_TOLERANCE_PX = 12
+
         const val TAB_CHAPTERS = 0
         const val TAB_PAGES = 1
         const val TAB_BOOKMARKS = 2
