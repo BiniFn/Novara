@@ -12,9 +12,11 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.bookmarks.domain.Bookmark
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.ReaderIntent
+import org.skepsun.kototoro.core.util.ext.findActivity
 import org.skepsun.kototoro.details.ui.compose.state.DetailsPaneState
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
 import org.skepsun.kototoro.details.ui.pager.bookmarks.BookmarksViewModel
+import org.skepsun.kototoro.reader.ui.ReaderNavigationCallback
 
 @Composable
 fun BookmarksScreenRoot(
@@ -50,6 +52,11 @@ fun BookmarksScreenRoot(
 					selectedItemIds.add(bookmark.pageId)
 				}
 			} else {
+				val navigationCallback = (context as? ReaderNavigationCallback)
+					?: (context.findActivity() as? ReaderNavigationCallback)
+				if (navigationCallback?.onBookmarkSelected(bookmark) == true) {
+					return@BookmarksScreen
+				}
 				router.openReader(
 					ReaderIntent.Builder(context)
 						.manga(bookmark.manga)

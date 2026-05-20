@@ -248,11 +248,9 @@ fun ChaptersScreenRoot(
 				}
 			} else {
 				val manga = viewModel.getContentOrNull() ?: return@ChaptersScreen
-				val isVideo = manga.source.getContentType() == ContentType.VIDEO ||
-					manga.source.getContentType() == ContentType.HENTAI_VIDEO
 				val navigationCallback = (context as? ReaderNavigationCallback)
 					?: (context.findActivity() as? ReaderNavigationCallback)
-				if (isVideo && navigationCallback?.onChapterSelected(item.chapter) == true) {
+				if (navigationCallback?.onChapterSelected(item.chapter) == true) {
 					return@ChaptersScreen
 				}
 				router.openReader(

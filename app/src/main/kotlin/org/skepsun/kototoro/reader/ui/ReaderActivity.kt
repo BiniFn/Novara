@@ -19,6 +19,7 @@ import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
+import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.transition.Fade
@@ -63,6 +64,7 @@ import org.skepsun.kototoro.core.util.ext.postDelayed
 import org.skepsun.kototoro.core.util.ext.toUriOrNull
 import org.skepsun.kototoro.core.util.ext.zipWithPrevious
 import org.skepsun.kototoro.databinding.ActivityReaderBinding
+import org.skepsun.kototoro.details.ui.pager.ChaptersPagesSheet
 import org.skepsun.kototoro.details.ui.pager.pages.PagesSavedObserver
 import org.skepsun.kototoro.parsers.model.ContentChapter
 import org.skepsun.kototoro.reader.data.TapGridSettings
@@ -403,11 +405,13 @@ class ReaderActivity :
     }
 
     override fun onChapterSelected(chapter: ContentChapter): Boolean {
+        dismissChapterPagesSheet()
         viewModel.switchChapter(chapter.id, 0)
         return true
     }
 
     override fun onPageSelected(page: ReaderPage): Boolean {
+        dismissChapterPagesSheet()
         lifecycleScope.launch(Dispatchers.Default) {
             val pages = viewModel.content.value.pages
             val index = pages.indexOfFirst { it.chapterId == page.chapterId && it.id == page.id }
@@ -420,6 +424,12 @@ class ReaderActivity :
             }
         }
         return true
+    }
+
+    private fun dismissChapterPagesSheet() {
+        supportFragmentManager.findFragmentByTag(ChaptersPagesSheet::class.java.name)?.let {
+            (it as? DialogFragment)?.dismiss()
+        }
     }
 
     override fun onReaderModeChanged(mode: ReaderMode) {

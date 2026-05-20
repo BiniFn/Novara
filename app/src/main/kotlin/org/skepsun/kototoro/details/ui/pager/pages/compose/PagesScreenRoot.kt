@@ -13,12 +13,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.android.material.snackbar.Snackbar
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.util.ext.findActivity
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.details.ui.compose.state.DetailsPaneState
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
 import org.skepsun.kototoro.details.ui.pager.pages.PageThumbnail
 import org.skepsun.kototoro.details.ui.pager.pages.PagesViewModel
 import org.skepsun.kototoro.reader.ui.PageSaveHelper
+import org.skepsun.kototoro.reader.ui.ReaderNavigationCallback
 
 @Composable
 fun PagesScreenRoot(
@@ -84,6 +86,11 @@ fun PagesScreenRoot(
 					selectedItemIds.add(thumbnail.page.id)
 				}
 			} else {
+				val navigationCallback = (context as? ReaderNavigationCallback)
+					?: (context.findActivity() as? ReaderNavigationCallback)
+				if (navigationCallback?.onPageSelected(thumbnail.page) == true) {
+					return@PagesScreen
+				}
 				val manga = activityViewModel.getContentOrNull() ?: return@PagesScreen
 				router.openReader(
 					org.skepsun.kototoro.core.nav.ReaderIntent.Builder(context)
