@@ -13,6 +13,7 @@ import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.ContentState
 import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.RATING_UNKNOWN
+import org.skepsun.kototoro.parsers.util.longHashCode
 
 /**
  * Extension functions for converting between Mihon and Kototoro data models.
@@ -35,6 +36,7 @@ fun SManga.toKotoContent(
     val safeThumbnail = try { thumbnail_url } catch (e: UninitializedPropertyAccessException) { null }
     val absoluteThumbnailUrl = resolveUrl(baseUrl, safeThumbnail)
     val absolutePublicUrl = resolveUrl(baseUrl, safeUrl) ?: safeUrl
+    val stableUrl = safeUrl.ifBlank { absolutePublicUrl }
     
     // Safely access lateinit properties
     val safeTitle = try { title } catch (e: UninitializedPropertyAccessException) { "Unknown" }
@@ -44,13 +46,13 @@ fun SManga.toKotoContent(
     val safeDescription = try { description } catch (e: UninitializedPropertyAccessException) { null }
     val safeStatus = try { status } catch (e: UninitializedPropertyAccessException) { SManga.UNKNOWN }
     
-    android.util.Log.i("MihonDataConverters", "toKotoContent: title='$safeTitle' url='$safeUrl' -> absoluteThumbnail='$absoluteThumbnailUrl'")
-    
+    val generatedId = generateContentId(stableUrl, source.name, safeTitle)
+
     return Content(
-        id = generateContentId(safeUrl, source.name),
+        id = generatedId,
         title = safeTitle,
         altTitles = emptySet(),
-        url = safeUrl,
+        url = stableUrl,
         publicUrl = if (publicUrl.isNotBlank()) publicUrl else absolutePublicUrl,
         rating = RATING_UNKNOWN,
         contentRating = run {
@@ -242,8 +244,9 @@ fun ContentPage.toMihonPage(): Page {
 /**
  * Generate a stable ID for a manga based on URL and source.
  */
-private fun generateContentId(url: String, sourceName: String): Long {
-    return "$sourceName|manga|$url".hashCode().toLong() and Long.MAX_VALUE
+private fun generateContentId(url: String, sourceName: String, title: String): Long {
+    val identity = url.ifBlank { title.ifBlank { "unknown" } }
+    return "$sourceName|manga|$identity".longHashCode() and Long.MAX_VALUE
 }
 
 /**

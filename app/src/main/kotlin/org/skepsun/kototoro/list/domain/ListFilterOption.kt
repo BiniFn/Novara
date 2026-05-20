@@ -124,7 +124,31 @@ sealed interface ListFilterOption {
 			get() = R.drawable.ic_web
 
 		override val titleText: CharSequence?
-			get() = mangaSource.name
+			get() {
+				val unwrapped = mangaSource.unwrap()
+				return when (unwrapped) {
+					is org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserSource -> unwrapped.title
+					is org.skepsun.kototoro.mihon.model.MihonMangaSource -> unwrapped.displayName
+					is org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource -> unwrapped.displayName
+					is org.skepsun.kototoro.ireader.model.IReaderMangaSource -> unwrapped.displayName
+					is org.skepsun.kototoro.cloudstream.model.CloudstreamSource -> unwrapped.displayName
+					is org.skepsun.kototoro.core.jsonsource.JsonContentSource -> unwrapped.displayName.ifBlank { unwrapped.name }
+					is org.skepsun.kototoro.core.jsonsource.JsonSourceListSource -> unwrapped.displayName.ifBlank { unwrapped.name }
+					else -> {
+						if (unwrapped.name.startsWith("LOCAL") || unwrapped.name == "TEST") {
+							mangaSource.name
+						} else {
+							val underlying = if (unwrapped is org.skepsun.kototoro.core.extensions.PluginContentSource) unwrapped.originalSource else unwrapped
+							val titleMethod = try { underlying.javaClass.getMethod("getTitle") } catch (_: Exception) { null }
+							if (titleMethod != null) {
+								(titleMethod.invoke(underlying) as? String)?.takeIf { it.isNotBlank() } ?: mangaSource.name
+							} else {
+								mangaSource.name.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }
+							}
+						}
+					}
+				}
+			}
 
 		override val groupKey: String
 			get() = "_source"
