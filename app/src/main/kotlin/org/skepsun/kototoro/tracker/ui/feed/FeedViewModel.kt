@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -89,8 +90,14 @@ class FeedViewModel @Inject constructor(
 	val currentGroupTab = globalFavoritesState.selectedGroupTab
 	val currentSourceTags = globalFavoritesState.selectedSourceTags
 
-	val isRunning = scheduler.observeIsRunning()
+	private val workerRunning = scheduler.observeIsRunning()
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Lazily, false)
+
+	private val manualRefreshRequested = MutableStateFlow(false)
+
+	val isRefreshing = combine(workerRunning, manualRefreshRequested) { running, requested ->
+		running && requested
+	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Lazily, false)
 
 	val isHeaderEnabled = settings.observeAsStateFlow(
 		scope = viewModelScope + Dispatchers.Default,
@@ -165,6 +172,13 @@ class FeedViewModel @Inject constructor(
 		launchJob(Dispatchers.Default) {
 			repository.gc()
 		}
+		launchJob(Dispatchers.Default) {
+			workerRunning.collect { running ->
+				if (!running) {
+					manualRefreshRequested.value = false
+				}
+			}
+		}
 	}
 
 	fun clearFeed(clearCounters: Boolean) {
@@ -184,6 +198,7 @@ class FeedViewModel @Inject constructor(
 	}
 
 	fun update() {
+		manualRefreshRequested.value = true
 		scheduler.startNow()
 	}
 

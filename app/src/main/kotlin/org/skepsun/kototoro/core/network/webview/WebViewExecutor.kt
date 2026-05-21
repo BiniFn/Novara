@@ -644,9 +644,12 @@ class WebViewExecutor @Inject constructor(
         val content = activity.findViewById<ViewGroup>(android.R.id.content) ?: return null
         runCatching {
             (webView.parent as? ViewGroup)?.removeView(webView)
-            webView.alpha = 1f
-            webView.visibility = View.VISIBLE
-            webView.bringToFront()
+            // 自动 CF 解析需要真实窗口宿主，但不能把挑战页闪到当前界面上。
+            webView.alpha = 0f
+            webView.visibility = View.INVISIBLE
+            webView.isClickable = false
+            webView.isFocusable = false
+            webView.isFocusableInTouchMode = false
             content.addView(
                 webView,
                 ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),

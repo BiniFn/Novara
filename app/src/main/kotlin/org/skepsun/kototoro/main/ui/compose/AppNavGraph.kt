@@ -725,7 +725,7 @@ fun AppNavGraph(
         composable<FeedRoute> {
             val viewModel = hiltViewModel<org.skepsun.kototoro.tracker.ui.feed.FeedViewModel>()
             val items by viewModel.content.collectAsStateWithLifecycle()
-            val isRunning by viewModel.isRunning.collectAsStateWithLifecycle()
+            val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
             val categories by viewModel.categories.collectAsStateWithLifecycle()
             val selectedCategoryId by viewModel.currentCategoryId.collectAsStateWithLifecycle()
             val selectedGroupTab by viewModel.currentGroupTab.collectAsStateWithLifecycle()
@@ -786,7 +786,7 @@ fun AppNavGraph(
                 org.skepsun.kototoro.tracker.ui.feed.compose.FeedScreen(
                     contentPadding = contentPadding,
                     items = items,
-                    isRefreshing = isRunning,
+                    isRefreshing = isRefreshing,
                     onRefresh = { viewModel.update() },
                     onLoadMore = { viewModel.requestMoreItems() },
                     onFeedItemClick = { item, coverBounds ->

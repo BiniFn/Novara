@@ -42,6 +42,19 @@ class CaptchaAutoResolveCoordinator @Inject constructor(
     }
 
     suspend fun resolve(source: ContentSource, exception: CloudFlareProtectedException): Boolean {
+        return resolveInternal(source, exception, allowInteractiveFallback = true, showToast = true)
+    }
+
+    suspend fun resolveInBackground(source: ContentSource, exception: CloudFlareProtectedException): Boolean {
+        return resolveInternal(source, exception, allowInteractiveFallback = false, showToast = false)
+    }
+
+    private suspend fun resolveInternal(
+        source: ContentSource,
+        exception: CloudFlareProtectedException,
+        allowInteractiveFallback: Boolean,
+        showToast: Boolean,
+    ): Boolean {
         inFlight[source]?.let { return it.await() }
         val lastSuccessAt = recentSuccessAt[source]
         if (lastSuccessAt != null && System.currentTimeMillis() - lastSuccessAt < RECENT_SUCCESS_COOLDOWN_MS) {
@@ -55,9 +68,11 @@ class CaptchaAutoResolveCoordinator @Inject constructor(
             }
             CompletableDeferred<Boolean>().also { fresh ->
                 inFlight[source] = fresh
-                showSolvingToast()
+                if (showToast) {
+                    showSolvingToast()
+                }
                 scope.launch {
-                    runOrchestration(source, exception, fresh)
+                    runOrchestration(source, exception, allowInteractiveFallback, fresh)
                 }
             }
         }
@@ -67,14 +82,17 @@ class CaptchaAutoResolveCoordinator @Inject constructor(
     private suspend fun runOrchestration(
         source: ContentSource,
         exception: CloudFlareProtectedException,
+        allowInteractiveFallback: Boolean,
         deferred: CompletableDeferred<Boolean>,
     ) {
         try {
             val hiddenPassed = launchAndAwait(source, exception, hidden = true)
             val finalResult = if (hiddenPassed) {
                 true
-            } else {
+            } else if (allowInteractiveFallback) {
                 launchAndAwait(source, exception, hidden = false)
+            } else {
+                false
             }
             if (finalResult) {
                 recentSuccessAt[source] = System.currentTimeMillis()
