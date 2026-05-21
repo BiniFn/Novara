@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.main.ui.compose
 
+import android.view.MotionEvent
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -28,6 +29,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.unit.LayoutDirection
 
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -239,6 +241,7 @@ fun KototoroApp(
     var bottomNavHeightPx by remember { mutableIntStateOf(0) }
     var topBarOffset by remember { mutableFloatStateOf(0f) }
     var bottomNavOffset by remember { mutableFloatStateOf(0f) }
+    var isLandscapeRailInteracting by remember { mutableStateOf(false) }
     var isSearchOverlayVisible by rememberSaveable { mutableStateOf(false) }
     var isSearchOverlayMounted by rememberSaveable { mutableStateOf(false) }
     var searchOverlayInitialQuery by rememberSaveable { mutableStateOf("") }
@@ -259,13 +262,14 @@ fun KototoroApp(
     val nestedScrollConnection = remember(
         isNavBarPinned,
         isLandscapeNavigation,
+        isLandscapeRailInteracting,
         topBarHeightPx,
         bottomNavHeightPx,
         isSearchOverlayMounted,
     ) {
         object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
             override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
-                if (isSearchOverlayMounted) {
+                if (isSearchOverlayMounted || isLandscapeRailInteracting) {
                     return androidx.compose.ui.geometry.Offset.Zero
                 }
                 val dy = available.y
@@ -487,6 +491,7 @@ fun KototoroApp(
                     ) {
                         AppNavGraph(
                             navController = navController,
+                            isLandscapeNavigation = isLandscapeNavigation,
                             startDestination = startDestination,
                             contentPadding = contentPadding,
                             bottomBarOffsetPx = effectiveBottomNavOffset,
@@ -669,6 +674,20 @@ fun KototoroApp(
                     Box(
                                 modifier = Modifier
                                     .align(if (isLandscapeNavigation) Alignment.CenterStart else Alignment.BottomCenter)
+                                    .then(
+                                        if (isLandscapeNavigation) {
+                                            Modifier.pointerInteropFilter { event ->
+                                                when (event.actionMasked) {
+                                                    MotionEvent.ACTION_DOWN -> isLandscapeRailInteracting = true
+                                                    MotionEvent.ACTION_UP,
+                                                    MotionEvent.ACTION_CANCEL -> isLandscapeRailInteracting = false
+                                                }
+                                                false
+                                            }
+                                        } else {
+                                            Modifier
+                                        }
+                                    )
                                     .offset {
                                         if (isLandscapeNavigation) {
                                     androidx.compose.ui.unit.IntOffset((-effectiveBottomNavOffset).toInt(), 0)
@@ -688,6 +707,8 @@ fun KototoroApp(
                             state = navStateFlow,
                             onItemSelected = ::navigateToBottomNavItem,
                             onItemReselected = ::navigateToBottomNavItem,
+                            showContinueReadingButton = isLandscapeNavigation && isResumeEnabled,
+                            onContinueReadingClick = onResumeClick,
                         )
                     }
                 }

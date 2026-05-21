@@ -3,6 +3,8 @@ package org.skepsun.kototoro.core.ui.widgets
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -45,7 +47,9 @@ private data class BottomNavPrefs(
 fun KototoroBottomNav(
     state: StateFlow<BottomNavState>,
     onItemSelected: (Int) -> Unit,
-    onItemReselected: (Int) -> Unit
+    onItemReselected: (Int) -> Unit,
+    showContinueReadingButton: Boolean = false,
+    onContinueReadingClick: () -> Unit = {},
 ) {
     val navState by state.collectAsState()
     val clickPulses = remember { mutableStateMapOf<Int, Int>() }
@@ -166,63 +170,83 @@ fun KototoroBottomNav(
                     ),
                 windowInsets = WindowInsets(0),
             ) {
-                Spacer(modifier = Modifier.height(8.dp))
-                activeItems.forEach { item ->
-                    val isSelected = navState.selectedItemId == item.id
-                    val badge = navState.badges[item.id]
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    item {
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    if (showContinueReadingButton) {
+                        item {
+                            ContinueReadingRailButton(
+                                onClick = onContinueReadingClick,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
+                    items(
+                        items = activeItems,
+                        key = { it.id },
+                    ) { item ->
+                        val isSelected = navState.selectedItemId == item.id
+                        val badge = navState.badges[item.id]
 
-                    NavigationRailItem(
-                        selected = isSelected,
-                        onClick = {
-                            if (isSelected) {
-                                onItemReselected(item.id)
+                        NavigationRailItem(
+                            selected = isSelected,
+                            onClick = {
+                                if (isSelected) {
+                                    onItemReselected(item.id)
+                                } else {
+                                    clickPulses[item.id] = (clickPulses[item.id] ?: 0) + 1
+                                    onItemSelected(item.id)
+                                }
+                            },
+                            icon = {
+                                val indicatorShape = RoundedCornerShape(16.dp)
+                                Box(
+                                    modifier = Modifier
+                                        .then(
+                                            if (isSelected) {
+                                                Modifier
+                                                    .background(
+                                                        MaterialTheme.colorScheme.secondaryContainer,
+                                                        indicatorShape,
+                                                    )
+                                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                                            } else {
+                                                Modifier
+                                            }
+                                        ),
+                                ) {
+                                    PremiumNavigationIcon(
+                                        itemId = item.id,
+                                        isSelected = isSelected,
+                                        clickPulse = clickPulses[item.id] ?: 0,
+                                        badge = badge,
+                                        contentDescription = stringResource(item.title),
+                                    )
+                                }
+                            },
+                            label = if (isLabelsVisible) {
+                                { Text(stringResource(item.title)) }
                             } else {
-                                clickPulses[item.id] = (clickPulses[item.id] ?: 0) + 1
-                                onItemSelected(item.id)
-                            }
-                        },
-                        icon = {
-                            val indicatorShape = RoundedCornerShape(16.dp)
-                            Box(
-                                modifier = Modifier
-                                    .then(
-                                        if (isSelected) {
-                                            Modifier
-                                                .background(
-                                                    MaterialTheme.colorScheme.secondaryContainer,
-                                                    indicatorShape,
-                                                )
-                                                .padding(horizontal = 12.dp, vertical = 8.dp)
-                                        } else {
-                                            Modifier
-                                        },
-                                    ),
-                            ) {
-                                PremiumNavigationIcon(
-                                    itemId = item.id,
-                                    isSelected = isSelected,
-                                    clickPulse = clickPulses[item.id] ?: 0,
-                                    badge = badge,
-                                    contentDescription = stringResource(item.title),
-                                )
-                            }
-                        },
-                        label = if (isLabelsVisible) {
-                            { Text(stringResource(item.title)) }
-                        } else {
-                            null
-                        },
-                        alwaysShowLabel = isLabelsVisible,
-                        colors = NavigationRailItemDefaults.colors(
-                            indicatorColor = Color.Transparent,
-                            selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                            selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        ),
-                    )
+                                null
+                            },
+                            alwaysShowLabel = isLabelsVisible,
+                            colors = NavigationRailItemDefaults.colors(
+                                indicatorColor = Color.Transparent,
+                                selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.weight(1f))
             }
         }
     } else if (isFloating) {
@@ -308,6 +332,35 @@ fun KototoroBottomNav(
                 }
                 Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
             }
+        }
+    }
+}
+
+@Composable
+private fun ContinueReadingRailButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier
+            .fillMaxWidth()
+            .wrapContentHeight(),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = RoundedCornerShape(18.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_read),
+                contentDescription = null,
+                modifier = Modifier.size(22.dp),
+            )
         }
     }
 }

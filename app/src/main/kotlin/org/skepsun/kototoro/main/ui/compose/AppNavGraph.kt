@@ -110,6 +110,7 @@ fun AppNavGraph(
     onContextualMenuActionsChanged: (List<KototoroTopBarMenuAction>) -> Unit = {},
     onOpenSearch: (SearchNavigationRequest) -> Unit = {},
     onDetailsTransitionRequested: () -> Unit = {},
+    isLandscapeNavigation: Boolean = false,
 ) {
     val activity = LocalContext.current as FragmentActivity
     val appRouter = activity.router
@@ -521,7 +522,7 @@ fun AppNavGraph(
                     onStatsClick = { appRouter.openStatistic() },
                     onContinueReadingClick = { viewModel.openLastReader() },
                     onQuickFilterOptionClick = viewModel::toggleFilterOption,
-                    showContinueReadingButton = isResumeEnabled,
+                    showContinueReadingButton = isResumeEnabled && !isLandscapeNavigation,
                     bottomBarOffsetPx = bottomBarOffsetPx,
                     bottomBarHeightPx = bottomBarHeightPx,
                     showInlineSelectionTopBar = false,
