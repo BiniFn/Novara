@@ -436,11 +436,7 @@ fun KototoroApp(
     val extraPinnedBottomInsetPx = with(density) {
         if (isNavBarPinned && !isFloating) 12.dp.roundToPx() else 0
     }
-    val visibleBottomNavInsetPx = if (!isNavBarPinned && isFloating) {
-        0
-    } else {
-        (bottomNavHeightPx - effectiveBottomNavOffset).coerceAtLeast(0f).toInt() + extraPinnedBottomInsetPx
-    }
+    val visibleBottomNavInsetPx = (bottomNavHeightPx - effectiveBottomNavOffset).coerceAtLeast(0f).toInt() + extraPinnedBottomInsetPx
     val contentBottomInsetPx = if (!shouldShowChrome || isLandscapeNavigation) {
         0
     } else {

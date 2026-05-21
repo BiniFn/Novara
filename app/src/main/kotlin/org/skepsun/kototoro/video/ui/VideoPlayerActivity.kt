@@ -50,6 +50,7 @@ import org.skepsun.kototoro.core.nav.ReaderIntent
 import androidx.core.net.toUri
 import org.skepsun.kototoro.local.data.ContentIndex
 import org.skepsun.kototoro.reader.ui.ReaderState
+import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentSource as ParsersContentSource
 import org.skepsun.kototoro.cloudstream.model.CloudstreamSource
 import javax.inject.Inject
@@ -57,6 +58,8 @@ import com.google.android.material.snackbar.Snackbar
 import org.skepsun.kototoro.reader.ui.ScreenOrientationHelper
 import org.skepsun.kototoro.core.util.FoldableUtils
 import org.skepsun.kototoro.video.ui.VideoSettingsSheet
+import org.skepsun.kototoro.download.ui.worker.DownloadWorker
+import org.skepsun.kototoro.download.ui.worker.DownloadTask
 import androidx.core.view.updateLayoutParams
 import com.google.android.material.color.MaterialColors
 import androidx.core.view.WindowInsetsControllerCompat
@@ -172,6 +175,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     lateinit var videoDownloadIndex: org.skepsun.kototoro.video.data.VideoDownloadIndex
 
     @Inject
+    lateinit var downloadScheduler: DownloadWorker.Scheduler
+
+    @Inject
     lateinit var videoLocalCacheProxy: VideoLocalCacheProxy
 
     @Inject
@@ -179,6 +185,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
     // ReaderState（用于历史保存时提供章节与页信息?
     private var readerState: ReaderState? = null
+    private var mangaContent: Content? = null
     // 待应用的历史定位百分比（在播放器 STATE_READY 时按时长换算?seek?
     private var pendingInitialSeekPercent: Float? = null
     // 标志：是否已经恢复过进度（避免重复恢复）
@@ -554,6 +561,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
         // 读取传入?ReaderState（可能来自阅读器路由，用于历史保存与初始定位?
         readerState = intent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
+        mangaContent = intent.getParcelableExtraCompat<ParcelableContent>(AppRouter.KEY_MANGA)?.manga
 
         // 使用新的统一方法设置标题和副标题
         updateTitleAndSubtitle()
@@ -956,6 +964,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             }
             ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_mark_outro)?.setOnClickListener {
                 toggleOutroMarker()
+            }
+            ctl.findViewById<View>(org.skepsun.kototoro.R.id.button_playback_speed)?.setOnClickListener {
+                showPlaybackSpeedDialog()
             }
 
             // Screen lock button
@@ -1995,6 +2006,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         }
         popup.menu.add(0, 3, order++, getString(R.string.rotate_screen))
         popup.menu.add(0, 4, order++, getString(R.string.video_aspect_ratio))
+        popup.menu.add(0, 6, order++, getString(R.string.save_manga_video))
         popup.menu.add(0, 5, order, getString(R.string.video_more_settings))
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
@@ -2018,6 +2030,10 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     showVideoSettingsSheet()
                     true
                 }
+                6 -> {
+                    downloadCurrentChapter()
+                    true
+                }
                 else -> false
             }
         }
@@ -2037,6 +2053,30 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             getString(R.string.video_mark_outro) + ": " + formatTimeMs(outroStartMs)
         } else {
             getString(R.string.video_mark_outro)
+        }
+    }
+
+    private fun downloadCurrentChapter() {
+        val manga = mangaContent ?: run {
+            Snackbar.make(viewBinding.root, R.string.operation_not_supported, Snackbar.LENGTH_SHORT).show()
+            return
+        }
+        val chapterId = readerState?.chapterId ?: run {
+            Snackbar.make(viewBinding.root, R.string.operation_not_supported, Snackbar.LENGTH_SHORT).show()
+            return
+        }
+        val task = DownloadTask(
+            mangaId = manga.id,
+            isPaused = false,
+            isSilent = false,
+            chaptersIds = longArrayOf(chapterId),
+            destination = null,
+            format = null,
+            allowMeteredNetwork = true,
+        )
+        lifecycleScope.launch {
+            downloadScheduler.schedule(setOf(manga to task))
+            Snackbar.make(viewBinding.root, R.string.download_started, Snackbar.LENGTH_SHORT).show()
         }
     }
 
@@ -2113,6 +2153,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
     private fun rearrangeBottomToolbarForOrientation() {
         updateIntroOutroButtonState()
+        updatePlaybackSpeedButton()
     }
 
     private fun updatePlaybackMenu() {
@@ -2750,6 +2791,35 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    private fun showPlaybackSpeedDialog() {
+        val options = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
+        val labels = options.map { "%.2fx".format(it) }.toTypedArray()
+        val current = appSettings.videoPlaybackSpeed
+        val checked = options.indexOfFirst { kotlin.math.abs(it - current) < 0.01f }
+            .takeIf { it >= 0 } ?: 2
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.video_playback_speed)
+            .setSingleChoiceItems(labels, checked) { dialog, which ->
+                val speed = options[which]
+                appSettings.videoPlaybackSpeed = speed
+                applyPlaybackSpeed(speed)
+                updatePlaybackSpeedButton()
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun updatePlaybackSpeedButton() {
+        val speed = appSettings.videoPlaybackSpeed
+        val label = "%.2fx".format(speed)
+        allControllers().forEach { ctl ->
+            ctl.findViewById<com.google.android.material.button.MaterialButton>(
+                org.skepsun.kototoro.R.id.button_playback_speed,
+            )?.text = label
+        }
     }
 
     override fun onStop() {
