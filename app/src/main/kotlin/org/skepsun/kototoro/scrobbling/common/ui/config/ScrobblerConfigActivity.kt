@@ -62,7 +62,7 @@ class ScrobblerConfigActivity : BaseActivity<ActivityScrobblerConfigBinding>(),
 		setTitle(viewModel.titleResId)
 		setDisplayHomeAsUp(isEnabled = true, showUpAsClose = false)
 
-		val listAdapter = ScrobblingContentAdapter(this)
+		val listAdapter = ScrobblingContentAdapter(this, viewModel::onContentBound)
 		with(viewBinding.recyclerView) {
 			adapter = listAdapter
 			setHasFixedSize(true)

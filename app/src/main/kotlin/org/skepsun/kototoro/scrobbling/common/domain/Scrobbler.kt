@@ -136,6 +136,11 @@ abstract class Scrobbler(
 			}
 	}
 
+	suspend fun warmUpScrobblingInfo(info: ScrobblingInfo) {
+		warmUpScrobblingInfoInternal(info)
+		invalidateInfoCache(info.targetId, info.mediaType.orEmpty())
+	}
+
 	suspend fun unregisterScrobbling(mangaId: Long) {
 		repository.unregister(mangaId)
 	}
@@ -143,6 +148,8 @@ abstract class Scrobbler(
 	protected open suspend fun getContentInfo(entity: ScrobblingEntity): ScrobblerContentInfo {
 		return repository.getContentInfo(entity.targetId)
 	}
+
+	protected open suspend fun warmUpScrobblingInfoInternal(info: ScrobblingInfo) = Unit
 
 	protected open suspend fun fallbackScrobblingInfo(entity: ScrobblingEntity): ScrobblingInfo? = null
 
@@ -153,7 +160,12 @@ abstract class Scrobbler(
 			mediaType = mediaType,
 		)
 		val mangaInfo = infoCache[cacheKey] ?: runCatchingCancellable {
-			cachedContentInfo(this) ?: getContentInfo(this)
+			val cached = cachedContentInfo(this)
+			android.util.Log.d(
+				"Scrobbler",
+				"toScrobblingInfo: service=${scrobblerService.name}, targetId=$targetId, cachedTitle=${cached?.name}, cachedCover=${cached?.cover}",
+			)
+			cached ?: getContentInfo(this)
 		}.onFailure {
 			android.util.Log.w(
 				"Scrobbler",
@@ -168,6 +180,10 @@ abstract class Scrobbler(
 		}
 		val title = mangaInfo?.name ?: "#$targetId"
 		val coverUrl = mangaInfo?.cover ?: ""
+		android.util.Log.d(
+			"Scrobbler",
+			"toScrobblingInfo: service=${scrobblerService.name}, targetId=$targetId, finalCoverUrl=$coverUrl",
+		)
 		val description = mangaInfo?.descriptionHtml?.let { it.parseAsHtml().sanitize() } ?: ""
 		val externalUrl = mangaInfo?.url ?: ""
 		return ScrobblingInfo(
@@ -195,6 +211,12 @@ abstract class Scrobbler(
 			url = entity.remoteUrl.orEmpty(),
 			descriptionHtml = "",
 		)
+	}
+
+	private fun invalidateInfoCache(targetId: Long, mediaType: String) {
+		infoCache.entries.removeIf { (key, _) ->
+			key.targetId == targetId && key.mediaType == mediaType
+		}
 	}
 
 	private data class InfoCacheKey(

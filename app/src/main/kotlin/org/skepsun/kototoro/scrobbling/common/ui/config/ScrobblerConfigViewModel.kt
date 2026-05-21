@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
+import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.nav.AppRouter
@@ -65,6 +66,7 @@ class ScrobblerConfigViewModel @Inject constructor(
 	val onLoggedOut = MutableEventFlow<Unit>()
 
 	private var contentFirstEmitted = false
+	private val requestedPreviewKeys = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
 	val content = scrobbler.observeAllScrobblingInfo()
 		.onStart { loadingCounter.increment() }
@@ -104,6 +106,19 @@ class ScrobblerConfigViewModel @Inject constructor(
 		launchLoadingJob(Dispatchers.Default) {
 			val count = scrobbler.syncLibrary()
 			onSyncResult.call(count)
+		}
+	}
+
+	fun onContentBound(info: ScrobblingInfo) {
+		if (info.coverUrl.isNotBlank()) return
+		val key = "${info.scrobbler.id}:${info.targetId}:${info.mediaType.orEmpty()}"
+		if (!requestedPreviewKeys.add(key)) return
+		viewModelScope.launch(Dispatchers.Default) {
+			runCatching {
+				scrobbler.warmUpScrobblingInfo(info)
+			}.onFailure {
+				android.util.Log.w("ScrobblerConfigVM", "Failed to warm up preview for targetId=${info.targetId}", it)
+			}
 		}
 	}
 

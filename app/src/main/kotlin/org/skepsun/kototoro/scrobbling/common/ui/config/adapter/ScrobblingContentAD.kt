@@ -9,6 +9,7 @@ import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingInfo
 
 fun scrobblingContentAD(
 	clickListener: OnListItemClickListener<ScrobblingInfo>,
+	onBindContent: (ScrobblingInfo) -> Unit,
 ) = adapterDelegateViewBinding<ScrobblingInfo, ListModel, ItemScrobblingContentBinding>(
 	{ layoutInflater, parent -> ItemScrobblingContentBinding.inflate(layoutInflater, parent, false) },
 ) {
@@ -16,6 +17,7 @@ fun scrobblingContentAD(
 	AdapterDelegateClickListenerAdapter(this, clickListener).attach(itemView)
 
 	bind {
+		onBindContent(item)
 		binding.imageViewCover.setImageAsync(item.coverUrl)
 		binding.textViewTitle.text = item.title
 		binding.ratingBar.rating = item.rating * binding.ratingBar.numStars

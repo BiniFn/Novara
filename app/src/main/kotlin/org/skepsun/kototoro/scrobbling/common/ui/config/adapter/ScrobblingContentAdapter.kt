@@ -9,11 +9,12 @@ import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingInfo
 
 class ScrobblingContentAdapter(
 	clickListener: OnListItemClickListener<ScrobblingInfo>,
+	onBindContent: (ScrobblingInfo) -> Unit,
 ) : BaseListAdapter<ListModel>() {
 
 	init {
 		addDelegate(ListItemType.HEADER, scrobblingHeaderAD())
 		addDelegate(ListItemType.STATE_EMPTY, emptyStateListAD(null))
-		addDelegate(ListItemType.MANGA_SCROBBLING, scrobblingContentAD(clickListener))
+		addDelegate(ListItemType.MANGA_SCROBBLING, scrobblingContentAD(clickListener, onBindContent))
 	}
 }

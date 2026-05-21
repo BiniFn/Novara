@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.scrobbling.mangaupdates.data
 
+import android.util.Log
 import androidx.room.withTransaction
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -26,14 +27,18 @@ import org.skepsun.kototoro.parsers.util.parseJsonArray
 import org.skepsun.kototoro.parsers.util.parseRaw
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerRepository
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblerStorage
+import org.skepsun.kototoro.scrobbling.common.data.ScrobblerUserProfileRepository
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblingEntity
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContent
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerContentInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUserProfile
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUserStats
 import java.io.IOException
 import java.time.LocalDate
 
+private const val TAG = "MURepo"
 private const val BASE_API_URL = "https://api.mangaupdates.com/v1"
 private const val BASE_WEB_URL = "https://www.mangaupdates.com"
 private const val COMMENTS_PAGE_SIZE = 10
@@ -46,7 +51,7 @@ class MangaUpdatesRepository(
 	private val cookieJar: MutableCookieJar,
 	private val storage: ScrobblerStorage,
 	private val db: MangaDatabase,
-) : ScrobblerRepository {
+) : ScrobblerRepository, ScrobblerUserProfileRepository {
 
 	override val oauthUrl: String = "kototoro+mangaupdates://auth"
 
@@ -57,9 +62,10 @@ class MangaUpdatesRepository(
 		get() = storage.user
 
 	override suspend fun authorize(code: String?) {
-		if (code == null) return // No refresh available without password
+		if (code == null) return
 
 		val username = code.substringBefore(';')
+		Log.d(TAG, "authorize: attempting login for user=$username")
 		val password = code.substringAfter(';')
 
 		val payload = JSONObject().apply {
@@ -75,6 +81,7 @@ class MangaUpdatesRepository(
 			val body = rawResponse.body.string()
 			val json = body.toJsonObject("login")
 			if (!rawResponse.isSuccessful || json.isExceptionResponse()) {
+				Log.e(TAG, "authorize: login failed, code=${rawResponse.code}")
 				throw IOException(
 					json.extractFailureReason()
 						?: "MangaUpdates login failed with HTTP ${rawResponse.code}",
@@ -84,14 +91,20 @@ class MangaUpdatesRepository(
 		}
 		storage.accessToken = response.extractSessionToken()
 		if (storage.accessToken == null && !hasSessionCookies()) {
+			Log.e(TAG, "authorize: login succeeded but no session token or cookies")
 			throw IOException(
 				response.extractFailureReason()
 					?: "MangaUpdates login succeeded but no reusable session was returned",
 			)
 		}
+		Log.d(TAG, "authorize: login success, hasToken=${storage.accessToken != null}, hasCookies=${hasSessionCookies()}")
 	}
 
 	override suspend fun loadUser(): ScrobblerUser {
+		return loadUserProfile().user
+	}
+
+	override suspend fun loadUserProfile(): ScrobblerUserProfile {
 		val request = Request.Builder()
 			.get()
 			.url("$BASE_API_URL/account/profile")
@@ -101,18 +114,31 @@ class MangaUpdatesRepository(
 		} catch (e: JSONException) {
 			throw IOException("Invalid profile response: ${responseStr.take(200)}", e)
 		}
-		
+
 		val avatarUrl = response.optJSONObject("avatar")?.let { avatar ->
 			avatar.optJSONObject("url")?.getStringOrNull("original")
 				?: avatar.getStringOrNull("url")
 		}
-		
-		return ScrobblerUser(
+		val user = ScrobblerUser(
 			id = response.optLong("user_id", 0L),
 			nickname = response.optString("username", "User"),
 			avatar = avatarUrl,
 			service = ScrobblerService.MANGAUPDATES,
 		).also { storage.user = it }
+
+		val entities = db.getScrobblingDao().findAllByScrobbler(ScrobblerService.MANGAUPDATES.id)
+		val ratedEntries = entities.filter { it.rating > 0f }
+		val stats = ScrobblerUserStats(
+			mangaCount = entities.size.takeIf { it > 0 },
+			chaptersRead = entities.sumOf { it.chapter }.takeIf { it > 0 },
+			mangaMeanScore = ratedEntries
+				.takeIf { it.isNotEmpty() }
+				?.let { rated -> rated.sumOf { it.rating.toDouble() } / rated.size },
+		)
+		return ScrobblerUserProfile(
+			user = user,
+			stats = stats.takeIf { it.mangaCount != null || it.chaptersRead != null || it.mangaMeanScore != null },
+		)
 	}
 
 	private fun JSONObject.extractSessionToken(): String? {
@@ -146,7 +172,6 @@ class MangaUpdatesRepository(
 
 	override fun logout() {
 		runCatching {
-			// Try to call logout api
 			val request = Request.Builder()
 				.post(ByteArray(0).toRequestBody(null))
 				.url("$BASE_API_URL/account/logout")
@@ -676,19 +701,21 @@ class MangaUpdatesRepository(
 
 	override suspend fun createRate(mangaId: Long, content: ScrobblerContent) {
 		val scrobblerContentId = content.id
-		val payloadStr = """
-			[
-			  {
-			    "series": {
-			      "id": $scrobblerContentId
-			    },
-			    "list_id": 0,
-			    "status": {
-			      "chapter": 0
-			    }
-			  }
-			]
-		""".trimIndent()
+		Log.d(TAG, "createRate: mangaId=$mangaId, targetId=$scrobblerContentId, title=${content.name}")
+		val lines = listOf(
+			"[",
+			"  {",
+			"    \"series\": {",
+			"      \"id\": $scrobblerContentId",
+			"    },",
+			"    \"list_id\": 0,",
+			"    \"status\": {",
+			"      \"chapter\": 0",
+			"    }",
+			"  }",
+			"]",
+		)
+		val payloadStr = lines.joinToString("\n")
 
 		val request = Request.Builder()
 			.post(payloadStr.toRequestBody(CONTENT_TYPE))
@@ -696,12 +723,13 @@ class MangaUpdatesRepository(
 
 		val response = okHttp.newCall(request.build()).await()
 		if (response.isSuccessful) {
+			Log.d(TAG, "createRate: success, targetId=$scrobblerContentId")
 			val entity = ScrobblingEntity(
 				scrobbler = ScrobblerService.MANGAUPDATES.id,
 				id = scrobblerContentId.toInt(),
 				mangaId = mangaId,
 				targetId = scrobblerContentId,
-				status = "0", // READING list ID
+				status = "0",
 				chapter = 0,
 				comment = null,
 				rating = 0f
@@ -709,14 +737,18 @@ class MangaUpdatesRepository(
 			db.getScrobblingDao().upsert(entity)
 		} else {
 			val responseBodyStr = response.body?.string() ?: "Empty body"
+			Log.e(TAG, "createRate: FAILED code=${response.code}, body=${responseBodyStr.take(200)}")
 			throw IOException("Failed to create rate: ${response.code}, body: $responseBodyStr")
 		}
 	}
 
 	override suspend fun updateRate(rateId: Int, mangaId: Long, chapter: Int) {
-		// rateId here acts as the manga series id, because MU doesn't separate entry id from series id in lists update
 		val entity = db.getScrobblingDao().find(ScrobblerService.MANGAUPDATES.id, mangaId)
-			?: return
+		if (entity == null) {
+			Log.w(TAG, "updateRate(chapter): no entity for mangaId=$mangaId, skipping")
+			return
+		}
+		Log.d(TAG, "updateRate(chapter): rateId=$rateId, mangaId=$mangaId, chapter=$chapter, status=${entity.status}")
 			
 		val payload = JSONArray().apply {
 			put(JSONObject().apply {
@@ -729,8 +761,13 @@ class MangaUpdatesRepository(
 		val request = Request.Builder()
 			.post(payload.toString().toRequestBody(CONTENT_TYPE))
 			.url("$BASE_API_URL/lists/series/update")
-			
-		okHttp.newCall(request.build()).await()
+
+		val response = okHttp.newCall(request.build()).await()
+		if (response.isSuccessful) {
+			Log.d(TAG, "updateRate(chapter): success")
+		} else {
+			Log.e(TAG, "updateRate(chapter): FAILED code=${response.code}")
+		}
 
 		val updated = entity.copy(chapter = chapter)
 		db.getScrobblingDao().upsert(updated)
@@ -740,7 +777,6 @@ class MangaUpdatesRepository(
 		val entity = db.getScrobblingDao().find(ScrobblerService.MANGAUPDATES.id, mangaId)
 			?: return
 
-		// Update list status
 		val payload = JSONArray().apply {
 			put(JSONObject().apply {
 				put("series", JSONObject().apply { put("id", rateId) })
@@ -755,7 +791,6 @@ class MangaUpdatesRepository(
 			
 		okHttp.newCall(request.build()).await()
 		
-		// Update rating
 		if (rating > 0f) {
 			val scorePayload = JSONObject().apply {
 				put("rating", (rating * 10).toInt())
@@ -776,10 +811,183 @@ class MangaUpdatesRepository(
 	}
 
 	suspend fun syncLibraryFromRemote(): Int {
-		// MangaUpdates API does not provide a "list all tracked series" endpoint.
-		// Tracked manga are managed locally via manual linking.
-		// Return -1 to indicate sync is not applicable for this service.
-		return -1
+		Log.d(TAG, "syncLibrary: start fetching remote lists")
+		val oldMappings = buildOldMappings()
+		Log.d(TAG, "syncLibrary: oldMappings.size=${oldMappings.size}")
+
+		val lists = try {
+			fetchUserLists()
+		} catch (e: Exception) {
+			Log.e(TAG, "syncLibrary: failed to fetch user lists", e)
+			return -1
+		}
+
+		if (lists.isEmpty()) {
+			Log.d(TAG, "syncLibrary: no lists returned, skipping sync")
+			return 0
+		}
+
+		Log.d(TAG, "syncLibrary: fetched ${lists.size} lists: ${lists.map { "${it.first}(${it.second})" }}")
+
+		val synced = ArrayList<ScrobblingEntity>()
+		for ((listId, listStatus) in lists) {
+			try {
+				val entries = fetchListSeries(listId, listStatus, oldMappings)
+				synced.addAll(entries)
+				Log.d(TAG, "syncLibrary: listId=$listId status=$listStatus fetched ${entries.size} entries")
+			} catch (e: Exception) {
+				Log.e(TAG, "syncLibrary: failed to fetch listId=$listId", e)
+			}
+		}
+
+		db.withTransaction {
+			db.getScrobblingDao().deleteByScrobbler(ScrobblerService.MANGAUPDATES.id)
+			synced.forEach { entity ->
+				db.getScrobblingDao().upsert(entity)
+			}
+		}
+
+		Log.d(TAG, "syncLibrary: completed, synced=${synced.size}")
+		return synced.size
+	}
+
+	private suspend fun buildOldMappings(): Map<Long, Long> {
+		val existing = db.getScrobblingDao().findAllByScrobbler(ScrobblerService.MANGAUPDATES.id)
+		val mappings = LinkedHashMap<Long, Long>(existing.size)
+		for (entity in existing) {
+			val targetId = entity.targetId
+			if (targetId == 0L) continue
+			mappings.putIfAbsent(targetId, entity.mangaId)
+		}
+		return mappings
+	}
+
+	private suspend fun fetchUserLists(): List<Pair<Long, String>> {
+		val request = Request.Builder()
+			.get()
+			.url("$BASE_API_URL/lists")
+
+		val response = okHttp.newCall(request.build()).await()
+		if (!response.isSuccessful) {
+			Log.e(TAG, "fetchUserLists: HTTP ${response.code}")
+			throw IOException("Failed to fetch lists: ${response.code}")
+		}
+
+		val results = response.parseJsonArray()
+		Log.d(TAG, "fetchUserLists: raw array length=${results.length()}")
+		if (results.length() == 0) return emptyList()
+
+		val lists = mutableListOf<Pair<Long, String>>()
+		for (i in 0 until results.length()) {
+			val item = results.getJSONObject(i)
+			val listId = item.optLong("list_id", -1L)
+			val listType = item.optString("type", "").lowercase()
+			val listTitle = item.optString("title", "")
+			Log.d(TAG, "fetchUserLists: found list listId=$listId, type=$listType, title=$listTitle")
+			if (listId < 0) continue
+
+			val status = when {
+				listType == "read" -> "0"
+				listType == "wish" -> "1"
+				listType == "complete" -> "2"
+				listType == "unfinished" -> "3"
+				listType == "hold" -> "4"
+				else -> listId.toString()
+			}
+			lists.add(listId to status)
+		}
+		return lists
+	}
+
+	private suspend fun fetchListSeries(
+		listId: Long,
+		listStatus: String,
+		oldMappings: Map<Long, Long>,
+	): List<ScrobblingEntity> {
+		val synced = ArrayList<ScrobblingEntity>()
+		var page = 1
+		var hasMore = true
+
+		while (hasMore) {
+			val payload = JSONObject().apply {
+				put("page", page)
+				put("perpage", 100)
+			}
+			Log.d(TAG, "fetchListSeries: POST /lists/$listId/search page=$page")
+
+			val request = Request.Builder()
+				.post(payload.toString().toRequestBody(CONTENT_TYPE))
+				.url("$BASE_API_URL/lists/$listId/search")
+
+			val callResponse = okHttp.newCall(request.build()).await()
+			if (!callResponse.isSuccessful) {
+				val bodySnippet = runCatching { callResponse.body?.string()?.take(200) }.getOrNull() ?: ""
+				Log.w(TAG, "fetchListSeries: HTTP ${callResponse.code} body=$bodySnippet")
+				break
+			}
+
+			val json = callResponse.parseJson()
+			val results = json.optJSONArray("results")
+			if (results == null || results.length() == 0) {
+				hasMore = false
+				break
+			}
+
+			val perPage = json.optInt("per_page", 100)
+			val totalHits = json.optLong("total_hits", 0L)
+
+			for (i in 0 until results.length()) {
+				val result = results.getJSONObject(i)
+				val record = result.getJSONObject("record")
+				val series = record.optJSONObject("series") ?: continue
+				val targetId = series.optLong("id", 0L)
+				if (targetId == 0L) continue
+
+				val status = record.optJSONObject("status")
+				val chapter = status?.optInt("chapter", 0) ?: 0
+
+				val mangaId = oldMappings[targetId] ?: 0L
+
+				val entity = ScrobblingEntity(
+					scrobbler = ScrobblerService.MANGAUPDATES.id,
+					id = targetId.toInt(),
+					mangaId = mangaId,
+					targetId = targetId,
+					status = listStatus,
+					chapter = chapter,
+					comment = null,
+					rating = 0f,
+					remoteTitle = series.optString("title").takeIf { it.isNotBlank() },
+					remoteCoverUrl = null,
+					remoteUrl = series.optString("url").takeIf { it.isNotBlank() },
+				)
+				Log.d(TAG, "fetchListSeries: targetId=$targetId, title=${entity.remoteTitle}, coverUrl=${entity.remoteCoverUrl}")
+				synced.add(entity)
+			}
+
+			val totalPages = if (perPage > 0) (totalHits + perPage - 1) / perPage else 1
+			hasMore = page < totalPages
+			page++
+			Log.d(TAG, "fetchListSeries: listId=$listId page=${page - 1}/$totalPages, hasMore=$hasMore, synced=${synced.size}")
+		}
+
+		return synced
+	}
+
+	suspend fun persistRemoteCoverIfMissing(targetId: Long): Boolean {
+		if (targetId <= 0L) return false
+		val entities = db.getScrobblingDao().findAllByTargetId(ScrobblerService.MANGAUPDATES.id, targetId)
+		if (entities.isEmpty() || entities.all { !it.remoteCoverUrl.isNullOrBlank() }) {
+			return false
+		}
+		val coverUrl = fetchSeriesCover(targetId)?.takeIf { it.isNotBlank() } ?: return false
+		entities.forEach { entity ->
+			if (entity.remoteCoverUrl.isNullOrBlank()) {
+				db.getScrobblingDao().upsert(entity.copy(remoteCoverUrl = coverUrl))
+			}
+		}
+		Log.d(TAG, "persistRemoteCoverIfMissing: targetId=$targetId updated=${entities.size}")
+		return true
 	}
 
 	private fun String.toPlainText(): String {

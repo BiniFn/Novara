@@ -5,6 +5,7 @@ import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.scrobbling.common.domain.Scrobbler
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
+import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingInfo
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingStatus
 import org.skepsun.kototoro.scrobbling.mangaupdates.data.MangaUpdatesRepository
 import javax.inject.Inject
@@ -46,6 +47,11 @@ class MangaUpdatesScrobbler @Inject constructor(
 	override suspend fun onAuthorized(user: ScrobblerUser) {
 		// Sync functionality not completely ported for MU, but let's call it just in case
 		// repository.syncLibraryFromRemote()
+	}
+
+	override suspend fun warmUpScrobblingInfoInternal(info: ScrobblingInfo) {
+		if (info.coverUrl.isNotBlank()) return
+		repository.persistRemoteCoverIfMissing(info.targetId)
 	}
 
 	override suspend fun syncLibrary(): Int {
