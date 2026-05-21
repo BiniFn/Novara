@@ -29,8 +29,12 @@ abstract class CachingContentRepository(
 	final override suspend fun getDetails(manga: Content): Content = getDetails(manga, CachePolicy.ENABLED)
 
 	final override suspend fun getPages(chapter: ContentChapter, nextChapterUrl: String?): List<ContentPage> = pagesMutex.withLock(chapter.id) {
-		cache.getPages(source, chapter.url)?.let { return it }
+		cache.getPages(source, chapter.url)?.let {
+			Log.w("CachingRepo", "getPages cache-hit chapterId=${chapter.id} url=${chapter.url} pages=${it.size}")
+			return it
+		}
 		val pages = asyncSafe {
+			Log.d("CachingRepo", "getPages getPagesImpl chapterId=${chapter.id} url=${chapter.url}")
 			getPagesImpl(chapter, nextChapterUrl).distinctById()
 		}
 		cache.putPages(source, chapter.url, pages)

@@ -1151,6 +1151,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
             lifecycleScope.launch {
                 try {
                     val repo = mangaRepositoryFactory.create(manga.source)
+                    android.util.Log.w("VideoPlayer", "repo=${repo!!::class.simpleName} chapters=${manga.chapters?.size} source=${manga.source.name}")
                     val chapters = manga.chapters ?: emptyList()
                     val currentChapter = if (currentState != null) {
                         chapters.find { it.id == currentState.chapterId }
@@ -1700,7 +1701,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                     ?.let { headers ->
                         Headers.headersOf(*headers.flatMap { listOf(it.key, it.value) }.toTypedArray())
                     },
-                subtitleTracks = emptyList(),
+                subtitleTracks = page.externalSubtitleTracks.map {
+                    eu.kanade.tachiyomi.animesource.model.Track(it.url, it.lang)
+                },
             )
         }
     }

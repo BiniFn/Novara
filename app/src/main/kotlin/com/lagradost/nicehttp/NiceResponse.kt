@@ -42,6 +42,9 @@ class NiceResponse(
 		parseCookies(rawResponse)
 	}
 
+	val code: Int
+		get() = rawResponse.code
+
 	override fun toString(): String = text
 
 	private fun parseCookies(response: Response): Map<String, String> {

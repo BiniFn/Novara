@@ -1,5 +1,6 @@
 package com.lagradost.nicehttp
 
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
@@ -123,6 +124,8 @@ class Requests(
 		)
 		client.newCall(request).execute().use { response ->
 			val bodyBytes = response.body?.bytes() ?: ByteArray(0)
+			val bodyPreview = String(bodyBytes, Charsets.UTF_8).take(500)
+			Log.v(TAG, "${request.method} ${response.code} ${request.url} $bodyPreview")
 			NiceResponse(
 				rawResponse = response.newBuilder().body(bodyBytes.toResponseBody(response.body?.contentType())).build(),
 				bodyBytes = bodyBytes,
@@ -228,7 +231,9 @@ class Requests(
 		return ByteArray(0).toRequestBody(null, 0, 0)
 	}
 
-	companion object
+	companion object {
+		private const val TAG = "NiceHTTP"
+	}
 }
 
 fun requestCreator(

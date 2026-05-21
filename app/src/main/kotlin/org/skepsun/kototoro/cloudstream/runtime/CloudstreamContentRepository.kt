@@ -68,9 +68,13 @@ class CloudstreamContentRepository(
 			return emptyList()
 		}
 		val page = (offset + 1).coerceAtLeast(1)
-		val result = withContext(Dispatchers.IO) {
-			source.api.search(query, page)
-		}
+		val result = runCatching {
+			withContext(Dispatchers.IO) {
+				source.api.search(query, page)
+			}
+		}.onFailure { error ->
+			Log.e(TAG, "search exception source=${source.displayName} query=$query page=$page", error)
+		}.getOrNull()
 		if (result == null) {
 			Log.w(TAG, "search returned null source=${source.displayName} query=$query page=$page")
 			return emptyList()
@@ -85,8 +89,27 @@ class CloudstreamContentRepository(
 	}
 
 	override suspend fun getDetailsImpl(manga: Content): Content {
-		val response = withContext(Dispatchers.IO) { source.api.load(manga.url) } ?: return manga
+		val response = runCatching {
+			withContext(Dispatchers.IO) { source.api.load(manga.url) }
+		}.onFailure { error ->
+			Log.e(TAG, "load exception source=${source.displayName} url=${manga.url}", error)
+		}.getOrNull() ?: run {
+			Log.w(TAG, "load returned null source=${source.displayName} url=${manga.url}")
+			return manga
+		}
 		val chapters = response.toChapters(source)
+		Log.d(
+			TAG,
+			"load result source=${source.displayName} url=${manga.url} name=${response.name} " +
+				"type=${response::class.simpleName} chapters=${chapters.size} " +
+				"respUrl=${response.url} " +
+				when (response) {
+					is MovieLoadResponse -> "movieDataUrl=${response.dataUrl}"
+					is TvSeriesLoadResponse -> "episodesSize=${response.episodes.size}"
+					is AnimeLoadResponse -> "episodesSize=${response.episodes.entries.sumOf { it.value.size }}"
+					else -> "unk"
+				},
+		)
 		return manga.copy(
 			title = response.name.ifBlank { manga.title },
 			publicUrl = response.url.ifBlank { manga.publicUrl },
@@ -214,6 +237,7 @@ class CloudstreamContentRepository(
 
 	private fun LoadResponse.toChapters(source: CloudstreamSource): List<ContentChapter> {
 		if (this is MovieLoadResponse) {
+			Log.d(TAG, "toChapters MovieLoadResponse name=$name url=$url dataUrl=$dataUrl")
 			return listOf(
 				ContentChapter(
 					id = stableId("${source.name}|movie|$dataUrl"),
@@ -299,7 +323,8 @@ class CloudstreamContentRepository(
 	private suspend fun resolveVideoPages(chapter: ContentChapter): List<ContentPage> {
 		Log.d(
 			TAG,
-			"loadLinks start source=${source.displayName} chapterId=${chapter.id} chapterTitle=${chapter.title} locator=${chapter.url}",
+			"loadLinks start source=${source.displayName} chapterId=${chapter.id} chapterTitle=${chapter.title} " +
+				"locator=${chapter.url} branch=${chapter.branch}",
 		)
 		val subtitles = ArrayList<SubtitleFile>()
 		val links = ArrayList<ExtractorLink>()
@@ -310,6 +335,11 @@ class CloudstreamContentRepository(
 					isCasting = false,
 					subtitleCallback = { subtitle ->
 						subtitles += subtitle
+						Log.d(
+							TAG,
+							"loadLinks subtitle source=${source.displayName} chapterId=${chapter.id} " +
+								"lang=${subtitle.lang} url=${subtitle.url}",
+						)
 					},
 					callback = { link ->
 						links += link
@@ -357,10 +387,11 @@ class CloudstreamContentRepository(
 						source = source,
 					)
 				}
+		val linkTypes = links.groupingBy { it.url.substringAfterLast('.', "<none>") }.eachCount()
 		Log.d(
 			TAG,
 			"loadLinks done source=${source.displayName} chapterId=${chapter.id} success=$success links=${pages.size} " +
-				"subtitles=${subtitles.size} selected=${pages.firstOrNull()?.url}",
+				"subtitles=${subtitles.size} rawLinks=${links.size} types=$linkTypes selected=${pages.firstOrNull()?.url}",
 		)
 		return pages
 	}
@@ -453,6 +484,15 @@ class CloudstreamContentRepository(
 		)
 		return deduped.mapIndexed { index, item ->
 			item.toKotoContent(source, page, index)
+		}.also { items ->
+			if (items.isEmpty() && aggregated.isEmpty()) {
+				Log.w(
+					TAG,
+					"main page produced 0 items source=${source.displayName} page=$page slot=$requestIndex " +
+						"slotPage=$requestPage requestCount=${requests.size} selectedSectionIndex=$selectedSectionIndex " +
+						"aggregatedRaw=${aggregated.size}",
+				)
+			}
 		}
 	}
 
