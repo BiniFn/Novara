@@ -27,6 +27,9 @@
     <string name="reader_mode_hint">所选模式仅应用于当前漫画</string>
     <string name="captcha_required">需要通过人机验证</string>
     <string name="captcha_solve">开始验证</string>
+    <string name="captcha_solving">正在自动通过人机验证…</string>
+    <string name="bypass_cloudflare">绕过 Cloudflare</string>
+    <string name="bypass_cloudflare_summary">对需要此行为的图源，主页面请求会去掉部分浏览器客户端提示请求头后重放。</string>
     <string name="cookies_saved">Cookies 已保存</string>
     <string name="today">今天</string>
     <string name="select_date">选择日期</string>
@@ -1049,6 +1052,8 @@
     <string name="reader_controls_in_bottom_bar">阅读器底部控制栏</string>
     <string name="disable_captcha_notifications">禁用人机验证通知</string>
     <string name="disable_captcha_notifications_summary">启用后将不会在本内容源收到需要通过人机验证的通知，但会导致后台进程出现异常 (章节更新和推荐作品等)</string>
+    <string name="disable_captcha_auto_solve">禁用自动人机验证</string>
+    <string name="disable_captcha_auto_solve_summary">关闭后台静默自动验证。之后需要你手动完成验证。</string>
     <string name="global_search">全局搜索</string>
     <string name="badges_in_lists">显示漫画标记</string>
     <string name="chapter_volume_number">第 %1$s 卷 第 %2$s 章</string>

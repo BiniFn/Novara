@@ -41,6 +41,10 @@ public sealed class ConfigKey<T>(
 		override val defaultValue: String?,
 	) : ConfigKey<String?>("img_server")
 
+	public class InterceptCloudflare(
+		override val defaultValue: Boolean = false,
+	) : ConfigKey<Boolean>("intercept_cloudflare")
+
 	public class Toggle(
 		key: String,
 		@JvmField public val title: String,

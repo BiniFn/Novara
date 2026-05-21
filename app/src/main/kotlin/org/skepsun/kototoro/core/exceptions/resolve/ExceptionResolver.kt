@@ -23,6 +23,7 @@ import org.skepsun.kototoro.core.exceptions.UnsupportedSourceException
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.SourceSettings
 import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
 import org.skepsun.kototoro.core.util.ext.isHttpUrl
 import org.skepsun.kototoro.core.util.ext.restartApplication
@@ -52,6 +53,7 @@ class ExceptionResolver private constructor(
     private val settings: AppSettings,
     private val mangaRepositoryFactory: ContentRepository.Factory,
     private val scrobblerAuthHelperProvider: Provider<ScrobblerAuthHelper>,
+    private val captchaAutoResolveCoordinator: CaptchaAutoResolveCoordinator,
 ) {
     private val continuations = MutableScatterMap<String, Continuation<Boolean>>(1)
 
@@ -129,9 +131,15 @@ class ExceptionResolver private constructor(
         browserActionContract.launch(e)
     }
 
-    private suspend fun resolveCF(e: CloudFlareProtectedException): Boolean = suspendCoroutine { cont ->
-        continuations[CloudFlareActivity.TAG] = cont
-        cloudflareContract.launch(e)
+    private suspend fun resolveCF(e: CloudFlareProtectedException): Boolean {
+        val autoResolveEnabled = host.context?.let { !SourceSettings(it, e.source).isCaptchaAutoResolveDisabled } ?: true
+        if (autoResolveEnabled && captchaAutoResolveCoordinator.resolve(e.source, e)) {
+            return true
+        }
+        return suspendCoroutine { cont ->
+            continuations[CloudFlareActivity.TAG] = cont
+            cloudflareContract.launch(e)
+        }
     }
 
     private suspend fun resolveAuthException(source: ContentSource): Boolean {
@@ -197,6 +205,7 @@ class ExceptionResolver private constructor(
         private val settings: AppSettings,
         private val mangaRepositoryFactory: ContentRepository.Factory,
         private val scrobblerAuthHelperProvider: Provider<ScrobblerAuthHelper>,
+        private val captchaAutoResolveCoordinator: CaptchaAutoResolveCoordinator,
     ) {
 
         fun create(fragment: Fragment) = ExceptionResolver(
@@ -204,6 +213,7 @@ class ExceptionResolver private constructor(
             settings = settings,
             mangaRepositoryFactory = mangaRepositoryFactory,
             scrobblerAuthHelperProvider = scrobblerAuthHelperProvider,
+            captchaAutoResolveCoordinator = captchaAutoResolveCoordinator,
         )
 
         fun create(activity: FragmentActivity) = ExceptionResolver(
@@ -211,6 +221,7 @@ class ExceptionResolver private constructor(
             settings = settings,
             mangaRepositoryFactory = mangaRepositoryFactory,
             scrobblerAuthHelperProvider = scrobblerAuthHelperProvider,
+            captchaAutoResolveCoordinator = captchaAutoResolveCoordinator,
         )
     }
 

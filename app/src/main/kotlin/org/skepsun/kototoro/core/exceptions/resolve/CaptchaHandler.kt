@@ -74,10 +74,16 @@ class CaptchaHandler @Inject constructor(
 	private val mutex = Mutex()
 
 	@CheckResult
-	suspend fun handle(exception: CloudFlareException): Boolean = handleException(exception.source, exception, true)
+	suspend fun handle(exception: CloudFlareException, tryAutoResolve: Boolean = true): Boolean =
+		handleException(
+			source = exception.source,
+			exception = exception,
+			notify = true,
+			tryAutoResolve = tryAutoResolve,
+		)
 
 	suspend fun discard(source: ContentSource) {
-		handleException(source, null, true)
+		handleException(source, null, notify = true, tryAutoResolve = false)
 	}
 
 	override fun onError(request: ImageRequest, result: ErrorResult) {
@@ -91,6 +97,7 @@ class CaptchaHandler @Inject constructor(
 						source = e.source,
 						exception = e,
 						notify = request.extras[suppressCaptchaKey] != true,
+						tryAutoResolve = false,
 					)
 				) {
 					coilProvider.get().enqueue(request) // TODO check if ok
@@ -103,11 +110,17 @@ class CaptchaHandler @Inject constructor(
 		source: ContentSource,
 		exception: CloudFlareException?,
 		notify: Boolean,
+		tryAutoResolve: Boolean = true,
 	): Boolean = withContext(Dispatchers.Default) {
 		if (source == UnknownContentSource) {
 			return@withContext false
 		}
-		if (exception != null && webViewExecutor.tryResolveCaptcha(exception, RESOLVE_TIMEOUT)) {
+		if (
+			tryAutoResolve &&
+			exception != null &&
+			!SourceSettings(context, source).isCaptchaAutoResolveDisabled &&
+			webViewExecutor.tryResolveCaptcha(exception, RESOLVE_TIMEOUT)
+		) {
 			return@withContext true
 		}
 		mutex.withLock {

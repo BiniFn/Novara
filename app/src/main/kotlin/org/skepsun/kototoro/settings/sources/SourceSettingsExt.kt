@@ -16,7 +16,6 @@ import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserRepository
 import org.skepsun.kototoro.parsers.config.ConfigKey
 import org.skepsun.kototoro.parsers.model.ContentType
 
-import org.skepsun.kototoro.parsers.network.UserAgents
 import org.skepsun.kototoro.parsers.util.mapToArray
 import org.skepsun.kototoro.settings.utils.AutoCompleteTextViewPreference
 import org.skepsun.kototoro.settings.utils.EditTextBindListener
@@ -92,12 +91,7 @@ private suspend fun PreferenceFragmentCompat.addPreferencesFromParserRepository(
 
 			is ConfigKey.UserAgent -> {
 				AutoCompleteTextViewPreference(screen.context).apply {
-					entries = arrayOf(
-						UserAgents.FIREFOX_MOBILE,
-						UserAgents.CHROME_MOBILE,
-						UserAgents.FIREFOX_DESKTOP,
-						UserAgents.CHROME_DESKTOP,
-					)
+					entries = userAgentPresets().mapToArray { it.value }
 					summaryProvider = EditTextDefaultSummaryProvider(key.defaultValue)
 					setOnBindEditTextListener(
 						EditTextBindListener(
@@ -116,6 +110,11 @@ private suspend fun PreferenceFragmentCompat.addPreferencesFromParserRepository(
 					setDefaultValue(key.defaultValue)
 					setTitle(R.string.show_suspicious_content)
 				}
+			}
+
+			is ConfigKey.InterceptCloudflare -> {
+				// No UI - parser-controlled only
+				continue
 			}
 
 			is ConfigKey.Toggle -> {

@@ -27,6 +27,6 @@ internal fun <T> KTConfigKey<T>.toKototoro(): ConfigKey<T>? = when (this) {
 	is KTConfigKey.SplitByTranslations -> ConfigKey.SplitByTranslations(defaultValue) as ConfigKey<T>
 	is KTConfigKey.PreferredImageServer -> ConfigKey.PreferredImageServer(presetValues, defaultValue) as ConfigKey<T>
 	is KTConfigKey.DisableUpdateChecking -> null
-	is KTConfigKey.InterceptCloudflare -> null
+	is KTConfigKey.InterceptCloudflare -> ConfigKey.InterceptCloudflare(defaultValue) as ConfigKey<T>
     else -> null
 }

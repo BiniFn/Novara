@@ -1204,10 +1204,15 @@ class AppRouter private constructor(
                     }
                 }
 
-        fun cloudFlareResolveIntent(context: Context, exception: CloudFlareProtectedException): Intent =
+        fun cloudFlareResolveIntent(
+            context: Context,
+            exception: CloudFlareProtectedException,
+            hidden: Boolean = false,
+        ): Intent =
             Intent(context, CloudFlareActivity::class.java).apply {
                 data = Uri.parse(exception.url)
                 putExtra(KEY_SOURCE, exception.source.name)
+                putExtra(CloudFlareActivity.EXTRA_HIDDEN, hidden)
                 exception.headers[CommonHeaders.USER_AGENT]?.let {
                     putExtra(KEY_USER_AGENT, it)
                 }

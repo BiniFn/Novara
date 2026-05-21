@@ -233,6 +233,15 @@ class SourceComposeSettingsFragment : Fragment() {
                 },
             )
             rows += SourceSettingsSwitchRowUiState(
+                id = SourceSettings.KEY_NO_AUTO_CAPTCHA,
+                title = getString(R.string.disable_captcha_auto_solve),
+                checked = sourcePrefs.getBoolean(SourceSettings.KEY_NO_AUTO_CAPTCHA, false),
+                summary = getString(R.string.disable_captcha_auto_solve_summary),
+                onCheckedChange = { checked ->
+                    sourcePrefs.edit { putBoolean(SourceSettings.KEY_NO_AUTO_CAPTCHA, checked) }
+                },
+            )
+            rows += SourceSettingsSwitchRowUiState(
                 id = SourceSettings.KEY_SLOWDOWN,
                 title = getString(R.string.download_slowdown),
                 checked = sourcePrefs.getBoolean(SourceSettings.KEY_SLOWDOWN, false),
@@ -249,103 +258,159 @@ class SourceComposeSettingsFragment : Fragment() {
         contentType: ContentType,
         configKeys: List<ConfigKey<*>>,
     ): List<SourceSettingsRowUiState> {
-        return configKeys.map { key ->
-            when (key) {
-                is ConfigKey.Domain -> SourceSettingsTextRowUiState(
-                    id = key.key,
-                    title = getString(contentType.getDomainTitleResId()),
-                    value = sourceSettings[key],
-                    placeholder = key.defaultValue,
-                    onValueChange = onDomainValueChange@{ value ->
-                        val trimmed = value.trim()
-                        if (trimmed.isNotEmpty() && !DomainValidator.isValidDomain(trimmed)) {
-                            showToast(R.string.invalid_domain_message)
-                            return@onDomainValueChange
-                        }
-                        sourceSettings[key] = trimmed
-                    },
-                )
+        return buildList {
+            configKeys.forEach { key ->
+                when (key) {
+                    is ConfigKey.Domain -> add(
+                        SourceSettingsTextRowUiState(
+                            id = key.key,
+                            title = getString(contentType.getDomainTitleResId()),
+                            value = sourceSettings[key],
+                            placeholder = key.defaultValue,
+                            onValueChange = onDomainValueChange@{ value ->
+                                val trimmed = value.trim()
+                                if (trimmed.isNotEmpty() && !DomainValidator.isValidDomain(trimmed)) {
+                                    showToast(R.string.invalid_domain_message)
+                                    return@onDomainValueChange
+                                }
+                                sourceSettings[key] = trimmed
+                            },
+                        ),
+                    )
 
-                is ConfigKey.Text -> SourceSettingsTextRowUiState(
-                    id = key.key,
-                    title = key.title,
-                    value = sourceSettings[key],
-                    placeholder = key.defaultValue,
-                    onValueChange = { value ->
-                        sourceSettings[key] = value
-                    },
-                )
+                    is ConfigKey.Text -> add(
+                        SourceSettingsTextRowUiState(
+                            id = key.key,
+                            title = key.title,
+                            value = sourceSettings[key],
+                            placeholder = key.defaultValue,
+                            onValueChange = { value ->
+                                sourceSettings[key] = value
+                            },
+                        ),
+                    )
 
-                is ConfigKey.UserAgent -> SourceSettingsTextRowUiState(
-                    id = key.key,
-                    title = getString(R.string.user_agent),
-                    value = sourceSettings[key],
-                    placeholder = key.defaultValue,
-                    onValueChange = onUserAgentValueChange@{ value ->
-                        if (value.isNotBlank() && !isValidHeaderValue(value.trim())) {
-                            showToast(R.string.invalid_value_message)
-                            return@onUserAgentValueChange
-                        }
-                        sourceSettings[key] = value
-                    },
-                )
-
-                is ConfigKey.ShowSuspiciousContent -> SourceSettingsSwitchRowUiState(
-                    id = key.key,
-                    title = getString(R.string.show_suspicious_content),
-                    checked = sourceSettings[key],
-                    onCheckedChange = { checked ->
-                        sourceSettings[key] = checked
-                    },
-                )
-
-                is ConfigKey.Toggle -> SourceSettingsSwitchRowUiState(
-                    id = key.key,
-                    title = key.title,
-                    checked = sourceSettings[key],
-                    onCheckedChange = { checked ->
-                        sourceSettings[key] = checked
-                    },
-                )
-
-                is ConfigKey.SplitByTranslations -> SourceSettingsSwitchRowUiState(
-                    id = key.key,
-                    title = getString(R.string.split_by_translations),
-                    checked = sourceSettings[key],
-                    summary = getString(R.string.split_by_translations_summary),
-                    onCheckedChange = { checked ->
-                        sourceSettings[key] = checked
-                    },
-                )
-
-                is ConfigKey.PreferredImageServer -> SourceSettingsChoiceRowUiState(
-                    id = key.key,
-                    title = getString(R.string.image_server),
-                    value = sourceSettings[key].orEmpty(),
-                    options = key.presetValues.map { entry ->
-                        SettingsChoiceOption(
-                            entry.key.orEmpty(),
-                            entry.value ?: getString(R.string.automatic),
+                    is ConfigKey.UserAgent -> {
+                        val currentValue = sourceSettings[key]
+                        val presetOptions = buildUserAgentPresetOptions(currentValue)
+                        add(
+                            SourceSettingsChoiceRowUiState(
+                                id = "${key.key}_preset",
+                                title = getString(R.string.user_agent),
+                                value = currentValue.takeIf { value ->
+                                    presetOptions.any { it.value == value }
+                                } ?: USER_AGENT_CUSTOM_VALUE,
+                                options = presetOptions,
+                                summary = getString(R.string.custom),
+                                onValueChange = { value ->
+                                    if (value != USER_AGENT_CUSTOM_VALUE) {
+                                        sourceSettings[key] = value
+                                    }
+                                },
+                            ),
                         )
-                    },
-                    onValueChange = { value ->
-                        sourceSettings[key] = value.ifEmpty { null }
-                    },
-                )
+                        add(
+                            SourceSettingsTextRowUiState(
+                                id = key.key,
+                                title = getString(R.string.custom),
+                                value = currentValue,
+                                placeholder = key.defaultValue,
+                                onValueChange = onUserAgentValueChange@{ value ->
+                                    if (value.isNotBlank() && !isValidHeaderValue(value.trim())) {
+                                        showToast(R.string.invalid_value_message)
+                                        return@onUserAgentValueChange
+                                    }
+                                    sourceSettings[key] = value
+                                },
+                            ),
+                        )
+                    }
 
-                is ConfigKey.PreferredLanguage -> SourceSettingsChoiceRowUiState(
-                    id = key.key,
-                    title = key.title,
-                    value = sourceSettings[key],
-                    options = key.presetValues.map { entry ->
-                        SettingsChoiceOption(entry.key, entry.value)
-                    },
-                    onValueChange = { value ->
-                        sourceSettings[key] = value
-                    },
-                )
+                    is ConfigKey.ShowSuspiciousContent -> add(
+                        SourceSettingsSwitchRowUiState(
+                            id = key.key,
+                            title = getString(R.string.show_suspicious_content),
+                            checked = sourceSettings[key],
+                            onCheckedChange = { checked ->
+                                sourceSettings[key] = checked
+                            },
+                        ),
+                    )
+
+                    is ConfigKey.InterceptCloudflare -> Unit
+
+                    is ConfigKey.Toggle -> add(
+                        SourceSettingsSwitchRowUiState(
+                            id = key.key,
+                            title = key.title,
+                            checked = sourceSettings[key],
+                            onCheckedChange = { checked ->
+                                sourceSettings[key] = checked
+                            },
+                        ),
+                    )
+
+                    is ConfigKey.SplitByTranslations -> add(
+                        SourceSettingsSwitchRowUiState(
+                            id = key.key,
+                            title = getString(R.string.split_by_translations),
+                            checked = sourceSettings[key],
+                            summary = getString(R.string.split_by_translations_summary),
+                            onCheckedChange = { checked ->
+                                sourceSettings[key] = checked
+                            },
+                        ),
+                    )
+
+                    is ConfigKey.PreferredImageServer -> add(
+                        SourceSettingsChoiceRowUiState(
+                            id = key.key,
+                            title = getString(R.string.image_server),
+                            value = sourceSettings[key].orEmpty(),
+                            options = key.presetValues.map { entry ->
+                                SettingsChoiceOption(
+                                    entry.key.orEmpty(),
+                                    entry.value ?: getString(R.string.automatic),
+                                )
+                            },
+                            onValueChange = { value ->
+                                sourceSettings[key] = value.ifEmpty { null }
+                            },
+                        ),
+                    )
+
+                    is ConfigKey.PreferredLanguage -> add(
+                        SourceSettingsChoiceRowUiState(
+                            id = key.key,
+                            title = key.title,
+                            value = sourceSettings[key],
+                            options = key.presetValues.map { entry ->
+                                SettingsChoiceOption(entry.key, entry.value)
+                            },
+                            onValueChange = { value ->
+                                sourceSettings[key] = value
+                            },
+                        ),
+                    )
+                }
             }
         }
+    }
+
+    private fun buildUserAgentPresetOptions(currentValue: String): List<SettingsChoiceOption<String>> {
+        val options = mutableListOf(
+            SettingsChoiceOption(USER_AGENT_CUSTOM_VALUE, getString(R.string.custom)),
+        )
+        options += userAgentPresets().map { preset ->
+            SettingsChoiceOption(
+                value = preset.value,
+                label = preset.label,
+            )
+        }
+        if (currentValue.isNotBlank() && options.none { it.value == currentValue }) {
+            options.add(1, SettingsChoiceOption(currentValue, currentValue))
+        }
+        return options
     }
 
     private fun buildAuthRows(
@@ -472,6 +537,7 @@ class SourceComposeSettingsFragment : Fragment() {
 
         private const val KEY_AUTH_USERNAME = "auth_username"
         private const val KEY_AUTH_PASSWORD = "auth_password"
+        private const val USER_AGENT_CUSTOM_VALUE = "__custom__"
 
         fun newInstance(source: org.skepsun.kototoro.parsers.model.ContentSource) =
             SourceComposeSettingsFragment().withArgs(1) {

@@ -2,34 +2,50 @@ package org.skepsun.kototoro.core.network.webview
 
 import android.content.Context
 import android.util.AndroidRuntimeException
+import android.util.Log
+import android.view.View
+import android.view.ViewGroup
 import android.webkit.WebSettings
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.CookieManager
+import android.os.Handler
+import android.os.Looper
 import androidx.annotation.MainThread
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
 import org.skepsun.kototoro.core.exceptions.CloudFlareException
 import org.skepsun.kototoro.core.network.CommonHeaders
 import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
 import org.skepsun.kototoro.core.network.proxy.ProxyProvider
+import org.skepsun.kototoro.core.network.webview.adblock.AdBlock
 import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.parser.ParserContentRepository
+import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserRepository
 import org.skepsun.kototoro.core.parser.tvbox.TVBoxPlayback
 import org.skepsun.kototoro.core.parser.legado.LegadoNetworkUtils
+import org.skepsun.kototoro.core.ui.util.ForegroundActivityHolder
 import org.skepsun.kototoro.core.util.ext.configureForParser
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.browser.cloudflare.CloudFlareClient
+import org.skepsun.kototoro.browser.cloudflare.CloudFlareInterceptClient
+import org.skepsun.kototoro.parsers.config.ConfigKey
 import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.network.CloudFlareHelper
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import java.lang.ref.WeakReference
+import java.net.URI
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
@@ -47,11 +63,14 @@ class WebViewExecutor @Inject constructor(
 	@ApplicationContext private val context: Context,
 	private val proxyProvider: ProxyProvider,
 	private val cookieJar: MutableCookieJar,
+    private val adBlock: AdBlock,
+    private val foregroundActivityHolder: ForegroundActivityHolder,
 	private val mangaRepositoryFactoryProvider: Provider<ContentRepository.Factory>,
 ) {
 
 	private var webViewCached: WeakReference<WebView>? = null
 	private val mutex = Mutex()
+    private val recentFailureUntil = ConcurrentHashMap<String, Long>()
 
 	val defaultUserAgent: String? by lazy {
 		try {
@@ -330,32 +349,88 @@ class WebViewExecutor @Inject constructor(
 		}
 	}
 
-	suspend fun tryResolveCaptcha(exception: CloudFlareException, timeout: Long): Boolean = mutex.withLock {
-		runCatchingCancellable {
-			withContext(Dispatchers.Main.immediate) {
-				val webView = obtainWebView()
-				try {
-					exception.source.getUserAgent()?.let {
-						webView.settings.userAgentString = it
-					}
-					withTimeout(timeout) {
-						suspendCancellableCoroutine { cont ->
-							webView.webViewClient = CaptchaContinuationClient(
-								cookieJar = cookieJar,
-								targetUrl = exception.url,
-								continuation = cont,
-							)
-							webView.loadUrl(exception.url)
-						}
-					}
-				} finally {
-					webView.reset()
-				}
-			}
-		}.onFailure { e ->
-			exception.addSuppressed(e)
-			e.printStackTraceDebug()
-		}.isSuccess
+	suspend fun tryResolveCaptcha(exception: CloudFlareException, timeout: Long): Boolean {
+        val cooldownHost = runCatching { URI(exception.url).host?.lowercase() }.getOrNull()
+        if (cooldownHost != null) {
+            val now = System.currentTimeMillis()
+            val skipUntil = recentFailureUntil[cooldownHost]
+            if (skipUntil != null) {
+                if (skipUntil > now) {
+                    Log.d(TAG, "Skipping captcha auto-resolve for $cooldownHost (cooled down for ${skipUntil - now}ms)")
+                    return false
+                }
+                recentFailureUntil.remove(cooldownHost)
+            }
+        }
+        val resolved = mutex.withLock {
+            if (cooldownHost != null) {
+                val skipUntil = recentFailureUntil[cooldownHost]
+                if (skipUntil != null && skipUntil > System.currentTimeMillis()) {
+                    return@withLock false
+                }
+            }
+            runCatchingCancellable { proxyProvider.applyWebViewConfig() }.onFailure { it.printStackTraceDebug() }
+            withContext(Dispatchers.Main.immediate) {
+                val activity = foregroundActivityHolder.current
+                val webView: WebView
+                val host: ViewGroup?
+                val isThrowaway: Boolean
+                if (activity != null) {
+                    webView = WebView(activity).apply { configureForParser(null) }
+                    host = attachToHost(webView, activity)
+                    isThrowaway = true
+                } else {
+                    webView = obtainWebView()
+                    host = null
+                    isThrowaway = false
+                }
+                try {
+                    exception.source.getUserAgent()?.let {
+                        webView.settings.userAgentString = it
+                    }
+                    val useInterception = shouldUseCloudFlareInterception(exception.source)
+                    val resolved = withTimeoutOrNull(timeout) {
+                        suspendCancellableCoroutine { cont ->
+                            webView.webViewClient = createCloudFlareClient(
+                                webView = webView,
+                                exception = exception,
+                                continuation = cont,
+                                useInterception = useInterception,
+                            )
+                            webView.loadUrl(exception.url)
+                        }
+                    }
+                    if (resolved == null) {
+                        Log.w(TAG, "Captcha auto-resolve timed out for ${exception.url}, dumping page HTML:")
+                        dumpPageHtml(webView)
+                    }
+                    resolved == true
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    exception.addSuppressed(e)
+                    e.printStackTraceDebug()
+                    false
+                } finally {
+                    if (isThrowaway) {
+                        runCatching { webView.stopLoading() }
+                        webView.webViewClient = WebViewClient()
+                        host?.let { detachFromHost(webView, it) }
+                        runCatching { webView.destroy() }
+                    } else {
+                        webView.reset()
+                    }
+                }
+            }
+        }
+        if (cooldownHost != null) {
+            if (resolved) {
+                recentFailureUntil.remove(cooldownHost)
+            } else {
+                recentFailureUntil[cooldownHost] = System.currentTimeMillis() + FAILURE_COOLDOWN_MS
+            }
+        }
+        return resolved
 	}
 
 	/**
@@ -564,10 +639,132 @@ class WebViewExecutor @Inject constructor(
 		}
 	}
 
+    @MainThread
+    private fun attachToHost(webView: WebView, activity: android.app.Activity): ViewGroup? {
+        val content = activity.findViewById<ViewGroup>(android.R.id.content) ?: return null
+        runCatching {
+            (webView.parent as? ViewGroup)?.removeView(webView)
+            webView.alpha = 1f
+            webView.visibility = View.VISIBLE
+            webView.bringToFront()
+            content.addView(
+                webView,
+                ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
+            )
+        }.onFailure {
+            it.printStackTraceDebug()
+            return null
+        }
+        return content
+    }
+
+    @MainThread
+    private fun detachFromHost(webView: WebView, host: ViewGroup) {
+        runCatching { host.removeView(webView) }.onFailure { it.printStackTraceDebug() }
+    }
+
 	private fun ContentSource.getUserAgent(): String? {
 		val repository = mangaRepositoryFactoryProvider.get().create(this) as? ParserContentRepository
-		return repository?.getRequestHeaders()?.get(CommonHeaders.USER_AGENT)
+        return repository?.getRequestHeaders()?.get(CommonHeaders.USER_AGENT)
+            ?: (mangaRepositoryFactoryProvider.get().create(this) as? KotatsuParserRepository)
+                ?.getRequestHeaders()
+                ?.get(CommonHeaders.USER_AGENT)
 	}
+
+    @MainThread
+    private fun createCloudFlareClient(
+        webView: WebView,
+        exception: CloudFlareException,
+        continuation: kotlin.coroutines.Continuation<Boolean>,
+        useInterception: Boolean,
+    ): CloudFlareClient {
+        val handler = Handler(Looper.getMainLooper())
+        var finished = false
+        val resumeOnce: (Boolean) -> Unit = { result ->
+            if (!finished) {
+                finished = true
+                handler.removeCallbacksAndMessages(null)
+                continuation.resume(result)
+            }
+        }
+        val initialClearance = CloudFlareHelper.getClearanceCookie(cookieJar, exception.url)
+        val challengeDeadline = System.currentTimeMillis() + MAX_CHALLENGE_MS
+        val check = object : Runnable {
+            override fun run() {
+                if (finished) return
+                val clearance = CloudFlareHelper.getClearanceCookie(cookieJar, exception.url)
+                if (clearance != null && clearance != initialClearance) {
+                    resumeOnce(true)
+                    return
+                }
+                webView.evaluateJavascript(CF_STATE_JS) { raw ->
+                    if (finished) return@evaluateJavascript
+                    when (raw?.removeSurrounding("\"")) {
+                        "ok" -> resumeOnce(true)
+                        "error" -> resumeOnce(false)
+                        else -> if (System.currentTimeMillis() >= challengeDeadline) {
+                            resumeOnce(false)
+                        } else {
+                            handler.removeCallbacks(this)
+                            handler.postDelayed(this, CHALLENGE_POLL_INTERVAL_MS)
+                        }
+                    }
+                }
+            }
+        }
+        val callback = object : org.skepsun.kototoro.browser.cloudflare.CloudFlareCallback {
+            override fun onLoadingStateChanged(isLoading: Boolean) = Unit
+            override fun onHistoryChanged() = Unit
+
+            override fun onPageLoaded() {
+                if (finished) return
+                handler.removeCallbacks(check)
+                handler.postDelayed(check, 100L)
+            }
+
+            override fun onCheckPassed() = resumeOnce(true)
+
+            override fun onLoopDetected() = Unit
+        }
+        return if (useInterception) {
+            CloudFlareInterceptClient(
+                cookieJar = cookieJar,
+                callback = callback,
+                adBlock = adBlock,
+                targetUrl = exception.url,
+            )
+        } else {
+            CloudFlareClient(
+                cookieJar = cookieJar,
+                callback = callback,
+                adBlock = adBlock,
+                targetUrl = exception.url,
+            )
+        }
+    }
+
+    private suspend fun shouldUseCloudFlareInterception(source: ContentSource): Boolean {
+        val repository = mangaRepositoryFactoryProvider.get().create(source) as? ParserContentRepository ?: return false
+        val key = repository.getConfigKeys()
+            .filterIsInstance<ConfigKey.InterceptCloudflare>()
+            .firstOrNull()
+            ?: return false
+        return repository.getConfig()[key]
+    }
+
+    @MainThread
+    private suspend fun dumpPageHtml(webView: WebView) {
+        runCatchingCancellable {
+            val html = withTimeoutOrNull(2_000L) {
+                suspendCancellableCoroutine<String?> { cont ->
+                    webView.evaluateJavascript("document.documentElement.outerHTML") { result ->
+                        cont.resume(result)
+                    }
+                }
+            }
+            Log.w(TAG, html.orEmpty())
+        }.onFailure { it.printStackTraceDebug() }
+    }
 
 	suspend fun loginAndCheck(
 		loginUrl: String,
@@ -641,6 +838,13 @@ class WebViewExecutor @Inject constructor(
 		loadDataWithBaseURL(null, " ", "text/html", null, null)
 		clearHistory()
 	}
+
+    companion object {
+        private const val TAG = "WebViewExecutor"
+        private const val CHALLENGE_POLL_INTERVAL_MS = 700L
+        private const val MAX_CHALLENGE_MS = 11_000L
+        private const val FAILURE_COOLDOWN_MS = 30_000L
+    }
 
 	data class SniffedMediaResult(
 		val url: String,
