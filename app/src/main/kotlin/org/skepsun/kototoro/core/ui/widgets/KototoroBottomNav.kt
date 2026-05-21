@@ -125,6 +125,7 @@ fun KototoroBottomNav(
     val currentExplicitHeight by androidx.compose.animation.core.animateDpAsState(
         if (isFloating && !useNavigationRail) (navFloatingHeight + 4).dp else navHeight.dp
     )
+    val nonFloatingContentHorizontalPadding = 6.dp
     val floatingAdaptiveWidth = remember(activeItems.size, isLabelsVisible) {
         val itemWidth = if (isLabelsVisible) 80 else 68
         (activeItems.size * itemWidth + 28).dp.coerceIn(220.dp, 520.dp)
@@ -144,7 +145,7 @@ fun KototoroBottomNav(
     } else {
         GlassDefaults.regularStyle().copy(
             containerAlpha = (targetAlpha - 0.06f).coerceAtLeast(0.70f),
-            borderAlpha = 0.10f,
+            borderAlpha = 0f,
             shadowElevation = 0.dp,
         )
     }
@@ -256,12 +257,7 @@ fun KototoroBottomNav(
         GlassSurface(
             modifier = navBarModifier,
             style = navContainerStyle,
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(
-                topStart = 32.dp,
-                topEnd = 32.dp,
-                bottomStart = 0.dp,
-                bottomEnd = 0.dp,
-            ),
+            shape = RoundedCornerShape(0.dp),
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 NavigationBar(
@@ -269,7 +265,8 @@ fun KototoroBottomNav(
                     tonalElevation = 0.dp,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(currentExplicitHeight),
+                        .height(currentExplicitHeight)
+                        .padding(horizontal = nonFloatingContentHorizontalPadding),
                     windowInsets = WindowInsets(0),
                 ) {
                     activeItems.forEach { item ->
