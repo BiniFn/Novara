@@ -2,6 +2,7 @@ package org.skepsun.kototoro.main.ui.compose
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,6 +29,7 @@ import org.skepsun.kototoro.main.ui.MainActivity
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 import org.skepsun.kototoro.core.nav.router
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.geometry.Rect
 import androidx.fragment.app.FragmentActivity
@@ -116,6 +118,12 @@ fun AppNavGraph(
     val appRouter = activity.router
     val mainActivity = activity as? MainActivity
     val rootView = LocalView.current
+    val density = LocalDensity.current
+    val landscapeStartPadding = if (isLandscapeNavigation) {
+        with(density) { bottomBarHeightPx.toDp() }
+    } else {
+        0.dp
+    }
     val navigateToDetailsWithContent = remember(navController) {
         { content: Content, sharedElementKey: String? ->
             onDetailsTransitionRequested()
@@ -141,6 +149,7 @@ fun AppNavGraph(
         popExitTransition = { mainRouteFadeOut() },
     ) {
         composable<HomeRoute> {
+            Box(modifier = Modifier.padding(start = landscapeStartPadding)) {
             val viewModel = hiltViewModel<HomeViewModel>()
             val state by viewModel.summaryState.collectAsStateWithLifecycle()
             val isRandomLoading by viewModel.isRandomLoading.collectAsStateWithLifecycle()
@@ -316,8 +325,10 @@ fun AppNavGraph(
                     isRandomLoading = isRandomLoading,
                 )
             }
+            }
         }
         composable<DiscoverRoute> {
+            Box(modifier = Modifier.padding(start = landscapeStartPadding)) {
             val exploreViewModel = hiltViewModel<org.skepsun.kototoro.explore.ui.ExploreViewModel>()
             val selectedGroupTab by exploreViewModel.currentGroupTab.collectAsStateWithLifecycle()
             val selectedSourceTags by exploreViewModel.currentSourceTags.collectAsStateWithLifecycle()
@@ -357,8 +368,10 @@ fun AppNavGraph(
                     onNavigateToDetails = navigateToDetailsWithOrigin,
                 )
             }
+            }
         }
         composable<HistoryRoute> {
+            Box(modifier = Modifier.padding(start = landscapeStartPadding)) {
             val viewModel = hiltViewModel<org.skepsun.kototoro.history.ui.HistoryListViewModel>()
             val items by viewModel.content.collectAsStateWithLifecycle()
             val listMode by viewModel.listMode.collectAsStateWithLifecycle()
@@ -542,8 +555,10 @@ fun AppNavGraph(
                     )
                 }
             }
+            }
         }
         composable<FavoritesRoute> {
+            Box(modifier = Modifier.padding(start = landscapeStartPadding)) {
             val viewModel = hiltViewModel<org.skepsun.kototoro.favourites.ui.container.FavouritesContainerViewModel>()
             val selectedGroupTab by viewModel.globalFavoritesState.selectedGroupTab.collectAsStateWithLifecycle()
             val selectedSourceTags by viewModel.globalFavoritesState.selectedSourceTags.collectAsStateWithLifecycle()
@@ -681,8 +696,10 @@ fun AppNavGraph(
                     viewModel = viewModel,
                 )
             }
+            }
         }
         composable<ExploreRoute> {
+            Box(modifier = Modifier.padding(start = landscapeStartPadding)) {
             val exploreViewModel = hiltViewModel<org.skepsun.kototoro.explore.ui.ExploreViewModel>()
             val selectedGroupTab by exploreViewModel.currentGroupTab.collectAsStateWithLifecycle()
             val selectedSourceTags by exploreViewModel.currentSourceTags.collectAsStateWithLifecycle()
@@ -722,8 +739,10 @@ fun AppNavGraph(
                     onNavigateToDetails = navigateToDetailsWithOrigin,
                 )
             }
+            }
         }
         composable<FeedRoute> {
+            Box(modifier = Modifier.padding(start = landscapeStartPadding)) {
             val viewModel = hiltViewModel<org.skepsun.kototoro.tracker.ui.feed.FeedViewModel>()
             val items by viewModel.content.collectAsStateWithLifecycle()
             val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
@@ -825,8 +844,10 @@ fun AppNavGraph(
                     onCategorySelected = viewModel::selectCategory,
                 )
             }
+            }
         }
         composable<LocalRoute> {
+            Box(modifier = Modifier.padding(start = landscapeStartPadding)) {
             val viewModel = hiltViewModel<org.skepsun.kototoro.local.ui.LocalListViewModel>()
             val activity = androidx.compose.ui.platform.LocalContext.current as? androidx.activity.ComponentActivity
             DisposableEffect(appRouter) {
@@ -894,8 +915,10 @@ fun AppNavGraph(
                     },
                 )
             }
+            }
         }
         composable<SuggestionsRoute> {
+            Box(modifier = Modifier.padding(start = landscapeStartPadding)) {
             val viewModel = hiltViewModel<org.skepsun.kototoro.suggestions.ui.SuggestionsViewModel>()
             CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                 org.skepsun.kototoro.list.ui.compose.AppContentListRoute(
@@ -936,8 +959,10 @@ fun AppNavGraph(
                     }
                 )
             }
+            }
         }
         composable<BookmarksRoute> {
+            Box(modifier = Modifier.padding(start = landscapeStartPadding)) {
             val viewModel = hiltViewModel<org.skepsun.kototoro.bookmarks.ui.AllBookmarksViewModel>()
             val selectedGroupTab by viewModel.currentGroupTab.collectAsStateWithLifecycle()
             val selectedSourceTags by viewModel.currentSourceTags.collectAsStateWithLifecycle()
@@ -976,8 +1001,10 @@ fun AppNavGraph(
                     "BookmarksRoute requires a pre-registered PageSaveHelper"
                 },
             )
+            }
         }
         composable<UpdatedRoute> {
+            Box(modifier = Modifier.padding(start = landscapeStartPadding)) {
             val viewModel = hiltViewModel<org.skepsun.kototoro.tracker.ui.updates.UpdatesViewModel>()
             CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                 org.skepsun.kototoro.list.ui.compose.AppContentListRoute(
@@ -1009,6 +1036,7 @@ fun AppNavGraph(
                         }
                     }
                 )
+            }
             }
         }
         composable<SearchRoute> {

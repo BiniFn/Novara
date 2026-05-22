@@ -1,6 +1,8 @@
 package org.skepsun.kototoro.main.ui.compose
 
+import android.app.Activity
 import android.view.MotionEvent
+import android.widget.Toast
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -23,6 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -70,6 +73,7 @@ import org.skepsun.kototoro.search.domain.AdvancedSearchParams
 import org.skepsun.kototoro.search.ui.compose.SearchNavigation
 import org.skepsun.kototoro.search.ui.compose.SearchNavigationRequest
 import org.skepsun.kototoro.search.ui.compose.SearchRoute
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.material3.MaterialTheme
@@ -447,8 +451,8 @@ fun KototoroApp(
         maxOf(visibleBottomNavInsetPx, navigationBarHeightPx)
     }
     val visibleStartInsetDp = with(density) {
-        if (isLandscapeNavigation && isChromeVisible) {
-            (bottomNavHeightPx - effectiveBottomNavOffset).coerceAtLeast(0f).toDp()
+        if (isLandscapeNavigation) {
+            bottomNavHeightPx.toFloat().toDp()
         } else {
             0.dp
         }
@@ -517,7 +521,6 @@ fun KototoroApp(
                             },
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(start = visibleStartInsetDp)
                                 .then(if (useRuntimeHaze) Modifier.haze(hazeState) else Modifier)
                         )
                     }
@@ -794,6 +797,30 @@ fun KototoroApp(
             }
         }
         onSearchNavigationHandled()
+    }
+
+    val exitConfirmationEnabled by appSettings.observeAsState(
+        AppSettings.KEY_EXIT_CONFIRM,
+    ) { isExitConfirmationEnabled }
+
+    var lastBackTime by remember { mutableLongStateOf(0L) }
+
+    BackHandler(enabled = !isSearchRoute && !isDetailsRoute && !isSearchOverlayMounted) {
+        if (!exitConfirmationEnabled) {
+            (context as? Activity)?.moveTaskToBack(true)
+        } else {
+            val now = System.currentTimeMillis()
+            if (now - lastBackTime < 2000L) {
+                (context as? Activity)?.moveTaskToBack(true)
+            } else {
+                lastBackTime = now
+                Toast.makeText(
+                    context,
+                    org.skepsun.kototoro.R.string.confirm_exit,
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
     }
 }
 
