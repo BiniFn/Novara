@@ -115,12 +115,16 @@ class CaptchaAutoResolveCoordinator @Inject constructor(
         if (source == UnknownContentSource) {
             return false
         }
+        val launcher = foregroundActivityHolder.current
+        if (hidden && launcher == null) {
+            return false
+        }
         val resultDeferred = CompletableDeferred<Boolean>()
         pendingActivityResult[source] = resultDeferred
         val intent = AppRouter.cloudFlareResolveIntent(context, exception, hidden = hidden).apply {
             putExtra(CloudFlareActivity.EXTRA_AUTO_RESOLVE, true)
         }
-        foregroundActivityHolder.current?.startActivity(intent) ?: run {
+        launcher?.startActivity(intent) ?: run {
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
         }

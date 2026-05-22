@@ -155,7 +155,8 @@ class TrackWorker @AssistedInject constructor(
 				is MangaUpdates.Failure -> {
 					val e = it.error
 					if (e is CloudFlareException) {
-						captchaHandler.handle(e)
+						// 后台追更检查只记录 Cloudflare 状态，不自动拉起验证码处理界面。
+						captchaHandler.handle(e, tryAutoResolve = false)
 					}
 				}
 

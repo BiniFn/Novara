@@ -290,7 +290,8 @@ class SuggestionsWorker @AssistedInject constructor(
 		list.take(MAX_SOURCE_RESULTS)
 	}.onFailure { e ->
 		if (e is CloudFlareException) {
-			captchaHandler.handle(e)
+			// 后台推荐抓取只记录 Cloudflare 状态，不自动拉起验证码处理界面。
+			captchaHandler.handle(e, tryAutoResolve = false)
 		}
 		e.printStackTraceDebug()
 	}.getOrDefault(emptyList())

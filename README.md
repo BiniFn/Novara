@@ -34,7 +34,7 @@ Kototoro is an open-source Android app that brings manga, novels, and video into
   *(纯 Kotlin 实现的快速 OTA 增量更新)*
 - Site favorites import and synchronization for supported services 
   *(站点收藏导入与同步)*
-- Built-in browser with Cloudflare challenge bypass 
+- Built-in browser with Cloudflare challenge bypass, with automatic background handling inspired by kotatsu-redo 
   *(内置浏览器，支持 Cloudflare 验证绕过)*
 - Reading statistics, quick-access widget, and Telegram backup bot 
   *(阅读统计、快捷桌面挂件、Telegram 备份机器人)*
@@ -112,6 +112,7 @@ limitations under the License.
 
 - [Mihon](https://github.com/mihonapp/mihon)
 - [Yomihon](https://github.com/yomihon/yomihon)
+- [kotatsu-redo](https://github.com/Kotatsu-Redo/Kotatsu-Redo) for the implementation inspiration behind automatic background handling of Cloudflare detection
 - [Venera](https://github.com/venera-app/venera)
 - [Kazumi](https://github.com/Predidit/Kazumi)
 - [Light Novel Yuedu Source](https://github.com/ZWolken/Light-Novel-Yuedu-Source)

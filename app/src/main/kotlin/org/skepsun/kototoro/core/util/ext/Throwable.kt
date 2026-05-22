@@ -20,6 +20,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.BadBackupFormatException
 import org.skepsun.kototoro.core.exceptions.CaughtException
 import org.skepsun.kototoro.core.exceptions.CloudFlareBlockedException
+import org.skepsun.kototoro.core.exceptions.CloudFlareException
 import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
 import org.skepsun.kototoro.core.exceptions.EmptyHistoryException
 import org.skepsun.kototoro.core.exceptions.EmptyContentException
@@ -198,6 +199,11 @@ fun Throwable.getCauseUrl(): String? = when (this) {
     is HttpException -> (response.delegate as? Response)?.request?.url?.toString()
     else -> null
 }
+
+fun Throwable.findCloudFlareException(): CloudFlareException? =
+    generateSequence(this) { current ->
+        current.cause?.takeIf { cause -> cause !== current }
+    }.filterIsInstance<CloudFlareException>().firstOrNull()
 
 private fun getHttpDisplayMessage(statusCode: Int, resources: Resources): String? = when (statusCode) {
     HttpURLConnection.HTTP_NOT_FOUND -> resources.getString(R.string.not_found_404)

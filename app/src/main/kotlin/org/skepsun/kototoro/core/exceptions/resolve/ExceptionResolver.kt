@@ -71,9 +71,9 @@ class ExceptionResolver private constructor(
         host.router.showErrorDialog(e, url)
     }
 
-    suspend fun resolve(e: Throwable): Boolean = host.lifecycleScope.async {
+    suspend fun resolve(e: Throwable, tryAutoResolve: Boolean = true): Boolean = host.lifecycleScope.async {
         when (e) {
-            is CloudFlareProtectedException -> resolveCF(e)
+            is CloudFlareProtectedException -> resolveCF(e, tryAutoResolve)
             is AuthRequiredException -> resolveAuthException(e.source)
             is SSLException,
             is CertPathValidatorException -> {
@@ -131,8 +131,9 @@ class ExceptionResolver private constructor(
         browserActionContract.launch(e)
     }
 
-    private suspend fun resolveCF(e: CloudFlareProtectedException): Boolean {
-        val autoResolveEnabled = host.context?.let { !SourceSettings(it, e.source).isCaptchaAutoResolveDisabled } ?: true
+    private suspend fun resolveCF(e: CloudFlareProtectedException, tryAutoResolve: Boolean): Boolean {
+        val autoResolveEnabled = tryAutoResolve &&
+            (host.context?.let { !SourceSettings(it, e.source).isCaptchaAutoResolveDisabled } ?: true)
         if (autoResolveEnabled && captchaAutoResolveCoordinator.resolve(e.source, e)) {
             return true
         }

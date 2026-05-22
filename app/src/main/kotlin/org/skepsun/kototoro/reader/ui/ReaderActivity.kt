@@ -42,11 +42,14 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException
 import org.skepsun.kototoro.core.exceptions.resolve.DialogErrorObserver
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.router
 import org.skepsun.kototoro.core.prefs.AppSettings
+import org.skepsun.kototoro.core.prefs.SourceSettings
+import org.skepsun.kototoro.core.util.ext.findCloudFlareException
 import org.skepsun.kototoro.core.prefs.ReaderMode
 import org.skepsun.kototoro.core.ui.BaseFullscreenActivity
 import org.skepsun.kototoro.core.ui.dialog.buildAlertDialog
@@ -164,30 +167,55 @@ class ReaderActivity :
             }
         }
 
-        viewModel.onLoadingError.observeEvent(
-            this,
-            DialogErrorObserver(
-                host = viewBinding.container,
-                fragment = null,
-                resolver = exceptionResolver,
-                onResolved = { isResolved ->
-                    if (isResolved) {
-                        viewModel.reload()
-                    } else if (viewModel.content.value.pages.isEmpty()) {
-                        dispatchNavigateUp()
-                    }
-                },
-            ),
+        val loadingErrorDialog = DialogErrorObserver(
+            host = viewBinding.container,
+            fragment = null,
+            resolver = exceptionResolver,
+            onResolved = { isResolved ->
+                if (isResolved) {
+                    viewModel.reload()
+                } else if (viewModel.content.value.pages.isEmpty()) {
+                    dispatchNavigateUp()
+                }
+            },
         )
-        viewModel.onError.observeEvent(
-            this,
-            SnackbarErrorObserver(
-                host = viewBinding.container,
-                fragment = null,
-                resolver = exceptionResolver,
-                onResolved = null,
-            ),
+        viewModel.onLoadingError.observeEvent(this) { error ->
+            val cf = error.findCloudFlareException()
+            val source = cf?.source
+            val autoDisabled = source != null && SourceSettings(this@ReaderActivity, source).isCaptchaAutoResolveDisabled
+            if (cf is CloudFlareProtectedException && !autoDisabled) {
+                val resolved = exceptionResolver.resolve(cf, tryAutoResolve = true)
+                if (resolved) {
+                    viewModel.reload()
+                } else {
+                    loadingErrorDialog.emit(error)
+                }
+            } else {
+                loadingErrorDialog.emit(error)
+            }
+        }
+        val errorSnackbar = SnackbarErrorObserver(
+            host = viewBinding.container,
+            fragment = null,
+            resolver = exceptionResolver,
+            onResolved = null,
         )
+        viewModel.onError.observeEvent(this) { error ->
+            val cf = error.findCloudFlareException()
+            val source = cf?.source
+            val autoDisabled = source != null &&
+                SourceSettings(this@ReaderActivity, source).isCaptchaAutoResolveDisabled
+            if (cf is CloudFlareProtectedException && !autoDisabled) {
+                val resolved = exceptionResolver.resolve(cf, tryAutoResolve = true)
+                if (resolved) {
+                    viewModel.reload()
+                } else {
+                    errorSnackbar.emit(error)
+                }
+            } else {
+                errorSnackbar.emit(error)
+            }
+        }
         viewModel.readerMode.observe(this, Lifecycle.State.STARTED, this::onInitReader)
         viewModel.onPageSaved.observeEvent(this, PagesSavedObserver(viewBinding.container))
         viewModel.uiState.zipWithPrevious().observe(this, this::onUiStateChanged)
