@@ -87,13 +87,14 @@ class DefaultTrackingSiteMatcher @Inject constructor(
 			)
 			.take(resultLimit)
 			.map {
-				TrackingSiteMatchResult(
-					service = service,
-					remoteId = it.remoteId,
-					localContent = content,
-					confidence = it.confidence,
-					title = it.title,
-					url = it.url,
+					TrackingSiteMatchResult(
+						service = service,
+						remoteId = it.remoteId,
+						localContent = content,
+						contentType = content.source.contentType,
+						confidence = it.confidence,
+						title = it.title,
+						url = it.url,
 					reason = it.reason,
 					isLinked = false,
 					isManual = false,
@@ -144,13 +145,14 @@ class DefaultTrackingSiteMatcher @Inject constructor(
 				),
 			)
 		}
-		TrackingSiteMatchResult(
-			service = service,
-			remoteId = remoteId,
-			localContent = content,
-			confidence = 1f,
-			title = title,
-			url = db.getTrackingSiteDao().findItem(service.id, remoteId)?.siteUrl,
+			TrackingSiteMatchResult(
+				service = service,
+				remoteId = remoteId,
+				localContent = content,
+				contentType = content.source.contentType,
+				confidence = 1f,
+				title = title,
+				url = db.getTrackingSiteDao().findItem(service.id, remoteId)?.siteUrl,
 			reason = "manual",
 			isLinked = true,
 			isManual = true,
@@ -214,6 +216,7 @@ class DefaultTrackingSiteMatcher @Inject constructor(
 			service = ScrobblerService.entries.first { it.id == this.service },
 			remoteId = remoteId,
 			localContent = content,
+			contentType = content.source.contentType,
 			confidence = confidence,
 			title = db.getTrackingSiteDao().findItem(this.service, remoteId)?.title ?: remoteId.toString(),
 			url = db.getTrackingSiteDao().findItem(this.service, remoteId)?.siteUrl,

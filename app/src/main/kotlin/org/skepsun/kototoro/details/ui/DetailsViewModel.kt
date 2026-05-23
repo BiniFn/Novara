@@ -288,6 +288,8 @@ data class DetailsPrimaryUiState(
 	val trackingSuggestion: TrackingSiteMatchResult? = null,
 	val linkedTrackingItems: List<LinkedTrackingItemUiModel> = emptyList(),
 	val readingStatus: ScrobblingStatus = ScrobblingStatus.PLANNED,
+	val unifiedRating: Float = 0f,
+	val canEditUnifiedRating: Boolean = false,
 	val isLoading: Boolean = false,
 	val entityRelationSections: List<EntityRelationSection> = emptyList(),
 	val activeLocalBrowserContent: Content? = null,
@@ -380,6 +382,8 @@ private data class DetailsHeaderUiState(
 	val trackingSuggestion: TrackingSiteMatchResult? = null,
 	val linkedTrackingItems: List<LinkedTrackingItemUiModel> = emptyList(),
 	val readingStatus: ScrobblingStatus = ScrobblingStatus.PLANNED,
+	val unifiedRating: Float = 0f,
+	val canEditUnifiedRating: Boolean = false,
 )
 
 private data class DetailsPaneSummaryUiState(
@@ -826,6 +830,21 @@ class DetailsViewModel @Inject constructor(
 			cover = coverUrl,
 			url = url.orEmpty(),
 		)
+	}
+
+	private fun ContentType?.toScrobblerMediaType(): String? {
+		return when (this) {
+			ContentType.VIDEO,
+			ContentType.HENTAI_VIDEO -> "anime"
+			ContentType.MANGA,
+			ContentType.HENTAI_MANGA,
+			ContentType.MANHWA,
+			ContentType.MANHUA,
+			ContentType.COMICS,
+			ContentType.ONE_SHOT,
+			ContentType.DOUJINSHI -> "manga"
+			else -> null
+		}
 	}
 
 	private fun refreshReadingSearchSources() {
@@ -2168,30 +2187,32 @@ class DetailsViewModel @Inject constructor(
 	val trackingMatchSuggestion = MutableStateFlow<TrackingSiteMatchResult?>(null)
 
 	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-	val linkedTrackingItems: StateFlow<List<LinkedTrackingItemUiModel>> = activeMangaIdFlow.filterNotNull().flatMapLatest { db.getTrackingSiteDao()
-		.observeLinksByManga(it) }
-		.mapLatest { links ->
-			links.mapNotNull { link ->
-				val service = org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService.entries
-					.firstOrNull { it.id == link.service }
-					?: return@mapNotNull null
-				val cached = trackingSiteCacheRepository.readDetails(service, link.remoteId)
-				val scrobbling = scrobblingInfo.value.firstOrNull {
-					it.scrobbler == service && it.targetId == link.remoteId
-				}
-				LinkedTrackingItemUiModel(
-					service = service,
-					remoteId = link.remoteId,
-					title = cached?.title ?: scrobbling?.title ?: contentTitleFallback(service),
-					coverUrl = cached?.coverUrl.normalizedImageUrl() ?: scrobbling?.coverUrl.normalizedImageUrl(),
-					summary = cached?.description ?: scrobbling?.description?.toString(),
-					url = cached?.url ?: scrobbling?.externalUrl,
-					status = scrobbling?.status,
-					rating = scrobbling?.rating,
-					isPreferred = service == settings.preferredTrackingSite,
-				)
+	val linkedTrackingItems: StateFlow<List<LinkedTrackingItemUiModel>> = combine(
+		activeMangaIdFlow.filterNotNull().flatMapLatest { db.getTrackingSiteDao().observeLinksByManga(it) },
+		scrobblingInfo,
+	) { links, scrobblingItems ->
+		links.mapNotNull { link ->
+			val service = org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService.entries
+				.firstOrNull { it.id == link.service }
+				?: return@mapNotNull null
+			val cached = trackingSiteCacheRepository.readDetails(service, link.remoteId)
+			val scrobbling = scrobblingItems.firstOrNull {
+				it.scrobbler == service && it.targetId == link.remoteId
 			}
-		}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, emptyList())
+			LinkedTrackingItemUiModel(
+				service = service,
+				remoteId = link.remoteId,
+				title = cached?.title ?: scrobbling?.title ?: contentTitleFallback(service),
+				coverUrl = cached?.coverUrl.normalizedImageUrl() ?: scrobbling?.coverUrl.normalizedImageUrl(),
+				summary = cached?.description ?: scrobbling?.description?.toString(),
+				url = cached?.url ?: scrobbling?.externalUrl,
+				status = scrobbling?.status,
+				rating = scrobbling?.rating,
+				hasScrobblingBinding = scrobbling != null,
+				isPreferred = service == settings.preferredTrackingSite,
+			)
+		}
+	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, emptyList())
 
 	val relatedContent: StateFlow<List<ContentListModel>> = manga.mapLatest {
 		if (it != null && settings.isRelatedContentEnabled) {
@@ -2243,6 +2264,25 @@ class DetailsViewModel @Inject constructor(
 			}
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, ScrobblingStatus.PLANNED)
 
+	private val unifiedRating: StateFlow<Float> = linkedTrackingItems
+		.map { items ->
+			items.firstOrNull { it.hasScrobblingBinding && it.isPreferred && it.rating != null }?.rating
+				?: items.firstOrNull { it.hasScrobblingBinding && it.rating != null }?.rating
+				?: 0f
+		}
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, 0f)
+
+	private val canEditUnifiedRating: StateFlow<Boolean> = linkedTrackingItems
+		.map { items ->
+			items.any { linked ->
+				linked.hasScrobblingBinding &&
+				scrobblers.any { scrobbler ->
+					scrobbler.scrobblerService == linked.service && scrobbler.isEnabled
+				}
+			}
+		}
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, false)
+
 	private val detailsHeaderUiState = combine(
 		mangaDetails,
 		favouriteCategories,
@@ -2257,6 +2297,10 @@ class DetailsViewModel @Inject constructor(
 			trackingSuggestion = trackingSuggestion,
 			linkedTrackingItems = linkedTrackingItems,
 		)
+	}.combine(unifiedRating) { header, unifiedRating ->
+		header.copy(unifiedRating = unifiedRating)
+	}.combine(canEditUnifiedRating) { header, canEditUnifiedRating ->
+		header.copy(canEditUnifiedRating = canEditUnifiedRating)
 	}.combine(readingStatus) { header, readingStatus ->
 		DetailsHeaderUiState(
 			mangaDetails = header.mangaDetails,
@@ -2265,6 +2309,8 @@ class DetailsViewModel @Inject constructor(
 			trackingSuggestion = header.trackingSuggestion,
 			linkedTrackingItems = header.linkedTrackingItems,
 			readingStatus = readingStatus,
+			unifiedRating = header.unifiedRating,
+			canEditUnifiedRating = header.canEditUnifiedRating,
 		)
 	}
 	private val detailsPaneSummaryUiState = combine(
@@ -2297,6 +2343,8 @@ class DetailsViewModel @Inject constructor(
 			trackingSuggestion = header.trackingSuggestion,
 			linkedTrackingItems = header.linkedTrackingItems,
 			readingStatus = header.readingStatus,
+			unifiedRating = header.unifiedRating,
+			canEditUnifiedRating = header.canEditUnifiedRating,
 			isLoading = pane.isLoading,
 			entityRelationSections = entityRelationSections,
 			activeLocalBrowserContent = pane.activeLocalBrowserContent,
@@ -3082,11 +3130,12 @@ class DetailsViewModel @Inject constructor(
 				trackingSiteMatcher.confirmMatch(item.service, localMangaId, item.remoteId)
 				persistMetadataSourceSelection(localMangaId)
 				dataRepository.setIgnoredTrackingSuggestion(localMangaId, null)
-				autoLinkTrackingServiceIfAuthorized(
-					mangaId = localMangaId,
-					item = item,
-				)
-			}
+						autoLinkTrackingServiceIfAuthorized(
+							mangaId = localMangaId,
+							item = item,
+							contentType = details?.contentType ?: resolvedMetadataContentType.value,
+						)
+					}
 			syncDisplayedState()
 		}
 	}
@@ -3621,6 +3670,7 @@ class DetailsViewModel @Inject constructor(
 			val currentMangaId = activeMangaIdFlow.value ?: return@launchJob
 			dataRepository.setReadingStatus(currentMangaId, status)
 			linkedTrackingItems.value.forEach { linked ->
+				if (!linked.hasScrobblingBinding) return@forEach
 				val scrobbler = scrobblers.firstOrNull {
 					it.scrobblerService == linked.service && it.isEnabled
 				} ?: return@forEach
@@ -3628,6 +3678,24 @@ class DetailsViewModel @Inject constructor(
 					mangaId = currentMangaId,
 					rating = linked.rating ?: 0f,
 					status = status,
+					comment = null,
+				)
+			}
+		}
+	}
+
+	fun updateUnifiedRating(rating: Float) {
+		launchJob(Dispatchers.Default) {
+			val currentMangaId = activeMangaIdFlow.value ?: return@launchJob
+			linkedTrackingItems.value.forEach { linked ->
+				if (!linked.hasScrobblingBinding) return@forEach
+				val scrobbler = scrobblers.firstOrNull {
+					it.scrobblerService == linked.service && it.isEnabled
+				} ?: return@forEach
+				scrobbler.updateScrobblingInfo(
+					mangaId = currentMangaId,
+					rating = rating.coerceIn(0f, 1f),
+					status = linked.status,
 					comment = null,
 				)
 			}
@@ -3648,18 +3716,19 @@ class DetailsViewModel @Inject constructor(
 			val content = manga.filterNotNull().firstOrNull() ?: return@launchJob
 			trackingSiteMatcher.confirmMatch(match.service, content.id, match.remoteId)
 			dataRepository.setIgnoredTrackingSuggestion(content.id, null)
-			autoLinkTrackingServiceIfAuthorized(
-				mangaId = content.id,
-				item = org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItem(
-					service = match.service,
-					remoteId = match.remoteId,
-					title = match.title,
-					url = match.url,
-				),
-			)
-			refreshTrackingMatchSuggestion()
+				autoLinkTrackingServiceIfAuthorized(
+					mangaId = content.id,
+					item = org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItem(
+						service = match.service,
+						remoteId = match.remoteId,
+						title = match.title,
+						url = match.url,
+					),
+					contentType = match.contentType ?: content.source.contentType,
+				)
+				refreshTrackingMatchSuggestion()
+			}
 		}
-	}
 
 	fun ignoreTrackingSuggestion(match: TrackingSiteMatchResult) {
 		launchJob(Dispatchers.Default) {
@@ -3865,6 +3934,7 @@ class DetailsViewModel @Inject constructor(
 	private suspend fun autoLinkTrackingServiceIfAuthorized(
 		mangaId: Long,
 		item: TrackingSiteItem,
+		contentType: ContentType? = null,
 	) {
 		val scrobbler = scrobblers.firstOrNull {
 			it.scrobblerService == item.service && it.isEnabled
@@ -3873,7 +3943,19 @@ class DetailsViewModel @Inject constructor(
 			?: manga.filterNotNull().firstOrNull { it.id == mangaId }
 			?: return
 		val previous = scrobbler.getScrobblingInfoOrNull(mangaId)
-		scrobbler.linkContent(mangaId, item.toScrobblerContent())
+		scrobbler.linkContent(
+			mangaId,
+			item.toScrobblerContent().copy(mediaType = contentType.toScrobblerMediaType()),
+		)
+		var linkedInfo = scrobbler.getScrobblingInfoOrNull(mangaId)
+		if (linkedInfo == null) {
+			scrobbler.syncLibrary()
+			linkedInfo = scrobbler.getScrobblingInfoOrNull(mangaId)
+		}
+		checkNotNull(linkedInfo) {
+			"Scrobbling info for manga $mangaId not found after linking target ${item.remoteId} " +
+				"(${item.service.name}, mediaType=${contentType.toScrobblerMediaType()})"
+		}
 		val history = historyRepository.getOne(manga)
 		scrobbler.updateScrobblingInfo(
 			mangaId = mangaId,

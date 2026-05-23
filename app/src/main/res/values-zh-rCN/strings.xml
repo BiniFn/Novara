@@ -1373,6 +1373,10 @@
     <string name="tracking_bind_suggestion_action">关联推荐项目</string>
     <string name="tracking_remove_binding_action">移除关联</string>
     <string name="tracking_source">追踪源</string>
+    <string name="details_rating_and_status">打分与状态</string>
+    <string name="details_rating">打分</string>
+    <string name="details_rating_value">%1$s / 10</string>
+    <string name="details_rating_requires_tracking">请先在已登录的追踪源中完成该作品绑定后再打分</string>
     <string name="score">评分</string>
     <string name="status">状态</string>
     <string name="total_chapters">总章节数</string>

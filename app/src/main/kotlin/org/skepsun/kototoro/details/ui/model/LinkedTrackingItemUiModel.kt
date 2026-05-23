@@ -12,5 +12,6 @@ data class LinkedTrackingItemUiModel(
     val url: String?,
     val status: ScrobblingStatus?,
     val rating: Float?,
+    val hasScrobblingBinding: Boolean,
     val isPreferred: Boolean,
 )

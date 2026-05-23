@@ -426,8 +426,8 @@ class MALRepository @Inject constructor(
 	/**
 	 * Sync both anime and manga lists from MAL to local database.
 	 * Uses MAL API:
-	 * GET /v2/users/@me/animelist?fields=list_status&limit=100
-	 * GET /v2/users/@me/mangalist?fields=list_status&limit=100
+	 * GET /v2/users/@me/animelist?fields=list_status&limit=1000
+	 * GET /v2/users/@me/mangalist?fields=list_status&limit=1000
 	 */
 	suspend fun syncLibraryFromRemote(): Int {
 		android.util.Log.d("MALRepo", "syncLibrary: start")
@@ -497,7 +497,7 @@ class MALRepository @Inject constructor(
 			.addPathSegment("@me")
 			.addPathSegment("${endpoint}list")
 			.addQueryParameter("fields", "main_picture,list_status{status,score,${progressField(endpoint)},comments}")
-			.addQueryParameter("limit", "100")
+			.addQueryParameter("limit", "1000")
 			.addQueryParameter("nsfw", "true")
 			.build()
 			.toString()
@@ -550,8 +550,6 @@ class MALRepository @Inject constructor(
 					"MALRepo",
 					"syncLibrary($endpoint): targetId=$targetId, rawStatus=$rawStatus, normalizedStatus=$normalizedStatus, storedMediaType=$endpoint",
 				)
-				rememberEndpoint(targetId, endpoint)
-				rememberPreview(targetId, endpoint, ScrobblerContentInfo(node, endpoint))
 			}
 
 			nextUrl = response.optJSONObject("paging")?.getStringOrNull("next")

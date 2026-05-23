@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.details.ui.compose
 
 import android.text.format.Formatter
+import android.widget.RatingBar
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -92,6 +93,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import android.widget.Toast
@@ -148,6 +150,8 @@ fun DetailsHeader(
     favouriteCategories: Set<FavouriteCategory>,
     linkedTrackingItems: List<LinkedTrackingItemUiModel>,
     readingStatus: ScrobblingStatus,
+    unifiedRating: Float,
+    canEditUnifiedRating: Boolean,
     trackingSuggestion: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult?,
     metadataSourceOptions: List<DetailsSourceOption>,
     readingSourceOptions: List<DetailsSourceOption>,
@@ -191,6 +195,7 @@ fun DetailsHeader(
     onManageLinkedTracking: (LinkedTrackingItemUiModel) -> Unit,
     onUpdateLinkedTrackingStatus: (LinkedTrackingItemUiModel, ScrobblingStatus) -> Unit,
     onUpdateReadingStatus: (ScrobblingStatus) -> Unit,
+    onUpdateUnifiedRating: (Float) -> Unit,
     onRemoveLinkedTracking: (org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult) -> Unit,
     onBindTrackingSuggestion: (org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult) -> Unit,
     onOpenTrackingSuggestion: (org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult) -> Unit,
@@ -539,10 +544,13 @@ fun DetailsHeader(
                             )
                         }
                     }
-                    UnifiedReadingStatusRow(
+                    UnifiedTrackingRow(
+                        rating = unifiedRating,
+                        canEditRating = canEditUnifiedRating,
                         status = readingStatus,
                         scrobblingStatuses = scrobblingStatuses,
                         linkedTrackingItems = linkedTrackingItems,
+                        onUpdateRating = onUpdateUnifiedRating,
                         onUpdateStatus = onUpdateReadingStatus,
                     )
                     if (infoItems.isNotEmpty()) {
@@ -809,12 +817,16 @@ private fun TrackingSuggestionCard(
 }
 
 @Composable
-private fun UnifiedReadingStatusRow(
+private fun UnifiedTrackingRow(
+    rating: Float,
+    canEditRating: Boolean,
     status: ScrobblingStatus,
     scrobblingStatuses: Array<String>,
     linkedTrackingItems: List<LinkedTrackingItemUiModel>,
+    onUpdateRating: (Float) -> Unit,
     onUpdateStatus: (ScrobblingStatus) -> Unit,
 ) {
+    val context = LocalContext.current
     var expanded by remember(status, linkedTrackingItems) { mutableStateOf(false) }
     val supportedStatuses = remember(linkedTrackingItems) {
         linkedTrackingItems
@@ -824,70 +836,145 @@ private fun UnifiedReadingStatusRow(
             ?.toList()
             ?: ScrobblingStatus.entries
     }
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
-        Text(
-            text = stringResource(R.string.details_reading_status),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Box {
-            SuggestionChip(
-                onClick = { expanded = true },
-                label = {
-                    Text(
-                        text = scrobblingStatuses.getOrElse(status.ordinal) { status.name },
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            UnifiedRatingBar(
+                modifier = Modifier.weight(1f),
+                rating = rating,
+                enabled = canEditRating,
+                onRatingChanged = onUpdateRating,
+                onDisabledClick = {
+                    Toast.makeText(
+                        context,
+                        R.string.details_rating_requires_tracking,
+                        Toast.LENGTH_SHORT,
+                    ).show()
                 },
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                    )
-                },
-                colors = SuggestionChipDefaults.suggestionChipColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                    labelColor = MaterialTheme.colorScheme.onSurface,
-                    iconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                ),
             )
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-            ) {
-                supportedStatuses.forEach { candidate ->
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = scrobblingStatuses.getOrElse(candidate.ordinal) { candidate.name },
-                            )
-                        },
-                        onClick = {
-                            expanded = false
-                            onUpdateStatus(candidate)
-                        },
-                        leadingIcon = if (status == candidate) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
+            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                SuggestionChip(
+                    onClick = { expanded = true },
+                    label = {
+                        Text(
+                            text = scrobblingStatuses.getOrElse(status.ordinal) { status.name },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                        )
+                    },
+                    colors = SuggestionChipDefaults.suggestionChipColors(
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                        labelColor = MaterialTheme.colorScheme.onSurface,
+                        iconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
+                )
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                ) {
+                    supportedStatuses.forEach { candidate ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = scrobblingStatuses.getOrElse(candidate.ordinal) { candidate.name },
                                 )
-                            }
-                        } else {
-                            null
-                        },
-                    )
+                            },
+                            onClick = {
+                                expanded = false
+                                onUpdateStatus(candidate)
+                            },
+                            leadingIcon = if (status == candidate) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                    )
+                                }
+                            } else {
+                                null
+                            },
+                        )
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun UnifiedRatingBar(
+    modifier: Modifier = Modifier,
+    rating: Float,
+    enabled: Boolean,
+    onRatingChanged: (Float) -> Unit,
+    onDisabledClick: () -> Unit,
+) {
+    val context = LocalContext.current
+    var localRating by remember(rating) { mutableFloatStateOf(rating) }
+    val displayRating = if (localRating > 0f) localRating else rating
+    val label = remember(displayRating) {
+        if (displayRating <= 0f) {
+            "0"
+        } else {
+            ((displayRating * 10f).roundToInt()).toString()
+        }
+    }
+    Row(
+        modifier = modifier.clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            enabled = !enabled,
+            onClick = onDisabledClick,
+        ),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        AndroidView(
+            factory = {
+                RatingBar(context, null, android.R.attr.ratingBarStyleSmall).apply {
+                    numStars = 5
+                    stepSize = 0.5f
+                    max = 5
+                    setIsIndicator(!enabled)
+                    setOnRatingBarChangeListener { _, value, fromUser ->
+                        if (fromUser) {
+                            localRating = (value / 5f).coerceIn(0f, 1f)
+                            onRatingChanged(localRating)
+                        }
+                    }
+                }
+            },
+            update = { ratingBar ->
+                ratingBar.setIsIndicator(!enabled)
+                if (ratingBar.rating != displayRating * 5f) {
+                    ratingBar.rating = displayRating * 5f
+                }
+                ratingBar.alpha = if (enabled) 1f else 0.55f
+                ratingBar.contentDescription = context.getString(R.string.details_rating_value, label)
+            },
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (enabled) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        )
     }
 }
 

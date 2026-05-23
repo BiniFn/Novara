@@ -44,6 +44,7 @@ private const val BASE_WEB_URL = "https://www.mangaupdates.com"
 private const val COMMENTS_PAGE_SIZE = 10
 private const val REVIEW_PAGE_SIZE = 3
 private const val DISCOVERY_PAGE_SIZE = 25
+private const val USER_RATING_SYNC_CONCURRENCY = 4
 private val CONTENT_TYPE = "application/vnd.api+json".toMediaType()
 
 class MangaUpdatesRepository(
@@ -812,8 +813,8 @@ class MangaUpdatesRepository(
 
 	suspend fun syncLibraryFromRemote(): Int {
 		Log.d(TAG, "syncLibrary: start fetching remote lists")
-		val oldMappings = buildOldMappings()
-		Log.d(TAG, "syncLibrary: oldMappings.size=${oldMappings.size}")
+		val existingEntries = buildExistingEntriesByTargetId()
+		Log.d(TAG, "syncLibrary: existingEntries.size=${existingEntries.size}")
 
 		val lists = try {
 			fetchUserLists()
@@ -832,7 +833,7 @@ class MangaUpdatesRepository(
 		val synced = ArrayList<ScrobblingEntity>()
 		for ((listId, listStatus) in lists) {
 			try {
-				val entries = fetchListSeries(listId, listStatus, oldMappings)
+				val entries = fetchListSeries(listId, listStatus, existingEntries)
 				synced.addAll(entries)
 				Log.d(TAG, "syncLibrary: listId=$listId status=$listStatus fetched ${entries.size} entries")
 			} catch (e: Exception) {
@@ -840,26 +841,44 @@ class MangaUpdatesRepository(
 			}
 		}
 
+		val hydratedEntries = hydrateUserRatings(synced)
+
 		db.withTransaction {
 			db.getScrobblingDao().deleteByScrobbler(ScrobblerService.MANGAUPDATES.id)
-			synced.forEach { entity ->
+			hydratedEntries.forEach { entity ->
 				db.getScrobblingDao().upsert(entity)
 			}
 		}
 
-		Log.d(TAG, "syncLibrary: completed, synced=${synced.size}")
-		return synced.size
+		Log.d(TAG, "syncLibrary: completed, synced=${hydratedEntries.size}")
+		return hydratedEntries.size
 	}
 
-	private suspend fun buildOldMappings(): Map<Long, Long> {
+	private suspend fun buildExistingEntriesByTargetId(): Map<Long, ScrobblingEntity> {
 		val existing = db.getScrobblingDao().findAllByScrobbler(ScrobblerService.MANGAUPDATES.id)
-		val mappings = LinkedHashMap<Long, Long>(existing.size)
+		val mappings = LinkedHashMap<Long, ScrobblingEntity>(existing.size)
 		for (entity in existing) {
 			val targetId = entity.targetId
 			if (targetId == 0L) continue
-			mappings.putIfAbsent(targetId, entity.mangaId)
+			val old = mappings[targetId]
+			if (old == null || shouldPreferExistingEntry(candidate = entity, current = old)) {
+				mappings[targetId] = entity
+			}
 		}
 		return mappings
+	}
+
+	private fun shouldPreferExistingEntry(candidate: ScrobblingEntity, current: ScrobblingEntity): Boolean {
+		return existingEntryScore(candidate) > existingEntryScore(current)
+	}
+
+	private fun existingEntryScore(entity: ScrobblingEntity): Int {
+		var score = 0
+		if (entity.mangaId != 0L) score += 8
+		if (entity.rating > 0f) score += 4
+		if (!entity.comment.isNullOrBlank()) score += 2
+		if (entity.chapter > 0) score += 1
+		return score
 	}
 
 	private suspend fun fetchUserLists(): List<Pair<Long, String>> {
@@ -902,7 +921,7 @@ class MangaUpdatesRepository(
 	private suspend fun fetchListSeries(
 		listId: Long,
 		listStatus: String,
-		oldMappings: Map<Long, Long>,
+		existingEntries: Map<Long, ScrobblingEntity>,
 	): List<ScrobblingEntity> {
 		val synced = ArrayList<ScrobblingEntity>()
 		var page = 1
@@ -946,7 +965,8 @@ class MangaUpdatesRepository(
 				val status = record.optJSONObject("status")
 				val chapter = status?.optInt("chapter", 0) ?: 0
 
-				val mangaId = oldMappings[targetId] ?: 0L
+				val existing = existingEntries[targetId]
+				val mangaId = existing?.mangaId ?: 0L
 
 				val entity = ScrobblingEntity(
 					scrobbler = ScrobblerService.MANGAUPDATES.id,
@@ -955,11 +975,12 @@ class MangaUpdatesRepository(
 					targetId = targetId,
 					status = listStatus,
 					chapter = chapter,
-					comment = null,
-					rating = 0f,
-					remoteTitle = series.optString("title").takeIf { it.isNotBlank() },
-					remoteCoverUrl = null,
-					remoteUrl = series.optString("url").takeIf { it.isNotBlank() },
+					comment = existing?.comment,
+					rating = existing?.rating ?: 0f,
+					mediaType = existing?.mediaType ?: "",
+					remoteTitle = series.optString("title").takeIf { it.isNotBlank() } ?: existing?.remoteTitle,
+					remoteCoverUrl = existing?.remoteCoverUrl,
+					remoteUrl = series.optString("url").takeIf { it.isNotBlank() } ?: existing?.remoteUrl,
 				)
 				Log.d(TAG, "fetchListSeries: targetId=$targetId, title=${entity.remoteTitle}, coverUrl=${entity.remoteCoverUrl}")
 				synced.add(entity)
@@ -972,6 +993,96 @@ class MangaUpdatesRepository(
 		}
 
 		return synced
+	}
+
+	private suspend fun hydrateUserRatings(entities: List<ScrobblingEntity>): List<ScrobblingEntity> = coroutineScope {
+		val targetIds = entities.asSequence()
+			.map { it.targetId }
+			.filter { it > 0L }
+			.distinct()
+			.toList()
+		if (targetIds.isEmpty()) {
+			return@coroutineScope entities
+		}
+
+		val semaphore = Semaphore(USER_RATING_SYNC_CONCURRENCY)
+		val ratingsByTargetId = targetIds.map { targetId ->
+			async {
+				targetId to semaphore.withPermit { fetchUserSeriesRating(targetId) }
+			}
+		}.awaitAll().toMap()
+
+		entities.map { entity ->
+			val remoteRating = ratingsByTargetId[entity.targetId]
+			if (remoteRating == null || remoteRating == entity.rating) {
+				entity
+			} else {
+				entity.copy(rating = remoteRating)
+			}
+		}
+	}
+
+	private suspend fun fetchUserSeriesRating(targetId: Long): Float? {
+		return runCatching {
+			val request = Request.Builder()
+				.get()
+				.url("$BASE_API_URL/series/$targetId/rating")
+			val response = okHttp.newCall(request.build()).await()
+			if (response.code == 404) {
+				Log.d(TAG, "fetchUserSeriesRating: targetId=$targetId returned 404, keeping local rating")
+				return null
+			}
+			if (!response.isSuccessful) {
+				Log.w(TAG, "fetchUserSeriesRating: targetId=$targetId HTTP ${response.code}")
+				return null
+			}
+			val json = response.parseJson()
+			parseUserSeriesRating(json)?.also { rating ->
+				Log.d(TAG, "fetchUserSeriesRating: targetId=$targetId rating=$rating")
+			}
+		}.getOrElse { error ->
+			Log.w(TAG, "fetchUserSeriesRating: targetId=$targetId failed", error)
+			null
+		}
+	}
+
+	private fun parseUserSeriesRating(response: JSONObject): Float? {
+		return response.optNormalizedUserRating("rating")
+			?: response.optNormalizedUserRating("user_rating")
+			?: response.optJSONObject("record")?.optNormalizedUserRating("rating")
+			?: response.optJSONObject("record")?.optNormalizedUserRating("user_rating")
+			?: response.optJSONObject("status")?.optNormalizedUserRating("rating")
+	}
+
+	private fun JSONObject.optNormalizedUserRating(key: String): Float? {
+		if (!has(key) || isNull(key)) return null
+		val raw = opt(key) ?: return null
+		return when (raw) {
+			is Number -> normalizeUserRatingValue(raw.toDouble())
+			is String -> raw.toDoubleOrNull()?.let(::normalizeUserRatingValue)
+			is JSONObject -> raw.optNumeric("rating")
+				?: raw.optNumeric("value")
+				?: raw.optNumeric("score")
+			else -> null
+		}
+	}
+
+	private fun JSONObject.optNumeric(key: String): Float? {
+		if (!has(key) || isNull(key)) return null
+		val raw = opt(key) ?: return null
+		return when (raw) {
+			is Number -> normalizeUserRatingValue(raw.toDouble())
+			is String -> raw.toDoubleOrNull()?.let(::normalizeUserRatingValue)
+			else -> null
+		}
+	}
+
+	private fun normalizeUserRatingValue(rawValue: Double): Float {
+		return when {
+			rawValue <= 0.0 -> 0f
+			rawValue > 10.0 -> (rawValue / 10.0).toFloat()
+			else -> rawValue.toFloat()
+		}
 	}
 
 	suspend fun persistRemoteCoverIfMissing(targetId: Long): Boolean {

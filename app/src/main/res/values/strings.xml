@@ -1604,6 +1604,10 @@
     <string name="details_reading_source">Reading Source</string>
     <string name="details_playback_source">Playback Source</string>
     <string name="details_reading_status">Reading status</string>
+    <string name="details_rating_and_status">Rating and status</string>
+    <string name="details_rating">Rating</string>
+    <string name="details_rating_value">%1$s / 10</string>
+    <string name="details_rating_requires_tracking">Bind this work in a logged-in tracking source before rating</string>
     <string name="details_reading_language">Reading language</string>
     <string name="details_playback_language">Playback language</string>
     <string name="details_reading_language_short">Reading</string>

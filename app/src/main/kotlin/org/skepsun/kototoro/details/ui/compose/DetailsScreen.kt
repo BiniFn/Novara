@@ -217,6 +217,8 @@ fun DetailsScreen(
     val trackingSuggestion = detailsPrimaryUiState.trackingSuggestion
     val linkedTrackingItems = detailsPrimaryUiState.linkedTrackingItems
     val readingStatus = detailsPrimaryUiState.readingStatus
+    val unifiedRating = detailsPrimaryUiState.unifiedRating
+    val canEditUnifiedRating = detailsPrimaryUiState.canEditUnifiedRating
     val isLoading = detailsPrimaryUiState.isLoading
     val entityRelationSections = detailsPrimaryUiState.entityRelationSections
     val activeLocalBrowserContent = detailsPrimaryUiState.activeLocalBrowserContent
@@ -790,6 +792,8 @@ fun DetailsScreen(
                             historyInfo = historyInfo,
                             linkedTrackingItems = linkedTrackingItems,
                             readingStatus = readingStatus,
+                            unifiedRating = unifiedRating,
+                            canEditUnifiedRating = canEditUnifiedRating,
                             trackingSuggestion = trackingSuggestion,
                             metadataSourceOptions = metadataSourceOptions,
                             readingSourceOptions = readingSourceOptions,
@@ -852,6 +856,7 @@ fun DetailsScreen(
                                 )
                             },
                             onUpdateReadingStatus = viewModel::updateUnifiedReadingStatus,
+                            onUpdateUnifiedRating = viewModel::updateUnifiedRating,
                             onEntityClick = { item ->
                                 val entityId = item.entityId
                                 if (entityId != null) {
@@ -956,6 +961,8 @@ fun DetailsScreen(
                                 historyInfo = historyInfo,
                                 linkedTrackingItems = linkedTrackingItems,
                                 readingStatus = readingStatus,
+                                unifiedRating = unifiedRating,
+                                canEditUnifiedRating = canEditUnifiedRating,
                                 trackingSuggestion = trackingSuggestion,
                                 metadataSourceOptions = metadataSourceOptions,
                                 readingSourceOptions = readingSourceOptions,
@@ -1018,6 +1025,7 @@ fun DetailsScreen(
                                     )
                                 },
                                 onUpdateReadingStatus = viewModel::updateUnifiedReadingStatus,
+                                onUpdateUnifiedRating = viewModel::updateUnifiedRating,
                                 onEntityClick = { item ->
                                     val entityId = item.entityId
                                     if (entityId != null) {
@@ -1776,6 +1784,8 @@ private fun DetailsScrollableContent(
     favouriteCategories: Set<org.skepsun.kototoro.core.model.FavouriteCategory>,
     linkedTrackingItems: List<org.skepsun.kototoro.details.ui.model.LinkedTrackingItemUiModel>,
     readingStatus: ScrobblingStatus,
+    unifiedRating: Float,
+    canEditUnifiedRating: Boolean,
     trackingSuggestion: org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult?,
     metadataSourceOptions: List<DetailsSourceOption>,
     readingSourceOptions: List<DetailsSourceOption>,
@@ -1821,6 +1831,7 @@ private fun DetailsScrollableContent(
     onOpenReadingSourceSheet: () -> Unit,
     onUpdateLinkedTrackingStatus: (org.skepsun.kototoro.details.ui.model.LinkedTrackingItemUiModel, ScrobblingStatus) -> Unit,
     onUpdateReadingStatus: (ScrobblingStatus) -> Unit,
+    onUpdateUnifiedRating: (Float) -> Unit,
     onEntityClick: (EntityRelationItem) -> Unit,
     onActionClick: (DetailsAction) -> Unit,
     sharedElementKey: String? = null,
@@ -1856,6 +1867,8 @@ private fun DetailsScrollableContent(
             historyInfo = historyInfo,
             linkedTrackingItems = linkedTrackingItems,
             readingStatus = readingStatus,
+            unifiedRating = unifiedRating,
+            canEditUnifiedRating = canEditUnifiedRating,
             trackingSuggestion = trackingSuggestion,
             metadataSourceOptions = metadataSourceOptions,
             readingSourceOptions = readingSourceOptions,
@@ -1926,6 +1939,7 @@ private fun DetailsScrollableContent(
             },
             onUpdateLinkedTrackingStatus = onUpdateLinkedTrackingStatus,
             onUpdateReadingStatus = onUpdateReadingStatus,
+            onUpdateUnifiedRating = onUpdateUnifiedRating,
             onRemoveLinkedTracking = { match -> onActionClick(DetailsAction.RemoveTrackingMatch(match)) },
             onBindTrackingSuggestion = { match -> onActionClick(DetailsAction.BindTrackingMatch(match)) },
             onOpenTrackingSuggestion = { match ->

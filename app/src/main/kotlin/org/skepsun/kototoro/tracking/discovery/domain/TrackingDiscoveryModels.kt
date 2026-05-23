@@ -220,6 +220,7 @@ data class TrackingSiteMatchResult(
 	val service: ScrobblerService,
 	val remoteId: Long,
 	val localContent: Content? = null,
+	val contentType: ContentType? = null,
 	val confidence: Float,
 	val title: String,
 	val url: String? = null,
