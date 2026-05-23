@@ -8,6 +8,11 @@ import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.core.view.WindowInsetsCompat
@@ -52,27 +57,45 @@ class UnifiedSourcesActivity : BaseActivity<ActivityUnifiedSourcesBinding>() {
 		val initialUrl = intent.resolveInitialRepositoryUrl()
 		viewBinding.composeView.setContent {
 			KototoroTheme {
-				UnifiedSourcesRoute(
-					onNavigateUp = ::finishAfterTransition,
+				UnifiedSourcesContent(
 					initialAddRepositoryKind = initialKind,
 					initialAddRepositoryUrl = initialUrl,
-					viewModel = viewModel,
-					onBrowseSource = { item -> router.openList(item.source, null, null) },
-					onOpenSourceSettings = { item -> router.openSourceSettings(item.source) },
-					onOpenRepositoryFile = ::openRepositoryFilePicker,
-					onOpenLocalJarPicker = ::openLocalJarPicker,
-					onStartInstall = { intent ->
-						runCatching { installLauncher.launch(intent) }
-							.onFailure { Toast.makeText(this, it.message, Toast.LENGTH_SHORT).show() }
-					},
-					onStartUninstall = { intent ->
-						runCatching { uninstallLauncher.launch(intent) }
-							.onFailure { Toast.makeText(this, it.message, Toast.LENGTH_SHORT).show() }
-					},
 					modifier = Modifier.fillMaxSize(),
 				)
 			}
 		}
+	}
+
+	@Composable
+	fun UnifiedSourcesContent(
+		initialAddRepositoryKind: UnifiedSourceKind? = null,
+		initialAddRepositoryUrl: String? = null,
+		modifier: Modifier = Modifier,
+	) {
+		var searchActive by remember { mutableStateOf(false) }
+		var activePanel by remember { mutableStateOf<UnifiedToolbarFilterPanel?>(null) }
+		UnifiedSourcesRoute(
+			searchActive = searchActive,
+			onSearchActiveChange = { searchActive = it },
+			activePanel = activePanel,
+			onActivePanelChange = { activePanel = it },
+			initialAddRepositoryKind = initialAddRepositoryKind,
+			initialAddRepositoryUrl = initialAddRepositoryUrl,
+			viewModel = viewModel,
+			onBrowseSource = { item -> router.openList(item.source, null, null) },
+			onOpenSourceSettings = { item -> router.openSourceSettings(item.source) },
+			onOpenRepositoryFile = ::openRepositoryFilePicker,
+			onOpenLocalJarPicker = ::openLocalJarPicker,
+			onStartInstall = { intent ->
+				runCatching { installLauncher.launch(intent) }
+					.onFailure { Toast.makeText(this, it.message, Toast.LENGTH_SHORT).show() }
+			},
+			onStartUninstall = { intent ->
+				runCatching { uninstallLauncher.launch(intent) }
+					.onFailure { Toast.makeText(this, it.message, Toast.LENGTH_SHORT).show() }
+			},
+			modifier = modifier,
+		)
 	}
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {

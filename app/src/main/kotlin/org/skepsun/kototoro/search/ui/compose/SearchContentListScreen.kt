@@ -244,6 +244,10 @@ fun AppSearchContentListRoute(
         selectedItemsIds = emptySet()
     }
 
+    BackHandler(enabled = searchMode) {
+        searchMode = false
+    }
+
     LaunchedEffect(filterSnapshot.listFilter.query, searchMode) {
         if (!searchMode) {
             searchQuery = filterSnapshot.listFilter.query.orEmpty()

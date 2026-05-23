@@ -13,6 +13,7 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceScreen
 import androidx.preference.get
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.EntryPointAccessors
@@ -20,14 +21,13 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.resolve.ExceptionResolver
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.ui.util.RecyclerViewOwner
-import org.skepsun.kototoro.core.util.ext.consumeAllSystemBarsInsets
+import org.skepsun.kototoro.core.util.ext.consumeAll
 import org.skepsun.kototoro.core.util.ext.container
 import org.skepsun.kototoro.core.util.ext.end
 import org.skepsun.kototoro.core.util.ext.getThemeColor
 import org.skepsun.kototoro.core.util.ext.getThemeDrawable
 import org.skepsun.kototoro.core.util.ext.parentView
 import org.skepsun.kototoro.core.util.ext.start
-import org.skepsun.kototoro.core.util.ext.systemBarsInsets
 import org.skepsun.kototoro.settings.SettingsActivity
 import javax.inject.Inject
 import com.google.android.material.R as materialR
@@ -62,7 +62,8 @@ abstract class BasePreferenceFragment(@StringRes private val titleId: Int) :
 	}
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
-		val barsInsets = insets.systemBarsInsets
+		val typeMask = WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+		val barsInsets = insets.getInsets(typeMask)
 		val isTablet = !resources.getBoolean(R.bool.is_tablet)
 		val isMaster = container?.id == R.id.container_master
 		listView.setPaddingRelative(
@@ -71,7 +72,7 @@ abstract class BasePreferenceFragment(@StringRes private val titleId: Int) :
 			if (isTablet && isMaster) 0 else barsInsets.end(v),
 			barsInsets.bottom,
 		)
-		return insets.consumeAllSystemBarsInsets()
+		return insets.consumeAll(typeMask)
 	}
 
 	override fun onResume() {
@@ -99,13 +100,30 @@ abstract class BasePreferenceFragment(@StringRes private val titleId: Int) :
 			scrollToPreference(key)
 			return
 		}
-		scrollToPreference(pref)
 		val prefIndex = preferenceScreen.indexOf(key)
-		val view = if (prefIndex >= 0) {
-			listView.findViewHolderForAdapterPosition(prefIndex)?.itemView ?: return
-		} else {
+		if (prefIndex < 0) {
 			return
 		}
+		focusPreferenceAt(prefIndex)
+	}
+
+	private fun focusPreferenceAt(index: Int) {
+		val layoutManager = listView.layoutManager as? LinearLayoutManager
+		if (layoutManager == null) {
+			val key = preferenceScreen.get(index).key ?: return
+			scrollToPreference(key)
+			highlightPreference(index)
+			return
+		}
+		val topOffset = (56 * resources.displayMetrics.density).toInt()
+		layoutManager.scrollToPositionWithOffset(index, topOffset)
+		listView.post {
+			highlightPreference(index)
+		}
+	}
+
+	private fun highlightPreference(index: Int) {
+		val view = listView.findViewHolderForAdapterPosition(index)?.itemView ?: return
 		view.context.getThemeDrawable(materialR.attr.colorTertiaryContainer)?.let {
 			view.background = it
 		}

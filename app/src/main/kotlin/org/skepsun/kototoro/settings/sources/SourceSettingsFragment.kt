@@ -19,6 +19,7 @@ import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import androidx.preference.get
+import androidx.recyclerview.widget.LinearLayoutManager
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.filterNotNull
@@ -897,13 +898,30 @@ class SourceSettingsFragment :
 			scrollToPreference(key)
 			return
 		}
-		scrollToPreference(preference)
 		val preferenceIndex = preferenceScreen.indexOf(key)
-		val itemView = if (preferenceIndex >= 0) {
-			listView.findViewHolderForAdapterPosition(preferenceIndex)?.itemView ?: return
-		} else {
+		if (preferenceIndex < 0) {
 			return
 		}
+		focusPreferenceAt(preferenceIndex)
+	}
+
+	private fun focusPreferenceAt(index: Int) {
+		val layoutManager = listView.layoutManager as? LinearLayoutManager
+		if (layoutManager == null) {
+			val key = preferenceScreen.get(index).key ?: return
+			scrollToPreference(key)
+			highlightPreference(index)
+			return
+		}
+		val topOffset = (56 * resources.displayMetrics.density).toInt()
+		layoutManager.scrollToPositionWithOffset(index, topOffset)
+		listView.post {
+			highlightPreference(index)
+		}
+	}
+
+	private fun highlightPreference(index: Int) {
+		val itemView = listView.findViewHolderForAdapterPosition(index)?.itemView ?: return
 		itemView.context.getThemeDrawable(materialR.attr.colorTertiaryContainer)?.let {
 			itemView.background = it
 		}

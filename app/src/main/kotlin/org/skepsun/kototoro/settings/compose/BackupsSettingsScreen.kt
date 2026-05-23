@@ -56,6 +56,7 @@ fun BackupsSettingsScreen(
             SnackbarHost(hostState = snackbarHostState)
         },
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { innerPadding ->
         val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
         LazyColumn(
@@ -64,7 +65,7 @@ fun BackupsSettingsScreen(
             contentPadding = PaddingValues(
                 start = 16.dp,
                 end = 16.dp,
-                top = innerPadding.calculateTopPadding() + 20.dp,
+                top = innerPadding.calculateTopPadding(),
                 bottom = innerPadding.calculateBottomPadding() +
                     WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp,
             ),

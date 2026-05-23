@@ -9,6 +9,7 @@ import org.skepsun.kototoro.R
 
 class SettingsSearchMenuProvider(
 	private val viewModel: SettingsSearchViewModel,
+    private val isVisible: () -> Boolean = { true },
 ) : MenuProvider, MenuItem.OnActionExpandListener, SearchView.OnQueryTextListener {
 
 	override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
@@ -22,8 +23,16 @@ class SettingsSearchMenuProvider(
 
 	override fun onPrepareMenu(menu: Menu) {
 		super.onPrepareMenu(menu)
+		val menuItem = menu.findItem(R.id.action_search)
+		val visible = isVisible()
+		menuItem.isVisible = visible
+		if (!visible) {
+			if (menuItem.isActionViewExpanded) {
+				menuItem.collapseActionView()
+			}
+			return
+		}
 		if (viewModel.isSearchActive.value) {
-			val menuItem = menu.findItem(R.id.action_search)
 			menuItem.expandActionView()
 			val searchView = menuItem.actionView as SearchView
 			searchView.setQuery(viewModel.currentQuery, false)

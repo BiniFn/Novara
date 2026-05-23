@@ -73,10 +73,13 @@ class ReaderInfoBarView @JvmOverloads constructor(
 	private var prevTextHeight: Int = 0
 
 	private val innerHeight
-		get() = height - paddingTop - paddingBottom - insetTop
+		get() = height - paddingTop - paddingBottom - activeVerticalInset
 
 	private val innerWidth
 		get() = width - paddingLeft - paddingRight - insetLeft - insetRight
+
+	private val activeVerticalInset: Int
+		get() = if (applyTopInset) insetTop else 0
 
 	var drawBackground: Boolean = false
 		set(value) {
@@ -88,6 +91,15 @@ class ReaderInfoBarView @JvmOverloads constructor(
 		set(value) {
 			field = value
 			invalidate()
+		}
+
+	var applyTopInset: Boolean = true
+		set(value) {
+			if (field != value) {
+				field = value
+				requestLayout()
+				invalidate()
+			}
 		}
 
 	init {
@@ -109,7 +121,7 @@ class ReaderInfoBarView @JvmOverloads constructor(
 		val desiredHeight = maxOf(
 			computeTextHeight().also { prevTextHeight = it },
 			suggestedMinimumHeight,
-		) + paddingTop + paddingBottom + insetTop
+		) + paddingTop + paddingBottom + activeVerticalInset
 		setMeasuredDimension(
 			measureDimension(desiredWidth, widthMeasureSpec),
 			measureDimension(desiredHeight, heightMeasureSpec),
@@ -128,31 +140,31 @@ class ReaderInfoBarView @JvmOverloads constructor(
 		paint.color = currentTextColor
 		paint.style = Paint.Style.FILL
 		if (drawBackground) {
-			canvas.drawText(text, (paddingLeft + insetLeft).toFloat(), paddingTop + insetTop + ty, paint)
+			canvas.drawText(text, (paddingLeft + insetLeft).toFloat(), paddingTop + activeVerticalInset + ty, paint)
 		} else {
-			canvas.drawTextOutline(text, (paddingLeft + insetLeft).toFloat(), paddingTop + insetTop + ty)
+			canvas.drawTextOutline(text, (paddingLeft + insetLeft).toFloat(), paddingTop + activeVerticalInset + ty)
 		}
 		if (isTimeVisible) {
 			paint.textAlign = Paint.Align.RIGHT
 			var endX = (width - paddingRight - insetRight).toFloat()
 			if (drawBackground) {
-				canvas.drawText(timeText, endX, paddingTop + insetTop + ty, paint)
+				canvas.drawText(timeText, endX, paddingTop + activeVerticalInset + ty, paint)
 			} else {
-				canvas.drawTextOutline(timeText, endX, paddingTop + insetTop + ty)
+				canvas.drawTextOutline(timeText, endX, paddingTop + activeVerticalInset + ty)
 			}
 			if (batteryText.isNotEmpty()) {
 				paint.getTextBounds(timeText, 0, timeText.length, textBounds)
 				endX -= textBounds.width()
 				endX -= h * 0.6f
 				if (drawBackground) {
-					canvas.drawText(batteryText, endX, paddingTop + insetTop + ty, paint)
+					canvas.drawText(batteryText, endX, paddingTop + activeVerticalInset + ty, paint)
 				} else {
-					canvas.drawTextOutline(batteryText, endX, paddingTop + insetTop + ty)
+					canvas.drawTextOutline(batteryText, endX, paddingTop + activeVerticalInset + ty)
 				}
 				batteryIcon?.let {
 					paint.getTextBounds(batteryText, 0, batteryText.length, textBounds)
 					endX -= textBounds.width()
-					val iconCenter = paddingTop + insetTop + textBounds.height() / 2
+					val iconCenter = paddingTop + activeVerticalInset + textBounds.height() / 2
 					it.setBounds(
 						(endX - h).toInt(),
 						(iconCenter - h / 2).toInt(),

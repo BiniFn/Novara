@@ -88,24 +88,37 @@ object GlobalExtensionManager {
 
     private fun applyDeduplication(prefs: SharedPreferences) {
         val priorityStr = prefs.getString("jar_priority_order", "kototoro-parsers,kotatsu-parsers-redo,kotatsu-parsers") ?: ""
-        val priorityList = priorityStr.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        val priorityList = priorityStr
+            .split(",")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+        val loadedJarNames = (allLoadedMangaSources.map { it.jarName } + allLoadedContentSources.map { it.jarName })
+            .distinct()
 
         fun getPriorityScore(jarName: String): Int {
             val baseName = jarName.removeSuffix(".jar")
             val index = priorityList.indexOf(baseName)
-            return if (index == -1) Int.MAX_VALUE else index
+            return if (index == -1) priorityList.size + loadedJarNames.indexOf(jarName).coerceAtLeast(Int.MAX_VALUE / 2) else index
         }
 
         val deduplicatedMangaSources = allLoadedMangaSources
             .groupBy { it.originalSource.name }
             .map { (_, sources) ->
-                sources.minByOrNull { getPriorityScore(it.jarName) }!!
+                sources.minWithOrNull(
+                    compareBy<PluginMangaSource> { getPriorityScore(it.jarName) }
+                        .thenBy { loadedJarNames.indexOf(it.jarName).coerceAtLeast(Int.MAX_VALUE / 2) }
+                        .thenBy { it.jarName.lowercase() },
+                )!!
             }
 
         val deduplicatedContentSources = allLoadedContentSources
             .groupBy { it.originalSource.name }
             .map { (_, sources) ->
-                sources.minByOrNull { getPriorityScore(it.jarName) }!!
+                sources.minWithOrNull(
+                    compareBy<PluginContentSource> { getPriorityScore(it.jarName) }
+                        .thenBy { loadedJarNames.indexOf(it.jarName).coerceAtLeast(Int.MAX_VALUE / 2) }
+                        .thenBy { it.jarName.lowercase() },
+                )!!
             }
 
         _mangaSources.value = deduplicatedMangaSources

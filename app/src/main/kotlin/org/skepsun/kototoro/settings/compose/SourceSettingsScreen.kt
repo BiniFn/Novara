@@ -26,6 +26,11 @@ data class SourceSettingsSectionUiState(
     val rows: List<SourceSettingsRowUiState>,
 )
 
+data class SourceSettingsGroupLabelRowUiState(
+    override val id: String,
+    val text: String,
+) : SourceSettingsRowUiState
+
 data class SourceSettingsActionRowUiState(
     override val id: String,
     val title: String,
@@ -54,6 +59,17 @@ data class SourceSettingsChoiceRowUiState(
     val onValueChange: (String) -> Unit,
 ) : SourceSettingsRowUiState
 
+data class SourceSettingsMultiChoiceRowUiState(
+    override val id: String,
+    val title: String,
+    val values: Set<String>,
+    val options: List<SettingsChoiceOption<String>>,
+    val emptySelectionText: String,
+    val summary: String? = null,
+    val enabled: Boolean = true,
+    val onValueChange: (Set<String>) -> Unit,
+) : SourceSettingsRowUiState
+
 data class SourceSettingsTextRowUiState(
     override val id: String,
     val title: String,
@@ -79,6 +95,7 @@ fun SourceSettingsScreen(
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { innerPadding ->
     val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
         LazyColumn(state = listState,
@@ -86,7 +103,7 @@ fun SourceSettingsScreen(
             contentPadding = PaddingValues(
                 start = 16.dp,
                 end = 16.dp,
-                top = innerPadding.calculateTopPadding() + 20.dp,
+                top = innerPadding.calculateTopPadding(),
                 bottom = innerPadding.calculateBottomPadding() +
                     WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp,
             ),
@@ -98,6 +115,12 @@ fun SourceSettingsScreen(
                         section.rows.forEachIndexed { index, row ->
                             key(row.id) {
                                 when (row) {
+                                    is SourceSettingsGroupLabelRowUiState -> {
+                                        SettingsGroupLabel(
+                                            text = row.text,
+                                        )
+                                    }
+
                                     is SourceSettingsActionRowUiState -> {
                                         SettingsActionPreference(
                                             title = row.title,
@@ -123,6 +146,18 @@ fun SourceSettingsScreen(
                                             title = row.title,
                                             value = row.value,
                                             options = row.options,
+                                            summary = row.summary,
+                                            enabled = row.enabled,
+                                            onValueChange = row.onValueChange,
+                                        )
+                                    }
+
+                                    is SourceSettingsMultiChoiceRowUiState -> {
+                                        SettingsMultiChoicePreference(
+                                            title = row.title,
+                                            values = row.values,
+                                            options = row.options,
+                                            emptySelectionText = row.emptySelectionText,
                                             summary = row.summary,
                                             enabled = row.enabled,
                                             onValueChange = row.onValueChange,

@@ -12,15 +12,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -695,6 +699,153 @@ fun SettingsDialogTextPreference(
                         VisualTransformation.None
                     },
                 )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onValueChange(pendingValue)
+                        isDialogVisible = false
+                    },
+                ) {
+                    Text(text = stringResource(android.R.string.ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { isDialogVisible = false }) {
+                    Text(text = stringResource(android.R.string.cancel))
+                }
+            },
+        )
+    }
+}
+
+@Composable
+fun SettingsReorderPreference(
+    title: String,
+    value: List<String>,
+    summary: String? = null,
+    emptyValueText: String,
+    enabled: Boolean = true,
+    onValueChange: (List<String>) -> Unit,
+) {
+    var isDialogVisible by remember { mutableStateOf(false) }
+    var pendingValue by remember(value) { mutableStateOf(value) }
+    val displayValue = value.joinToString(", ").ifBlank { emptyValueText }
+    val moveUpLabel = stringResource(R.string.move_up)
+    val moveDownLabel = stringResource(R.string.move_down)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled) {
+                pendingValue = value
+                isDialogVisible = true
+            }
+            .alpha(if (enabled) 1f else 0.5f)
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = displayValue,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (summary != null) {
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+
+    if (isDialogVisible) {
+        AlertDialog(
+            onDismissRequest = { isDialogVisible = false },
+            title = { Text(text = title) },
+            text = {
+                if (pendingValue.isEmpty()) {
+                    Text(
+                        text = emptyValueText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 360.dp),
+                    ) {
+                        itemsIndexed(pendingValue, key = { _, item -> item }) { index: Int, item: String ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = item.removeSuffix(".jar"),
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                IconButton(
+                                    onClick = {
+                                        if (index > 0) {
+                                            pendingValue = pendingValue.toMutableList().apply {
+                                                add(index - 1, removeAt(index))
+                                            }
+                                        }
+                                    },
+                                    enabled = index > 0,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.KeyboardArrowUp,
+                                        contentDescription = moveUpLabel,
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        if (index < pendingValue.lastIndex) {
+                                            pendingValue = pendingValue.toMutableList().apply {
+                                                add(index + 1, removeAt(index))
+                                            }
+                                        }
+                                    },
+                                    enabled = index < pendingValue.lastIndex,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.KeyboardArrowDown,
+                                        contentDescription = moveDownLabel,
+                                    )
+                                }
+                            }
+                            if (index != pendingValue.lastIndex) {
+                                SettingsSectionDivider()
+                            }
+                        }
+                    }
+                }
             },
             confirmButton = {
                 TextButton(

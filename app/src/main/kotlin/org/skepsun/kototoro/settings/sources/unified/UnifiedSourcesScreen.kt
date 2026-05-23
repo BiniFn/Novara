@@ -37,7 +37,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -61,7 +60,6 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
@@ -101,7 +99,7 @@ import org.skepsun.kototoro.settings.sources.extensions.toInstalledIReaderPackag
 import java.util.Locale
 import kotlinx.coroutines.launch
 
-private enum class UnifiedToolbarFilterPanel {
+enum class UnifiedToolbarFilterPanel {
 	LANGUAGE,
 	MORE,
 }
@@ -162,13 +160,16 @@ private data class UnifiedSelectedSourceDeletePlan(
 
 @Composable
 fun UnifiedSourcesRoute(
-	onNavigateUp: () -> Unit,
 	onBrowseSource: (UnifiedSourceItem) -> Unit,
 	onOpenSourceSettings: (UnifiedSourceItem) -> Unit,
 	onOpenRepositoryFile: (UnifiedSourceKind) -> Unit,
 	onOpenLocalJarPicker: () -> Unit,
 	onStartInstall: (Intent) -> Unit,
 	onStartUninstall: (Intent) -> Unit,
+	searchActive: Boolean,
+	onSearchActiveChange: (Boolean) -> Unit,
+	activePanel: UnifiedToolbarFilterPanel?,
+	onActivePanelChange: (UnifiedToolbarFilterPanel?) -> Unit,
 	initialAddRepositoryKind: UnifiedSourceKind? = null,
 	initialAddRepositoryUrl: String? = null,
 	modifier: Modifier = Modifier,
@@ -179,9 +180,7 @@ fun UnifiedSourcesRoute(
 	val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
 	val updateAllInProgress by viewModel.updateAllInProgress.collectAsStateWithLifecycle()
 	var activeDialog by remember { mutableStateOf<UnifiedSourcesDialogState?>(null) }
-	var searchActive by rememberSaveable { mutableStateOf(false) }
 	var initialRepositoryHandled by rememberSaveable { mutableStateOf(false) }
-	var activePanel by rememberSaveable { mutableStateOf<UnifiedToolbarFilterPanel?>(null) }
 	var selectedSourceIdList by rememberSaveable { mutableStateOf(emptyList<String>()) }
 	val selectedSourceIds = remember(selectedSourceIdList) { selectedSourceIdList.toSet() }
 
@@ -232,21 +231,20 @@ fun UnifiedSourcesRoute(
 	}
 
 	UnifiedSourcesScreen(
-		onNavigateUp = onNavigateUp,
 		state = state,
 		isLoading = isLoading,
 		updateAllInProgress = updateAllInProgress,
 		searchActive = searchActive,
-		onSearchClick = { searchActive = true },
+		onSearchClick = { onSearchActiveChange(true) },
 		onSearchClose = {
-			searchActive = false
+			onSearchActiveChange(false)
 			viewModel.setSearchQuery("")
 		},
 		onSearchQueryChange = viewModel::setSearchQuery,
 		onKindClick = viewModel::setKindFilter,
 		onContentTypeClick = viewModel::setContentTypeFilter,
-		onLanguageFilterClick = { activePanel = UnifiedToolbarFilterPanel.LANGUAGE },
-		onMoreFiltersClick = { activePanel = UnifiedToolbarFilterPanel.MORE },
+		onLanguageFilterClick = { onActivePanelChange(UnifiedToolbarFilterPanel.LANGUAGE) },
+		onMoreFiltersClick = { onActivePanelChange(UnifiedToolbarFilterPanel.MORE) },
 		onSourceEnabledChange = viewModel::setSourceEnabled,
 		selectedSourceIds = selectedSourceIds,
 		onSourceSelectionChange = { selectedSourceIdList = it.toList() },
@@ -312,7 +310,7 @@ fun UnifiedSourcesRoute(
 			UnifiedLanguageFilterDialog(
 				languages = readyState.availableLanguages,
 				selectedLanguages = readyState.filters.languages,
-				onDismiss = { activePanel = null },
+				onDismiss = { onActivePanelChange(null) },
 				onLanguageClick = viewModel::toggleLanguage,
 				onApplyPreferredLanguages = viewModel::applyPreferredLanguages,
 				onClear = viewModel::clearLanguages,
@@ -321,7 +319,7 @@ fun UnifiedSourcesRoute(
 		UnifiedToolbarFilterPanel.MORE -> if (readyState != null) {
 			UnifiedFilterGroupDialog(
 				title = stringResource(R.string.more_filters),
-				onDismiss = { activePanel = null },
+				onDismiss = { onActivePanelChange(null) },
 				onClear = viewModel::clearFilters,
 			) {
 				FilterSection(title = stringResource(R.string.status)) {
@@ -950,6 +948,64 @@ private fun ToolbarFilterIconButton(
 }
 
 @Composable
+fun UnifiedSourcesToolbarActions(
+	readyState: UnifiedSourcesUiState.Ready?,
+	searchActive: Boolean,
+	onSearchClick: () -> Unit,
+	onSearchClose: () -> Unit,
+	onSearchQueryChange: (String) -> Unit,
+	onLanguageFilterClick: () -> Unit,
+	onMoreFiltersClick: () -> Unit,
+	modifier: Modifier = Modifier,
+) {
+	if (searchActive && readyState != null) {
+		Row(
+			modifier = modifier,
+			verticalAlignment = Alignment.CenterVertically,
+		) {
+			ToolbarSearchField(
+				query = readyState.filters.query,
+				onQueryChange = onSearchQueryChange,
+				modifier = Modifier.weight(1f),
+				autofocus = true,
+			)
+			IconButton(onClick = onSearchClose) {
+				Icon(
+					imageVector = Icons.Filled.Close,
+					contentDescription = stringResource(android.R.string.cancel),
+					tint = MaterialTheme.colorScheme.onSurface,
+				)
+			}
+		}
+		return
+	}
+	Row(
+		modifier = modifier,
+		horizontalArrangement = Arrangement.End,
+		verticalAlignment = Alignment.CenterVertically,
+	) {
+		if (readyState != null) {
+			ToolbarSearchIconButton(
+				active = readyState.filters.query.isNotBlank(),
+				onClick = onSearchClick,
+			)
+			ToolbarFilterIconButton(
+				iconRes = R.drawable.ic_language,
+				activeCount = readyState.filters.languages.size,
+				contentDescription = stringResource(R.string.filter_extensions_by_language),
+				onClick = onLanguageFilterClick,
+			)
+			ToolbarFilterIconButton(
+				iconRes = R.drawable.ic_filter_menu,
+				activeCount = readyState.filters.otherFilterCount(),
+				contentDescription = stringResource(R.string.more_filters),
+				onClick = onMoreFiltersClick,
+			)
+		}
+	}
+}
+
+@Composable
 private fun UnifiedFilterGroupDialog(
 	title: String,
 	onDismiss: () -> Unit,
@@ -980,7 +1036,6 @@ private fun UnifiedFilterGroupDialog(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UnifiedSourcesScreen(
-	onNavigateUp: () -> Unit,
 	state: UnifiedSourcesUiState,
 	isLoading: Boolean,
 	updateAllInProgress: Boolean,
@@ -1041,64 +1096,9 @@ fun UnifiedSourcesScreen(
 	}
 	Scaffold(
 		modifier = modifier,
-		contentWindowInsets = WindowInsets.navigationBars,
+		contentWindowInsets = WindowInsets(0, 0, 0, 0),
 		topBar = {
 			Column {
-				TopAppBar(
-					title = {
-						if (readyState != null && searchActive) {
-							ToolbarSearchField(
-								query = readyState.filters.query,
-								onQueryChange = onSearchQueryChange,
-								modifier = Modifier.fillMaxWidth(),
-								autofocus = true,
-							)
-						} else {
-							Text(
-								text = stringResource(R.string.extension_management),
-								maxLines = 1,
-								overflow = TextOverflow.Ellipsis,
-							)
-						}
-					},
-					navigationIcon = {
-						IconButton(onClick = onNavigateUp) {
-							Icon(
-								imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-								contentDescription = null,
-							)
-						}
-					},
-					actions = {
-						if (readyState != null) {
-							if (searchActive) {
-								IconButton(onClick = onSearchClose) {
-									Icon(
-										imageVector = Icons.Filled.Close,
-										contentDescription = stringResource(android.R.string.cancel),
-									)
-								}
-							} else {
-								ToolbarSearchIconButton(
-									active = readyState.filters.query.isNotBlank(),
-									onClick = onSearchClick,
-								)
-								ToolbarFilterIconButton(
-									iconRes = R.drawable.ic_language,
-									activeCount = readyState.filters.languages.size,
-									contentDescription = stringResource(R.string.filter_extensions_by_language),
-									onClick = onLanguageFilterClick,
-								)
-								ToolbarFilterIconButton(
-									iconRes = R.drawable.ic_filter_menu,
-									activeCount = readyState.filters.otherFilterCount(),
-									contentDescription = stringResource(R.string.more_filters),
-									onClick = onMoreFiltersClick,
-								)
-							}
-						}
-					},
-				)
 				if (isLoading || state == UnifiedSourcesUiState.Loading) {
 					LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
 				}

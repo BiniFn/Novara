@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.settings
 
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.net.Uri
@@ -15,10 +16,14 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.unit.dp
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -26,6 +31,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.content.edit
 import androidx.core.net.toUri
+import androidx.core.view.children
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
@@ -41,6 +47,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceManager
+import androidx.appcompat.widget.ActionMenuView
+import androidx.coordinatorlayout.widget.CoordinatorLayout
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
@@ -77,9 +85,11 @@ import org.skepsun.kototoro.core.util.FoldableUtils
 import org.skepsun.kototoro.core.util.ext.buildBundle
 import org.skepsun.kototoro.core.util.ext.end
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
+import org.skepsun.kototoro.core.util.ext.getThemeColor
 import org.skepsun.kototoro.core.util.ext.getQuantityStringSafe
 import org.skepsun.kototoro.core.util.ext.observeEvent
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
+import org.skepsun.kototoro.core.util.ext.setNavigationIconSafe
 import org.skepsun.kototoro.core.util.ext.start
 import org.skepsun.kototoro.core.util.ext.textAndVisible
 import org.skepsun.kototoro.core.util.ext.tryLaunch
@@ -106,13 +116,19 @@ import org.skepsun.kototoro.settings.discord.DiscordSettingsRoute
 import org.skepsun.kototoro.settings.discord.DiscordSettingsViewModel
 import org.skepsun.kototoro.settings.protect.ProtectSetupActivity
 import org.skepsun.kototoro.settings.search.SettingsItem
+import org.skepsun.kototoro.settings.search.SettingsSearchMenuProvider
 import org.skepsun.kototoro.settings.search.SettingsSearchViewModel
 import org.skepsun.kototoro.settings.support.TranslationApiSettingsSupport
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
-import org.skepsun.kototoro.settings.sources.SourceSettingsHostFragment
+import org.skepsun.kototoro.settings.sources.SourceComposeSettingsFragment
+import org.skepsun.kototoro.settings.sources.SourceSettingsFragment
 import org.skepsun.kototoro.settings.sources.SourcesSettingsRoute
 import org.skepsun.kototoro.settings.sources.SourcesSettingsViewModel
-import org.skepsun.kototoro.settings.sources.unified.UnifiedSourcesActivity
+import org.skepsun.kototoro.settings.sources.unified.UnifiedSourceKind
+import org.skepsun.kototoro.settings.sources.unified.UnifiedSourcesToolbarActions
+import org.skepsun.kototoro.settings.sources.unified.UnifiedToolbarFilterPanel
+import org.skepsun.kototoro.settings.sources.unified.UnifiedSourcesRoute
+import org.skepsun.kototoro.settings.sources.unified.UnifiedSourcesViewModel
 import org.skepsun.kototoro.settings.tracker.TrackerSettingsRoute
 import org.skepsun.kototoro.settings.tracker.TrackerSettingsViewModel
 import org.skepsun.kototoro.settings.userdata.BackupsSettingsRoute
@@ -125,6 +141,14 @@ import org.skepsun.kototoro.tracking.animeoffline.data.AnimeOfflineRepository
 import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteDiscoveryService
 import org.skepsun.kototoro.video.ui.VideoSuperResolutionAdvancedSheet
 import org.skepsun.kototoro.scrobbling.discord.ui.DiscordAuthActivity
+import org.skepsun.kototoro.core.parser.EmptyContentRepository
+import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.core.parser.JsContentRepository
+import org.skepsun.kototoro.core.parser.ParserContentRepository
+import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserRepository
+import org.skepsun.kototoro.core.parser.legado.LegadoRepository
+import org.skepsun.kototoro.core.parser.tvbox.TVBoxRepository
+import org.skepsun.kototoro.parsers.model.ContentSource
 import kotlin.coroutines.cancellation.CancellationException
 
 @AndroidEntryPoint
@@ -149,6 +173,9 @@ class SettingsActivity :
 
 	@Inject
 	lateinit var animeOfflineRepository: AnimeOfflineRepository
+
+	@Inject
+	lateinit var mangaRepositoryFactory: ContentRepository.Factory
 
 	@Inject
 	lateinit var scrobblerAuthHelper: ScrobblerAuthHelper
@@ -185,6 +212,7 @@ class SettingsActivity :
 	private val periodicalBackupSettingsViewModel: PeriodicalBackupSettingsViewModel by viewModels()
 	private val discordSettingsViewModel: DiscordSettingsViewModel by viewModels()
 	private val sourcesSettingsViewModel: SourcesSettingsViewModel by viewModels()
+	private val unifiedSourcesViewModel: UnifiedSourcesViewModel by viewModels()
 	private val storageAndNetworkSettingsViewModel: StorageAndNetworkSettingsViewModel by viewModels()
 	private val dataCleanupSettingsViewModel: DataCleanupSettingsViewModel by viewModels()
 	private val navConfigViewModel: NavConfigViewModel by viewModels()
@@ -211,6 +239,9 @@ class SettingsActivity :
 	private val suggestionsExcludeTagsFlow = MutableStateFlow("")
 	private val suggestionsPreferredTagsFlow = MutableStateFlow("")
 	private var pendingExternalBackupApp: ExternalBackupApp? = null
+	private var pendingUnifiedSourcesFileImportKind: UnifiedSourceKind? = null
+	private var unifiedSourcesSearchActive by mutableStateOf(false)
+	private var unifiedSourcesActivePanel by mutableStateOf<UnifiedToolbarFilterPanel?>(null)
 
 	private val composeBackCallback = object : OnBackPressedCallback(false) {
 		override fun handleOnBackPressed() {
@@ -280,10 +311,50 @@ class SettingsActivity :
 		kototoroAppSettings.notificationSound = uri ?: return@registerForActivityResult
 	}
 
+	private val openUnifiedSourcesRepositoryFile = registerForActivityResult(
+		ActivityResultContracts.OpenDocument(),
+	) { uri ->
+		if (uri == null) return@registerForActivityResult
+		val kind = pendingUnifiedSourcesFileImportKind ?: return@registerForActivityResult
+		pendingUnifiedSourcesFileImportKind = null
+		persistReadPermission(uri)
+		unifiedSourcesViewModel.addRepositoryFromFile(kind, uri)
+	}
+
+	private val openUnifiedSourcesLocalJar = registerForActivityResult(
+		ActivityResultContracts.OpenDocument(),
+	) { uri ->
+		if (uri == null) return@registerForActivityResult
+		persistReadPermission(uri)
+		unifiedSourcesViewModel.importLocalJar(uri)
+	}
+
+	private val unifiedSourcesInstallLauncher = registerForActivityResult(
+		ActivityResultContracts.StartActivityForResult(),
+	) {
+		unifiedSourcesViewModel.onInstallActivityResult()
+	}
+
+	private val unifiedSourcesUninstallLauncher = registerForActivityResult(
+		ActivityResultContracts.StartActivityForResult(),
+	) {
+		unifiedSourcesViewModel.onUninstallActivityResult()
+	}
+
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		setContentView(SettingsActivityLayoutBinding.inflate(layoutInflater))
 		setDisplayHomeAsUp(isEnabled = true, showUpAsClose = false)
+		viewBinding.toolbarDetail?.apply {
+			setNavigationIconSafe(androidx.appcompat.R.drawable.abc_ic_ab_back_material)
+			setNavigationOnClickListener { handleComposeNavigateUp() }
+		}
+		applyDetailToolbarColors()
+		addMenuProvider(
+			SettingsSearchMenuProvider(viewModel) {
+				isMasterDetails || composeDestination == SettingsDestination.Root
+			},
+		)
 		onBackPressedDispatcher.addCallback(this, composeBackCallback)
 		viewBinding.containerCompose.setViewCompositionStrategy(
 			ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed,
@@ -357,7 +428,9 @@ class SettingsActivity :
 	}
 
 	override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
-		val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+		val bars = insets.getInsets(
+			WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
+		)
 		val isTablet = viewBinding.containerMaster != null
 		viewBinding.appbar.updatePaddingRelative(
 			start = bars.start(v),
@@ -365,6 +438,7 @@ class SettingsActivity :
 			end = if (isTablet) 0 else bars.end(v),
 		)
 		viewBinding.appbarDetail?.updatePaddingRelative(
+			start = 0,
 			end = bars.end(v),
 			top = bars.top,
 		)
@@ -507,7 +581,19 @@ class SettingsActivity :
 					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_ABOUT_SETTINGS)
 					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
 				}
-				is SettingsDestination.UnifiedSources -> Unit
+				is SettingsDestination.UnifiedSources -> {
+					val unifiedDestination = composeDestination as? SettingsDestination.UnifiedSources ?: return
+					outState.putString(STATE_COMPOSE_DESTINATION, COMPOSE_DESTINATION_UNIFIED_SOURCES)
+					outState.putBoolean(STATE_COMPOSE_RESTORE_FRAGMENT, shouldRestoreFragmentOnComposeExit)
+					outState.putString(
+						STATE_UNIFIED_SOURCES_KIND,
+						unifiedDestination.initialRepositoryKind?.name,
+					)
+					outState.putString(
+						STATE_UNIFIED_SOURCES_URL,
+						unifiedDestination.initialRepositoryUrl,
+					)
+				}
 				null,
 				is SettingsDestination.FragmentDestination -> Unit
 			}
@@ -520,8 +606,33 @@ class SettingsActivity :
 	fun setSectionTitle(title: CharSequence?) {
 		viewBinding.toolbarDetail?.let { toolbar ->
 			toolbar.title = title
-			toolbar.isVisible = title != null
+			toolbar.subtitle = null
+			toolbar.isVisible = isMasterDetails && title != null
+			viewBinding.appbarDetail?.isVisible = isMasterDetails && title != null
+			applyDetailToolbarColors()
 		} ?: setTitle(title ?: getString(R.string.settings))
+	}
+
+	private fun applyDetailToolbarColors() {
+		val toolbar = viewBinding.toolbarDetail ?: return
+		val color = toolbar.context.getThemeColor(com.google.android.material.R.attr.colorOnSurface)
+		if (isMasterDetails) {
+			toolbar.navigationIcon = null
+		} else {
+			toolbar.setNavigationIconSafe(androidx.appcompat.R.drawable.abc_ic_ab_back_material)
+		}
+		toolbar.setTitleTextColor(color)
+		toolbar.setSubtitleTextColor(color)
+		toolbar.navigationIcon?.mutate()?.setTint(color)
+		toolbar.overflowIcon?.mutate()?.setTint(color)
+		(toolbar.findViewById<ActionMenuView>(androidx.appcompat.R.id.action_menu_presenter) ?: toolbar.children
+			.filterIsInstance<ActionMenuView>()
+			.firstOrNull()
+			)?.let { menuView ->
+				for (index in 0 until menuView.childCount) {
+					(menuView.getChildAt(index) as? android.widget.ImageView)?.setColorFilter(color)
+				}
+			}
 	}
 
 	fun setSectionToolbarActions(view: View?, fillAvailableWidth: Boolean = false) {
@@ -535,7 +646,7 @@ class SettingsActivity :
 
 		view.tag = tag
 		val maxActionWidth = (420 * resources.displayMetrics.density).toInt()
-		val actionWidth = (resources.displayMetrics.widthPixels * 0.62f).toInt()
+		val actionWidth = (resources.displayMetrics.widthPixels * 0.36f).toInt()
 			.coerceAtMost(maxActionWidth)
 		toolbar.addView(
 			view,
@@ -547,17 +658,76 @@ class SettingsActivity :
 		)
 	}
 
+	@Composable
+	private fun SectionToolbarActionsEffect(
+		fillAvailableWidth: Boolean = false,
+		content: @Composable () -> Unit,
+	) {
+		val toolbar = viewBinding.toolbarDetail ?: viewBinding.toolbar
+		val tag = "section_toolbar_actions"
+		val composeView = remember(toolbar) {
+			ComposeView(this).apply {
+				this.tag = tag
+				setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+			}
+		}
+		composeView.setContent {
+			KototoroTheme {
+				content()
+			}
+		}
+		SideEffect {
+			setSectionToolbarActions(composeView, fillAvailableWidth = fillAvailableWidth)
+		}
+		DisposableEffect(toolbar, composeView) {
+			onDispose {
+				(0 until toolbar.childCount)
+					.map { toolbar.getChildAt(it) }
+					.firstOrNull { it === composeView || it.tag == tag }
+					?.let(toolbar::removeView)
+			}
+		}
+	}
+
+	private fun setSectionToolbarActionsContent(
+		fillAvailableWidth: Boolean = false,
+		content: @Composable () -> Unit,
+	) {
+		val toolbar = viewBinding.toolbarDetail ?: viewBinding.toolbar
+		val tag = "section_toolbar_actions"
+		val composeView = (0 until toolbar.childCount)
+			.map { toolbar.getChildAt(it) }
+			.firstOrNull { it.tag == tag }
+			as? ComposeView ?: ComposeView(this).apply {
+			setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+		}
+		composeView.setContent {
+			KototoroTheme {
+				content()
+			}
+		}
+		setSectionToolbarActions(composeView, fillAvailableWidth = fillAvailableWidth)
+	}
+
 	private fun setLegacyTopBarVisible(isVisible: Boolean) {
-		viewBinding.legacyTopBarHost.isVisible = isVisible
-		viewBinding.appbarDetail?.isVisible = isVisible
+		val showLegacyTopBar = isVisible || isMasterDetails
+		viewBinding.legacyTopBarHost.isVisible = showLegacyTopBar
+		viewBinding.appbarDetail?.isVisible = isMasterDetails && currentDetailTitle() != null
+		updateSinglePaneScrollBehavior(showLegacyTopBar)
+		viewBinding.root.requestLayout()
 	}
 
 	private fun renderComposeContent(
 		showLegacyTopBar: Boolean,
 		destination: SettingsDestination,
 	) {
-		setLegacyTopBarVisible(showLegacyTopBar)
+		setLegacyTopBarVisible(true)
+		if (destination !is SettingsDestination.UnifiedSources) {
+			setSectionToolbarActions(null)
+		}
 		setTitle(composeDestinationTitle(destination))
+		applyCurrentDetailTitle()
+		invalidateOptionsMenu()
 	}
 
 	@Composable
@@ -569,6 +739,7 @@ class SettingsActivity :
 		SettingsSectionScaffold(
 			title = title,
 			onNavigateUp = ::handleComposeNavigateUp,
+			showTopBar = false,
 			actions = actions,
 			content = content,
 		)
@@ -597,16 +768,6 @@ class SettingsActivity :
 	}
 
 	fun replaceCurrentFragmentWithDestination(destination: SettingsDestination) {
-		if (destination is SettingsDestination.UnifiedSources) {
-			startActivity(
-				UnifiedSourcesActivity.newIntent(
-					context = this,
-					initialRepositoryKind = destination.initialRepositoryKind,
-					initialRepositoryUrl = destination.initialRepositoryUrl,
-				),
-			)
-			return
-		}
 		if (supportFragmentManager.isStateSaved) {
 			return
 		}
@@ -665,32 +826,21 @@ class SettingsActivity :
 				SettingsDestination.ProxySettings,
 				SettingsDestination.NavConfigSettings,
 				SettingsDestination.ChangelogSettings,
-				SettingsDestination.AboutSettings -> openComposeDestination(
-					destination,
-					shouldRestoreFragment = shouldRestoreFragmentForNextDestination(isFromRoot),
-				)
-				is SettingsDestination.FragmentDestination -> openFragment(destination.fragmentClass, args, isFromRoot)
-				is SettingsDestination.UnifiedSources -> {
-					startActivity(
-						UnifiedSourcesActivity.newIntent(
-							context = this,
-							initialRepositoryKind = destination.initialRepositoryKind,
-							initialRepositoryUrl = destination.initialRepositoryUrl,
-						),
-					)
-				}
-			}
+			SettingsDestination.AboutSettings -> openComposeDestination(
+				destination,
+				shouldRestoreFragment = shouldRestoreFragmentForNextDestination(isFromRoot),
+			)
+			is SettingsDestination.FragmentDestination -> openFragment(destination.fragmentClass, args, isFromRoot)
+			is SettingsDestination.UnifiedSources -> openComposeDestination(
+				destination,
+				shouldRestoreFragment = shouldRestoreFragmentForNextDestination(isFromRoot),
+			)
 		}
+	}
 
 		private fun openDefaultFragment() {
-			if (intent?.action == AppRouter.ACTION_MANAGE_SOURCES) {
-				startActivity(UnifiedSourcesActivity.newIntent(this))
-				finishAfterTransition()
-				return
-			}
-			if (intent?.action == Intent.ACTION_VIEW && intent.data?.host == "add-repo") {
-				startActivity(Intent(this, UnifiedSourcesActivity::class.java).setData(intent.data))
-				finishAfterTransition()
+			resolveInitialUnifiedSourcesDestination(intent)?.let { destination ->
+				openComposeDestination(destination, shouldRestoreFragment = false)
 				return
 			}
 			val composeDestination = when (intent?.action) {
@@ -720,7 +870,7 @@ class SettingsActivity :
 		}
 		val fragment = when (intent?.action) {
 			AppRouter.ACTION_SOURCES -> null
-			AppRouter.ACTION_SOURCE -> SourceSettingsHostFragment.newInstance(
+			AppRouter.ACTION_SOURCE -> resolveSingleSourceSettingsFragment(
 				ContentSource(intent.getStringExtra(AppRouter.KEY_SOURCE)),
 			)
 			Intent.ACTION_VIEW -> {
@@ -741,6 +891,23 @@ class SettingsActivity :
 		}
 	}
 
+	private fun resolveSingleSourceSettingsFragment(source: ContentSource): Fragment {
+		val repository = mangaRepositoryFactory.create(source)
+		return when (repository) {
+			is ParserContentRepository,
+			is KotatsuParserRepository,
+			is EmptyContentRepository,
+			is JsContentRepository,
+			is LegadoRepository,
+			is TVBoxRepository,
+			is org.skepsun.kototoro.mihon.MihonMangaRepository,
+			is org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository,
+			-> SourceComposeSettingsFragment.newInstance(source)
+
+			else -> SourceSettingsFragment.newInstance(source)
+		}
+	}
+
 	private fun navigateToPreference(item: SettingsItem) {
 		val args = buildBundle(1) {
 			putString(ARG_PREF_KEY, item.key)
@@ -753,12 +920,19 @@ class SettingsActivity :
 		return !isMasterDetails || (hasFragment && !isFromRoot)
 	}
 
+	private fun shouldKeepComposeHistory(): Boolean = !isMasterDetails
+
 	private fun openComposeDestination(
 		destination: SettingsDestination,
 		shouldRestoreFragment: Boolean,
 		pushCurrentToStack: Boolean = true,
 	) {
 		viewModel.discardSearch()
+		if (destination !is SettingsDestination.UnifiedSources) {
+			unifiedSourcesSearchActive = false
+			unifiedSourcesActivePanel = null
+			setSectionToolbarActions(null)
+		}
 		if (supportFragmentManager.isStateSaved) {
 			return
 		}
@@ -770,10 +944,13 @@ class SettingsActivity :
 		val currentComposeDestination = composeDestination
 		if (
 			pushCurrentToStack &&
+			shouldKeepComposeHistory() &&
 			currentComposeDestination != null &&
 			currentComposeDestination != destination
 		) {
 			composeNavigationStack.addLast(currentComposeDestination)
+		} else if (!shouldKeepComposeHistory()) {
+			composeNavigationStack.clear()
 		}
 		val currentFragment = supportFragmentManager.findFragmentById(R.id.container)
 		if (currentComposeDestination == null && currentFragment != null && !currentFragment.isHidden) {
@@ -805,6 +982,10 @@ class SettingsActivity :
 			}
 			SettingsDestination.SourcesSettings -> {
 				sourcesSettingsViewModel.refreshLinksEnabled()
+			}
+			is SettingsDestination.UnifiedSources -> {
+				unifiedSourcesSearchActive = false
+				unifiedSourcesActivePanel = null
 			}
 			SettingsDestination.SuggestionsSettings -> {
 				refreshSuggestionsTags()
@@ -892,8 +1073,8 @@ class SettingsActivity :
 			SettingsDestination.NavConfigSettings -> getString(R.string.main_screen_sections)
 			SettingsDestination.ChangelogSettings -> getString(R.string.changelog)
 			SettingsDestination.AboutSettings -> getString(R.string.about)
-			is SettingsDestination.FragmentDestination,
-			is SettingsDestination.UnifiedSources -> getString(R.string.settings)
+			is SettingsDestination.FragmentDestination -> getString(R.string.settings)
+			is SettingsDestination.UnifiedSources -> getString(R.string.extension_management)
 		}
 	}
 
@@ -917,12 +1098,10 @@ class SettingsActivity :
 							openDestination(composeDestination, null, true)
 						},
 					),
-					title = getString(R.string.settings),
-					subtitle = getString(R.string.app_version, org.skepsun.kototoro.BuildConfig.VERSION_NAME),
 					searchQuery = searchQuery,
 					searchResults = searchResults,
-					onSearchQueryChange = viewModel::setSearchQuery,
 					onSearchResultClick = { item -> navigateToPreference(item) },
+					topInset = 0.dp,
 					modifier = Modifier.fillMaxSize(),
 				)
 			}
@@ -1248,8 +1427,58 @@ class SettingsActivity :
 					onSetupWizardClick = { router.showWelcomeSheet() },
 				)
 			}
-			is SettingsDestination.UnifiedSources,
 			is SettingsDestination.FragmentDestination -> Unit
+			is SettingsDestination.UnifiedSources -> {
+				val readyState by unifiedSourcesViewModel.uiState.collectAsStateWithLifecycle()
+				SectionToolbarActionsEffect(
+					fillAvailableWidth = isMasterDetails && unifiedSourcesSearchActive,
+				) {
+					UnifiedSourcesToolbarActions(
+						readyState = readyState as? org.skepsun.kototoro.settings.sources.unified.UnifiedSourcesUiState.Ready,
+						searchActive = unifiedSourcesSearchActive,
+						onSearchClick = { unifiedSourcesSearchActive = true },
+						onSearchClose = {
+							unifiedSourcesSearchActive = false
+							unifiedSourcesViewModel.setSearchQuery("")
+						},
+						onSearchQueryChange = unifiedSourcesViewModel::setSearchQuery,
+						onLanguageFilterClick = {
+							unifiedSourcesActivePanel = UnifiedToolbarFilterPanel.LANGUAGE
+						},
+						onMoreFiltersClick = {
+							unifiedSourcesActivePanel = UnifiedToolbarFilterPanel.MORE
+						},
+						modifier = Modifier.fillMaxSize(),
+					)
+				}
+				RenderComposeSection(
+					title = getString(R.string.extension_management),
+					actions = null,
+				) {
+					UnifiedSourcesRoute(
+						searchActive = unifiedSourcesSearchActive,
+						onSearchActiveChange = { unifiedSourcesSearchActive = it },
+						activePanel = unifiedSourcesActivePanel,
+						onActivePanelChange = { unifiedSourcesActivePanel = it },
+						initialAddRepositoryKind = destination.initialRepositoryKind,
+						initialAddRepositoryUrl = destination.initialRepositoryUrl,
+						viewModel = unifiedSourcesViewModel,
+						onBrowseSource = { item -> router.openList(item.source, null, null) },
+						onOpenSourceSettings = { item -> router.openSourceSettings(item.source) },
+						onOpenRepositoryFile = ::openUnifiedSourcesRepositoryFilePicker,
+						onOpenLocalJarPicker = ::openUnifiedSourcesLocalJarPicker,
+						onStartInstall = { intent ->
+							runCatching { unifiedSourcesInstallLauncher.launch(intent) }
+								.onFailure { Toast.makeText(this, it.message, Toast.LENGTH_SHORT).show() }
+						},
+						onStartUninstall = { intent ->
+							runCatching { unifiedSourcesUninstallLauncher.launch(intent) }
+								.onFailure { Toast.makeText(this, it.message, Toast.LENGTH_SHORT).show() }
+						},
+						modifier = Modifier.fillMaxSize(),
+					)
+				}
+			}
 		}
 	}
 
@@ -1273,12 +1502,10 @@ class SettingsActivity :
 							openDestination(composeDestination, null, true)
 						},
 					),
-					title = getString(R.string.settings),
-					subtitle = getString(R.string.app_version, org.skepsun.kototoro.BuildConfig.VERSION_NAME),
 					searchQuery = searchQuery,
 					searchResults = searchResults,
-					onSearchQueryChange = viewModel::setSearchQuery,
 					onSearchResultClick = { item -> navigateToPreference(item) },
+					topInset = 0.dp,
 					modifier = Modifier.fillMaxSize(),
 				)
 			}
@@ -1497,42 +1724,55 @@ class SettingsActivity :
 	}
 
 	private fun handleComposeNavigateUp() {
-		if (composeDestination == null) {
+		val currentDestination = composeDestination ?: return
+		val previousDestination = composeNavigationStack.lastOrNull()
+		if (currentDestination == SettingsDestination.Root) {
+			finishFromComposeDestination(currentDestination)
 			return
 		}
-		if (composeDestination == SettingsDestination.Root) {
-			closeComposeDestination(restorePreviousFragment = false)
-			dispatchNavigateUp()
+		if (shouldKeepComposeHistory() && previousDestination != null) {
+			onLeavingComposeDestination(currentDestination)
+			composeNavigationStack.removeLast()
+			openComposeDestination(
+				destination = previousDestination,
+				shouldRestoreFragment = false,
+				pushCurrentToStack = false,
+			)
 			return
 		}
 		val shouldRestore = shouldRestoreFragmentOnComposeExit && supportFragmentManager.backStackEntryCount > 0
 		closeComposeDestination(restorePreviousFragment = false)
 		if (shouldRestore) {
 			supportFragmentManager.popBackStack()
-		} else if (composeNavigationStack.isNotEmpty()) {
-			val previousDestination = composeNavigationStack.removeLast()
-			openComposeDestination(
-				destination = previousDestination,
-				shouldRestoreFragment = false,
-				pushCurrentToStack = false,
-			)
 		} else if (!isMasterDetails) {
-			dispatchNavigateUp()
+			finishFromComposeDestination(currentDestination)
 		}
 	}
 
-	private fun closeComposeDestination(restorePreviousFragment: Boolean) {
-		val destination = composeDestination ?: return
+	private fun onLeavingComposeDestination(destination: SettingsDestination) {
 		if (destination == SettingsDestination.TtsSettings) {
 			ttsSettingsCoordinator?.stop()
 			ttsSettingsCoordinator = null
 		}
+	}
+
+	private fun finishFromComposeDestination(destination: SettingsDestination) {
+		onLeavingComposeDestination(destination)
+		composeBackCallback.isEnabled = false
+		shouldRestoreFragmentOnComposeExit = false
+		dispatchNavigateUp()
+	}
+
+	private fun closeComposeDestination(restorePreviousFragment: Boolean) {
+		val destination = composeDestination ?: return
+		onLeavingComposeDestination(destination)
 		viewBinding.containerCompose.isVisible = false
-		setLegacyTopBarVisible(true)
 		setSectionToolbarActions(null)
 		composeDestination = null
+		applyCurrentDetailTitle()
 		shouldRestoreFragmentOnComposeExit = false
 		composeBackCallback.isEnabled = false
+		invalidateOptionsMenu()
 		if (restorePreviousFragment && supportFragmentManager.backStackEntryCount > 0) {
 			supportFragmentManager.popBackStack()
 		}
@@ -1555,6 +1795,108 @@ class SettingsActivity :
 
 	private fun clearToolbarMenu() {
 		(viewBinding.toolbarDetail ?: viewBinding.toolbar).menu.clear()
+	}
+
+	private fun updateSinglePaneScrollBehavior(useLegacyTopBar: Boolean) {
+		if (isMasterDetails) {
+			return
+		}
+		fun update(view: View?) {
+			val targetView = view ?: return
+			val params = targetView.layoutParams as? CoordinatorLayout.LayoutParams ?: return
+			val currentBehavior = params.behavior
+			val shouldUseBehavior = useLegacyTopBar
+			val behaviorChanged = when {
+				shouldUseBehavior && currentBehavior !is AppBarLayout.ScrollingViewBehavior -> true
+				!shouldUseBehavior && currentBehavior != null -> true
+				else -> false
+			}
+			if (!behaviorChanged) {
+				return
+			}
+			params.behavior = if (shouldUseBehavior) {
+				AppBarLayout.ScrollingViewBehavior()
+			} else {
+				null
+			}
+			targetView.layoutParams = params
+		}
+		update(viewBinding.containerCompose)
+		update(findViewById(R.id.container))
+		update(findViewById(R.id.container_search))
+	}
+
+	private fun currentDetailTitle(): CharSequence? {
+		if (!isMasterDetails) {
+			return null
+		}
+		val destination = composeDestination ?: return null
+		return when (destination) {
+			SettingsDestination.Root -> null
+			else -> composeDestinationTitle(destination)
+		}
+	}
+
+	private fun applyCurrentDetailTitle() {
+		val title = currentDetailTitle()
+		viewBinding.toolbarDetail?.title = title
+		viewBinding.toolbarDetail?.subtitle = null
+		viewBinding.appbarDetail?.isVisible = title != null
+	}
+
+	private fun openUnifiedSourcesRepositoryFilePicker(kind: UnifiedSourceKind) {
+		pendingUnifiedSourcesFileImportKind = kind
+		openUnifiedSourcesRepositoryFile.launch(
+			arrayOf(
+				"application/json",
+				"text/plain",
+				"application/javascript",
+				"text/javascript",
+				"*/*",
+			),
+		)
+	}
+
+	private fun openUnifiedSourcesLocalJarPicker() {
+		openUnifiedSourcesLocalJar.launch(
+			arrayOf(
+				"application/java-archive",
+				"application/zip",
+				"*/*",
+			),
+		)
+	}
+
+	private fun persistReadPermission(uri: Uri) {
+		runCatching {
+			contentResolver.takePersistableUriPermission(
+				uri,
+				Intent.FLAG_GRANT_READ_URI_PERMISSION,
+			)
+		}
+	}
+
+	private fun resolveInitialUnifiedSourcesDestination(intent: Intent?): SettingsDestination.UnifiedSources? {
+		if (intent == null) {
+			return null
+		}
+		if (intent.action == AppRouter.ACTION_MANAGE_SOURCES) {
+			return SettingsDestination.UnifiedSources(
+				initialRepositoryKind = intent.getStringExtra(EXTRA_UNIFIED_SOURCES_KIND)
+					?.let { runCatching { enumValueOf<UnifiedSourceKind>(it) }.getOrNull() },
+				initialRepositoryUrl = intent.getStringExtra(EXTRA_UNIFIED_SOURCES_URL),
+			)
+		}
+		if (intent.action == Intent.ACTION_VIEW && intent.data?.host == HOST_ADD_REPO) {
+			return SettingsDestination.UnifiedSources(
+				initialRepositoryKind = when (intent.data?.scheme) {
+					"aniyomi", "anikku" -> UnifiedSourceKind.ANIYOMI
+					else -> UnifiedSourceKind.MIHON
+				},
+				initialRepositoryUrl = intent.data?.getQueryParameter("url"),
+			)
+		}
+		return null
 	}
 
 	private fun masterContainerComposeView(): ComposeView? {
@@ -1749,13 +2091,18 @@ class SettingsActivity :
 	companion object {
 
 		private const val HOST_ABOUT = "about"
+		private const val HOST_ADD_REPO = "add-repo"
 		private const val DISCORD_ORIGIN = "https://discord.com"
 		private const val DISCORD_WWW_ORIGIN = "https://www.discord.com"
 		const val ARG_PREF_KEY = "pref_key"
+		private const val EXTRA_UNIFIED_SOURCES_KIND = "extra_unified_sources_kind"
+		private const val EXTRA_UNIFIED_SOURCES_URL = "extra_unified_sources_url"
 		private const val COMPOSE_HIDE_BACKSTACK_NAME = "settings_compose_hide"
 		private const val STATE_COMPOSE_DESTINATION = "compose_destination"
 		private const val STATE_COMPOSE_RESTORE_FRAGMENT = "compose_restore_fragment"
 		private const val STATE_PENDING_RESTORE_ROOT = "pending_restore_root"
+		private const val STATE_UNIFIED_SOURCES_KIND = "unified_sources_kind"
+		private const val STATE_UNIFIED_SOURCES_URL = "unified_sources_url"
 		private const val COMPOSE_DESTINATION_ROOT = "root"
 		private const val COMPOSE_DESTINATION_APPEARANCE_SETTINGS = "appearance_settings"
 		private const val COMPOSE_DESTINATION_USERS_SETTINGS = "users_settings"
@@ -1784,6 +2131,24 @@ class SettingsActivity :
 		private const val COMPOSE_DESTINATION_NAV_CONFIG_SETTINGS = "nav_config_settings"
 		private const val COMPOSE_DESTINATION_CHANGELOG_SETTINGS = "changelog_settings"
 		private const val COMPOSE_DESTINATION_ABOUT_SETTINGS = "about_settings"
+		private const val COMPOSE_DESTINATION_UNIFIED_SOURCES = "unified_sources"
+
+		fun newUnifiedSourcesIntent(
+			context: Context,
+			initialRepositoryKind: UnifiedSourceKind? = null,
+			initialRepositoryUrl: String? = null,
+		): Intent {
+			return Intent(context, SettingsActivity::class.java)
+				.setAction(AppRouter.ACTION_MANAGE_SOURCES)
+				.apply {
+					if (initialRepositoryKind != null) {
+						putExtra(EXTRA_UNIFIED_SOURCES_KIND, initialRepositoryKind.name)
+					}
+					if (initialRepositoryUrl != null) {
+						putExtra(EXTRA_UNIFIED_SOURCES_URL, initialRepositoryUrl)
+					}
+				}
+		}
 	}
 
 	private fun Bundle.toComposeDestination(): SettingsDestination? {
@@ -1816,6 +2181,11 @@ class SettingsActivity :
 			COMPOSE_DESTINATION_NAV_CONFIG_SETTINGS -> SettingsDestination.NavConfigSettings
 			COMPOSE_DESTINATION_CHANGELOG_SETTINGS -> SettingsDestination.ChangelogSettings
 			COMPOSE_DESTINATION_ABOUT_SETTINGS -> SettingsDestination.AboutSettings
+			COMPOSE_DESTINATION_UNIFIED_SOURCES -> SettingsDestination.UnifiedSources(
+				initialRepositoryKind = getString(STATE_UNIFIED_SOURCES_KIND)
+					?.let { runCatching { enumValueOf<UnifiedSourceKind>(it) }.getOrNull() },
+				initialRepositoryUrl = getString(STATE_UNIFIED_SOURCES_URL),
+			)
 			else -> null
 		}
 	}
@@ -1843,6 +2213,9 @@ class SettingsActivity :
             return
         }
 
-        viewBinding.root.requestLayout()
+		viewBinding.root.requestLayout()
+		applyDetailToolbarColors()
+		applyCurrentDetailTitle()
+		setLegacyTopBarVisible(true)
     }
 }

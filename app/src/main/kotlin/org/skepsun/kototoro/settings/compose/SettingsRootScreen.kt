@@ -10,11 +10,14 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.size
@@ -22,23 +25,21 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material3.Icon
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
@@ -64,43 +65,34 @@ data class SettingsRootItem(
 @Composable
 fun SettingsRootScreen(
     sections: List<SettingsRootSection>,
-    title: String,
-    subtitle: String,
     searchQuery: String,
     searchResults: List<SettingsItem>,
-    onSearchQueryChange: (String) -> Unit,
     onSearchResultClick: (SettingsItem) -> Unit,
     modifier: Modifier = Modifier,
+    topInset: Dp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
 ) {
     Surface(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
     val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
+    val layoutDirection = LocalLayoutDirection.current
         LazyColumn(state = listState,
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(
-                start = 16.dp,
-                end = 16.dp,
-                top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 20.dp,
+                start = WindowInsets.displayCutout
+                    .only(WindowInsetsSides.Start)
+                    .asPaddingValues()
+                    .calculateLeftPadding(layoutDirection) + 16.dp,
+                end = WindowInsets.displayCutout
+                    .only(WindowInsetsSides.End)
+                    .asPaddingValues()
+                    .calculateRightPadding(layoutDirection) + 16.dp,
+                top = topInset + 8.dp,
                 bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp,
             ),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item(key = "hero") {
-            SettingsHeroCard(
-                title = title,
-                subtitle = subtitle,
-            )
-        }
-
-        item(key = "search") {
-            SettingsSearchField(
-                query = searchQuery,
-                onValueChange = onSearchQueryChange,
-            )
-        }
-
         if (searchQuery.isBlank()) {
             items(sections, key = { it.title }, contentType = { "settings_section" }) { section ->
                 SettingsSectionCard(section = section)
@@ -114,31 +106,6 @@ fun SettingsRootScreen(
             }
         }
     }
-    }
-}
-
-@Composable
-private fun SettingsHeroCard(
-    title: String,
-    subtitle: String,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 
@@ -175,36 +142,6 @@ private fun SettingsSectionCard(
             }
         }
     }
-}
-
-@Composable
-private fun SettingsSearchField(
-	query: String,
-	onValueChange: (String) -> Unit,
-) {
-	OutlinedTextField(
-		value = query,
-		onValueChange = onValueChange,
-		modifier = Modifier.fillMaxWidth(),
-		singleLine = true,
-		leadingIcon = {
-			Icon(
-				imageVector = Icons.Filled.Search,
-				contentDescription = null,
-			)
-		},
-		trailingIcon = {
-			if (query.isNotEmpty()) {
-				IconButton(onClick = { onValueChange("") }) {
-					Icon(
-						imageVector = Icons.Filled.Close,
-						contentDescription = stringResource(android.R.string.cancel),
-					)
-				}
-			}
-		},
-		label = { Text(stringResource(R.string.search)) },
-	)
 }
 
 @Composable

@@ -257,7 +257,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:valueFrom="12"
-            android:valueTo="72"
+            android:valueTo="120"
             android:stepSize="4"
             android:value="36" />
 
@@ -290,7 +290,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:valueFrom="12"
-            android:valueTo="72"
+            android:valueTo="120"
             android:stepSize="4"
             android:value="36" />
 

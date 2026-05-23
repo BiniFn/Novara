@@ -99,69 +99,100 @@ class LNReaderContentRepository(
 	}
 	
 	override suspend fun getDetails(manga: Content): Content {
-		val novelPath = manga.url ?: manga.publicUrl ?: return manga
+		val candidatePaths = buildList {
+			manga.url
+				?.takeIf { it.isNotBlank() }
+				?.substringBefore(CHAPTER_SEPARATOR)
+				?.let(::add)
+			manga.publicUrl
+				?.takeIf { it.isNotBlank() }
+				?.substringBefore(CHAPTER_SEPARATOR)
+				?.takeUnless { it in this }
+				?.let(::add)
+		}.distinct()
+		if (candidatePaths.isEmpty()) return manga
 		
 		return try {
-			executeInPluginContext { bridge ->
-				val details = bridge.parseNovel(novelPath)
-				var finalizedChapters = details.chapters
-				if (finalizedChapters.isEmpty() && details.totalPages > 0) {
-					Log.d(TAG, "parseNovel returned 0 chapters but totalPages=${details.totalPages}, fetching via parsePage...")
-					val allChapters = mutableListOf<LNReaderChapter>()
-					for (page in 1..details.totalPages) {
-						var success = false
-						var retries = 0
-						while (!success && retries < 3) {
-							try {
-								val pageChapters = bridge.parsePage(novelPath, page)
-								allChapters.addAll(pageChapters)
-								Log.d(TAG, "parsePage($page/${details.totalPages}) returned ${pageChapters.size} chapters")
-								success = true
-							} catch (e: Exception) {
-								retries++
-								Log.w(TAG, "parsePage($page) attempt $retries failed: ${e.message}")
-								if (retries >= 3) {
-									Log.e(TAG, "parsePage($page) failed 3 times, giving up on remaining pages.")
-									break
+			var lastError: Exception? = null
+			candidatePaths.firstNotNullOfOrNull { novelPath ->
+				runCatching {
+					executeInPluginContext { bridge ->
+						val details = bridge.parseNovel(novelPath)
+						var finalizedChapters = details.chapters
+						if (finalizedChapters.isEmpty() && details.totalPages > 0) {
+							Log.d(TAG, "parseNovel returned 0 chapters but totalPages=${details.totalPages}, fetching via parsePage...")
+							val allChapters = mutableListOf<LNReaderChapter>()
+							for (page in 1..details.totalPages) {
+								var success = false
+								var retries = 0
+								while (!success && retries < 3) {
+									try {
+										val pageChapters = bridge.parsePage(novelPath, page)
+										allChapters.addAll(pageChapters)
+										Log.d(TAG, "parsePage($page/${details.totalPages}) returned ${pageChapters.size} chapters")
+										success = true
+									} catch (e: Exception) {
+										retries++
+										Log.w(TAG, "parsePage($page) attempt $retries failed: ${e.message}")
+										if (retries >= 3) {
+											Log.e(TAG, "parsePage($page) failed 3 times, giving up on remaining pages.")
+											break
+										}
+										kotlinx.coroutines.delay(1000L * retries)
+									}
 								}
-								kotlinx.coroutines.delay(1000L * retries) // Backoff
+								if (!success) break
+								if (page < details.totalPages) {
+									kotlinx.coroutines.delay(300L)
+								}
 							}
+							Log.d(TAG, "Finished fetching chapters. Total aggregated chapters: ${allChapters.size}")
+							finalizedChapters = allChapters
 						}
-						if (!success) break // If a page fetch hard failed, stop fetching to prevent missing chapters
-						
-						// Rate limiting delay between successful pages
-						if (page < details.totalPages) {
-							kotlinx.coroutines.delay(300L)
-						}
-					}
-					Log.d(TAG, "Finished fetching chapters. Total aggregated chapters: ${allChapters.size}")
-					finalizedChapters = allChapters
-				}
-				
-				manga.copy(
-					title = details.name.ifBlank { manga.title },
-					coverUrl = details.cover.ifBlank { manga.coverUrl },
-					largeCoverUrl = details.cover.ifBlank { manga.largeCoverUrl },
-					description = details.summary.ifBlank { manga.description },
-					tags = if (details.genres.isNotEmpty()) {
-						details.genres.map { org.skepsun.kototoro.parsers.model.ContentTag(it, it, source) }.toSet()
-					} else manga.tags,
-					authors = if (details.author.isNotBlank()) setOf(details.author) else manga.authors,
-					publicUrl = details.path.ifBlank { manga.publicUrl },
-					chapters = finalizedChapters.mapIndexed { index, ch ->
-						ContentChapter(
-							id = (ch.path.hashCode().toLong() and 0x7FFFFFFF) + index,
-							title = ch.name.ifBlank { ch.chapterNumber?.let { "Chapter $it" } ?: "Chapter ${index + 1}" },
-							number = (index + 1).toFloat(),
-							volume = 0,
-							url = "${novelPath}${CHAPTER_SEPARATOR}${ch.path}",
-							scanlator = ch.releaseTime,
-							uploadDate = 0,
-							branch = null,
-							source = source,
+
+						manga.copy(
+							title = details.name.ifBlank { manga.title },
+							coverUrl = details.cover.ifBlank { manga.coverUrl },
+							largeCoverUrl = details.cover.ifBlank { manga.largeCoverUrl },
+							description = details.summary.ifBlank { manga.description },
+							tags = if (details.genres.isNotEmpty()) {
+								details.genres.map { org.skepsun.kototoro.parsers.model.ContentTag(it, it, source) }.toSet()
+							} else manga.tags,
+							authors = if (details.author.isNotBlank()) setOf(details.author) else manga.authors,
+							url = details.path.ifBlank { novelPath },
+							publicUrl = details.path.ifBlank { manga.publicUrl.ifBlank { novelPath } },
+							chapters = finalizedChapters.mapIndexed { index, ch ->
+								ContentChapter(
+									id = (ch.path.hashCode().toLong() and 0x7FFFFFFF) + index,
+									title = ch.name.ifBlank { ch.chapterNumber?.let { "Chapter $it" } ?: "Chapter ${index + 1}" },
+									number = (index + 1).toFloat(),
+									volume = 0,
+									url = "${details.path.ifBlank { novelPath }}${CHAPTER_SEPARATOR}${ch.path}",
+									scanlator = ch.releaseTime,
+									uploadDate = 0,
+									branch = null,
+									source = source,
+								)
+							}
 						)
 					}
-				)
+				}.onFailure { error ->
+					if (error is Exception) {
+						lastError = error
+						Log.w(TAG, "getDetails retry with alternate path failed for ${source.name}: path=$novelPath", error)
+					}
+				}.getOrNull()
+			} ?: run {
+				val cachedChapters = manga.chapters
+				if (!cachedChapters.isNullOrEmpty()) {
+					Log.w(TAG, "getDetails fallback to cached chapters for ${source.name} after parse failure")
+					manga.copy(
+						url = candidatePaths.first(),
+						publicUrl = manga.publicUrl.ifBlank { candidatePaths.first() },
+					)
+				} else {
+					throw (lastError ?: IllegalStateException("No valid LNReader detail path"))
+				}
 			}
 		} catch (e: CancellationException) {
 			throw e

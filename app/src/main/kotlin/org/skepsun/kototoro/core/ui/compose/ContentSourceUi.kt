@@ -28,6 +28,7 @@ import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.core.model.getOriginLabel
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.BaseAppHolder
+import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.parser.favicon.faviconUri
 import org.skepsun.kototoro.core.ui.image.FaviconDrawable
 import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
@@ -55,6 +56,14 @@ fun rememberResolvedContentSource(source: ContentSource): ContentSource {
     val mihonLoading by entryPoint.mihonExtensionManager().isLoading.collectAsState()
     val aniyomiLoading by entryPoint.aniyomiExtensionManager().isLoading.collectAsState()
     val ireaderLoading by entryPoint.ireaderExtensionManager().isLoading.collectAsState()
+    val jsonKey = remember(source.name) {
+        source.name.takeIf { it.startsWith("JSON_") }
+    }
+    val resolvedJsonSource by androidx.compose.runtime.produceState<ContentSource?>(initialValue = null, key1 = jsonKey) {
+        value = jsonKey?.let { key ->
+            runCatching { entryPoint.jsonSourceManager().getById(key)?.let(::JsonContentSource) }.getOrNull()
+        }
+    }
     return remember(
         source.name,
         mihonInstalled,
@@ -63,8 +72,13 @@ fun rememberResolvedContentSource(source: ContentSource): ContentSource {
         mihonLoading,
         aniyomiLoading,
         ireaderLoading,
+        resolvedJsonSource?.name,
+        resolvedJsonSource?.javaClass?.name,
     ) {
-        resolveDynamicContentSource(source, entryPoint) ?: source
+        when {
+            resolvedJsonSource is JsonContentSource -> resolvedJsonSource ?: source
+            else -> resolveDynamicContentSource(source, entryPoint) ?: source
+        }
     }
 }
 

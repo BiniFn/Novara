@@ -128,7 +128,6 @@ import org.skepsun.kototoro.settings.reader.ReaderTapGridConfigActivity
 import org.skepsun.kototoro.settings.sources.auth.SourceAuthActivity
 import org.skepsun.kototoro.settings.sources.catalog.SourcesCatalogActivity
 import org.skepsun.kototoro.settings.sources.unified.UnifiedSourceKind
-import org.skepsun.kototoro.settings.sources.unified.UnifiedSourcesActivity
 import org.skepsun.kototoro.settings.storage.ContentDirectorySelectDialog
 import org.skepsun.kototoro.settings.storage.directories.ContentDirectoriesActivity
 import org.skepsun.kototoro.settings.tracker.categories.TrackerCategoriesConfigSheet
@@ -1283,7 +1282,7 @@ class AppRouter private constructor(
                 .setAction(ACTION_SOURCES)
 
         fun manageSourcesIntent(context: Context) =
-            UnifiedSourcesActivity.newIntent(context)
+            SettingsActivity.newUnifiedSourcesIntent(context)
 
         fun downloadsSettingsIntent(context: Context) =
             Intent(context, SettingsActivity::class.java)
@@ -1293,7 +1292,7 @@ class AppRouter private constructor(
             is ContentSourceInfo -> sourceSettingsIntent(context, source.mangaSource)
             is ExternalContentSource -> {
                 val kind = inferUnifiedSourceKind(source.packageName)
-                UnifiedSourcesActivity.newIntent(context, initialRepositoryKind = kind)
+                SettingsActivity.newUnifiedSourcesIntent(context, initialRepositoryKind = kind)
             }
 
             else -> Intent(context, SettingsActivity::class.java)

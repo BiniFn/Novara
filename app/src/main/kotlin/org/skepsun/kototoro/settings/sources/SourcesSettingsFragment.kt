@@ -8,6 +8,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.stringResource
@@ -74,11 +75,15 @@ fun SourcesSettingsRoute(
     onSetupWizardClick: () -> Unit,
 ) {
     val isLinksEnabled = viewModel.isLinksEnabled.collectAsStateWithLifecycle().value
+    val installedJarNames by viewModel.installedJarNames.collectAsStateWithLifecycle()
     val sourcesSortOrder = settings.observeAsState(AppSettings.KEY_SOURCES_ORDER) { sourcesSortOrder }.value
     val isSourcesGridMode = settings.observeAsState(AppSettings.KEY_SOURCES_GRID) { isSourcesGridMode }.value
     val isSourcesGroupedByLanguage =
         settings.observeAsState(AppSettings.KEY_SOURCES_GROUPED_BY_LANGUAGE) { isSourcesGroupedByLanguage }.value
     val jarPriorityOrder = settings.observeAsState(AppSettings.KEY_JAR_PRIORITY_ORDER) { jarPriorityOrder }.value
+    val resolvedJarPriorityOrder = remember(jarPriorityOrder, installedJarNames) {
+        viewModel.resolveJarPriorityOrder(jarPriorityOrder)
+    }
     val isShowBrokenSources =
         settings.observeAsState(AppSettings.KEY_SHOW_BROKEN_SOURCES) { isShowBrokenSources }.value
     val isNsfwContentDisabled =
@@ -114,7 +119,7 @@ fun SourcesSettingsRoute(
         sourcesSortOrder = sourcesSortOrder,
         isSourcesGridMode = isSourcesGridMode,
         isSourcesGroupedByLanguage = isSourcesGroupedByLanguage,
-        jarPriorityOrder = jarPriorityOrder,
+        jarPriorityOrder = resolvedJarPriorityOrder,
         isShowBrokenSources = isShowBrokenSources,
         isNsfwContentDisabled = isNsfwContentDisabled,
         isHistoryExcludeNsfw = isHistoryExcludeNsfw,
@@ -140,7 +145,7 @@ fun SourcesSettingsRoute(
         onSourcesGridModeChange = { settings.isSourcesGridMode = it },
         onSourcesGroupedByLanguageChange = { settings.isSourcesGroupedByLanguage = it },
         onSetupWizardClick = onSetupWizardClick,
-        onJarPriorityOrderChange = { settings.jarPriorityOrder = it },
+        onJarPriorityOrderChange = viewModel::persistJarPriorityOrder,
         onShowBrokenSourcesChange = { settings.isShowBrokenSources = it },
         onNsfwContentDisabledChange = { settings.isNsfwContentDisabled = it },
         onHistoryExcludeNsfwChange = { settings.isHistoryExcludeNsfw = it },

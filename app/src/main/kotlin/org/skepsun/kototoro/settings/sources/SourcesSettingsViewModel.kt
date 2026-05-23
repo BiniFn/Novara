@@ -21,7 +21,9 @@ import kotlinx.coroutines.launch
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import java.io.File
+import kotlinx.coroutines.flow.StateFlow
 import org.skepsun.kototoro.core.extensions.GlobalExtensionManager
+import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.BaseViewModel
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
@@ -31,6 +33,7 @@ import javax.inject.Inject
 class SourcesSettingsViewModel @Inject constructor(
 	sourcesRepository: ContentSourcesRepository,
 	@ApplicationContext private val context: Context,
+	private val settings: AppSettings,
 ) : BaseViewModel() {
 
 	private val linksHandlerActivity = ComponentName(context, "org.skepsun.kototoro.details.ui.DetailsByLinkActivity")
@@ -68,9 +71,15 @@ class SourcesSettingsViewModel @Inject constructor(
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, "")
 
 	val isLinksEnabled = MutableStateFlow(isLinksEnabled())
+	private val _installedJarNames = MutableStateFlow<List<String>>(emptyList())
+	val installedJarNames: StateFlow<List<String>> = _installedJarNames
 
 	fun refreshLinksEnabled() {
 		isLinksEnabled.value = isLinksEnabled()
+	}
+
+	init {
+		loadPlugins()
 	}
 
 	fun setLinksEnabled(isEnabled: Boolean) {
@@ -92,10 +101,42 @@ class SourcesSettingsViewModel @Inject constructor(
 	fun loadPlugins() {
 		viewModelScope.launch(Dispatchers.IO) {
 			val pluginsDir = File(context.filesDir, "plugins")
-			installedPlugins.postValue(
-				pluginsDir.listFiles { file -> file.extension == "jar" }?.toList() ?: emptyList()
-			)
+			val jarFiles = pluginsDir.listFiles { file -> file.extension == "jar" }?.toList().orEmpty()
+			installedPlugins.postValue(jarFiles)
+			_installedJarNames.value = jarFiles
+				.map { it.name }
+				.sortedBy { it.lowercase() }
 		}
+	}
+
+	fun resolveJarPriorityOrder(currentValue: String): List<String> {
+		val installed = _installedJarNames.value.distinct()
+		if (installed.isEmpty()) {
+			return emptyList()
+		}
+		val savedOrder = currentValue
+			.split(",")
+			.map { it.trim() }
+			.filter { it.isNotEmpty() }
+		val installedByBaseName = installed.associateBy { it.removeSuffix(".jar") }
+		val ordered = savedOrder
+			.mapNotNull(installedByBaseName::get)
+			.distinct()
+			.toMutableList()
+		installed.forEach { jarName ->
+			if (jarName !in ordered) {
+				ordered += jarName
+			}
+		}
+		return ordered
+	}
+
+	fun persistJarPriorityOrder(jarNames: List<String>) {
+		val normalized = jarNames
+			.map { it.removeSuffix(".jar") }
+			.distinct()
+			.joinToString(",")
+		settings.jarPriorityOrder = normalized
 	}
 
 	fun deletePlugin(file: File) {

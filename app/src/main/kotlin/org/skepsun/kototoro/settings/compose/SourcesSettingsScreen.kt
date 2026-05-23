@@ -25,7 +25,7 @@ data class SourcesSettingsUiState(
     val sourcesSortOrder: SourcesSortOrder,
     val isSourcesGridMode: Boolean,
     val isSourcesGroupedByLanguage: Boolean,
-    val jarPriorityOrder: String,
+    val jarPriorityOrder: List<String>,
     val isShowBrokenSources: Boolean,
     val isNsfwContentDisabled: Boolean,
     val isHistoryExcludeNsfw: Boolean,
@@ -52,7 +52,7 @@ fun SourcesSettingsScreen(
     onSourcesGridModeChange: (Boolean) -> Unit,
     onSourcesGroupedByLanguageChange: (Boolean) -> Unit,
     onSetupWizardClick: () -> Unit,
-    onJarPriorityOrderChange: (String) -> Unit,
+    onJarPriorityOrderChange: (List<String>) -> Unit,
     onShowBrokenSourcesChange: (Boolean) -> Unit,
     onNsfwContentDisabledChange: (Boolean) -> Unit,
     onHistoryExcludeNsfwChange: (Boolean) -> Unit,
@@ -69,6 +69,7 @@ fun SourcesSettingsScreen(
             SnackbarHost(hostState = snackbarHostState)
         },
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { innerPadding ->
     val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
         LazyColumn(state = listState,
@@ -76,7 +77,7 @@ fun SourcesSettingsScreen(
             contentPadding = PaddingValues(
                 start = 16.dp,
                 end = 16.dp,
-                top = innerPadding.calculateTopPadding() + 20.dp,
+                top = innerPadding.calculateTopPadding(),
                 bottom = innerPadding.calculateBottomPadding() +
                     WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp,
             ),
@@ -114,10 +115,11 @@ fun SourcesSettingsScreen(
             }
             item(key = "remote_sources") {
                 SettingsPreferenceSection(title = remoteSourcesTitle) {
-                    SettingsTextInputPreference(
+                    SettingsReorderPreference(
                         title = stringResource(R.string.jar_priority_order_title),
                         value = state.jarPriorityOrder,
                         summary = stringResource(R.string.jar_priority_order_summary),
+                        emptyValueText = stringResource(R.string.not_specified),
                         onValueChange = onJarPriorityOrderChange,
                     )
                     SettingsSectionDivider()

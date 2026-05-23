@@ -533,19 +533,35 @@ class NovelReaderActivity :
 
     override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
         val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+        val cutoutInsets = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
+        val horizontalSafeInsets = Insets.of(
+            maxOf(systemBars.left, cutoutInsets.left),
+            0,
+            maxOf(systemBars.right, cutoutInsets.right),
+            0,
+        )
         val fullscreenEnabled = if (::readerSettings.isInitialized) {
             readerSettings.enableFullscreen
         } else {
             true
         }
+        val isScrollMode = if (::readerSettings.isInitialized) {
+            readerSettings.readingMode == ReadingMode.SCROLL
+        } else {
+            false
+        }
         val infoBarHeight = visibleInfoBarHeight()
-        val contentTopInset = if (fullscreenEnabled) infoBarHeight else systemBars.top + infoBarHeight
-        val contentBottomInset = if (fullscreenEnabled) 0 else systemBars.bottom
+        val contentTopInset = systemBars.top
+        val contentBottomInset = when {
+            !fullscreenEnabled -> systemBars.bottom
+            isScrollMode -> infoBarHeight
+            else -> 0
+        }
         
         viewBinding.toolbar.updateLayoutParams<ViewGroup.MarginLayoutParams> {
             topMargin = systemBars.top
-            rightMargin = systemBars.right
-            leftMargin = systemBars.left
+            rightMargin = horizontalSafeInsets.right
+            leftMargin = horizontalSafeInsets.left
         }
 
         val navMargin = if (isToolbarFloating) (16 * resources.displayMetrics.density).toInt() else 0
@@ -554,35 +570,40 @@ class NovelReaderActivity :
 
         viewBinding.toolbarDocked.updateLayoutParams<ViewGroup.MarginLayoutParams> {
             this.bottomMargin = bottomMargin
-            leftMargin = if (isToolbarFloating) systemBars.left + navMargin else 0
-            rightMargin = if (isToolbarFloating) systemBars.right + navMargin else 0
+            leftMargin = if (isToolbarFloating) horizontalSafeInsets.left + navMargin else 0
+            rightMargin = if (isToolbarFloating) horizontalSafeInsets.right + navMargin else 0
         }
 
         viewBinding.actionsView.updateLayoutParams<ViewGroup.MarginLayoutParams> {
             this.bottomMargin = if (isToolbarFloating) 0 else systemBars.bottom
-            leftMargin = if (isToolbarFloating) 0 else systemBars.left
-            rightMargin = if (isToolbarFloating) 0 else systemBars.right
+            leftMargin = if (isToolbarFloating) 0 else horizontalSafeInsets.left
+            rightMargin = if (isToolbarFloating) 0 else horizontalSafeInsets.right
         }
 
-        viewBinding.infoBar.updatePadding(top = systemBars.top)
+        viewBinding.infoBar.applyTopInset = false
+        viewBinding.infoBar.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+            leftMargin = horizontalSafeInsets.left
+            rightMargin = horizontalSafeInsets.right
+            this.bottomMargin = if (fullscreenEnabled) 0 else systemBars.bottom
+        }
 
         viewBinding.readerView.updatePadding(
             top = contentTopInset,
-            left = systemBars.left,
-            right = systemBars.right,
+            left = horizontalSafeInsets.left,
+            right = horizontalSafeInsets.right,
             bottom = contentBottomInset,
         )
         viewBinding.continuousScrollView.updatePadding(
             top = contentTopInset,
-            left = systemBars.left,
-            right = systemBars.right,
+            left = horizontalSafeInsets.left,
+            right = horizontalSafeInsets.right,
             bottom = contentBottomInset,
         )
 
         val innerInsets = Insets.of(
-            systemBars.left,
+            horizontalSafeInsets.left,
             contentTopInset,
-            systemBars.right,
+            horizontalSafeInsets.right,
             contentBottomInset,
         )
 
@@ -1611,8 +1632,48 @@ class NovelReaderActivity :
                     nextChapterUrl = nextNextChapterUrl
                 ).collect { /* just consume and cache */ }
                 android.util.Log.d("NovelReaderActivity", "Successfully preloaded: ${nextChapter.title}")
+                withContext(Dispatchers.Main) {
+                    if (readerSettings.readingMode == ReadingMode.PAGED && currentChapterIndex == nextIndex - 1) {
+                        refreshPagedBoundaryPreviews(currentChapterIndex)
+                    }
+                }
             } catch (e: Exception) {
                 android.util.Log.w("NovelReaderActivity", "Failed to preload chapter: ${nextChapter.title}", e)
+            }
+        }
+    }
+
+    private fun refreshPagedBoundaryPreviews(centerIndex: Int) {
+        viewBinding.readerView.clearChapterBoundaryPreviews()
+        if (readerSettings.readingMode != ReadingMode.PAGED) {
+            return
+        }
+        loadBoundaryPreview(centerIndex, centerIndex - 1, -1)
+        loadBoundaryPreview(centerIndex, centerIndex + 1, 1)
+    }
+
+    private fun loadBoundaryPreview(centerIndex: Int, previewIndex: Int, chapterDelta: Int) {
+        val previewChapter = chapters.getOrNull(previewIndex) ?: return
+        lifecycleScope.launch(Dispatchers.IO + org.skepsun.kototoro.core.parser.legado.RequestPriority(org.skepsun.kototoro.core.parser.legado.RequestPriority.BACKGROUND)) {
+            val previewText = runCatching {
+                when {
+                    previewChapter.url.contains("#chapter/") || previewChapter.url.startsWith("epub://") -> {
+                        epubInternalChapterLoader.loadEpubInternalChapter(previewChapter).getOrNull()?.content
+                    }
+
+                    novelContentLoader.isCached(previewChapter) -> {
+                        val previewRepo = mangaRepositoryFactory.create(previewChapter.source)
+                        novelContentLoader.loadChapterContent(previewRepo, previewChapter)
+                    }
+
+                    else -> null
+                }
+            }.getOrNull()?.takeIf { it.isNotBlank() } ?: return@launch
+
+            withContext(Dispatchers.Main) {
+                if (readerSettings.readingMode == ReadingMode.PAGED && currentChapterIndex == centerIndex) {
+                    viewBinding.readerView.setChapterBoundaryPreview(chapterDelta, previewText)
+                }
             }
         }
     }
@@ -1828,6 +1889,7 @@ class NovelReaderActivity :
                             initialPageIndex = savedPageIndex,
                             initialProgressRatio = initialRatio
                         )
+                        refreshPagedBoundaryPreviews(currentChapterIndex)
                         
                         android.util.Log.d("NovelReaderActivity", "Content set successfully with initial page: $savedPageIndex")
                         
@@ -2013,6 +2075,7 @@ class NovelReaderActivity :
                                     suppressNotification = needsPageRestore,
                                     initialPageIndex = savedPageIndex  // 直接传入目标页码（包括 -1）
                                 )
+                                refreshPagedBoundaryPreviews(currentChapterIndex)
                                 
                                 android.util.Log.d("NovelReaderActivity", "Content set successfully with initial page: $savedPageIndex")
                                 
@@ -2093,6 +2156,7 @@ class NovelReaderActivity :
                                     suppressNotification = false,
                                     initialPageIndex = 0
                                 )
+                                refreshPagedBoundaryPreviews(currentChapterIndex)
                             }
                         } catch (e2: Exception) {
                             android.util.Log.e("NovelReaderActivity", "Failed to set content in fallback", e2)
@@ -2466,6 +2530,7 @@ class NovelReaderActivity :
     }
 
     private fun showError(message: String) {
+        viewBinding.readerView.cancelPendingChapterTransition()
         viewBinding.toastView.showTemporary(message, 3000L)
     }
 
@@ -2916,10 +2981,7 @@ class NovelReaderActivity :
             !readerSettings.isReadingStatusTransparent
         applyInfoBarColorScheme()
         updateNovelContentTopInset()
-        
-        // 当 infoBar 可见性变化时，其 layout 监听器会更新 readerView 的 headerHeight
-        // 当 isUiVisible 变化时，requestApplyInsets 会更新 readerView 的 padding
-        
+
         // 刷新一次阅读状态
         val displayPage = viewBinding.readerView.getDisplayPageIndex()
         val displayTotal = viewBinding.readerView.getDisplayPageCount()
@@ -3243,8 +3305,7 @@ class NovelReaderActivity :
 
     private fun updateNovelContentTopInset() {
         val infoBarHeight = visibleInfoBarHeight()
-        viewBinding.readerView.setHeaderHeight(infoBarHeight)
-        viewBinding.continuousScrollView.updatePadding(top = infoBarHeight)
+        viewBinding.readerView.setFooterHeight(infoBarHeight)
     }
 
 }

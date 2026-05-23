@@ -3,11 +3,23 @@ package org.skepsun.kototoro.settings.sources.unified
 import androidx.fragment.app.Fragment
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
+import org.skepsun.kototoro.settings.SettingsActivity
+import org.skepsun.kototoro.settings.SettingsDestination
 
 internal fun Fragment.redirectToUnifiedSources(
 	kind: UnifiedSourceKind? = null,
 	url: String? = null,
 ) {
+	val settingsActivity = activity as? SettingsActivity
+	if (settingsActivity != null) {
+		settingsActivity.replaceCurrentFragmentWithDestination(
+			SettingsDestination.UnifiedSources(
+				initialRepositoryKind = kind,
+				initialRepositoryUrl = url,
+			),
+		)
+		return
+	}
 	startActivity(
 		UnifiedSourcesActivity.newIntent(
 			context = requireContext(),

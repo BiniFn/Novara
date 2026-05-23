@@ -85,7 +85,7 @@ data class NovelReaderSettings(
         val FONT_SIZE_RANGE = 14f..24f
         val LINE_SPACING_RANGE = 1.2f..2.0f
         val PARAGRAPH_SPACING_RANGE = 0f..24f
-        val MARGIN_RANGE = 12..72
+        val MARGIN_RANGE = 12..120
 
         private const val PREF_NAME = "novel_reader_settings"
         private const val KEY_FONT_SIZE = "font_size"
