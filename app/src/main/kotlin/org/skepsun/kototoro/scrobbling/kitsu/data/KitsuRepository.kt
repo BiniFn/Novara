@@ -959,14 +959,17 @@ class KitsuRepository(
 
 		val synced = ArrayList<ScrobblingEntity>()
 		var offset = 0
+		val limit = 50
 		while (true) {
 			val request = Request.Builder()
 				.get()
-				.url("$BASE_WEB_URL/api/edge/library-entries?page[limit]=20&page[offset]=$offset&filter[userId]=$userId&include=manga,anime")
-			val data = okHttp.newCall(request.build()).await().parseJson().ensureSuccess().optJSONArray("data") ?: break
+				.url("$BASE_WEB_URL/api/edge/library-entries?page[limit]=$limit&page[offset]=$offset&filter[userId]=$userId&include=manga,anime")
+			val response = okHttp.newCall(request.build()).await().parseJson().ensureSuccess()
+			val data = response.optJSONArray("data") ?: break
 			if (data.length() == 0) {
 				break
 			}
+			val mediaMap = buildSyncMediaMap(response.optJSONArray("included"))
 			for (i in 0 until data.length()) {
 				val json = data.optJSONObject(i) ?: continue
 				val attrs = json.optJSONObject("attributes") ?: continue
@@ -974,7 +977,21 @@ class KitsuRepository(
 				val media = rels?.optJSONObject("manga")?.optJSONObject("data")
 					?: rels?.optJSONObject("anime")?.optJSONObject("data")
 				val targetId = media?.optString("id")?.toLongOrNull() ?: continue
+				val mediaType = media?.optString("type") ?: ""
 				val mappedContentId = oldMappings[targetId] ?: 0L
+
+				val includedMedia = mediaMap["$mediaType-$targetId"]
+				val mediaAttrs = includedMedia?.optJSONObject("attributes")
+				val title = mediaAttrs?.optString("canonicalTitle", "")
+					?: mediaAttrs?.optJSONObject("titles")?.let { t ->
+						t.getStringOrNull("en") ?: t.getStringOrNull("en_jp") ?: t.getStringOrNull("ja_jp")
+					}
+				val posterImage = mediaAttrs?.optJSONObject("posterImage")
+				val cover = posterImage?.getStringOrNull("small")
+					?: posterImage?.getStringOrNull("medium").orEmpty()
+				val slug = mediaAttrs?.optString("slug", "") ?: ""
+				val remoteUrl = if (slug.isNotBlank()) "$BASE_WEB_URL/$mediaType/$slug" else ""
+
 				synced.add(
 					ScrobblingEntity(
 						scrobbler = ScrobblerService.KITSU.id,
@@ -985,6 +1002,10 @@ class KitsuRepository(
 						chapter = attrs.getIntOrDefault("progress", 0),
 						comment = attrs.getStringOrNull("notes"),
 						rating = (attrs.getFloatOrDefault("ratingTwenty", 0f) / 20f).coerceIn(0f, 1f),
+						remoteTitle = title?.takeIf { it.isNotBlank() },
+						remoteCoverUrl = cover,
+						remoteUrl = remoteUrl,
+						mediaType = mediaType,
 					),
 				)
 			}
@@ -998,6 +1019,19 @@ class KitsuRepository(
 			}
 		}
 		return synced.size
+	}
+
+	private fun buildSyncMediaMap(included: JSONArray?): Map<String, JSONObject> {
+		if (included == null) return emptyMap()
+		return LinkedHashMap<String, JSONObject>(included.length()).apply {
+			for (i in 0 until included.length()) {
+				val item = included.optJSONObject(i) ?: continue
+				val type = item.optString("type")
+				if (type != "anime" && type != "manga") continue
+				val id = item.optString("id").takeIf { it.isNotBlank() } ?: continue
+				put("$type-$id", item)
+			}
+		}
 	}
 
 	private fun JSONObject.valuesToStringList(): List<String> {
@@ -1178,6 +1212,9 @@ class KitsuRepository(
 				if (media.isNull("id")) null else media.getAsLong("id")
 			}
 			?: throw IllegalArgumentException("Kitsu $typeKey relationship missing for manga $mangaId")
+		val preview = existingEntity?.takeIf {
+			!it.remoteTitle.isNullOrBlank() || !it.remoteCoverUrl.isNullOrBlank() || !it.remoteUrl.isNullOrBlank()
+		} ?: findPreviewInfo(mediaId = mediaId, typeKey = typeKey)
 		val entity = ScrobblingEntity(
 			scrobbler = ScrobblerService.KITSU.id,
 			id = json.getInt("id"),
@@ -1187,8 +1224,86 @@ class KitsuRepository(
 			chapter = attrs.getIntOrDefault("progress", 0),
 			comment = attrs.getStringOrNull("notes"),
 			rating = (attrs.getFloatOrDefault("ratingTwenty", 0f) / 20f).coerceIn(0f, 1f),
+			mediaType = typeKey,
+			remoteTitle = preview?.remoteTitle,
+			remoteCoverUrl = preview?.remoteCoverUrl,
+			remoteUrl = preview?.remoteUrl,
 		)
 		db.getScrobblingDao().upsert(entity)
+	}
+
+	private suspend fun findPreviewInfo(mediaId: Long, typeKey: String): ScrobblingEntity? {
+		val request = Request.Builder()
+			.get()
+			.url("$BASE_WEB_URL/api/edge/$typeKey/$mediaId")
+		val response = runCatching {
+			okHttp.newCall(request.build()).await().parseJson().ensureSuccess()
+		}.getOrNull() ?: return null
+		val data = response.optJSONObject("data") ?: return null
+		val attrs = data.optJSONObject("attributes") ?: return null
+		val title = attrs.optString("canonicalTitle", "").ifBlank {
+			attrs.optJSONObject("titles")?.let { titles ->
+				titles.getStringOrNull("en") ?: titles.getStringOrNull("en_jp") ?: titles.getStringOrNull("ja_jp")
+			}.orEmpty()
+		}.takeIf { it.isNotBlank() }
+		val posterImage = attrs.optJSONObject("posterImage")
+		val cover = posterImage?.getStringOrNull("small")
+			?: posterImage?.getStringOrNull("medium")
+			?: posterImage?.getStringOrNull("large")
+		val slug = attrs.optString("slug", "")
+		val remoteUrl = slug.takeIf { it.isNotBlank() }?.let { "$BASE_WEB_URL/$typeKey/$it" }
+		return ScrobblingEntity(
+			scrobbler = ScrobblerService.KITSU.id,
+			id = 0,
+			mangaId = 0L,
+			targetId = mediaId,
+			status = null,
+			chapter = 0,
+			comment = null,
+			rating = 0f,
+			mediaType = typeKey,
+			remoteTitle = title,
+			remoteCoverUrl = cover,
+			remoteUrl = remoteUrl,
+		)
+	}
+
+	suspend fun persistPreview(
+		mangaId: Long,
+		targetId: Long,
+		mediaType: String,
+		title: String?,
+		coverUrl: String?,
+		url: String?,
+	): Boolean {
+		if (targetId <= 0L) return false
+		val entities = db.getScrobblingDao().findAllByTargetId(ScrobblerService.KITSU.id, targetId)
+			.filter {
+				mediaType.isBlank() || it.mediaType == mediaType || it.mangaId == mangaId
+			}
+		if (entities.isEmpty()) return false
+		val normalizedTitle = title?.takeIf { it.isNotBlank() }
+		val normalizedCover = coverUrl?.takeIf { it.isNotBlank() }
+		val normalizedUrl = url?.takeIf { it.isNotBlank() }
+		var updated = false
+		entities.forEach { entity ->
+			if (
+				entity.remoteTitle == normalizedTitle &&
+				entity.remoteCoverUrl == normalizedCover &&
+				entity.remoteUrl == normalizedUrl
+			) {
+				return@forEach
+			}
+			db.getScrobblingDao().upsert(
+				entity.copy(
+					remoteTitle = normalizedTitle ?: entity.remoteTitle,
+					remoteCoverUrl = normalizedCover ?: entity.remoteCoverUrl,
+					remoteUrl = normalizedUrl ?: entity.remoteUrl,
+				),
+			)
+			updated = true
+		}
+		return updated
 	}
 
 	private fun JSONObject.ensureSuccess(): JSONObject {

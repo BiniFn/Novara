@@ -1224,11 +1224,17 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 	suspend fun syncLibraryFromRemote(): Int {
 		val user = cachedUser ?: loadUser()
 		val existingEntities = db.getScrobblingDao().findAllByScrobbler(ScrobblerService.BANGUMI.id)
-		val oldMappings = db.getScrobblingDao()
-			.findAllByScrobbler(ScrobblerService.BANGUMI.id)
+		val existingByTargetId = existingEntities
 			.groupBy { it.targetId }
 			.mapValues { (_, values) ->
-				values.firstOrNull { it.mangaId != 0L }?.mangaId ?: 0L
+				values.maxByOrNull { entity ->
+					var score = 0
+					if (entity.mangaId != 0L) score += 8
+					if (entity.rating > 0f) score += 4
+					if (!entity.comment.isNullOrBlank()) score += 2
+					if (entity.chapter > 0) score += 1
+					score
+				} ?: values.first()
 			}
 
 		val synced = ArrayList<ScrobblingEntity>()
@@ -1250,7 +1256,8 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 					val item = data.optJSONObject(i) ?: continue
 					val subjectId = item.optLong("subject_id").takeIf { it > 0 } ?: item.optJSONObject("subject")?.optLong("id") ?: continue
 					val subject = item.optJSONObject("subject")
-					val mappedContentId = oldMappings[subjectId] ?: 0L
+					val existing = existingByTargetId[subjectId]
+					val mappedContentId = existing?.mangaId ?: 0L
 					val typeInt = item.optInt("type", 0)
 					val statusStr = when (typeInt) {
 						1 -> "wish"
@@ -1268,8 +1275,8 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 							targetId = subjectId,
 							status = statusStr,
 							chapter = item.optInt("ep_status", 0),
-							comment = item.optString("comment", ""),
-							rating = (item.optInt("rate", 0).toFloat() / 10f).coerceIn(0f, 1f),
+							comment = item.optString("comment").takeIf { it.isNotBlank() } ?: existing?.comment.orEmpty(),
+							rating = item.toBangumiCollectionRating(existing?.rating ?: 0f),
 							mediaType = subjectType.toString(),
 							remoteTitle = subject?.getStringOrNull("name_cn")
 								?: subject?.getStringOrNull("name"),
@@ -1286,16 +1293,20 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 				if (data.length() < limit) break
 			}
 		}
-		val syncedIds = synced.mapTo(HashSet(synced.size)) { it.targetId }
+		val hydrated = hydrateMissingCollectionRatings(
+			entities = synced,
+			existingByTargetId = existingByTargetId,
+		)
+		val syncedIds = hydrated.mapTo(HashSet(hydrated.size)) { it.targetId }
 		val preservedLocal = existingEntities.filter { it.mangaId != 0L && it.targetId !in syncedIds }
 
 		db.withTransaction {
 			db.getScrobblingDao().deleteByScrobbler(ScrobblerService.BANGUMI.id)
-			(synced + preservedLocal).forEach { entity ->
+			(hydrated + preservedLocal).forEach { entity ->
 				db.getScrobblingDao().upsert(entity)
 			}
 		}
-		return synced.size
+		return hydrated.size
 	}
 
 	private suspend fun findExistingCollection(subjectId: Long): JSONObject? = runCatching {
@@ -1326,9 +1337,38 @@ private suspend fun loadBrowserFilters(category: String): BangumiBrowserFilters 
 				status = statusStr,
 				chapter = json.optInt("ep_status", 0),
 				comment = json.optString("comment", ""),
-				rating = (json.optInt("rate", 0).toFloat() / 10f).coerceIn(0f, 1f),
+				rating = json.toBangumiCollectionRating(),
 			),
 		)
+	}
+
+	private suspend fun hydrateMissingCollectionRatings(
+		entities: List<ScrobblingEntity>,
+		existingByTargetId: Map<Long, ScrobblingEntity>,
+	): List<ScrobblingEntity> {
+		if (entities.isEmpty()) return entities
+		val refreshedByTargetId = HashMap<Long, Float>()
+		entities.forEach { entity ->
+			if (entity.rating > 0f) return@forEach
+			val previousRating = existingByTargetId[entity.targetId]?.rating ?: 0f
+			if (previousRating <= 0f) return@forEach
+			val refreshedRating = findExistingCollection(entity.targetId)
+				?.toBangumiCollectionRating()
+				?: previousRating
+			refreshedByTargetId[entity.targetId] = refreshedRating
+		}
+		if (refreshedByTargetId.isEmpty()) return entities
+		return entities.map { entity ->
+			refreshedByTargetId[entity.targetId]?.let { entity.copy(rating = it) } ?: entity
+		}
+	}
+
+	private fun JSONObject.toBangumiCollectionRating(fallback: Float = 0f): Float {
+		val rate = optInt("rate", 0)
+		if (rate > 0) {
+			return (rate.toFloat() / 10f).coerceIn(0f, 1f)
+		}
+		return fallback.coerceIn(0f, 1f)
 	}
 
 	private fun JSONArray?.toBangumiTags(): List<String> {

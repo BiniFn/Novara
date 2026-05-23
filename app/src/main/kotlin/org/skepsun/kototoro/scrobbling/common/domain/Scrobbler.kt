@@ -40,15 +40,12 @@ abstract class Scrobbler(
 		if (!repository.isAuthorized) {
 			return@flow
 		}
-		repository.cachedUser?.let {
-			emit(it)
-		}
-		runCatchingCancellable {
-			repository.loadUser()
-		}.onSuccess {
-			emit(it)
-		}.onFailure {
-			it.printStackTraceDebug()
+		val cached = repository.cachedUser
+			?: runCatchingCancellable {
+				repository.loadUser()
+			}.getOrNull()
+		if (cached != null) {
+			emit(cached)
 		}
 	}
 

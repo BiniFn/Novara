@@ -9,7 +9,9 @@ import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerUser
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingStatus
 import org.skepsun.kototoro.scrobbling.kitsu.data.KitsuRepository
 import javax.inject.Inject
+import javax.inject.Singleton
 
+@Singleton
 class KitsuScrobbler @Inject constructor(
 	private val repository: KitsuRepository,
 	db: MangaDatabase,
@@ -25,7 +27,16 @@ class KitsuScrobbler @Inject constructor(
 	}
 
 	override suspend fun getContentInfo(entity: ScrobblingEntity) =
-		repository.getContentInfo(entity.targetId, entity.mangaId)
+		repository.getContentInfo(entity.targetId, entity.mangaId).also { info ->
+			repository.persistPreview(
+				mangaId = entity.mangaId,
+				targetId = entity.targetId,
+				mediaType = entity.mediaType,
+				title = info.name,
+				coverUrl = info.cover,
+				url = info.url,
+			)
+		}
 
 	override suspend fun updateScrobblingInfo(
 		mangaId: Long,

@@ -171,7 +171,7 @@ private fun buildPlaceholderItems(
                 else -> cachedUser?.nickname.orEmpty()
             },
             statsSummary = if (scrobblerAuthHelper.isAuthorized(service)) {
-                context.getString(R.string.statistics_pending_short)
+                null
             } else {
                 null
             },
@@ -207,7 +207,7 @@ private suspend fun loadAccountItems(
                 service = service,
                 title = context.getString(service.titleResId),
                 summary = cachedUser?.nickname ?: it.getDisplayMessage(context.resources),
-                statsSummary = context.getString(R.string.statistics_pending_short),
+                statsSummary = null,
                 avatarUrl = cachedUser?.avatar,
                 iconRes = service.iconResId,
             )
