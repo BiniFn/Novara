@@ -34,19 +34,19 @@ dependencyResolutionManagement {
 	repositories {
 		google()
 		mavenCentral()
+		maven {
+			url 'https://jitpack.io'
+			content {
+				includeGroupByRegex("com\\.github\\..*")
+				excludeGroup("com.github.bytedance")
+			}
+		}
         maven { url 'https://maven.aliyun.com/repository/google' }
         maven { url 'https://maven.aliyun.com/repository/public' }
 		maven {
 			url 'https://artifact.bytedance.com/repository/releases/'
 			content {
 				includeGroup("com.github.bytedance")
-			}
-		}
-		maven {
-			url 'https://jitpack.io'
-			content {
-				includeGroupByRegex("com\\.github\\..*")
-				excludeGroup("com.github.bytedance")
 			}
 		}
 	}
