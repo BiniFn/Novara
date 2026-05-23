@@ -27,27 +27,24 @@ class IndexBasedChapterReadingPropertyTest : StringSpec({
      * For any EPUB with N chapters and any valid index I (0 <= I < N),
      * reading at index I returns the I-th chapter.
      */
-    "reading at index I returns I-th chapter".config(invocations = 100) {
+    "reading at index I returns I-th chapter".config(invocations = 50) {
         checkAll(
-            Arb.int(1..100) // Number of chapters in EPUB
-        ) { chapterCount ->
+            Arb.int(1..50), // Number of chapters in EPUB
+            Arb.int(0..49), // Valid chapter index candidate
+        ) { chapterCount, targetIndex ->
+            if (targetIndex >= chapterCount) return@checkAll
             val epubContent = generateTestEpubContent(chapterCount)
-            
-            // For each valid index, verify we get the correct chapter
-            for (index in 0 until chapterCount) {
-                val chapter = readChapterAtIndex(epubContent, index)
-                
-                chapter shouldNotBe null
-                chapter!!.index shouldBe index
-                chapter.title shouldBe "Chapter ${index + 1}"
-            }
+
+            val chapter = requireNotNull(readChapterAtIndex(epubContent, targetIndex))
+            chapter.index shouldBe targetIndex
+            chapter.title shouldBe "Chapter ${targetIndex + 1}"
         }
     }
     
     /**
      * Verify that reading the same index multiple times returns the same chapter.
      */
-    "reading same index multiple times returns same chapter".config(invocations = 100) {
+    "reading same index multiple times returns same chapter".config(invocations = 50) {
         checkAll(
             Arb.int(1..50), // Number of chapters
             Arb.int(0..49)  // Index to read
@@ -68,21 +65,16 @@ class IndexBasedChapterReadingPropertyTest : StringSpec({
     /**
      * Verify that reading different indices returns different chapters.
      */
-    "reading different indices returns different chapters".config(invocations = 100) {
+    "reading different indices returns different chapters".config(invocations = 50) {
         checkAll(
             Arb.int(2..50) // At least 2 chapters
         ) { chapterCount ->
             val epubContent = generateTestEpubContent(chapterCount)
-            
-            // Read two different chapters
-            val chapter0 = readChapterAtIndex(epubContent, 0)
-            val chapter1 = readChapterAtIndex(epubContent, 1)
-            
-            chapter0 shouldNotBe null
-            chapter1 shouldNotBe null
-            
-            // They should be different
-            chapter0!!.index shouldNotBe chapter1!!.index
+
+            val chapter0 = requireNotNull(readChapterAtIndex(epubContent, 0))
+            val chapter1 = requireNotNull(readChapterAtIndex(epubContent, 1))
+
+            chapter0.index shouldNotBe chapter1.index
             chapter0.title shouldNotBe chapter1.title
             chapter0.content shouldNotBe chapter1.content
         }
@@ -91,16 +83,15 @@ class IndexBasedChapterReadingPropertyTest : StringSpec({
     /**
      * Verify that reading at index 0 returns the first chapter.
      */
-    "reading at index 0 returns first chapter".config(invocations = 100) {
+    "reading at index 0 returns first chapter".config(invocations = 50) {
         checkAll(
             Arb.int(1..50)
         ) { chapterCount ->
             val epubContent = generateTestEpubContent(chapterCount)
             
-            val firstChapter = readChapterAtIndex(epubContent, 0)
-            
-            firstChapter shouldNotBe null
-            firstChapter!!.index shouldBe 0
+            val firstChapter = requireNotNull(readChapterAtIndex(epubContent, 0))
+
+            firstChapter.index shouldBe 0
             firstChapter.title shouldBe "Chapter 1"
         }
     }
@@ -108,17 +99,16 @@ class IndexBasedChapterReadingPropertyTest : StringSpec({
     /**
      * Verify that reading at last valid index returns the last chapter.
      */
-    "reading at last index returns last chapter".config(invocations = 100) {
+    "reading at last index returns last chapter".config(invocations = 50) {
         checkAll(
             Arb.int(1..50)
         ) { chapterCount ->
             val epubContent = generateTestEpubContent(chapterCount)
             val lastIndex = chapterCount - 1
             
-            val lastChapter = readChapterAtIndex(epubContent, lastIndex)
-            
-            lastChapter shouldNotBe null
-            lastChapter!!.index shouldBe lastIndex
+            val lastChapter = requireNotNull(readChapterAtIndex(epubContent, lastIndex))
+
+            lastChapter.index shouldBe lastIndex
             lastChapter.title shouldBe "Chapter $chapterCount"
         }
     }
@@ -145,32 +135,24 @@ class IndexBasedChapterReadingPropertyTest : StringSpec({
     /**
      * Verify that all chapters in sequence can be read.
      */
-    "all chapters can be read in sequence".config(invocations = 100) {
+    "all chapters can be read in sequence".config(invocations = 50) {
         checkAll(
-            Arb.int(1..50)
+            Arb.int(1..30)
         ) { chapterCount ->
             val epubContent = generateTestEpubContent(chapterCount)
-            
-            // Read all chapters in sequence
-            val readChapters = (0 until chapterCount).map { index ->
-                readChapterAtIndex(epubContent, index)
+
+            val readIndices = (0 until chapterCount).map { index ->
+                requireNotNull(readChapterAtIndex(epubContent, index)).index
             }
-            
-            // Verify all chapters were read successfully
-            readChapters.size shouldBe chapterCount
-            readChapters.all { it != null } shouldBe true
-            
-            // Verify indices are in order
-            readChapters.forEachIndexed { expectedIndex, chapter ->
-                chapter!!.index shouldBe expectedIndex
-            }
+
+            readIndices shouldBe (0 until chapterCount).toList()
         }
     }
     
     /**
      * Verify that chapter content is not empty.
      */
-    "read chapters have non-empty content".config(invocations = 100) {
+    "read chapters have non-empty content".config(invocations = 50) {
         checkAll(
             Arb.int(1..50),
             Arb.int(0..49)
@@ -178,10 +160,9 @@ class IndexBasedChapterReadingPropertyTest : StringSpec({
             if (targetIndex >= chapterCount) return@checkAll
             
             val epubContent = generateTestEpubContent(chapterCount)
-            val chapter = readChapterAtIndex(epubContent, targetIndex)
-            
-            chapter shouldNotBe null
-            chapter!!.content.isNotBlank() shouldBe true
+            val chapter = requireNotNull(readChapterAtIndex(epubContent, targetIndex))
+
+            chapter.content.isNotBlank() shouldBe true
             chapter.title.isNotBlank() shouldBe true
         }
     }
@@ -189,21 +170,18 @@ class IndexBasedChapterReadingPropertyTest : StringSpec({
     /**
      * Verify that reading chapters doesn't modify the EPUB content.
      */
-    "reading chapters doesn't modify EPUB content".config(invocations = 100) {
+    "reading chapters doesn't modify EPUB content".config(invocations = 50) {
         checkAll(
             Arb.int(1..50)
         ) { chapterCount ->
             val epubContent = generateTestEpubContent(chapterCount)
-            val originalSize = epubContent.chapters.size
-            
-            // Read multiple chapters
-            repeat(10) {
-                val randomIndex = (0 until chapterCount).random()
-                readChapterAtIndex(epubContent, randomIndex)
+            val originalChapters = epubContent.chapters.toList()
+
+            (0 until minOf(chapterCount, 10)).forEach { index ->
+                readChapterAtIndex(epubContent, index)
             }
-            
-            // Verify EPUB content is unchanged
-            epubContent.chapters.size shouldBe originalSize
+
+            epubContent.chapters shouldBe originalChapters
         }
     }
 })

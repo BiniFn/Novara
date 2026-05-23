@@ -12,6 +12,8 @@ import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import io.mockk.mockk
+import org.skepsun.kototoro.core.prefs.AppSettings
 
 class ExtensionRepoServiceTest : FunSpec({
 
@@ -30,6 +32,7 @@ class ExtensionRepoServiceTest : FunSpec({
 				prettyPrint = true
 				coerceInputValues = true
 			},
+			settings = mockk<AppSettings>(relaxed = true),
 		)
 	}
 

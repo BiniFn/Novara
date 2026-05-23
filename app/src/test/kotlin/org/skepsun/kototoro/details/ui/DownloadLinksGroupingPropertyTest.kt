@@ -1,7 +1,6 @@
 package org.skepsun.kototoro.details.ui
 
 import io.kotest.core.spec.style.StringSpec
-import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.property.Arb
 import io.kotest.property.arbitrary.arbitrary
@@ -47,9 +46,7 @@ class DownloadLinksGroupingPropertyTest : StringSpec({
                 // All download chapters should be in this group
                 downloadGroup?.let { group ->
                     group.chapters.size shouldBe downloadChapters.size
-                    downloadChapters.forEach { chapter ->
-                        group.chapters shouldContain chapter
-                    }
+                    group.chapters shouldBe downloadChapters
                     
                     // The group should be collapsible
                     group.isCollapsible shouldBe true
@@ -89,7 +86,7 @@ class DownloadLinksGroupingPropertyTest : StringSpec({
             groups.filter { it.name != "下载链接" }.forEach { group ->
                 group.chapters.forEach { chapter ->
                     val chapterType = metadataMap[chapter.id]?.chapterType ?: ChapterType.NORMAL
-                    chapterType shouldBe chapterType // Should not be EPUB_DOWNLOAD
+                    (chapterType == ChapterType.EPUB_DOWNLOAD) shouldBe false
                 }
             }
         }

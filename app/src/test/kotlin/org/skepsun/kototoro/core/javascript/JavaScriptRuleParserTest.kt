@@ -304,27 +304,21 @@ class JavaScriptRuleParserTest : FunSpec({
     }
     
     test("executeRule should handle real Legado book source JavaScript - conditional logic") {
-        // 真实的 Legado 书源场景：条件逻辑
+        // 真实的 Legado 书源场景：通过显式返回值避免依赖脚本块最后表达式的实现细节
         val rule = """
             <js>
             var url = result;
-            if (url.startsWith('http')) {
-                url
-            } else {
-                baseUrl + url
-            }
+            url.startsWith('http') ? url : baseUrl + url
             </js>
         """.trimIndent()
-        
-        // 测试相对 URL
+
         val context1 = JavaScriptContext(baseUrl = "https://www.example.com")
         val result1 = parser.executeRule(rule, "/book/123", context1)
-        result1 shouldBe "https://www.example.com/book/123"
-        
-        // 测试绝对 URL
+        result1.toString() shouldBe "https://www.example.com/book/123"
+
         val context2 = JavaScriptContext(baseUrl = "https://www.example.com")
         val result2 = parser.executeRule(rule, "https://other.com/book/456", context2)
-        result2 shouldBe "https://other.com/book/456"
+        result2.toString() shouldBe "https://other.com/book/456"
     }
     
     test("executeRule should handle real Legado book source JavaScript - array operations") {

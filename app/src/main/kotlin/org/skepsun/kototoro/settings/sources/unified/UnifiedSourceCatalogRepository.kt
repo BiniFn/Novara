@@ -380,7 +380,16 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 	}
 
 	private fun ContentSource.resolveLanguage(): String? {
-		val rawLanguage = getLocale()?.language ?: locale.takeIf { it.isNotBlank() }
+		val rawLanguage = getLocale()?.language
+			?: locale.takeIf { it.isNotBlank() }
+			?: (this as? JsonContentSource)
+				?.takeIf { it.entity.type == JsonSourceType.LNREADER }
+				?.let { jsonSource ->
+					LNReaderPluginMetadata.extractFromCode(
+						jsCode = jsonSource.entity.config,
+						fallbackId = jsonSource.entity.id,
+					)?.lang
+				}
 		return rawLanguage?.normalizeExtensionLanguageCode()
 	}
 

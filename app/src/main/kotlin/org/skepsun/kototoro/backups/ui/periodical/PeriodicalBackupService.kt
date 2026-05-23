@@ -1,7 +1,6 @@
 package org.skepsun.kototoro.backups.ui.periodical
-import android.util.Log
-
 import android.content.Intent
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.PendingIntentCompat
@@ -78,9 +77,14 @@ class PeriodicalBackupService : CoroutineIntentService() {
 			}
 			// 仅在启用了“保留本地副本”且配置了目录时写入本地
 			if (hasLocalCopyDestination) {
-				externalBackupStorage.put(output)
-				externalBackupStorage.trim(settings.periodicalBackupMaxCount)
-				logBackupFlow(TAG, flow = BackupFlow.PERIODICAL_BACKUP, event = "local_copy_written")
+				runCatching {
+					externalBackupStorage.put(output)
+					externalBackupStorage.trim(settings.periodicalBackupMaxCount)
+				}.onSuccess {
+					logBackupFlow(TAG, flow = BackupFlow.PERIODICAL_BACKUP, event = "local_copy_written")
+				}.onFailure {
+					Log.e(TAG, "Failed to write local backup copy", it)
+				}
 			}
 			if (settings.isBackupTelegramUploadEnabled && telegramBackupUploader.isAvailable) {
 				telegramBackupUploader.uploadBackup(output)

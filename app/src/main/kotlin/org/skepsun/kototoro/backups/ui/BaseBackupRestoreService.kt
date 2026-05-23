@@ -38,6 +38,7 @@ abstract class BaseBackupRestoreService : CoroutineIntentService() {
 	protected fun IntentJobContext.showResultNotification(
 		fileUri: Uri?,
 		result: CompositeResult,
+		showLegacyJarReposImportedHint: Boolean = false,
 	) {
 		if (!applicationContext.checkNotificationPermission(CHANNEL_ID)) {
 			return
@@ -53,7 +54,13 @@ abstract class BaseBackupRestoreService : CoroutineIntentService() {
 				if (isRestoreService) {
 					notification
 						.setContentTitle(getString(R.string.restoring_backup))
-						.setContentText(getString(R.string.data_restored_success))
+						.setContentText(
+							if (showLegacyJarReposImportedHint) {
+								getString(R.string.data_restored_success_legacy_jar_hint)
+							} else {
+								getString(R.string.data_restored_success)
+							},
+						)
 				} else {
 					notification
 						.setContentTitle(getString(R.string.backup_saved))
@@ -83,7 +90,13 @@ abstract class BaseBackupRestoreService : CoroutineIntentService() {
 			else -> {
 				notification
 					.setContentTitle(getString(R.string.restoring_backup))
-					.setContentText(getString(R.string.data_restored_with_errors))
+					.setContentText(
+						if (showLegacyJarReposImportedHint) {
+							getString(R.string.data_restored_with_errors_legacy_jar_hint)
+						} else {
+							getString(R.string.data_restored_with_errors)
+						},
+					)
 					.setSmallIcon(R.drawable.ic_stat_done)
 			}
 		}

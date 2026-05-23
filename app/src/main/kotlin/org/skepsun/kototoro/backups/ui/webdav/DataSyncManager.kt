@@ -166,8 +166,10 @@ class DataSyncManager @Inject constructor(
                 }
                 // 按设置保留本地副本
                 if (settings.isBackupWebDavKeepLocalCopyEnabled) {
-                    externalBackupStorage.put(output)
-                    externalBackupStorage.trim(settings.periodicalBackupMaxCount)
+                    runCatching {
+                        externalBackupStorage.put(output)
+                        externalBackupStorage.trim(settings.periodicalBackupMaxCount)
+                    }.onFailure { it.printStackTraceDebug() }
                 }
                 val uploadResult = backupWebDavUploadCoordinator.uploadAndCommit(
                     file = output,

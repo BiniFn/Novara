@@ -163,14 +163,15 @@ class WebDavAutoRestoreService : Service() {
                     BackupSection.CATEGORIES,
                     BackupSection.FAVOURITES,
                     BackupSection.BOOKMARKS,
-                    BackupSection.SOURCES
+                    BackupSection.SOURCES,
+                    BackupSection.EXTENSION_REPOS,
                 )
 
                 val restoreResult = zipInputStream.use { zis ->
                     backupRepository.restoreBackup(zis, allSections, null)
                 }
 
-                val changesApplied = !restoreResult.isEmpty
+                val changesApplied = !restoreResult.result.isEmpty
 
                 val restoreResultCommit = backupWebDavRestoreCoordinator.commitAutoRestore(
                     restoredVersion = candidate.dataVersion,
@@ -183,6 +184,7 @@ class WebDavAutoRestoreService : Service() {
                     reason = null,
                     "changesApplied" to changesApplied,
                     "version" to restoreResultCommit.restoredVersion,
+                    "legacyJarReposImported" to restoreResult.legacyJarReposImported,
                 )
 
                 // 仅在“合并后的本地备份”与“拉取的远端备份”内容不同的情况下，上传一次

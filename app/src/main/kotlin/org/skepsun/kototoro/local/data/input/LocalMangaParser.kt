@@ -53,11 +53,24 @@ import java.io.File
  * :
  * L--- Page x.png
  */
-class LocalContentParser(private val uri: Uri) {
+class LocalContentParser {
 
-	constructor(file: File) : this(file.toUri())
+	private val uri: Uri?
+	private val rootFile: File
 
-	private val rootFile: File = File(uri.schemeSpecificPart)
+	constructor(file: File) {
+		this.uri = null
+		this.rootFile = file
+	}
+
+	constructor(uri: Uri) {
+		this.uri = uri
+		this.rootFile = if (uri.isFileUri()) {
+			File(requireNotNull(uri.path) { "File uri path is null: $uri" })
+		} else {
+			File(uri.schemeSpecificPart)
+		}
+	}
 
 	suspend fun getContent(withDetails: Boolean): LocalContent {
 		val hasIndexFile = rootFile.isDirectory && File(rootFile, ENTRY_NAME_INDEX).isFile
@@ -70,12 +83,12 @@ class LocalContentParser(private val uri: Uri) {
 					it.copy(url = "localepub://${rootFile.absolutePath}#chapter/$index")
 				}
 				
-				var extractedCoverUrl: String? = null
-				runCatching {
-					okio.FileSystem.SYSTEM.openZip(rootFile.absolutePath.toPath()).use { zipFs ->
-						extractedCoverUrl = zipFs.findFirstImageUri(okio.Path.Companion.DIRECTORY_SEPARATOR.toPath())?.toString()
+					var extractedCoverUrl: String? = null
+					runCatching {
+						okio.FileSystem.SYSTEM.openZip(rootFile.absolutePath.toPath()).use { zipFs ->
+							extractedCoverUrl = zipFs.findFirstImageUrl(okio.Path.Companion.DIRECTORY_SEPARATOR.toPath())
+						}
 					}
-				}
 				val updatedContent = content.copy(
 					chapters = if (withDetails) updatedChapters else null,
 					coverUrl = extractedCoverUrl ?: ""
@@ -96,15 +109,15 @@ class LocalContentParser(private val uri: Uri) {
 						val idx = it.url.substringAfterLast("chapter/").toIntOrNull() ?: 0
 						it.copy(url = "localepub://${epubFile.absolutePath}#chapter/$idx")
 					}
-					var extractedCoverUrl: String? = null
-					runCatching {
-						val tempParser = LocalContentParser(epubFile)
-						okio.FileSystem.SYSTEM.openZip(epubFile.absolutePath.toPath()).use { zipFs ->
-							extractedCoverUrl = with(tempParser) {
-								zipFs.findFirstImageUri(okio.Path.Companion.DIRECTORY_SEPARATOR.toPath())?.toString()
+						var extractedCoverUrl: String? = null
+						runCatching {
+							val tempParser = LocalContentParser(epubFile)
+							okio.FileSystem.SYSTEM.openZip(epubFile.absolutePath.toPath()).use { zipFs ->
+								extractedCoverUrl = with(tempParser) {
+									zipFs.findFirstImageUrl(okio.Path.Companion.DIRECTORY_SEPARATOR.toPath())
+								}
 							}
 						}
-					}
 					val updatedContent = epubContent.copy(
 						id = rootFile.absolutePath.longHashCode(),
 						chapters = if (withDetails) updatedChapters else null,
@@ -116,7 +129,7 @@ class LocalContentParser(private val uri: Uri) {
 		}
 
 		return kotlinx.coroutines.runInterruptible(kotlinx.coroutines.Dispatchers.IO) {
-			(uri.resolveFsAndPath()).use { (fileSystem, rootPath) ->
+			resolveFsAndPath().use { (fileSystem, rootPath) ->
 				val index = org.skepsun.kototoro.local.data.ContentIndex.read(fileSystem, rootPath / org.skepsun.kototoro.local.data.output.LocalContentOutput.ENTRY_NAME_INDEX)
 				val mangaInfo = index?.getContentInfo()
 				if (mangaInfo != null) {
@@ -154,17 +167,13 @@ class LocalContentParser(private val uri: Uri) {
 							val path = fileName?.toPath()
 							if (path != null && fileSystem.exists(rootPath / path)) {
 								// 已加载的本地章节
-								c.copy(
-									url = uri.child(path, resolve = false).toString()
-								)
-							} else if (fileName == null) {
+									c.copy(url = buildChildUriString(path, resolve = false))
+								} else if (fileName == null) {
 								// 单个CBZ漫画场景，章节没有独立文件夹，但通过 entries 记录了页面
 								val pattern = index.getChapterNamesPattern(c)
 								if (zipEntriesCache.value.any { it.matches(pattern) }) {
-									c.copy(
-										url = uri.child("".toPath(), resolve = false).toString()
-									)
-								} else {
+										c.copy(url = buildChildUriString("".toPath(), resolve = false))
+									} else {
 									c
 								}
 							} else {
@@ -181,16 +190,12 @@ class LocalContentParser(private val uri: Uri) {
 							val fileName = index.getChapterFileName(c.id)
 							val path = fileName?.toPath()
 							if (path != null && fileSystem.exists(rootPath / path)) {
-								c.copy(
-									url = uri.child(path, resolve = false).toString()
-								)
-							} else if (fileName == null) {
-								val pattern = index.getChapterNamesPattern(c)
-								if (zipEntriesCache.value.any { it.matches(pattern) }) {
-									c.copy(
-										url = uri.child("".toPath(), resolve = false).toString()
-									)
-								} else {
+									c.copy(url = buildChildUriString(path, resolve = false))
+								} else if (fileName == null) {
+									val pattern = index.getChapterNamesPattern(c)
+									if (zipEntriesCache.value.any { it.matches(pattern) }) {
+										c.copy(url = buildChildUriString("".toPath(), resolve = false))
+									} else {
 									c
 								}
 							} else {
@@ -253,7 +258,7 @@ class LocalContentParser(private val uri: Uri) {
 							volume = 0,
 							source = detectedSource,
 							uploadDate = 0L,
-							url = uri.child(p.relativeTo(rootPath), resolve = false).toString(),
+							url = buildChildUriString(p.relativeTo(rootPath), resolve = false),
 							scanlator = null,
 							branch = null,
 						)
@@ -267,7 +272,7 @@ class LocalContentParser(private val uri: Uri) {
 					url = rootFile.toUri().toString(),
 					publicUrl = rootFile.toUri().toString(),
 					source = inferedSource,
-					coverUrl = fileSystem.findFirstImageUri(rootPath)?.toString(),
+						coverUrl = fileSystem.findFirstImageUrl(rootPath),
 					chapters = if (withDetails) detectedChapters?.map { it.first } else null,
 					altTitles = emptySet(),
 					rating = -1f,
@@ -304,12 +309,12 @@ class LocalContentParser(private val uri: Uri) {
 			val parser = org.skepsun.kototoro.local.epub.LocalEpubParser(rootFile)
 			val content = parser.parseContent()
 			if (content != null) {
-				var extractedCoverUrl: String? = null
-				runCatching {
-					okio.FileSystem.SYSTEM.openZip(rootFile.absolutePath.toPath()).use { zipFs ->
-						extractedCoverUrl = zipFs.findFirstImageUri(okio.Path.Companion.DIRECTORY_SEPARATOR.toPath())?.toString()
+					var extractedCoverUrl: String? = null
+					runCatching {
+						okio.FileSystem.SYSTEM.openZip(rootFile.absolutePath.toPath()).use { zipFs ->
+							extractedCoverUrl = zipFs.findFirstImageUrl(okio.Path.Companion.DIRECTORY_SEPARATOR.toPath())
+						}
 					}
-				}
 				return content.copy(
 					chapters = null,
 					coverUrl = extractedCoverUrl ?: ""
@@ -324,15 +329,15 @@ class LocalContentParser(private val uri: Uri) {
 				val parser = org.skepsun.kototoro.local.epub.LocalEpubParser(epubFile)
 				val content = parser.parseContent()
 				if (content != null) {
-					var extractedCoverUrl: String? = null
-					runCatching {
-						val tempParser = LocalContentParser(epubFile)
-						okio.FileSystem.SYSTEM.openZip(epubFile.absolutePath.toPath()).use { zipFs ->
-							extractedCoverUrl = with(tempParser) {
-								zipFs.findFirstImageUri(okio.Path.Companion.DIRECTORY_SEPARATOR.toPath())?.toString()
+						var extractedCoverUrl: String? = null
+						runCatching {
+							val tempParser = LocalContentParser(epubFile)
+							okio.FileSystem.SYSTEM.openZip(epubFile.absolutePath.toPath()).use { zipFs ->
+								extractedCoverUrl = with(tempParser) {
+									zipFs.findFirstImageUrl(okio.Path.Companion.DIRECTORY_SEPARATOR.toPath())
+								}
 							}
 						}
-					}
 					return content.copy(
 						id = rootFile.absolutePath.longHashCode(),
 						chapters = null,
@@ -343,7 +348,7 @@ class LocalContentParser(private val uri: Uri) {
 		}
 
 		return kotlinx.coroutines.runInterruptible(kotlinx.coroutines.Dispatchers.IO) {
-			uri.resolveFsAndPath().use { (fileSystem, rootPath) ->
+			resolveFsAndPath().use { (fileSystem, rootPath) ->
 				val index = org.skepsun.kototoro.local.data.ContentIndex.read(fileSystem, rootPath / org.skepsun.kototoro.local.data.output.LocalContentOutput.ENTRY_NAME_INDEX)
 				index?.getContentInfo()
 			}
@@ -384,6 +389,16 @@ class LocalContentParser(private val uri: Uri) {
 		}
 	}
 
+	private fun buildChildUriString(path: Path, resolve: Boolean): String {
+		return uri?.child(path, resolve).toString()
+			.takeIf { uri != null }
+			?: rootFile.buildChildUriString(path, resolve)
+	}
+
+	private fun resolveFsAndPath(): FsAndPath {
+		return uri?.resolveFsAndPath() ?: rootFile.resolveFsAndPath()
+	}
+
 	private fun Uri.child(path: Path, resolve: Boolean): Uri {
 		val file = fileFromPath()
 		val builder = buildUpon()
@@ -399,28 +414,31 @@ class LocalContentParser(private val uri: Uri) {
 		return builder.build()
 	}
 
-	private fun FileSystem.findFirstImageUri(
+	private fun FileSystem.findFirstImageUrl(
 		rootPath: Path,
 		recursive: Boolean = false
-	): Uri? = runCatchingCancellable {
+	): String? = runCatchingCancellable {
 		val list = list(rootPath)
 		for (file in list.sortedWith(compareBy(AlphanumComparator()) { x -> x.name })) {
 			if (isRegularFile(file)) {
 				if (file.isImage()) {
-					return@runCatchingCancellable uri.child(file, resolve = true)
+					return@runCatchingCancellable buildChildUriString(file, resolve = true)
 				}
 				if (recursive && file.isZip()) {
 					openZip(file).use { zipFs ->
-						zipFs.findFirstImageUri(Path.DIRECTORY_SEPARATOR.toPath())?.let { subUri ->
-							val subPath = subUri.path.orEmpty().removePrefix(uri.path.orEmpty())
-								.replace(REGEX_PARENT_PATH_PREFIX, "")
-							return@runCatchingCancellable uri.child(file, resolve = true)
-								.child(subPath.toPath(), resolve = false)
+						zipFs.findFirstImageUrl(Path.DIRECTORY_SEPARATOR.toPath())?.let { subUrl ->
+							val fragment = java.net.URI(subUrl).fragment.orEmpty()
+							val baseUrl = buildChildUriString(file, resolve = true)
+							return@runCatchingCancellable if (fragment.isBlank()) {
+								baseUrl
+							} else {
+								"$baseUrl#$fragment"
+							}
 						}
 					}
 				}
 			} else if (recursive && isDirectory(file)) {
-				findFirstImageUri(file, true)?.let {
+				findFirstImageUrl(file, true)?.let {
 					return@runCatchingCancellable it
 				}
 			}
@@ -428,10 +446,10 @@ class LocalContentParser(private val uri: Uri) {
 		if (recursive) {
 			null
 		} else {
-			findFirstImageUri(rootPath, recursive = true)
-		}
-	}.onFailure { e ->
-		e.printStackTraceDebug()
+				findFirstImageUrl(rootPath, recursive = true)
+			}
+		}.onFailure { e ->
+			e.printStackTraceDebug()
 	}.getOrNull()
 
 	private fun Path.userFriendlyName(): String = name.substringBeforeLast('.')
@@ -503,6 +521,30 @@ class LocalContentParser(private val uri: Uri) {
 		}
 
 		private fun Uri.fileFromPath(): File = File(requireNotNull(path) { "Uri path is null: $this" })
+
+		private fun File.buildChildUriString(path: Path, resolve: Boolean): String {
+			val relative = path.toString().removePrefix(Path.DIRECTORY_SEPARATOR)
+			return if (isZipArchive || !resolve) {
+				if (relative.isBlank()) {
+					toURI().toString()
+				} else {
+					"${toURI()}#$relative"
+				}
+			} else {
+				resolve(relative).toURI().toString()
+			}
+		}
+
+		@Blocking
+		private fun File.resolveFsAndPath(): FsAndPath = if (isZipArchive) {
+			FsAndPath(
+				FileSystem.SYSTEM.openZip(absolutePath.toPath()),
+				"".toRootedPath(),
+				isCloseable = true,
+			)
+		} else {
+			FsAndPath(FileSystem.SYSTEM, toOkioPath(), isCloseable = false)
+		}
 
 		@Blocking
 		private fun Uri.resolveFsAndPath(): FsAndPath {

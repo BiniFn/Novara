@@ -29,19 +29,25 @@ import org.skepsun.kototoro.backups.data.model.CategoryBackup
 import org.skepsun.kototoro.backups.data.model.FavouriteBackup
 import org.skepsun.kototoro.backups.data.model.HistoryBackup
 import org.skepsun.kototoro.backups.data.model.ContentBackup
+import org.skepsun.kototoro.backups.data.model.ExtensionRepoBackup
 import org.skepsun.kototoro.backups.data.model.ScrobblingBackup
 import org.skepsun.kototoro.backups.data.model.SourceBackup
 import org.skepsun.kototoro.backups.data.model.StatisticBackup
 import org.skepsun.kototoro.backups.domain.BackupSection
 import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.core.db.entity.ExternalExtensionRepoEntity
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.util.CompositeResult
 import org.skepsun.kototoro.core.util.progress.Progress
+import org.skepsun.kototoro.extensions.repo.ExternalExtensionType
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.filter.data.PersistableFilter
 import org.skepsun.kototoro.filter.data.SavedFiltersRepository
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.reader.data.TapGridSettings
+import org.skepsun.kototoro.settings.sources.unified.UnifiedRecommendedRepository
+import org.skepsun.kototoro.settings.sources.unified.UnifiedRecommendedRepositories
+import org.skepsun.kototoro.settings.sources.unified.UnifiedSourceKind
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
@@ -70,6 +76,11 @@ class BackupRepository @Inject constructor(
         ignoreUnknownKeys = true
         useAlternativeNames = false
     }
+
+    data class RestoreBackupResult(
+        val result: CompositeResult,
+        val legacyJarReposImported: Boolean,
+    )
 
     suspend fun createBackup(
         output: ZipOutputStream,
@@ -125,6 +136,19 @@ class BackupRepository @Inject constructor(
                     serializer = serializer(),
                 )
 
+                BackupSection.EXTENSION_REPOS -> {
+                    val repos = buildList {
+                        for (type in org.skepsun.kototoro.extensions.repo.ExternalExtensionType.entries) {
+                            addAll(database.getExternalExtensionRepoDao().getByType(type))
+                        }
+                    }
+                    output.writeJsonArray(
+                        section = BackupSection.EXTENSION_REPOS,
+                        data = repos.asFlow().map { ExtensionRepoBackup(it) },
+                        serializer = serializer(),
+                    )
+                }
+
                 BackupSection.SCROBBLING -> output.writeJsonArray(
                     section = BackupSection.SCROBBLING,
                     data = database.getScrobblingDao().dumpEnabled().map { ScrobblingBackup(it) },
@@ -164,14 +188,22 @@ class BackupRepository @Inject constructor(
         input: ZipInputStream,
         sections: Set<BackupSection>,
         progress: FlowCollector<Progress>?,
-    ): CompositeResult {
+    ): RestoreBackupResult {
         progress?.emit(Progress.INDETERMINATE)
         var commonProgress = Progress(0, sections.size)
         var entry = input.nextEntry
         var result = CompositeResult.EMPTY
+        val archiveSections = linkedSetOf<BackupSection>()
+        val restoredSections = linkedSetOf<BackupSection>()
         while (entry != null) {
             val section = BackupSection.of(entry)
+            if (section != null) {
+                archiveSections.add(section)
+            }
             if (section in sections) {
+                if (section != null) {
+                    restoredSections.add(section)
+                }
                 result += when (section) {
                     BackupSection.INDEX -> CompositeResult.EMPTY // useless in our case
                     BackupSection.HISTORY -> input.readJsonArray<HistoryBackup>(serializer()).restoreToDb {
@@ -207,6 +239,10 @@ class BackupRepository @Inject constructor(
                         getSourcesDao().upsert(it.toEntity())
                     }
 
+                    BackupSection.EXTENSION_REPOS -> input.readJsonArray<ExtensionRepoBackup>(serializer()).restoreToDb {
+                        getExternalExtensionRepoDao().upsert(it.toEntity())
+                    }
+
                     BackupSection.SCROBBLING -> input.readJsonArray<ScrobblingBackup>(serializer()).restoreToDb {
                         getScrobblingDao().upsert(it.toEntity())
                     }
@@ -233,8 +269,34 @@ class BackupRepository @Inject constructor(
             input.closeEntry()
             entry = input.nextEntry
         }
+        val legacyJarReposImported = restoreLegacyJarRepositoriesIfNeeded(sections, archiveSections, restoredSections)
         progress?.emit(commonProgress)
-        return result
+        return RestoreBackupResult(
+            result = result,
+            legacyJarReposImported = legacyJarReposImported,
+        )
+    }
+
+    private suspend fun restoreLegacyJarRepositoriesIfNeeded(
+        requestedSections: Set<BackupSection>,
+        archiveSections: Set<BackupSection>,
+        restoredSections: Set<BackupSection>,
+    ): Boolean {
+        val repoDao = database.getExternalExtensionRepoDao()
+        if (!LegacyJarRepoCompat.shouldImport(
+                requestedSections = requestedSections,
+                archiveSections = archiveSections,
+                restoredSections = restoredSections,
+                hasExistingJarRepos = repoDao.getByType(ExternalExtensionType.JAR).isNotEmpty(),
+            )
+        ) {
+            return false
+        }
+
+        val legacyJarRepos = LegacyJarRepoCompat.buildEntities(now = System.currentTimeMillis())
+
+        legacyJarRepos.forEach { repoDao.upsert(it) }
+        return legacyJarRepos.isNotEmpty()
     }
 
     private suspend fun <T> ZipOutputStream.writeJsonArray(
@@ -370,7 +432,7 @@ class BackupRepository @Inject constructor(
             var restored = 0
             while (keys.hasNext()) {
                 val relPath = keys.next()
-                val b64 = jo.optString(relPath, null) ?: continue
+                val b64 = jo.optString(relPath).takeIf { it.isNotEmpty() } ?: continue
                 runCatching {
                     val data = Base64.getDecoder().decode(b64)
                     val outFile = File(webviewDir, relPath)
@@ -405,6 +467,54 @@ class BackupRepository @Inject constructor(
             result + runCatchingCancellable {
                 block(item)
             }
+        }
+    }
+}
+
+internal object LegacyJarRepoCompat {
+
+    fun shouldImport(
+        requestedSections: Set<BackupSection>,
+        archiveSections: Set<BackupSection>,
+        restoredSections: Set<BackupSection>,
+        hasExistingJarRepos: Boolean,
+    ): Boolean {
+        if (BackupSection.SOURCES !in requestedSections) return false
+        if (BackupSection.SOURCES !in restoredSections) return false
+        if (BackupSection.EXTENSION_REPOS in archiveSections) return false
+        if (hasExistingJarRepos) return false
+        return true
+    }
+
+    fun buildEntities(
+        now: Long,
+        recommendedRepos: List<UnifiedRecommendedRepository> = UnifiedRecommendedRepositories.byKind(UnifiedSourceKind.JAR),
+    ): List<ExternalExtensionRepoEntity> {
+        return recommendedRepos.mapNotNull { repo ->
+            val normalizedIndexUrl = normalizeIndexUrl(repo.url) ?: return@mapNotNull null
+            val baseUrl = normalizedIndexUrl.removeSuffix("/index.min.json")
+            ExternalExtensionRepoEntity(
+                type = ExternalExtensionType.JAR,
+                baseUrl = baseUrl,
+                name = "Kototoro: ${repo.name}",
+                shortName = repo.name,
+                website = baseUrl,
+                signingKeyFingerprint = baseUrl.hashCode().toString(16),
+                createdAt = now,
+                updatedAt = now,
+                lastSuccessAt = 0L,
+                lastError = null,
+                version = null,
+            )
+        }
+    }
+
+    private fun normalizeIndexUrl(input: String): String? {
+        val trimmed = input.trim()
+        return when {
+            trimmed.isEmpty() -> null
+            trimmed.endsWith("/index.min.json") -> trimmed
+            else -> "$trimmed/index.min.json"
         }
     }
 }

@@ -69,14 +69,18 @@ class ExternalExtensionLoaderSupportTest {
 	@Test
 	fun `refreshPackageInfoIfNeeded reloads incomplete package info`() {
 		val packageManager = mockk<PackageManager>()
-		val originalAppInfo = mockk<ApplicationInfo>()
-		every { originalAppInfo.metaData } returns null
-		val original = mockk<PackageInfo>()
-		every { original.applicationInfo } returns originalAppInfo
-		every { original.reqFeatures } returns null
-		every { original.packageName } returns "eu.kanade.tachiyomi.extension.en.example"
+		val original = PackageInfo().apply {
+			applicationInfo = ApplicationInfo().apply {
+				packageName = "eu.kanade.tachiyomi.extension.en.example"
+				metaData = null
+			}
+			reqFeatures = null
+			packageName = "eu.kanade.tachiyomi.extension.en.example"
+		}
 
-		val refreshed = mockk<PackageInfo>()
+		val refreshed = PackageInfo().apply {
+			packageName = "eu.kanade.tachiyomi.extension.en.example"
+		}
 		every {
 			packageManager.getPackageInfo(
 				"eu.kanade.tachiyomi.extension.en.example",
@@ -93,11 +97,14 @@ class ExternalExtensionLoaderSupportTest {
 	@Test
 	fun `refreshPackageInfoIfNeeded keeps complete package info`() {
 		val packageManager = mockk<PackageManager>()
-		val appInfo = mockk<ApplicationInfo>()
-		every { appInfo.metaData } returns mockk()
-		val pkgInfo = mockk<PackageInfo>()
-		every { pkgInfo.applicationInfo } returns appInfo
-		every { pkgInfo.reqFeatures } returns emptyArray()
+		val pkgInfo = PackageInfo().apply {
+			applicationInfo = ApplicationInfo().apply {
+				packageName = "eu.kanade.tachiyomi.extension.en.example"
+				metaData = android.os.Bundle()
+			}
+			reqFeatures = emptyArray()
+			packageName = "eu.kanade.tachiyomi.extension.en.example"
+		}
 
 		assertSame(pkgInfo, ExternalExtensionLoaderSupport.refreshPackageInfoIfNeeded(packageManager, pkgInfo))
 	}

@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.skepsun.kototoro.core.db.dao.JsonSourceDao
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
+import org.skepsun.kototoro.core.db.entity.JsonSourceSummary
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
 import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.jsonsource.JsonSourceManager
@@ -31,10 +32,14 @@ import org.skepsun.kototoro.parsers.model.ContentListFilterCapabilities
 import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
 import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.NovelChapterContent
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.aniyomi.AniyomiExtensionManager
 import org.skepsun.kototoro.aniyomi.model.AniyomiAnimeSource
+import org.skepsun.kototoro.cloudstream.runtime.CloudstreamContentRepositoryProvider
+import org.skepsun.kototoro.ireader.IReaderExtensionManager
+import org.skepsun.kototoro.tracking.discovery.data.TrackingContentRepositoryProvider
 
 class ContentRepositoryFactoryTest {
 
@@ -45,13 +50,17 @@ class ContentRepositoryFactoryTest {
 	private val jsonContentSourceResolver = mockk<JsonContentSourceResolver>()
 	private val mihonContentSourceResolver = mockk<MihonContentSourceResolver>()
 	private val aniyomiContentSourceResolver = mockk<AniyomiContentSourceResolver>()
+	private val ireaderContentSourceResolver = mockk<IReaderContentSourceResolver>()
 	private val parserContentRepositoryProvider = mockk<ParserContentRepositoryProvider>()
 	private val kotatsuContentRepositoryProvider = mockk<KotatsuContentRepositoryProvider>()
 	private val testContentRepositoryProvider = mockk<TestContentRepositoryProvider>()
 	private val externalContentRepositoryProvider = mockk<ExternalContentRepositoryProvider>()
+	private val cloudstreamContentRepositoryProvider = mockk<CloudstreamContentRepositoryProvider>()
 	private val mihonContentRepositoryProvider = mockk<MihonContentRepositoryProvider>()
 	private val aniyomiContentRepositoryProvider = mockk<AniyomiContentRepositoryProvider>()
+	private val ireaderContentRepositoryProvider = mockk<IReaderContentRepositoryProvider>()
 	private val jsonContentRepositoryProvider = mockk<JsonContentRepositoryProvider>()
+	private val trackingContentRepositoryProvider = mockk<TrackingContentRepositoryProvider>()
 
 	private lateinit var sourceResolutionPipeline: ContentSourceResolutionPipeline
 	private lateinit var repositoryProviderRegistry: ContentRepositoryProviderRegistry
@@ -64,6 +73,7 @@ class ContentRepositoryFactoryTest {
 			jsonContentSourceResolver,
 			mihonContentSourceResolver,
 			aniyomiContentSourceResolver,
+			ireaderContentSourceResolver,
 		).forEach { resolver ->
 			every { resolver.supports(any()) } returns false
 			every { resolver.resolve(any()) } returns null
@@ -73,9 +83,12 @@ class ContentRepositoryFactoryTest {
 			kotatsuContentRepositoryProvider,
 			testContentRepositoryProvider,
 			externalContentRepositoryProvider,
+			cloudstreamContentRepositoryProvider,
 			mihonContentRepositoryProvider,
 			aniyomiContentRepositoryProvider,
+			ireaderContentRepositoryProvider,
 			jsonContentRepositoryProvider,
+			trackingContentRepositoryProvider,
 		).forEach { provider ->
 			every { provider.supports(any()) } returns false
 			every { provider.create(any()) } returns null
@@ -85,6 +98,7 @@ class ContentRepositoryFactoryTest {
 			jsonContentSourceResolver = jsonContentSourceResolver,
 			mihonContentSourceResolver = mihonContentSourceResolver,
 			aniyomiContentSourceResolver = aniyomiContentSourceResolver,
+			ireaderContentSourceResolver = ireaderContentSourceResolver,
 		)
 		repositoryProviderRegistry = ContentRepositoryProviderRegistry(
 			builtinContentRepositoryProvider = BuiltinContentRepositoryProvider(
@@ -95,9 +109,12 @@ class ContentRepositoryFactoryTest {
 			kotatsuContentRepositoryProvider = kotatsuContentRepositoryProvider,
 			testContentRepositoryProvider = testContentRepositoryProvider,
 			externalContentRepositoryProvider = externalContentRepositoryProvider,
+			cloudstreamContentRepositoryProvider = cloudstreamContentRepositoryProvider,
 			mihonContentRepositoryProvider = mihonContentRepositoryProvider,
 			aniyomiContentRepositoryProvider = aniyomiContentRepositoryProvider,
+			ireaderContentRepositoryProvider = ireaderContentRepositoryProvider,
 			jsonContentRepositoryProvider = jsonContentRepositoryProvider,
+			trackingContentRepositoryProvider = trackingContentRepositoryProvider,
 		)
 		factory = ContentRepository.Factory(
 			delegate = ContentRepositoryFactory(
@@ -299,6 +316,8 @@ class ContentRepositoryFactoryTest {
 
 	private fun namedSource(name: String): ContentSource = object : ContentSource {
 		override val name: String = name
+		override val locale: String = "en"
+		override val contentType: ContentType = ContentType.MANGA
 	}
 
 	private fun jsonEntity(id: String, type: JsonSourceType) = JsonSourceEntity(
@@ -314,6 +333,8 @@ class ContentRepositoryFactoryTest {
 		private val sources: List<JsonSourceEntity>,
 	) : JsonSourceDao {
 		override fun observeEnabled(): Flow<List<JsonSourceEntity>> = throw UnsupportedOperationException()
+		override fun observeEnabledSummaries(): Flow<List<JsonSourceSummary>> = throw UnsupportedOperationException()
+		override fun observeAllSummaries(): Flow<List<JsonSourceSummary>> = throw UnsupportedOperationException()
 		override fun observeAll(): Flow<List<JsonSourceEntity>> = throw UnsupportedOperationException()
 		override fun observeByType(type: JsonSourceType): Flow<List<JsonSourceEntity>> = throw UnsupportedOperationException()
 		override fun observeEnabledByType(type: JsonSourceType): Flow<List<JsonSourceEntity>> = throw UnsupportedOperationException()
@@ -327,7 +348,10 @@ class ContentRepositoryFactoryTest {
 		override suspend fun update(source: JsonSourceEntity) = Unit
 		override suspend fun setEnabled(id: String, enabled: Boolean, timestamp: Long) = Unit
 		override suspend fun setEnabledBatch(ids: List<String>, enabled: Boolean, timestamp: Long) = Unit
+		override suspend fun setPinned(id: String, isPinned: Boolean, timestamp: Long) = Unit
+		override suspend fun setPinnedBatch(ids: List<String>, isPinned: Boolean, timestamp: Long) = Unit
 		override suspend fun setLastUsed(id: String, timestamp: Long) = Unit
+		override suspend fun fillMissingIconUrl(id: String, iconUrl: String, timestamp: Long) = Unit
 		override suspend fun delete(source: JsonSourceEntity) = Unit
 		override suspend fun deleteById(id: String) = Unit
 		override suspend fun deleteByIds(ids: List<String>) = Unit

@@ -1,7 +1,6 @@
 package org.skepsun.kototoro.local.epub
 
 import io.kotest.core.spec.style.StringSpec
-import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -115,11 +114,7 @@ class BidirectionalMappingLookupPropertyTest : StringSpec({
             
             // Verify all mappings were found
             retrieved shouldHaveSize chapterCount
-            
-            // Verify each mapping is present
-            mappings.forEach { original ->
-                retrieved shouldContain original
-            }
+            retrieved shouldBe mappings
         }
     }
     
@@ -203,7 +198,7 @@ class BidirectionalMappingLookupPropertyTest : StringSpec({
             
             // Verify this mapping is also in the parent's children
             val siblings = store.getByParentId(parentId)
-            siblings shouldContain mapping
+            siblings.any { it.internalChapterId == mapping.internalChapterId } shouldBe true
         }
     }
     

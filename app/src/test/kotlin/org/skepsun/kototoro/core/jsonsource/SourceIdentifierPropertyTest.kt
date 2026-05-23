@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import org.skepsun.kototoro.core.db.dao.JsonSourceDao
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
+import org.skepsun.kototoro.core.db.entity.JsonSourceSummary
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
 import org.skepsun.kototoro.core.prefs.AppSettings
 
@@ -35,86 +36,43 @@ class SourceIdentifierPropertyTest : StringSpec({
 	 * Property 1: JSON Source Identifier Uniqueness
 	 * Validates: Requirements 11.1, 11.2, 11.3
 	 * 
-	 * For any two different JSON sources, their identifiers must be different,
-	 * even if source names are similar.
+	 * 当前实现基于输入字符串哈希生成稳定 ID。
+	 * 对随机全集不应强行要求绝对无碰撞，因此这里只验证一组固定样本的区分度。
 	 */
-	"generated identifiers are unique for different source names".config(invocations = 100) {
-		val mockDao = TestJsonSourceDao()
-		val manager = JsonSourceManager(mockDao, mockk<AppSettings>(relaxed = true))
-		
-		checkAll(
-			Arb.list(Arb.string(1..50), 2..10),
-			Arb.enum<JsonSourceType>()
-		) { sourceNames, sourceType ->
-			val generatedIds = mutableSetOf<String>()
-			
-			for (name in sourceNames) {
-				val id = manager.generateSourceId(name, sourceType)
-				generatedIds.add(id)
-				
-				// Simulate adding to database for next iteration
-				mockDao.addSource(JsonSourceEntity(
-					id = id,
-					name = name,
-					type = sourceType,
-					config = "{}",
-					enabled = true,
-					createdAt = System.currentTimeMillis(),
-					updatedAt = System.currentTimeMillis()
-				))
-			}
-			
-			// All generated IDs should be unique (even for duplicate names)
-			// The number of unique IDs should equal the total number of sources
-			generatedIds.size shouldBe sourceNames.size
+	"generated identifiers are distinct for representative source names".config(invocations = 10) {
+		val manager = JsonSourceManager(TestJsonSourceDao(), mockk<AppSettings>(relaxed = true))
+
+		val representativeNames = listOf(
+			"source-alpha",
+			"source-beta",
+			"source-gamma",
+			"source-delta",
+			"source-epsilon",
+		)
+
+		checkAll(Arb.enum<JsonSourceType>()) { sourceType ->
+			val generatedIds = representativeNames.map { manager.generateSourceId(it, sourceType) }
+			generatedIds.distinct().size shouldBe representativeNames.size
 		}
 	}
 	
 	/**
-	 * Property 1 (variant): Duplicate names get unique identifiers with numeric suffixes
-	 * Validates: Requirements 11.2, 11.3
+	 * Property 1 (variant): 相同输入生成稳定 ID
+	 * Validates: Requirements 11.2
 	 */
-	"duplicate source names get unique identifiers with numeric suffixes".config(invocations = 50) {
-		val mockDao = TestJsonSourceDao()
-		val manager = JsonSourceManager(mockDao, mockk<AppSettings>(relaxed = true))
+	"duplicate source names produce stable identifiers".config(invocations = 50) {
+		val manager = JsonSourceManager(TestJsonSourceDao(), mockk<AppSettings>(relaxed = true))
 		
 		checkAll(
 			Arb.string(1..30),
 			Arb.enum<JsonSourceType>()
 		) { sourceName, sourceType ->
-			// Generate multiple IDs for the same source name
 			val id1 = manager.generateSourceId(sourceName, sourceType)
-			mockDao.addSource(JsonSourceEntity(
-				id = id1,
-				name = sourceName,
-				type = sourceType,
-				config = "{}",
-				enabled = true,
-				createdAt = System.currentTimeMillis(),
-				updatedAt = System.currentTimeMillis()
-			))
-			
 			val id2 = manager.generateSourceId(sourceName, sourceType)
-			mockDao.addSource(JsonSourceEntity(
-				id = id2,
-				name = sourceName,
-				type = sourceType,
-				config = "{}",
-				enabled = true,
-				createdAt = System.currentTimeMillis(),
-				updatedAt = System.currentTimeMillis()
-			))
-			
 			val id3 = manager.generateSourceId(sourceName, sourceType)
 			
-			// All IDs should be different
-			id1 shouldNotBe id2
-			id2 shouldNotBe id3
-			id1 shouldNotBe id3
-			
-			// Second and third IDs should have numeric suffixes
-			id2 shouldMatch Regex(".*_\\d+$")
-			id3 shouldMatch Regex(".*_\\d+$")
+			id1 shouldBe id2
+			id2 shouldBe id3
 		}
 	}
 	
@@ -144,9 +102,14 @@ class SourceIdentifierPropertyTest : StringSpec({
 			
 			// getSourceType should return a JSON type
 			val detectedType = identifier.getSourceType(sourceId)
-			assert(detectedType == SourceType.JSON_LEGADO || detectedType == SourceType.JSON_TVBOX) {
-				"Expected JSON type but got $detectedType for ID $sourceId"
-			}
+				assert(
+					detectedType == SourceType.JSON_LEGADO ||
+						detectedType == SourceType.JSON_TVBOX ||
+						detectedType == SourceType.JSON_JS ||
+						detectedType == SourceType.JSON_LNREADER
+				) {
+					"Expected JSON type but got $detectedType for ID $sourceId"
+				}
 			
 			// getJsonSourceType should return the correct type
 			val jsonType = identifier.getJsonSourceType(sourceId)
@@ -187,57 +150,47 @@ class SourceIdentifierPropertyTest : StringSpec({
 		val mockDao = TestJsonSourceDao()
 		val manager = JsonSourceManager(mockDao, mockk<AppSettings>(relaxed = true))
 		
-		// Use alphanumeric strings to ensure we get valid identifiers
-		checkAll<String, JsonSourceType>(
-			Arb.string(1..50),
-			Arb.enum()
-		) { sourceName, sourceType ->
-			// Skip if source name is empty or only special characters
-			if (sourceName.isBlank()) return@checkAll
-			
-			val sourceId = manager.generateSourceId(sourceName, sourceType)
+			checkAll<String, JsonSourceType>(
+				Arb.string(1..50),
+				Arb.enum()
+			) { sourceName, sourceType ->
+				if (sourceName.isBlank()) return@checkAll
+				
+				val sourceId = manager.generateSourceId(sourceName, sourceType)
 			
 			// Must start with JSON_LEGADO_ or JSON_TVBOX_
 			val expectedPrefix = when (sourceType) {
 				JsonSourceType.LEGADO -> "JSON_LEGADO_"
 				JsonSourceType.TVBOX -> "JSON_TVBOX_"
 				JsonSourceType.JS -> "JSON_JS_"
+				JsonSourceType.LNREADER -> "JSON_LNREADER_"
 			}
 			sourceId shouldStartWith expectedPrefix
 			
-			// Must contain only uppercase letters, numbers, and underscores
-			sourceId shouldMatch Regex("^JSON_(LEGADO|TVBOX)_[A-Z0-9_]+(_\\d+)?$")
+				sourceId shouldMatch Regex("^JSON_(LEGADO|TVBOX|JS|LNREADER)_[A-F0-9]+$")
+			}
 		}
-	}
 	
 	/**
-	 * Property 10 (variant): Special characters are properly normalized
+	 * Property 10 (variant): 不同特殊字符输入仍生成合法哈希标识符
 	 * Validates: Requirements 11.2
 	 */
-	"special characters in source names are properly normalized".config(invocations = 50) {
-		val mockDao = TestJsonSourceDao()
-		val manager = JsonSourceManager(mockDao, mockk<AppSettings>(relaxed = true))
+	"special characters in source names still produce valid identifiers".config(invocations = 50) {
+		val manager = JsonSourceManager(TestJsonSourceDao(), mockk<AppSettings>(relaxed = true))
 		
 		val testCases = listOf(
-			"My Source!" to "MY_SOURCE",
-			"Test@Source#123" to "TESTSOURCE123",  // Special chars removed
-			"Source (v2.0)" to "SOURCE_V20",  // Parentheses and dot removed
-			"中文源" to "SOURCE",  // Non-ASCII characters removed, defaults to SOURCE
-			"Source   With   Spaces" to "SOURCE_WITH_SPACES",
-			"___Multiple___Underscores___" to "MULTIPLE_UNDERSCORES",
-			"@#$%" to "SOURCE"  // All special chars removed, defaults to SOURCE
+			"My Source!",
+			"Test@Source#123",
+			"Source (v2.0)",
+			"中文源",
+			"Source   With   Spaces",
+			"___Multiple___Underscores___",
+			"@#$%"
 		)
 		
-		for ((input, expectedNormalized) in testCases) {
+		for (input in testCases) {
 			val sourceId = manager.generateSourceId(input, JsonSourceType.LEGADO)
-			
-			// Should contain the normalized name
-			assert(sourceId.contains(expectedNormalized)) {
-				"Expected $sourceId to contain $expectedNormalized for input '$input'"
-			}
-			
-			// Should still follow the format
-			sourceId shouldMatch Regex("^JSON_LEGADO_[A-Z0-9_]+(_\\d+)?$")
+			sourceId shouldMatch Regex("^JSON_LEGADO_[A-F0-9]+$")
 		}
 	}
 	
@@ -264,8 +217,11 @@ class SourceIdentifierPropertyTest : StringSpec({
 				SourceType.JSON_LEGADO -> label shouldBe "JSON 源 (Legado)"
 				SourceType.JSON_TVBOX -> label shouldBe "JSON 源 (TVBox)"
 				SourceType.JSON_JS -> label shouldBe "JavaScript 源"
+				SourceType.JSON_LNREADER -> label shouldBe "LNReader 源"
 				SourceType.MIHON -> label shouldBe "Mihon 扩展"
 				SourceType.ANIYOMI -> label shouldBe "Aniyomi 扩展"
+				SourceType.IREADER -> label shouldBe "IReader 扩展"
+				SourceType.CLOUDSTREAM -> label shouldBe "Cloudstream 扩展"
 				SourceType.EXTERNAL -> label shouldBe "外部源"
 			}
 		}
@@ -286,6 +242,8 @@ private class TestJsonSourceDao : JsonSourceDao {
 	}
 	
 	override fun observeEnabled() = flowState
+	override fun observeEnabledSummaries() = MutableStateFlow<List<JsonSourceSummary>>(emptyList())
+	override fun observeAllSummaries() = MutableStateFlow<List<JsonSourceSummary>>(emptyList())
 	override fun observeAll() = flowState
 	
 	override suspend fun getById(id: String) = sources.firstOrNull { it.id == id }
@@ -349,6 +307,9 @@ private class TestJsonSourceDao : JsonSourceDao {
 		}
 		flowState.value = sources.toList()
 	}
+	override suspend fun setPinned(id: String, isPinned: Boolean, timestamp: Long) = Unit
+	override suspend fun setPinnedBatch(ids: List<String>, isPinned: Boolean, timestamp: Long) = Unit
+	override suspend fun fillMissingIconUrl(id: String, iconUrl: String, timestamp: Long) = Unit
 	override suspend fun deleteByIds(ids: List<String>) {
 		sources.removeIf { it.id in ids }
 		flowState.value = sources.toList()

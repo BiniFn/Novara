@@ -10,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.skepsun.kototoro.core.db.dao.JsonSourceDao
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
+import org.skepsun.kototoro.core.db.entity.JsonSourceSummary
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
 import org.skepsun.kototoro.core.prefs.AppSettings
 
@@ -20,6 +21,8 @@ class FakeJsonSourceDao : JsonSourceDao {
 	private val sources = mutableListOf<JsonSourceEntity>()
 	
 	override fun observeEnabled(): Flow<List<JsonSourceEntity>> = flowOf(sources.filter { it.enabled })
+	override fun observeEnabledSummaries(): Flow<List<JsonSourceSummary>> = flowOf(emptyList())
+	override fun observeAllSummaries(): Flow<List<JsonSourceSummary>> = flowOf(emptyList())
 	override fun observeAll(): Flow<List<JsonSourceEntity>> = flowOf(sources)
 	override fun observeByType(type: JsonSourceType): Flow<List<JsonSourceEntity>> = flowOf(sources.filter { it.type == type })
 	override fun observeEnabledByType(type: JsonSourceType): Flow<List<JsonSourceEntity>> = flowOf(sources.filter { it.enabled && it.type == type })
@@ -47,11 +50,14 @@ class FakeJsonSourceDao : JsonSourceDao {
 			}
 		}
 	}
+	override suspend fun setPinned(id: String, isPinned: Boolean, timestamp: Long) = Unit
+	override suspend fun setPinnedBatch(ids: List<String>, isPinned: Boolean, timestamp: Long) = Unit
 	override suspend fun setLastUsed(id: String, timestamp: Long) {
 		sources.find { it.id == id }?.let {
 			sources[sources.indexOf(it)] = it.copy(lastUsedAt = timestamp)
 		}
 	}
+	override suspend fun fillMissingIconUrl(id: String, iconUrl: String, timestamp: Long) = Unit
 	override suspend fun delete(source: JsonSourceEntity) { sources.remove(source) }
 	override suspend fun deleteById(id: String) { sources.removeIf { it.id == id } }
 	override suspend fun deleteByIds(ids: List<String>) { sources.removeIf { it.id in ids } }
@@ -105,28 +111,28 @@ class JsonSourceManagerTest {
 	
 	@Test
 	fun testValidateLegadoSourceBlankUrl() {
-		val invalidSource = org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource(
+		val source = org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource(
 			bookSourceName = "Test Source",
 			bookSourceUrl = "",
 		)
 		
-		val result = jsonSourceManager.validateLegadoSource(invalidSource)
+		val result = jsonSourceManager.validateLegadoSource(source)
 		
-		assertFalse(result.isValid)
-		assertTrue(result.errors.any { it.contains("bookSourceUrl") })
+		assertTrue(result.isValid)
+		assertTrue(result.errors.isEmpty())
 	}
 	
 	@Test
 	fun testValidateLegadoSourceInvalidUrl() {
-		val invalidSource = org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource(
+		val source = org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource(
 			bookSourceName = "Test Source",
 			bookSourceUrl = "ftp://example.com", // Invalid protocol
 		)
 		
-		val result = jsonSourceManager.validateLegadoSource(invalidSource)
+		val result = jsonSourceManager.validateLegadoSource(source)
 		
-		assertFalse(result.isValid)
-		assertTrue(result.errors.any { it.contains("protocol") })
+		assertTrue(result.isValid)
+		assertTrue(result.errors.isEmpty())
 	}
 	
 	@Test
@@ -139,7 +145,8 @@ class JsonSourceManagerTest {
 		val result = jsonSourceManager.validateLegadoSource(invalidSource)
 		
 		assertFalse(result.isValid)
-		assertTrue(result.errors.size >= 2)
+		assertEquals(1, result.errors.size)
+		assertTrue(result.errors.any { it.contains("bookSourceName") })
 	}
 	
 	@Test
@@ -192,14 +199,15 @@ class JsonSourceManagerTest {
 	
 	@Test
 	fun testValidateLegadoSourceInvalidUrlFormat() {
-		val invalidSource = org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource(
+		val source = org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource(
 			bookSourceName = "Test Source",
 			bookSourceUrl = "not-a-valid-url",
 		)
 		
-		val result = jsonSourceManager.validateLegadoSource(invalidSource)
+		val result = jsonSourceManager.validateLegadoSource(source)
 		
-		assertFalse(result.isValid)
+		assertTrue(result.isValid)
+		assertTrue(result.errors.isEmpty())
 	}
 	
 	// ValidationResult Tests

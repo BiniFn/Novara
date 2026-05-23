@@ -1,7 +1,6 @@
 package org.skepsun.kototoro.details.ui
 
 import io.kotest.core.spec.style.StringSpec
-import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.property.Arb
 import io.kotest.property.arbitrary.arbitrary
@@ -47,9 +46,7 @@ class NormalChaptersGroupingPropertyTest : StringSpec({
                 // All normal chapters should be in this group
                 normalGroup?.let { group ->
                     group.chapters.size shouldBe normalChapters.size
-                    normalChapters.forEach { chapter ->
-                        group.chapters shouldContain chapter
-                    }
+                    group.chapters shouldBe normalChapters
                     
                     // The group should NOT be collapsible
                     group.isCollapsible shouldBe false
@@ -118,9 +115,7 @@ class NormalChaptersGroupingPropertyTest : StringSpec({
                 
                 // All chapters without metadata should be in this group
                 normalGroup?.let { group ->
-                    chaptersWithoutMetadata.forEach { chapter ->
-                        group.chapters shouldContain chapter
-                    }
+                    group.chapters.map { it.id }.toSet().containsAll(chaptersWithoutMetadata.map { it.id }) shouldBe true
                 }
             }
         }

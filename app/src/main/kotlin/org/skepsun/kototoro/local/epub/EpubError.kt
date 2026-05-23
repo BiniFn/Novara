@@ -22,31 +22,31 @@ sealed class EpubError(
         
         class InvalidFormat(cause: Throwable? = null) : ParseError(
             message = "Invalid EPUB format",
-            userMessage = "EPUB file format is invalid and cannot be parsed",
+            userMessage = "EPUB 文件格式无效，无法解析",
             cause = cause
         )
         
         class CorruptedFile(fileName: String, cause: Throwable? = null) : ParseError(
             message = "EPUB file is corrupted: $fileName",
-            userMessage = "EPUB file is corrupted and cannot be read: $fileName",
+            userMessage = "EPUB 文件已损坏，无法读取：$fileName",
             cause = cause
         )
         
         class MissingComponents(component: String, cause: Throwable? = null) : ParseError(
             message = "Missing required EPUB component: $component",
-            userMessage = "EPUB file is missing required component: $component",
+            userMessage = "EPUB 文件缺少必要组件：$component",
             cause = cause
         )
         
         class UnsupportedVersion(version: String, cause: Throwable? = null) : ParseError(
             message = "Unsupported EPUB version: $version",
-            userMessage = "Unsupported EPUB version: $version",
+            userMessage = "不支持的 EPUB 版本：$version",
             cause = cause
         )
         
         class MalformedHtml(chapterIndex: Int, cause: Throwable? = null) : ParseError(
             message = "Malformed HTML in chapter $chapterIndex",
-            userMessage = "HTML format error in chapter $chapterIndex",
+            userMessage = "第 $chapterIndex 章的 HTML 格式错误",
             cause = cause
         )
     }
@@ -59,30 +59,30 @@ sealed class EpubError(
         
         class FileNotFound(fileName: String, cause: Throwable? = null) : FileSystemError(
             message = "EPUB file not found: $fileName",
-            userMessage = "EPUB file not found, it may have been deleted: $fileName",
+            userMessage = "未找到 EPUB 文件，可能已被删除：$fileName",
             cause = cause
         )
         
         class InsufficientStorage(requiredBytes: Long, availableBytes: Long) : FileSystemError(
             message = "Insufficient storage: required $requiredBytes bytes, available $availableBytes bytes",
-            userMessage = "Insufficient storage space. Required: ${formatBytes(requiredBytes)}, Available: ${formatBytes(availableBytes)}"
+            userMessage = "存储空间不足。需要：${formatBytes(requiredBytes)}，可用：${formatBytes(availableBytes)}"
         )
         
         class PermissionDenied(path: String, cause: Throwable? = null) : FileSystemError(
             message = "Permission denied: $path",
-            userMessage = "No access permission: $path",
+            userMessage = "没有访问权限：$path",
             cause = cause
         )
         
         class ReadError(fileName: String, cause: Throwable? = null) : FileSystemError(
             message = "Failed to read EPUB file: $fileName",
-            userMessage = "Failed to read EPUB file: $fileName",
+            userMessage = "读取 EPUB 文件失败：$fileName",
             cause = cause
         )
         
         class WriteError(fileName: String, cause: Throwable? = null) : FileSystemError(
             message = "Failed to write EPUB file: $fileName",
-            userMessage = "Failed to write EPUB file: $fileName",
+            userMessage = "写入 EPUB 文件失败：$fileName",
             cause = cause
         )
         
@@ -106,27 +106,27 @@ sealed class EpubError(
         
         class InvalidChapterId(chapterId: Long) : ChapterLoadError(
             message = "Invalid chapter ID: $chapterId",
-            userMessage = "Invalid chapter ID: $chapterId"
+            userMessage = "无效的章节 ID：$chapterId"
         )
         
         class ChapterNotFound(chapterId: Long) : ChapterLoadError(
             message = "Chapter not found: $chapterId",
-            userMessage = "Chapter does not exist: $chapterId"
+            userMessage = "章节不存在：$chapterId"
         )
         
         class IndexOutOfBounds(index: Int, totalChapters: Int) : ChapterLoadError(
             message = "Chapter index $index out of bounds (total: $totalChapters)",
-            userMessage = "Chapter index out of range: $index (total $totalChapters chapters)"
+            userMessage = "章节索引超出范围：$index（共 $totalChapters 章）"
         )
         
         class InvalidUrl(url: String) : ChapterLoadError(
             message = "Invalid chapter URL format: $url",
-            userMessage = "Invalid chapter URL format: $url"
+            userMessage = "章节 URL 格式无效：$url"
         )
         
         class LoadFailed(chapterId: Long, cause: Throwable? = null) : ChapterLoadError(
             message = "Failed to load chapter: $chapterId",
-            userMessage = "Failed to load chapter: $chapterId",
+            userMessage = "加载章节失败：$chapterId",
             cause = cause
         )
     }
@@ -161,7 +161,7 @@ sealed class EpubError(
      */
     class UnexpectedError(message: String, cause: Throwable? = null) : EpubError(
         message = message,
-        userMessage = "An unknown error occurred: $message",
+        userMessage = "发生未知错误：$message",
         cause = cause
     )
 }

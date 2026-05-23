@@ -64,11 +64,15 @@ class RestoreService : BaseBackupRestoreService() {
 			} else {
 				null
 			}
-			val result = ZipInputStream(contentResolver.openInputStream(source)).use { input ->
+			val restoreResult = ZipInputStream(contentResolver.openInputStream(source)).use { input ->
 				repository.restoreBackup(input, sections, progress)
 			}
 			progressUpdateJob?.cancelAndJoin()
-			showResultNotification(source, result)
+			showResultNotification(
+				source,
+				restoreResult.result,
+				showLegacyJarReposImportedHint = restoreResult.legacyJarReposImported,
+			)
 			if (sections.contains(BackupSection.AUTH)) {
 				withContext(Dispatchers.Main) {
 					Toast.makeText(

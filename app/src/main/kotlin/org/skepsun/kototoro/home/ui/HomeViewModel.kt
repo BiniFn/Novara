@@ -438,8 +438,10 @@ class HomeViewModel @Inject constructor(
                 }
 
                 if (settings.isBackupWebDavKeepLocalCopyEnabled) {
-                    backupStorage.put(output)
-                    backupStorage.trim(settings.periodicalBackupMaxCount)
+                    runCatching {
+                        backupStorage.put(output)
+                        backupStorage.trim(settings.periodicalBackupMaxCount)
+                    }.onFailure { it.printStackTraceDebug() }
                 }
                 backupWebDavUploadCoordinator.uploadAndCommit(
                     file = output,
@@ -466,6 +468,7 @@ class HomeViewModel @Inject constructor(
                         org.skepsun.kototoro.backups.domain.BackupSection.FAVOURITES,
                         org.skepsun.kototoro.backups.domain.BackupSection.BOOKMARKS,
                         org.skepsun.kototoro.backups.domain.BackupSection.SOURCES,
+                        org.skepsun.kototoro.backups.domain.BackupSection.EXTENSION_REPOS,
                         org.skepsun.kototoro.backups.domain.BackupSection.SETTINGS,
                     )
                     val zis = java.util.zip.ZipInputStream(java.io.FileInputStream(tempFile))

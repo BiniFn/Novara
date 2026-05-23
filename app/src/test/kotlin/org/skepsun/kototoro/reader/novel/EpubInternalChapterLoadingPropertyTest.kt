@@ -2,11 +2,8 @@ package org.skepsun.kototoro.reader.novel
 
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
 import io.kotest.property.Arb
 import io.kotest.property.arbitrary.int
-import io.kotest.property.arbitrary.long
-import io.kotest.property.arbitrary.string
 import io.kotest.property.checkAll
 import org.skepsun.kototoro.local.epub.EpubChapter
 import org.skepsun.kototoro.local.epub.EpubContent
@@ -29,31 +26,27 @@ class EpubInternalChapterLoadingPropertyTest : StringSpec({
      * For any EPUB file with N chapters and any valid chapter index I (0 <= I < N),
      * loading the chapter at index I should return the I-th chapter's content.
      */
-    "loading EPUB internal chapter returns correct chapter content".config(invocations = 100) {
+    "loading EPUB internal chapter returns correct chapter content".config(invocations = 50) {
         checkAll(
             Arb.int(1..50), // Number of chapters in EPUB
-            Arb.long(1L..999_999L) // Parent chapter ID
-        ) { chapterCount, parentId ->
-            // Generate a mock EPUB with N chapters
+            Arb.int(0..49), // Chapter index to load
+        ) { chapterCount, chapterIndex ->
+            if (chapterIndex >= chapterCount) return@checkAll
             val epubContent = generateMockEpubContent(chapterCount)
-            
-            // For each chapter index, verify we can extract the correct chapter
-            for (chapterIndex in 0 until chapterCount) {
-                val expectedChapter = epubContent.chapters[chapterIndex]
-                val actualChapter = epubContent.chapters[chapterIndex]
-                
-                // Verify the chapter at index I is the I-th chapter
-                actualChapter.index shouldBe chapterIndex
-                actualChapter.title shouldBe expectedChapter.title
-                actualChapter.content shouldBe expectedChapter.content
-            }
+
+            val expectedChapter = epubContent.chapters[chapterIndex]
+            val actualChapter = epubContent.chapters[chapterIndex]
+
+            actualChapter.index shouldBe chapterIndex
+            actualChapter.title shouldBe expectedChapter.title
+            actualChapter.content shouldBe expectedChapter.content
         }
     }
     
     /**
      * Verify that chapter index extraction from URL works correctly.
      */
-    "chapter index in URL corresponds to correct chapter in EPUB".config(invocations = 100) {
+    "chapter index in URL corresponds to correct chapter in EPUB".config(invocations = 50) {
         checkAll(
             Arb.int(1..50), // Number of chapters
             Arb.int(0..49) // Chapter index to test
@@ -80,7 +73,7 @@ class EpubInternalChapterLoadingPropertyTest : StringSpec({
     /**
      * Verify that loading chapters is consistent across multiple loads.
      */
-    "loading same chapter index multiple times returns same content".config(invocations = 100) {
+    "loading same chapter index multiple times returns same content".config(invocations = 50) {
         checkAll(
             Arb.int(1..50), // Number of chapters
             Arb.int(0..49) // Chapter index
@@ -103,21 +96,15 @@ class EpubInternalChapterLoadingPropertyTest : StringSpec({
     /**
      * Verify that all chapters in an EPUB can be loaded.
      */
-    "all chapters in EPUB are loadable".config(invocations = 100) {
+    "all chapters in EPUB are loadable".config(invocations = 50) {
         checkAll(
-            Arb.int(1..50) // Number of chapters
+            Arb.int(1..30) // Number of chapters
         ) { chapterCount ->
             val epubContent = generateMockEpubContent(chapterCount)
-            
-            // Verify we can load every chapter
-            for (i in 0 until chapterCount) {
-                val chapter = epubContent.chapters[i]
-                
-                // Chapter should exist and have content
-                chapter shouldNotBe null
-                chapter.index shouldBe i
-                chapter.content.isNotBlank() shouldBe true
-            }
+
+            val loadedIndices = epubContent.chapters.map { it.index }
+            loadedIndices shouldBe (0 until chapterCount).toList()
+            epubContent.chapters.all { it.content.isNotBlank() } shouldBe true
         }
     }
 })

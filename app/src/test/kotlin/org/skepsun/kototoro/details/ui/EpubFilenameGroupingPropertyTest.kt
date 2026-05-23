@@ -1,7 +1,6 @@
 package org.skepsun.kototoro.details.ui
 
 import io.kotest.core.spec.style.StringSpec
-import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.property.Arb
 import io.kotest.property.arbitrary.arbitrary
@@ -47,9 +46,7 @@ class EpubFilenameGroupingPropertyTest : StringSpec({
                 group?.let {
                     // All chapters with this filename should be in the group
                     it.chapters.size shouldBe expectedChapters.size
-                    expectedChapters.forEach { chapter ->
-                        it.chapters shouldContain chapter
-                    }
+                    it.chapters shouldBe expectedChapters
                     
                     // The group should be collapsible
                     it.isCollapsible shouldBe true

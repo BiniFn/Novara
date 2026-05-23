@@ -82,20 +82,22 @@ class PeriodicalBackupSettingsViewModel @Inject constructor(
 				}
 				// 根据设置决定是否保留本地副本
 				if (settings.isBackupWebDavKeepLocalCopyEnabled) {
-					// 保存到本地外部备份目录，便于用户查看与修剪
-					backupStorage.put(output)
-					backupStorage.trim(settings.periodicalBackupMaxCount)
+					// 本地副本失败不应阻断 WebDAV 上传
+					runCatching {
+						backupStorage.put(output)
+						backupStorage.trim(settings.periodicalBackupMaxCount)
+					}.onFailure { errorEvent.call(it) }
 				}
-                backupWebDavUploadCoordinator.uploadAndCommit(
-                    file = output,
-                    uploadKind = "manual",
-                )
-                onActionDone.call(ReversibleAction(R.string.webdav_upload_success, null))
-                // 仅在保留本地副本时，更新上次本地备份时间展示
-                if (settings.isBackupWebDavKeepLocalCopyEnabled) {
-                    updateLastBackupDate()
-                }
-                updateWebDavLastAction()
+				backupWebDavUploadCoordinator.uploadAndCommit(
+					file = output,
+					uploadKind = "manual",
+				)
+				onActionDone.call(ReversibleAction(R.string.webdav_upload_success, null))
+				// 仅在保留本地副本时，更新上次本地备份时间展示
+				if (settings.isBackupWebDavKeepLocalCopyEnabled) {
+					updateLastBackupDate()
+				}
+				updateWebDavLastAction()
 			} catch (e: Exception) {
 				errorEvent.call(e)
 			} finally {
@@ -120,13 +122,23 @@ class PeriodicalBackupSettingsViewModel @Inject constructor(
 						org.skepsun.kototoro.backups.domain.BackupSection.FAVOURITES,
 						org.skepsun.kototoro.backups.domain.BackupSection.BOOKMARKS,
 						org.skepsun.kototoro.backups.domain.BackupSection.SOURCES,
+						org.skepsun.kototoro.backups.domain.BackupSection.EXTENSION_REPOS,
 						org.skepsun.kototoro.backups.domain.BackupSection.SETTINGS,
 					)
-					java.util.zip.ZipInputStream(java.io.FileInputStream(tempFile)).use { zis ->
+					val restoreResult = java.util.zip.ZipInputStream(java.io.FileInputStream(tempFile)).use { zis ->
 						repository.restoreBackup(zis, allSections, null)
 					}
 					backupWebDavRestoreCoordinator.commitManualRestore()
-					onActionDone.call(ReversibleAction(R.string.webdav_restore_success, null))
+					onActionDone.call(
+						ReversibleAction(
+							if (restoreResult.legacyJarReposImported) {
+								R.string.webdav_restore_success_legacy_jar_hint
+							} else {
+								R.string.webdav_restore_success
+							},
+							null,
+						),
+					)
 					updateWebDavLastAction()
 				} finally {
 					if (tempFile.exists()) tempFile.delete()

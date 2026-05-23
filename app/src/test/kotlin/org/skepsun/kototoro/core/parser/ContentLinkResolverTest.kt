@@ -16,6 +16,7 @@ import org.skepsun.kototoro.parsers.model.ContentListFilterCapabilities
 import org.skepsun.kototoro.parsers.model.ContentListFilterOptions
 import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.SortOrder
 
 class ContentLinkResolverTest {
@@ -95,6 +96,8 @@ class ContentLinkResolverTest {
 
 	private fun namedSource(name: String): ContentSource = object : ContentSource {
 		override val name: String = name
+		override val locale: String = "en"
+		override val contentType: ContentType = ContentType.MANGA
 	}
 
 	private fun appLinkUri(sourceName: String, url: String, name: String): Uri {

@@ -9,6 +9,7 @@ import kotlinx.serialization.json.Json
 import org.skepsun.kototoro.aniyomi.AniyomiExtensionManager
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
+import org.skepsun.kototoro.core.db.entity.JsonSourceSummary
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
 import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.jsonsource.JsonSourceManager
@@ -17,19 +18,20 @@ import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.extensions.repo.ExternalExtensionRepoRepository
 import org.skepsun.kototoro.ireader.IReaderExtensionManager
 import org.skepsun.kototoro.mihon.MihonExtensionManager
+import org.skepsun.kototoro.cloudstream.runtime.CloudstreamRuntimeManager
 
 class UnifiedSourceCatalogRepositoryTest : FunSpec({
 
 	test("lnreader package ids stay unique when plugin metadata ids repeat") {
 		val packages = testRepository().invokeToJsonPackageItems(
 			listOf(
-				lnReaderEntity(id = "JSON_LNREADER_ALPHA", name = "Alpha"),
-				lnReaderEntity(id = "JSON_LNREADER_BETA", name = "Beta"),
+				lnReaderSummary(id = "JSON_LNREADER_ALPHA", name = "Alpha"),
+				lnReaderSummary(id = "JSON_LNREADER_BETA", name = "Beta"),
 			),
 		)
 
 		packages.map { it.id }.distinct() shouldHaveSize 2
-		packages.map { it.packageName } shouldBe listOf("+a+", "+a+")
+		packages.map { it.packageName } shouldBe listOf("JSON_LNREADER_ALPHA", "JSON_LNREADER_BETA")
 		packages.map { it.sourceNames } shouldBe listOf(listOf("Alpha"), listOf("Beta"))
 	}
 
@@ -42,7 +44,11 @@ class UnifiedSourceCatalogRepositoryTest : FunSpec({
 
 		val item = testRepository().invokeToUnifiedSourceItem(
 			source = JsonContentSource(entity),
-			jsonEntity = entity,
+			jsonSummary = lnReaderSummary(
+				id = entity.id,
+				name = entity.name,
+				iconUrl = entity.iconUrl,
+			),
 		)
 
 		item.language shouldBe "zh"
@@ -51,7 +57,7 @@ class UnifiedSourceCatalogRepositoryTest : FunSpec({
 
 @Suppress("UNCHECKED_CAST")
 private fun UnifiedSourceCatalogRepository.invokeToJsonPackageItems(
-	sources: List<JsonSourceEntity>,
+	sources: List<JsonSourceSummary>,
 ): List<UnifiedSourcePackageItem> {
 	val method = javaClass
 		.getDeclaredMethod("toJsonPackageItems", List::class.java)
@@ -61,16 +67,16 @@ private fun UnifiedSourceCatalogRepository.invokeToJsonPackageItems(
 
 private fun UnifiedSourceCatalogRepository.invokeToUnifiedSourceItem(
 	source: JsonContentSource,
-	jsonEntity: JsonSourceEntity,
+	jsonSummary: JsonSourceSummary,
 ): UnifiedSourceItem {
 	val method = javaClass.getDeclaredMethod(
 		"toUnifiedSourceItem",
 		org.skepsun.kototoro.parsers.model.ContentSource::class.java,
 		org.skepsun.kototoro.core.db.entity.MangaSourceEntity::class.java,
-		JsonSourceEntity::class.java,
+		JsonSourceSummary::class.java,
 	)
 	method.isAccessible = true
-	return method.invoke(this, source, null, jsonEntity) as UnifiedSourceItem
+	return method.invoke(this, source, null, jsonSummary) as UnifiedSourceItem
 }
 
 private fun testRepository(): UnifiedSourceCatalogRepository {
@@ -85,6 +91,7 @@ private fun testRepository(): UnifiedSourceCatalogRepository {
 		mihonExtensionManager = mockk<MihonExtensionManager>(relaxed = true),
 		aniyomiExtensionManager = mockk<AniyomiExtensionManager>(relaxed = true),
 		ireaderExtensionManager = mockk<IReaderExtensionManager>(relaxed = true),
+		cloudstreamRuntimeManager = mockk<CloudstreamRuntimeManager>(relaxed = true),
 		json = Json,
 	)
 }
@@ -109,5 +116,19 @@ private fun lnReaderEntity(
 		""".trimIndent(),
 		createdAt = 1L,
 		updatedAt = 1L,
+	)
+}
+
+private fun lnReaderSummary(
+	id: String,
+	name: String,
+	iconUrl: String? = null,
+): JsonSourceSummary {
+	return JsonSourceSummary(
+		id = id,
+		name = name,
+		type = JsonSourceType.LNREADER,
+		enabled = true,
+		iconUrl = iconUrl,
 	)
 }
