@@ -41,12 +41,22 @@ dependencyResolutionManagement {
 				excludeGroup("com.github.bytedance")
 			}
 		}
-        maven { url 'https://maven.aliyun.com/repository/google' }
-        maven { url 'https://maven.aliyun.com/repository/public' }
 		maven {
 			url 'https://artifact.bytedance.com/repository/releases/'
 			content {
 				includeGroup("com.github.bytedance")
+			}
+		}
+		maven {
+			url 'https://maven.aliyun.com/repository/google'
+			content {
+				excludeGroup("com.github.bytedance")
+			}
+		}
+		maven {
+			url 'https://maven.aliyun.com/repository/public'
+			content {
+				excludeGroup("com.github.bytedance")
 			}
 		}
 	}
