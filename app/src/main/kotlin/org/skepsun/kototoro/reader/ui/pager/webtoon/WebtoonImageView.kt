@@ -121,11 +121,20 @@ class WebtoonImageView @JvmOverloads constructor(
 		minScale = width / sWidth.toFloat()
 		maxScale = minScale
 		minimumScaleType = SCALE_TYPE_CUSTOM
-		requestLayout()
+		requestLayoutKeepingReaderPosition()
 	}
 
 	private fun parentHeight(): Int {
 		return ancestors.firstNotNullOfOrNull { it as? RecyclerView }?.height ?: 0
+	}
+
+	private fun requestLayoutKeepingReaderPosition() {
+		val recyclerView = ancestors.firstNotNullOfOrNull { it as? WebtoonRecyclerView }
+		if (recyclerView == null) {
+			requestLayout()
+			return
+		}
+		recyclerView.requestChildLayoutKeepingAnchor(this)
 	}
 
 	private fun drawDebug(canvas: Canvas) {

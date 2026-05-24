@@ -39,14 +39,8 @@ class WebtoonHolder(
 
 	override fun onReady() {
 		binding.ssiv.colorFilter = settings.colorFilter?.toColorFilter()
-		with(binding.ssiv) {
-			scrollTo(
-				when {
-					scrollToRestore != 0 -> scrollToRestore
-					itemView.top < 0 -> getScrollRange()
-					else -> 0
-				},
-			)
+		if (scrollToRestore != 0) {
+			binding.ssiv.scrollTo(scrollToRestore)
 			scrollToRestore = 0
 		}
 	}

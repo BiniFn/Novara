@@ -10,6 +10,7 @@ import android.view.animation.DecelerateInterpolator
 import android.widget.TextView
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
@@ -134,39 +135,82 @@ class WebtoonReaderFragment : BaseReaderFragment<FragmentReaderWebtoonBinding>()
 		firstVisiblePosition: Int,
 		lastVisiblePosition: Int,
 	) {
-		viewModel.onCurrentPageChanged(firstVisiblePosition, lastVisiblePosition)
+		val currentPosition = recyclerView.findCurrentPagePosition()
+		if (currentPosition == RecyclerView.NO_POSITION) {
+			viewModel.onCurrentPageChanged(firstVisiblePosition, lastVisiblePosition)
+		} else {
+			viewModel.onCurrentPageChanged(currentPosition, currentPosition)
+		}
 	}
 
-	override suspend fun onPagesChanged(pages: List<ReaderPage>, pendingState: ReaderState?) = coroutineScope {
-		val setItems = launch {
-			requireAdapter().setItems(pages)
-			yield()
-			viewBinding?.recyclerView?.let { rv ->
-				recyclerLifecycleDispatcher?.invalidate(rv)
-			}
-		}
-		if (pendingState != null) {
-			val position = pages.indexOfFirst {
-				it.chapterId == pendingState.chapterId && it.index == pendingState.page
-			}
-			Log.d(LOG_TAG, "webtoon.onPagesChanged: pages=${pages.size}, pending=$pendingState, pos=$position")
-			setItems.join()
-			if (position != -1) {
-				with(requireViewBinding().recyclerView) {
-					firstVisibleItemPosition = position
-					post {
-						(findViewHolderForAdapterPosition(position) as? WebtoonHolder)
-							?.restoreScroll(pendingState.scroll)
-					}
+	override suspend fun onPagesChanged(pages: List<ReaderPage>, pendingState: ReaderState?) {
+		coroutineScope {
+			val anchor = captureCurrentAnchor()
+			val shouldRestoreExplicitState = pendingState != null && readerAdapter?.hasItems != true
+			val setItems = launch {
+				requireAdapter().setItems(pages)
+				yield()
+				viewBinding?.recyclerView?.let { rv ->
+					recyclerLifecycleDispatcher?.invalidate(rv)
 				}
-				viewModel.onCurrentPageChanged(position, position)
-			} else {
-				Snackbar.make(requireView(), R.string.not_found_404, Snackbar.LENGTH_SHORT)
-					.show()
 			}
-		} else {
-			setItems.join()
+			if (shouldRestoreExplicitState) {
+				val position = pages.indexOfFirst {
+					it.chapterId == pendingState.chapterId && it.index == pendingState.page
+				}
+				Log.d(LOG_TAG, "webtoon.onPagesChanged: pages=${pages.size}, pending=$pendingState, pos=$position")
+				setItems.join()
+				if (position != -1) {
+					with(requireViewBinding().recyclerView) {
+						firstVisibleItemPosition = position
+						post {
+							(findViewHolderForAdapterPosition(position) as? WebtoonHolder)
+								?.restoreScroll(pendingState.scroll)
+						}
+					}
+					viewModel.onCurrentPageChanged(position, position)
+				} else {
+					Snackbar.make(requireView(), R.string.not_found_404, Snackbar.LENGTH_SHORT)
+						.show()
+				}
+			} else {
+				setItems.join()
+				anchor?.let { restoreAnchor(it, pages) }
+			}
 		}
+	}
+
+	private fun captureCurrentAnchor(): WebtoonAnchor? {
+		val binding = viewBinding ?: return null
+		val layoutManager = binding.recyclerView.layoutManager as? LinearLayoutManager ?: return null
+		val position = layoutManager.findFirstVisibleItemPosition()
+		if (position == RecyclerView.NO_POSITION) {
+			return null
+		}
+		val adapter = binding.recyclerView.adapter as? BaseReaderAdapter<*>
+		val page = adapter?.getItemOrNull(position) ?: return null
+		val itemTop = layoutManager.findViewByPosition(position)?.top ?: 0
+		return WebtoonAnchor(
+			readerKey = page.readerKey,
+			itemTop = itemTop,
+			scroll = (binding.recyclerView.findViewHolderForAdapterPosition(position) as? WebtoonHolder)?.getScrollY() ?: 0,
+		)
+	}
+
+	private fun restoreAnchor(anchor: WebtoonAnchor, pages: List<ReaderPage>) {
+		val position = pages.indexOfFirst { it.readerKey == anchor.readerKey }
+		if (position == -1) {
+			return
+		}
+		with(requireViewBinding().recyclerView) {
+			(layoutManager as? LinearLayoutManager)?.scrollToPositionWithOffset(position, anchor.itemTop)
+				?: run { firstVisibleItemPosition = position }
+			post {
+				(findViewHolderForAdapterPosition(position) as? WebtoonHolder)
+					?.restoreScroll(anchor.scroll)
+			}
+		}
+		viewModel.onCurrentPageChanged(position, position)
 	}
 
 	override fun getCurrentState(): ReaderState? = viewBinding?.run {
@@ -289,4 +333,10 @@ class WebtoonReaderFragment : BaseReaderFragment<FragmentReaderWebtoonBinding>()
 	companion object {
 		private const val LOG_TAG = "ReaderDebug"
 	}
+
+	private data class WebtoonAnchor(
+		val readerKey: Long,
+		val itemTop: Int,
+		val scroll: Int,
+	)
 }

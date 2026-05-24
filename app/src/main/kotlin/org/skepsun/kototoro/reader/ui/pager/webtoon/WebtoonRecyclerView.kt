@@ -6,6 +6,7 @@ import android.util.AttributeSet
 import android.view.View
 import android.widget.EdgeEffect
 import androidx.core.view.ViewCompat.TYPE_TOUCH
+import androidx.core.view.doOnNextLayout
 import androidx.core.view.forEach
 import androidx.core.view.isEmpty
 import androidx.core.view.isNotEmpty
@@ -147,6 +148,20 @@ class WebtoonRecyclerView @JvmOverloads constructor(
 		detachedViews.forEach { child ->
 			(child as WebtoonFrameLayout).target.requestLayout()
 		}
+	}
+
+	fun requestChildLayoutKeepingAnchor(child: View) {
+		val layoutManager = layoutManager as? LinearLayoutManager
+		val anchorPosition = layoutManager?.findFirstVisibleItemPosition() ?: NO_POSITION
+		val anchorTop = layoutManager?.findViewByPosition(anchorPosition)?.top
+		if (scrollState == SCROLL_STATE_IDLE && anchorPosition != NO_POSITION && anchorTop != null) {
+			doOnNextLayout {
+				if (scrollState == SCROLL_STATE_IDLE && anchorPosition < (adapter?.itemCount ?: 0)) {
+					layoutManager.scrollToPositionWithOffset(anchorPosition, anchorTop)
+				}
+			}
+		}
+		child.requestLayout()
 	}
 
 	fun updateChildrenScroll() {
