@@ -27,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -59,6 +60,7 @@ fun ChaptersScreen(
     filterChips: List<ChipModel>,
     isLoading: Boolean,
     emptyMessageResId: Int?,
+    initialChapterId: Long?,
     onItemClick: (ChapterListItem) -> Unit,
     onItemLongClick: (ChapterListItem) -> Unit,
     onHeaderClick: (CollapsibleListHeader) -> Unit,
@@ -71,6 +73,20 @@ fun ChaptersScreen(
     val fastScrollLabelProvider: (Int) -> String = remember(items) {
         { index ->
             items.chapterFastScrollLabelAt(index).orEmpty()
+        }
+    }
+    LaunchedEffect(initialChapterId, items, isGridView) {
+        val chapterId = initialChapterId ?: return@LaunchedEffect
+        val index = items.indexOfFirst { item ->
+            item is ChapterListItem && item.chapter.id == chapterId
+        }
+        if (index == -1) {
+            return@LaunchedEffect
+        }
+        if (isGridView) {
+            gridState.scrollToItem(index)
+        } else {
+            listState.scrollToItem(index)
         }
     }
     val activeDetailsPaneState by remember(detailsPaneState, isGridView) {

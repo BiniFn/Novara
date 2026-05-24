@@ -415,6 +415,7 @@ private fun MetadataChapterPanel(
 			filterChips = emptyList(),
 			isLoading = false,
 			emptyMessageResId = R.string.no_chapters,
+			initialChapterId = null,
 			onItemClick = { viewModel.value = it.chapter },
 			onItemLongClick = {},
 			onHeaderClick = {},

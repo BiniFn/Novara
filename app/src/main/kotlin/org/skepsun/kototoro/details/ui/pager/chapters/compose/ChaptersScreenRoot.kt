@@ -93,6 +93,13 @@ fun ChaptersScreenRoot(
             .filterIsInstance<ChapterListItem>()
             .map { it.chapter.id }
     }
+    val initialCurrentChapterId = remember(collapsedChapters) {
+        collapsedChapters
+            .filterIsInstance<ChapterListItem>()
+            .firstOrNull { it.isCurrent }
+            ?.chapter
+            ?.id
+    }
     val selectedItems = remember(chapters, selectedIds) {
         chapters.filter { it.chapter.id in selectedIds }
     }
@@ -239,6 +246,7 @@ fun ChaptersScreenRoot(
 			filterChips = quickFilter,
 			isLoading = isLoading,
 		emptyMessageResId = emptyReason?.msgResId,
+		initialChapterId = initialCurrentChapterId,
 		onItemClick = { item ->
 			if (selectedIds.isNotEmpty()) {
 				if (selectedIds.contains(item.chapter.id)) {
