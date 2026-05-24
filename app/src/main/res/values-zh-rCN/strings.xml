@@ -499,10 +499,10 @@
     <string name="sync_settings">同步设定</string>
     <string name="sync_settings_summary">配置 WebDAV 多设备同步、备份与恢复</string>
     <string name="import_backup_from_other_apps">从其他应用导入备份</string>
-    <string name="import_backup_from_other_apps_summary">从 Mihon 系或 Aniyomi 系应用的备份文件导入收藏和历史记录。</string>
+    <string name="import_backup_from_other_apps_summary">从 Mihon 系、Aniyomi 系或 Venera 备份文件导入收藏和历史记录。</string>
     <string name="import_backup_choose_source_app">选择来源应用</string>
     <string name="supported_apps">支持的应用</string>
-    <string name="import_backup_supported_apps_summary">Mihon、Komikku、Aniyomi、Anikku、Animiru</string>
+    <string name="import_backup_supported_apps_summary">Mihon、Komikku、Aniyomi、Anikku、Animiru、Venera</string>
     <string name="import_backup_scope_summary">当前版本会恢复收藏、历史记录，以及导入得到的阅读进度信息。</string>
     <string name="import_backup_started_background">将在后台导入外部备份</string>
     <string name="sync_webdav_enable">启用 WebDAV 同步</string>

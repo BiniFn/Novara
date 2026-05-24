@@ -34,9 +34,20 @@ data class ExternalBackupContentRecord(
     val progressPercent: Float?,
     val historyChapterUrl: String?,
     val historyTimestamp: Long?,
+    val sourceCandidates: List<String> = emptyList(),
 )
 
 data class ExternalBackupImportSummary(
     val favoritesImported: Int,
     val historyImported: Int,
+    val failedCount: Int = 0,
+    val failedTitles: List<String> = emptyList(),
+    val failedRecords: List<ExternalBackupFailedRecord> = emptyList(),
+    val missingSourceNames: List<String> = emptyList(),
+)
+
+data class ExternalBackupFailedRecord(
+    val title: String,
+    val sourceCandidates: List<String> = emptyList(),
+    val expectedSourceNames: List<String> = emptyList(),
 )

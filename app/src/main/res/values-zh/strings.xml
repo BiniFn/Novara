@@ -1014,10 +1014,10 @@
     <string name="images_proxy_title">图像加载优化代理</string>
     <string name="import_backup_choose_source_app">选择来源应用</string>
     <string name="import_backup_from_other_apps">从其他应用导入备份</string>
-    <string name="import_backup_from_other_apps_summary">从 Mihon 系或 Aniyomi 系应用的备份文件导入收藏和历史记录。</string>
+    <string name="import_backup_from_other_apps_summary">从 Mihon 系、Aniyomi 系或 Venera 备份文件导入收藏和历史记录。</string>
     <string name="import_backup_scope_summary">当前版本会恢复收藏、历史记录，以及导入得到的阅读进度信息。</string>
     <string name="import_backup_started_background">将在后台导入外部备份</string>
-    <string name="import_backup_supported_apps_summary">Mihon、Komikku、Aniyomi、Anikku、Animiru</string>
+    <string name="import_backup_supported_apps_summary">Mihon、Komikku、Aniyomi、Anikku、Animiru、Venera</string>
     <string name="import_completed">导入完毕</string>
     <string name="import_completed_hint">可删除原文件节省存储空间</string>
     <string name="import_completed_with_count">已导入 %1$d 部漫画</string>

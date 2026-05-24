@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.net.Uri
+import android.widget.Toast
 import androidx.annotation.CheckResult
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -15,6 +16,7 @@ import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.backups.external.ExternalBackupDecoder
 import org.skepsun.kototoro.backups.external.ExternalBackupApp
+import org.skepsun.kototoro.backups.external.ExternalBackupImportSummary
 import org.skepsun.kototoro.backups.external.ExternalBackupRepository
 import org.skepsun.kototoro.backups.ui.BaseBackupRestoreService
 import org.skepsun.kototoro.core.nav.AppRouter
@@ -58,8 +60,11 @@ class ExternalBackupImportService : BaseBackupRestoreService() {
                 repository.import(payload)
             }
             result.fold(
-                onSuccess = {
-                    showResultNotification(source, CompositeResult.success())
+                onSuccess = { summary ->
+                    withContext(Dispatchers.Main) {
+                        showImportSummaryToast(summary)
+                    }
+                    showExternalImportResultNotification(source, summary)
                 },
                 onFailure = {
                     showResultNotification(source, CompositeResult.failure(it))
@@ -85,6 +90,72 @@ class ExternalBackupImportService : BaseBackupRestoreService() {
                 getCancelIntent(),
             )
             .build()
+    }
+
+    private fun showImportSummaryToast(summary: ExternalBackupImportSummary) {
+        val failedPreview = summary.failedTitles.take(3).joinToString(", ")
+        val text = buildString {
+            append("Imported ")
+            append(summary.favoritesImported)
+            append(" favorites, ")
+            append(summary.historyImported)
+            append(" history")
+            if (summary.failedCount > 0) {
+                append("; failed ")
+                append(summary.failedCount)
+                if (failedPreview.isNotBlank()) {
+                    append(": ")
+                    append(failedPreview)
+                }
+            }
+            if (summary.missingSourceNames.isNotEmpty()) {
+                append(". Install kototoro-parsers or kotatsu-parsers-redo")
+            }
+        }
+        Toast.makeText(this, text, Toast.LENGTH_LONG).show()
+    }
+
+    private fun IntentJobContext.showExternalImportResultNotification(
+        source: Uri,
+        summary: ExternalBackupImportSummary,
+    ) {
+        if (summary.failedCount == 0) {
+            showResultNotification(source, CompositeResult.success())
+            return
+        }
+        val failedText = summary.failedRecords.take(20).joinToString("\n") { record ->
+            buildString {
+                append(record.title)
+                val sourceText = when {
+                    record.expectedSourceNames.isNotEmpty() -> record.expectedSourceNames.joinToString(", ")
+                    record.sourceCandidates.isNotEmpty() -> record.sourceCandidates.joinToString(", ")
+                    else -> null
+                }
+                if (!sourceText.isNullOrBlank()) {
+                    append(" -> ")
+                    append(sourceText)
+                }
+            }
+        }
+        val missingSourceText = if (summary.missingSourceNames.isNotEmpty()) {
+            "\nMissing sources: ${summary.missingSourceNames.joinToString(", ")}\n" +
+                "Install kototoro-parsers or kotatsu-parsers-redo, then import again."
+        } else {
+            ""
+        }
+        val message = "Imported ${summary.favoritesImported} favorites and ${summary.historyImported} history. " +
+            "Failed ${summary.failedCount} unmatched titles.$missingSourceText\n$failedText"
+        val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
+            .setContentTitle(getString(R.string.import_backup_from_other_apps))
+            .setContentText("Imported with ${summary.failedCount} unmatched titles")
+            .setSmallIcon(R.drawable.ic_stat_done)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(0)
+            .setSilent(true)
+            .setAutoCancel(true)
+            .setBigText(getString(R.string.import_backup_from_other_apps), message)
+            .build()
+        notificationManager.notify(notificationTag, startId, notification)
     }
 
     companion object {

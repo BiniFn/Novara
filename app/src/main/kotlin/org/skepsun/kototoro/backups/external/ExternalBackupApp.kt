@@ -3,6 +3,7 @@ package org.skepsun.kototoro.backups.external
 enum class ExternalBackupApp {
     MIHON,
     KOMIKKU,
+    VENERA,
     ANIYOMI,
     ANIKKU,
     ANIMIRU,
@@ -11,7 +12,7 @@ enum class ExternalBackupApp {
 
     val family: ExternalBackupFamily
         get() = when (this) {
-            MIHON, KOMIKKU -> ExternalBackupFamily.MANGA
+            MIHON, KOMIKKU, VENERA -> ExternalBackupFamily.MANGA
             ANIYOMI, ANIKKU, ANIMIRU -> ExternalBackupFamily.ANIME
         }
 }

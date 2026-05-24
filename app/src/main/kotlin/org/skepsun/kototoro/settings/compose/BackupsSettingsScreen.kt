@@ -182,6 +182,7 @@ fun BackupsSettingsScreen(
 private fun ExternalBackupApp.displayName(): String = when (this) {
     ExternalBackupApp.MIHON -> "Mihon"
     ExternalBackupApp.KOMIKKU -> "Komikku"
+    ExternalBackupApp.VENERA -> "Venera"
     ExternalBackupApp.ANIYOMI -> "Aniyomi"
     ExternalBackupApp.ANIKKU -> "Anikku"
     ExternalBackupApp.ANIMIRU -> "Animiru"

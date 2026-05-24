@@ -817,10 +817,10 @@
     <string name="sync_settings">Synchronization settings</string>
     <string name="sync_settings_summary">Configure WebDAV sync, backup, and restore.</string>
     <string name="import_backup_from_other_apps">Import backup from other apps</string>
-    <string name="import_backup_from_other_apps_summary">Import favorites and history from Mihon-family or Aniyomi-family backup files.</string>
+    <string name="import_backup_from_other_apps_summary">Import favorites and history from Mihon-family, Aniyomi-family, or Venera backup files.</string>
     <string name="import_backup_choose_source_app">Choose source app</string>
     <string name="supported_apps">Supported apps</string>
-    <string name="import_backup_supported_apps_summary">Mihon, Komikku, Aniyomi, Anikku, Animiru</string>
+    <string name="import_backup_supported_apps_summary">Mihon, Komikku, Aniyomi, Anikku, Animiru, Venera</string>
     <string name="import_backup_scope_summary">This version restores favorites, history, and imported reading progress metadata.</string>
     <string name="import_backup_started_background">The external backup will be imported in the background</string>
     <string name="server_address">Server address</string>
