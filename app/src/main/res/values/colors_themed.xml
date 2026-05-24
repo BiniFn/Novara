@@ -166,7 +166,7 @@
 	<color name="kanade_surface">#FCF8F9</color>
 	<color name="kanade_onSurface">#111112</color>
 	<color name="kanade_surfaceVariant">#E4E1E8</color>
-	<color name="kanade_onSurfaceVariant">#36363B</color>
+	<color name="kanade_onSurfaceVariant">#202024</color>
 	<color name="kanade_outline">#535258</color>
 	<color name="kanade_outlineVariant">#6D6C72</color>
 	<color name="kanade_scrim">#000000</color>
@@ -190,7 +190,7 @@
 	<color name="kanade_surfaceContainerLowest">#FFFFFF</color>
 	<color name="kanade_surfaceContainerLow">#F7F3F4</color>
 	<color name="kanade_surfaceContainer">#EBE7E8</color>
-	<color name="kanade_surfaceContainerHigh">#DFDCDD</color>
+	<color name="kanade_surfaceContainerHigh">#E8E4E5</color>
 	<color name="kanade_surfaceContainerHighest">#D4D1D2</color>
 	<!-- Mamimi -->
 	<color name="mamimi_primary">#465D91</color>
