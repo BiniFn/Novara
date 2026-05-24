@@ -389,7 +389,11 @@ class UnifiedSourcesViewModel @Inject constructor(
 				UnifiedSourceKind.TVBOX -> {
 					importJsonRepository(
 						kind = kind,
-						content = cleanUrl,
+						content = if (cleanUrl.isMacCmsApiUrlForAction()) {
+							cleanUrl
+						} else {
+							fetchRemoteText(cleanUrl)
+						},
 						sourceLocator = cleanUrl,
 						sourceTitle = title,
 					)
@@ -457,7 +461,11 @@ class UnifiedSourcesViewModel @Inject constructor(
 					importJsonRepository(
 						kind = repository.kind,
 						content = if (repository.kind == UnifiedSourceKind.TVBOX) {
-							repository.url
+							if (repository.url.isMacCmsApiUrlForAction()) {
+								repository.url
+							} else {
+								loadRepositoryText(repository.url)
+							}
 						} else {
 							loadRepositoryText(repository.url)
 						},
@@ -1530,6 +1538,19 @@ private fun normalizeRepositoryUrlForAction(url: String): String {
 		.removeSuffix("/repo.json")
 		.removeSuffix("/repo")
 		.trimEnd('/')
+}
+
+private fun String.isMacCmsApiUrlForAction(): Boolean {
+	val uri = runCatching { Uri.parse(trim()) }.getOrNull() ?: return false
+	if (uri.scheme.isNullOrBlank() || uri.host.isNullOrBlank()) {
+		return false
+	}
+	val path = "/" + uri.path.orEmpty().trimStart('/').lowercase()
+	return path.startsWith("/api.php/provide/vod") ||
+		path.startsWith("/index.php/api/vod") ||
+		path.startsWith("/api/vod") ||
+		path.startsWith("/provide/vod") ||
+		path.contains(".php/provide/vod")
 }
 
 private fun repositoryTitleForAction(url: String, fallback: String): String {
