@@ -39,8 +39,8 @@ android {
 		applicationId 'org.skepsun.kototoro'
 		minSdk = 26
 		targetSdk = 36
-        versionCode = 1145
-        versionName = '1.1.9'
+        versionCode = 1146
+        versionName = '1.2.0'
 		manifestPlaceholders = [
 			appClassName: 'org.skepsun.kototoro.KototoroApp'
 		]
