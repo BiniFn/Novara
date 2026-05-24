@@ -99,7 +99,7 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 		return combine(
 			externalRepos,
 			lnReaderRepos,
-			database.getJsonSourceDao().observeAllSummaries(),
+			database.getJsonSourceDao().observeAll(),
 		) { external, lnReader, jsonSources ->
 			val configured = external.map { it.toUnifiedRepositoryItem(isPreset = false) } +
 				lnReader.map { url ->
@@ -276,7 +276,7 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 				}
 		}
 
-		val jsonPackages = database.getJsonSourceDao().observeAllSummaries().map { sources ->
+		val jsonPackages = database.getJsonSourceDao().observeAll().map { sources ->
 			sources.toJsonPackageItems()
 		}
 
@@ -316,6 +316,8 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 		val sourceEntities = database.getSourcesDao().findAll().associateBy { it.source }
 		val jsonSummaries = database.getJsonSourceDao().observeAllSummaries().first()
 		val jsonById = jsonSummaries.associateBy { it.id }
+		val jsonEntities = database.getJsonSourceDao().observeAll().first()
+		val jsonEntityById = jsonEntities.associateBy { it.id }
 		val sourceMap = LinkedHashMap<String, ContentSource>()
 		availableSources.forEach { sourceMap[it.name] = it }
 		val installedApkSources = getInstalledApkSources()
@@ -325,8 +327,9 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 		val items = sourceMap.values
 			.map { source ->
 				val jsonSummary = jsonById[source.name]
+				val jsonEntity = jsonEntityById[source.name]
 				val sourceEntity = sourceEntities[source.name]
-				source.toUnifiedSourceItem(sourceEntity, jsonSummary)
+				source.toUnifiedSourceItem(sourceEntity, jsonSummary, jsonEntity)
 			}
 			.sortedWith(compareBy({ it.kind.ordinal }, { it.title.lowercase() }))
 		Log.d(
@@ -356,9 +359,11 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 	private fun ContentSource.toUnifiedSourceItem(
 		sourceEntity: MangaSourceEntity?,
 		jsonSummary: org.skepsun.kototoro.core.db.entity.JsonSourceSummary?,
+		jsonEntity: JsonSourceEntity?,
 	): UnifiedSourceItem {
 		val kind = resolveKind()
-		val packageRef = resolvePackageRef(jsonSummary)
+		val packageRef = resolvePackageRef(jsonSummary, jsonEntity)
+		val repositoryRef = resolveRepositoryRef(jsonEntity)
 		return UnifiedSourceItem(
 			id = name,
 			kind = kind,
@@ -366,8 +371,8 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 			title = getTitle(localizedContext),
 			language = resolveLanguage(),
 			contentType = getContentType(),
-			repositoryId = null,
-			repositoryName = null,
+			repositoryId = repositoryRef?.id,
+			repositoryName = repositoryRef?.title,
 			packageId = packageRef?.first,
 			packageName = packageRef?.second,
 			isEnabled = jsonSummary?.enabled ?: (settings.isAllSourcesEnabled || sourceEntity?.isEnabled == true),
@@ -415,6 +420,7 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 
 	private fun ContentSource.resolvePackageRef(
 		jsonSummary: org.skepsun.kototoro.core.db.entity.JsonSourceSummary?,
+		jsonEntity: JsonSourceEntity?,
 	): Pair<String, String>? {
 		return when (this) {
 			is MihonMangaSource -> packageId(UnifiedSourceKind.MIHON, pkgName) to pkgName
@@ -432,7 +438,15 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 				packageId(UnifiedSourceKind.JAR, packageName) to packageName
 			}
 			is JsonContentSource -> entity.jsonPackageRef()
-			is JsonSourceListSource -> jsonSummary?.jsonPackageRef()
+			is JsonSourceListSource -> jsonEntity?.jsonPackageRef() ?: jsonSummary?.jsonPackageRef()
+			else -> null
+		}
+	}
+
+	private fun ContentSource.resolveRepositoryRef(jsonEntity: JsonSourceEntity?): JsonRepositoryRef? {
+		return when (this) {
+			is JsonContentSource -> entity.jsonRepositoryRef()
+			is JsonSourceListSource -> jsonEntity?.jsonRepositoryRef()
 			else -> null
 		}
 	}
@@ -444,6 +458,24 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 			JsonSourceType.JS -> packageId(UnifiedSourceKind.JS, id) to name
 			JsonSourceType.LNREADER -> packageId(UnifiedSourceKind.LNREADER, id) to name
 		}
+	}
+
+	private fun JsonSourceEntity.jsonRepositoryItem(): UnifiedSourceRepositoryItem? {
+		val ref = jsonRepositoryRef() ?: return null
+		return UnifiedSourceRepositoryItem(
+			id = ref.id,
+			kind = ref.kind,
+			name = ref.title,
+			url = ref.locator,
+			locationType = resolveLocationType(ref.locator),
+			website = ref.locator,
+			isConfigured = true,
+			isPreset = false,
+			capabilities = setOf(
+				UnifiedRepositoryCapability.REFRESH,
+				UnifiedRepositoryCapability.IMPORT_JSON_LIST,
+			),
+		)
 	}
 
 	private fun JsonSourceType.toUnifiedKind(): UnifiedSourceKind {
@@ -527,76 +559,32 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 			.sortedWith(compareBy({ it.kind.ordinal }, { !it.isConfigured }, { it.name.lowercase() }))
 	}
 
-	private fun List<org.skepsun.kototoro.core.db.entity.JsonSourceSummary>.toJsonRepositoryItems(): List<UnifiedSourceRepositoryItem> {
+	private fun List<JsonSourceEntity>.toJsonRepositoryItems(): List<UnifiedSourceRepositoryItem> {
 		return asSequence()
 			.filter { it.type == JsonSourceType.LEGADO || it.type == JsonSourceType.TVBOX }
-			.map { summary ->
-				val kind = summary.type.toUnifiedKind()
-				val key = "${summary.type.name.lowercase()}:imported"
-				UnifiedSourceRepositoryItem(
-					id = repositoryId(kind, key),
-					kind = kind,
-					name = when (summary.type) {
-						JsonSourceType.LEGADO -> "Imported Legado JSON"
-						JsonSourceType.TVBOX -> "Imported TVBox JSON"
-						else -> summary.name
-					},
-					url = key,
-					locationType = UnifiedRepositoryLocationType.INLINE_IMPORT,
-					website = key,
-					isConfigured = true,
-					isPreset = false,
-					capabilities = setOf(
-						UnifiedRepositoryCapability.REFRESH,
-						UnifiedRepositoryCapability.IMPORT_JSON_LIST,
-					),
-				)
-			}
+			.mapNotNull { entity -> entity.jsonRepositoryItem() }
 			.distinctBy { it.id }
 			.toList()
 	}
 
-	private fun List<org.skepsun.kototoro.core.db.entity.JsonSourceSummary>.toJsonPackageItems(): List<UnifiedSourcePackageItem> {
+	private fun List<JsonSourceEntity>.toJsonPackageItems(): List<UnifiedSourcePackageItem> {
 		val result = mutableListOf<UnifiedSourcePackageItem>()
 		val legado = filter { it.type == JsonSourceType.LEGADO }
 		if (legado.isNotEmpty()) {
-			result += UnifiedSourcePackageItem(
-				id = packageId(UnifiedSourceKind.LEGADO, "imported"),
+			result += legado.toGroupedJsonPackageItems(
 				kind = UnifiedSourceKind.LEGADO,
-				name = "Imported Legado JSON",
-				packageName = null,
-				repositoryId = null,
-				repositoryName = null,
-				versionName = null,
-				versionCode = null,
-				language = null,
-				isInstalled = true,
-				isNsfw = false,
-				sourceCount = legado.size,
-				sourceNames = legado.map { it.name }.sorted(),
-				iconUrl = null,
+				fallbackPackageKey = "imported",
+				fallbackPackageName = "Imported Legado JSON",
 			)
 		}
 
-		filter { it.type == JsonSourceType.TVBOX }
-			.takeIf { it.isNotEmpty() }
-			?.let { sources ->
-				result += UnifiedSourcePackageItem(
-					id = packageId(UnifiedSourceKind.TVBOX, "inline"),
-					kind = UnifiedSourceKind.TVBOX,
-					name = "Imported TVBox JSON",
-					packageName = null,
-					repositoryId = null,
-					repositoryName = null,
-					versionName = null,
-					versionCode = null,
-					language = null,
-					isInstalled = true,
-					isNsfw = false,
-					sourceCount = sources.size,
-					sourceNames = sources.map { it.name }.sorted(),
-					iconUrl = null,
-				)
+		val tvBox = filter { it.type == JsonSourceType.TVBOX }
+		if (tvBox.isNotEmpty()) {
+			result += tvBox.toGroupedJsonPackageItems(
+				kind = UnifiedSourceKind.TVBOX,
+				fallbackPackageKey = "inline",
+				fallbackPackageName = "Imported TVBox JSON",
+			)
 		}
 
 		filter { it.type == JsonSourceType.LNREADER }.forEach { entity ->
@@ -638,6 +626,34 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 		}
 
 		return result
+	}
+
+	private fun List<JsonSourceEntity>.toGroupedJsonPackageItems(
+		kind: UnifiedSourceKind,
+		fallbackPackageKey: String,
+		fallbackPackageName: String,
+	): List<UnifiedSourcePackageItem> {
+		return groupBy { entity ->
+			entity.jsonPackageRef() ?: (packageId(kind, fallbackPackageKey) to fallbackPackageName)
+		}.map { (packageRef, sources) ->
+			val repositoryRef = sources.firstNotNullOfOrNull { source -> source.jsonRepositoryRef() }
+			UnifiedSourcePackageItem(
+				id = packageRef.first,
+				kind = kind,
+				name = packageRef.second,
+				packageName = null,
+				repositoryId = repositoryRef?.id,
+				repositoryName = repositoryRef?.title,
+				versionName = null,
+				versionCode = null,
+				language = null,
+				isInstalled = true,
+				isNsfw = false,
+				sourceCount = sources.size,
+				sourceNames = sources.map { it.name }.sorted(),
+				iconUrl = sources.firstNotNullOfOrNull { it.iconUrl },
+			)
+		}
 	}
 
 	private fun JsonSourceEntity.jsonPackageRef(): Pair<String, String>? {

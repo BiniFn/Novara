@@ -25,10 +25,14 @@ import org.skepsun.kototoro.parsers.model.RATING_UNKNOWN
 import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.video.data.VideoLocalCacheProxy
 import java.io.File
+import java.io.StringReader
 import java.util.EnumSet
 import java.util.concurrent.ConcurrentHashMap
+import javax.xml.parsers.DocumentBuilderFactory
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.w3c.dom.Element
+import org.w3c.dom.Node
 
 class TVBoxRepository(
 	override val source: JsonContentSource,
@@ -402,7 +406,11 @@ class TVBoxRepository(
 	}
 
 	private fun parseCmsResponse(candidate: ResourceCandidate, content: String): CmsParsedResponse {
-		val root = runCatching { JSONTokener(content).nextValue() }.getOrNull() ?: return CmsParsedResponse.empty()
+		val normalized = content.removePrefix("\uFEFF").trim()
+		if (looksLikeXml(normalized)) {
+			return parseCmsXmlResponse(candidate, normalized)
+		}
+		val root = runCatching { JSONTokener(normalized).nextValue() }.getOrNull() ?: return CmsParsedResponse.empty()
 		val categories = linkedMapOf<String, CmsCategory>()
 		val items = linkedMapOf<String, TVBoxMediaItem>()
 		val preferredNodes = buildPreferredCmsPayloads(root)
@@ -449,6 +457,49 @@ class TVBoxRepository(
 		)
 			.filterNot { it == JSONObject.NULL }
 			.ifEmpty { listOf(root) }
+	}
+
+	private fun parseCmsXmlResponse(candidate: ResourceCandidate, content: String): CmsParsedResponse {
+		val document = runCatching {
+			val factory = DocumentBuilderFactory.newInstance().apply {
+				isNamespaceAware = false
+				isExpandEntityReferences = false
+			}
+			factory.trySetFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+			factory.trySetFeature("http://xml.org/sax/features/external-general-entities", false)
+			factory.trySetFeature("http://xml.org/sax/features/external-parameter-entities", false)
+			factory.newDocumentBuilder().parse(org.xml.sax.InputSource(StringReader(content)))
+		}.getOrNull() ?: return CmsParsedResponse.empty()
+		val categories = linkedMapOf<String, CmsCategory>()
+		document.getElementsByTagName("ty").forEachElement { element ->
+			val id = element.attrOrText("id").ifBlank { element.attrOrText("type_id") }
+			val name = element.textContent?.trim().orEmpty()
+			if (id.isNotBlank() && name.isNotBlank()) {
+				categories.putIfAbsent(id, CmsCategory(id, name))
+			}
+		}
+		val items = linkedMapOf<String, TVBoxMediaItem>()
+		document.getElementsByTagName("video").forEachElement { element ->
+			val node = JSONObject().apply {
+				putIfNotBlank("vod_id", element.childText("id"))
+				putIfNotBlank("vod_name", element.childText("name"))
+				putIfNotBlank("type_id", element.childText("tid"))
+				putIfNotBlank("type_name", element.childText("type"))
+				putIfNotBlank("vod_pic", element.childText("pic"))
+				putIfNotBlank("vod_remarks", element.childText("note"))
+				putIfNotBlank("vod_content", element.childText("des"))
+				val playInfo = element.extractMacCmsXmlPlayInfo()
+				putIfNotBlank("vod_play_from", playInfo.playFrom ?: element.childText("dt"))
+				putIfNotBlank("vod_play_url", playInfo.playUrl ?: element.childText("dl"))
+			}
+			parseCmsVodItem(node, candidate)?.let { item ->
+				items.putIfAbsent(item.token, item)
+			}
+		}
+		return CmsParsedResponse(
+			categories = categories.values.toList(),
+			items = items.values.toList(),
+		)
 	}
 
 	private fun extractCmsPayload(
@@ -636,13 +687,19 @@ class TVBoxRepository(
 			}
 		}
 
+		var lastLoadError: Throwable? = null
+		var attemptedRemoteResource = false
 		for (candidate in candidates) {
 			if (isDirectCandidateUrl(candidate.url)) {
 				Log.d(TAG, "Using direct TVBox candidate: ${candidate.url}")
 				return buildDirectCatalog(candidate)
 			}
+			if (candidate.url.startsWith("http", ignoreCase = true)) {
+				attemptedRemoteResource = true
+			}
 			val content = runCatching { readTextResource(candidate.url, candidate.headers) }
 				.onFailure {
+					lastLoadError = it
 					logRepositoryFailure("buildCatalog", it, "candidate=${candidate.url}")
 				}
 				.getOrNull()
@@ -656,6 +713,13 @@ class TVBoxRepository(
 			}
 		}
 
+		if (lastLoadError != null && attemptedRemoteResource && mightBeCmsSource()) {
+			logRepositoryFailure("buildCatalog", lastLoadError, "cms_resource_load_failed")
+			throw IllegalStateException(
+				"TVBox/CMS resource could not be loaded: ${lastLoadError.message.orEmpty()}",
+				lastLoadError,
+			)
+		}
 		logRepositoryFailure("buildCatalog", null, "no_supported_candidate")
 		throw UnsupportedSourceException(
 			"TVBox site is imported but the runtime only supports direct media, M3U playlists, plain-text channel lists, or simple JSON play lists",
@@ -735,6 +799,12 @@ class TVBoxRepository(
 		}
 		if (looksLikeJson(normalized)) {
 			return buildCatalogFromItems(parseJsonItems(candidate, normalized))
+		}
+		if (looksLikeXml(normalized)) {
+			val parsed = parseCmsXmlResponse(candidate, normalized)
+			if (parsed.items.isNotEmpty()) {
+				return buildCatalogFromItems(parsed.items)
+			}
 		}
 		return buildCatalogFromItems(parsePlainTextItems(candidate, normalized))
 	}
@@ -1301,6 +1371,10 @@ class TVBoxRepository(
 		return text.startsWith('{') || text.startsWith('[')
 	}
 
+	private fun looksLikeXml(text: String): Boolean {
+		return text.startsWith('<')
+	}
+
 	private fun looksLikeM3u(text: String): Boolean {
 		return text.contains("#EXTM3U", ignoreCase = true) || text.contains("#EXTINF", ignoreCase = true)
 	}
@@ -1625,6 +1699,69 @@ private fun JSONObject.optStringOrNull(key: String): String? {
 	}
 	return value.toString().trim().ifBlank { null }
 }
+
+private fun JSONObject.putIfNotBlank(key: String, value: String?) {
+	val normalized = value?.trim().orEmpty()
+	if (normalized.isNotBlank()) {
+		put(key, normalized)
+	}
+}
+
+private fun DocumentBuilderFactory.trySetFeature(name: String, value: Boolean) {
+	runCatching { setFeature(name, value) }
+}
+
+private fun org.w3c.dom.NodeList.forEachElement(action: (Element) -> Unit) {
+	for (index in 0 until length) {
+		val element = item(index) as? Element ?: continue
+		action(element)
+	}
+}
+
+private fun Element.attrOrText(name: String): String {
+	return getAttribute(name).trim().ifBlank { childText(name).orEmpty() }
+}
+
+private fun Element.childText(tagName: String): String? {
+	val nodes = getElementsByTagName(tagName)
+	for (index in 0 until nodes.length) {
+		val node = nodes.item(index)
+		if (node.parentNode != this) {
+			continue
+		}
+		val text = when (node.nodeType) {
+			Node.CDATA_SECTION_NODE,
+			Node.TEXT_NODE,
+			Node.ELEMENT_NODE,
+			-> node.textContent
+			else -> null
+		}
+		return text?.trim()?.ifBlank { null }
+	}
+	return null
+}
+
+private fun Element.extractMacCmsXmlPlayInfo(): MacCmsXmlPlayInfo {
+	val playFrom = mutableListOf<String>()
+	val playUrls = mutableListOf<String>()
+	getElementsByTagName("dd").forEachElement { dd ->
+		val payload = dd.textContent?.trim().orEmpty()
+		if (payload.isBlank()) {
+			return@forEachElement
+		}
+		playUrls += payload
+		playFrom += dd.getAttribute("flag").trim().ifBlank { "线路${playUrls.size}" }
+	}
+	return MacCmsXmlPlayInfo(
+		playFrom = playFrom.takeIf { it.isNotEmpty() }?.joinToString("$$$"),
+		playUrl = playUrls.takeIf { it.isNotEmpty() }?.joinToString("$$$"),
+	)
+}
+
+private data class MacCmsXmlPlayInfo(
+	val playFrom: String?,
+	val playUrl: String?,
+)
 
 private fun JSONObject.optHeaderMap(key: String): Map<String, String> {
 	val value = opt(key)

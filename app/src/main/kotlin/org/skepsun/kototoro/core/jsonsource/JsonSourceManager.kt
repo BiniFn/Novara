@@ -20,6 +20,7 @@ import org.skepsun.kototoro.core.parser.legado.book.BookInfo
 import org.skepsun.kototoro.core.parser.legado.book.BookList
 import org.skepsun.kototoro.core.parser.legado.sandbox.LegadoSandbox
 import java.net.IDN
+import java.net.URI
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -74,6 +75,12 @@ class JsonSourceManager @Inject constructor(
 		// Regex pattern to match valid identifier characters (alphanumeric and underscore)
 		private val VALID_CHAR_REGEX = Regex("[^A-Z0-9_]")
 		private val TVBOX_URL_REGEX = Regex("^(https?)://([^/?#]+)(.*)$", RegexOption.IGNORE_CASE)
+		private val MAC_CMS_API_PATHS = listOf(
+			"/api.php/provide/vod",
+			"/index.php/api/vod",
+			"/api/vod",
+			"/provide/vod",
+		)
 	}
 	
 	/**
@@ -659,11 +666,26 @@ class JsonSourceManager @Inject constructor(
 			val entities = mutableListOf<JsonSourceEntity>()
 			val visitedUrls = linkedSetOf<String>()
 			val errors = mutableListOf<String>()
+			val normalizedInput = jsonContent.trim()
+			val directMacCmsUrl = detectMacCmsApiUrl(sourceLocator.orEmpty())
+				?: detectMacCmsApiUrl(normalizedInput)
+				?: detectMacCmsPayloadApiUrl(normalizedInput, sourceLocator)
+			val contentToProcess = if (directMacCmsUrl != null) {
+				buildMacCmsTvBoxDocument(
+					apiUrl = directMacCmsUrl,
+					sourceTitle = sourceTitle,
+				)
+			} else {
+				jsonContent
+			}
+			val effectiveSourceLocator = directMacCmsUrl ?: sourceLocator
+			val effectiveSourceTitle = sourceTitle
+				?: directMacCmsUrl?.let { buildTvBoxRepositoryTitle(it, null) }
 
 			processTvBoxDocument(
-				rawContent = jsonContent,
-				sourceLocator = sourceLocator,
-				sourceTitle = sourceTitle,
+				rawContent = contentToProcess,
+				sourceLocator = effectiveSourceLocator,
+				sourceTitle = effectiveSourceTitle,
 				depth = 0,
 				visitedUrls = visitedUrls,
 				entities = entities,
@@ -1056,6 +1078,63 @@ class JsonSourceManager @Inject constructor(
 			builder.append(line)
 		}
 		return builder.toString().trim()
+	}
+
+	private fun detectMacCmsApiUrl(rawContent: String): String? {
+		val normalized = normalizeTvBoxFetchUrl(rawContent.trim()) ?: rawContent.trim()
+		if (!normalized.startsWith("http://", ignoreCase = true) &&
+			!normalized.startsWith("https://", ignoreCase = true)
+		) {
+			return null
+		}
+		val uri = runCatching { URI(normalized) }.getOrNull() ?: return null
+		val path = "/" + uri.rawPath.orEmpty().trimStart('/').lowercase()
+		return if (MAC_CMS_API_PATHS.any { path.startsWith(it) } || path.contains(".php/provide/vod")) {
+			URI(uri.scheme, uri.authority, uri.path, null, null).toString()
+		} else {
+			null
+		}
+	}
+
+	private fun detectMacCmsPayloadApiUrl(rawContent: String, sourceLocator: String?): String? {
+		val locatorApiUrl = detectMacCmsApiUrl(sourceLocator.orEmpty())
+		if (locatorApiUrl != null && looksLikeMacCmsPayload(rawContent)) {
+			return locatorApiUrl
+		}
+		return null
+	}
+
+	private fun looksLikeMacCmsPayload(rawContent: String): Boolean {
+		val normalized = rawContent.removePrefix("\uFEFF").trim()
+		if (normalized.startsWith('<')) {
+			return normalized.contains("<rss", ignoreCase = true) &&
+				normalized.contains("<video", ignoreCase = true)
+		}
+		val root = runCatching { JSONTokener(normalized).nextValue() as? JSONObject }.getOrNull() ?: return false
+		return root.has("list") &&
+			(root.has("page") || root.has("pagecount") || root.has("total") || root.has("class"))
+	}
+
+	private fun buildMacCmsTvBoxDocument(apiUrl: String, sourceTitle: String?): String {
+		val title = sourceTitle?.trim()?.takeIf { it.isNotBlank() } ?: buildTvBoxRepositoryTitle(apiUrl, null)
+		val key = "MAC_CMS_${apiUrl.hashCode().toUInt().toString(16).uppercase()}"
+		return JSONObject().apply {
+			put("name", title)
+			put(
+				"sites",
+				JSONArray().put(
+					JSONObject().apply {
+						put("key", key)
+						put("name", title)
+						put("type", 1)
+						put("api", apiUrl)
+						put("searchable", 1)
+						put("quickSearch", 1)
+						put("filterable", 1)
+					},
+				),
+			)
+		}.toString()
 	}
 
 	private fun parseTvBoxRootObject(content: String): JSONObject {

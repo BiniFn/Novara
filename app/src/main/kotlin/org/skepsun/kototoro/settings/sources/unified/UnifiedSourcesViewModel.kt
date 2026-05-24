@@ -27,12 +27,15 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import org.skepsun.kototoro.R
+import org.skepsun.kototoro.core.db.entity.JsonSourceEntity
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
 import org.skepsun.kototoro.core.extensions.GlobalExtensionManager
+import org.skepsun.kototoro.core.jsonsource.JsonSourceImportMetadata
 import org.skepsun.kototoro.core.jsonsource.JsonSourceManager
 import org.skepsun.kototoro.core.lnreader.LNReaderPluginInfo
 import org.skepsun.kototoro.core.lnreader.LNReaderRepository
 import org.skepsun.kototoro.core.lnreader.LNReaderPluginMetadata
+import org.skepsun.kototoro.core.model.jsonsource.TVBoxStoredConfig
 import org.skepsun.kototoro.core.network.jsonsource.JsonSourceHttpClient
 import org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -375,13 +378,22 @@ class UnifiedSourcesViewModel @Inject constructor(
 		launchLoadingJob(Dispatchers.IO) {
 			when (kind) {
 				UnifiedSourceKind.LEGADO,
-				UnifiedSourceKind.TVBOX,
-				UnifiedSourceKind.JS -> importJsonRepository(
-					kind = kind,
-					content = fetchRemoteText(cleanUrl),
-					sourceLocator = cleanUrl,
-					sourceTitle = title,
-				)
+				UnifiedSourceKind.JS -> {
+					importJsonRepository(
+						kind = kind,
+						content = fetchRemoteText(cleanUrl),
+						sourceLocator = cleanUrl,
+						sourceTitle = title,
+					)
+				}
+				UnifiedSourceKind.TVBOX -> {
+					importJsonRepository(
+						kind = kind,
+						content = cleanUrl,
+						sourceLocator = cleanUrl,
+						sourceTitle = title,
+					)
+				}
 				UnifiedSourceKind.LNREADER -> addLnReaderRepository(cleanUrl)
 				UnifiedSourceKind.CLOUDSTREAM,
 				UnifiedSourceKind.MIHON,
@@ -444,7 +456,11 @@ class UnifiedSourcesViewModel @Inject constructor(
 					}
 					importJsonRepository(
 						kind = repository.kind,
-						content = loadRepositoryText(repository.url),
+						content = if (repository.kind == UnifiedSourceKind.TVBOX) {
+							repository.url
+						} else {
+							loadRepositoryText(repository.url)
+						},
 						sourceLocator = repository.url,
 						sourceTitle = repository.name,
 					)
@@ -471,9 +487,17 @@ class UnifiedSourcesViewModel @Inject constructor(
 				UnifiedSourceKind.LEGADO,
 				UnifiedSourceKind.TVBOX,
 				UnifiedSourceKind.JS -> {
-					val ids = ready.allSources
+					val sourceIds = ready.allSources
 						.filter { it.repositoryId == repository.id }
 						.map { it.id }
+					val ids = if (sourceIds.isNotEmpty()) {
+						sourceIds
+					} else {
+						jsonSourceManager.observeAllJsonSources()
+							.first()
+							.filter { it.jsonRepositoryIdForAction() == repository.id }
+							.map { it.id }
+					}
 					if (ids.isNotEmpty()) {
 						jsonSourceManager.deleteSourcesBatch(ids)
 					}
@@ -569,9 +593,17 @@ class UnifiedSourcesViewModel @Inject constructor(
 		}
 
 		if (item.kind.isJsonBackedKind()) {
-			val sourceIds = ready.allSources
+			val uiSourceIds = ready.allSources
 				.filter { it.packageId == item.id }
 				.map { it.id }
+			val sourceIds = if (uiSourceIds.isNotEmpty()) {
+				uiSourceIds
+			} else {
+				jsonSourceManager.observeAllJsonSources()
+					.first()
+					.filter { it.jsonPackageIdForAction() == item.id }
+					.map { it.id }
+			}
 			if (sourceIds.isEmpty()) {
 				return PackageRemovalResult()
 			}
@@ -1378,6 +1410,46 @@ private fun UnifiedSourceKind.isJsonBackedKind(): Boolean {
 		UnifiedSourceKind.JS,
 		UnifiedSourceKind.LNREADER -> true
 		else -> false
+	}
+}
+
+private fun JsonSourceEntity.jsonPackageIdForAction(): String? {
+	return when (type) {
+		JsonSourceType.LEGADO -> {
+			val repositoryId = jsonRepositoryIdForAction()
+			packageIdForAction(UnifiedSourceKind.LEGADO, repositoryId ?: "imported")
+		}
+		JsonSourceType.TVBOX -> {
+			val repositoryId = jsonRepositoryIdForAction()
+			packageIdForAction(UnifiedSourceKind.TVBOX, repositoryId ?: "inline")
+		}
+		JsonSourceType.JS -> packageIdForAction(UnifiedSourceKind.JS, id)
+		JsonSourceType.LNREADER -> packageIdForAction(UnifiedSourceKind.LNREADER, id)
+	}
+}
+
+private fun JsonSourceEntity.jsonRepositoryIdForAction(): String? {
+	return when (type) {
+		JsonSourceType.LEGADO -> {
+			val locator = JsonSourceImportMetadata.parse(config)
+				?.sourceLocator
+				?.trim()
+				?.takeIf { it.isNotBlank() }
+				?: return null
+			repositoryIdForAction(UnifiedSourceKind.LEGADO, locator)
+		}
+		JsonSourceType.TVBOX -> {
+			val locator = runCatching { TVBoxStoredConfig.parse(config) }
+				.getOrNull()
+				?.meta
+				?.sourceLocator
+				?.trim()
+				?.takeIf { it.isNotBlank() }
+				?: return null
+			repositoryIdForAction(UnifiedSourceKind.TVBOX, locator)
+		}
+		JsonSourceType.JS,
+		JsonSourceType.LNREADER -> null
 	}
 }
 

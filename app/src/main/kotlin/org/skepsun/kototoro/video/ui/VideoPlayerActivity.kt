@@ -1053,6 +1053,16 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         startMs: Long? = null,
     ) {
         val normalizedUrl = TVBoxPlayback.normalizeLocator(url.trim())
+        extractTvBoxChapterPlaybackUrl(normalizedUrl)?.let { playbackUrl ->
+            Log.d("VideoPlayerActivity", "Resolved TVBox chapter playback URL from locator: $playbackUrl")
+            prepareAndPlay(
+                url = playbackUrl,
+                source = source,
+                headers = headers,
+                startMs = startMs,
+            )
+            return
+        }
         val lastSegment = runCatching { Uri.parse(normalizedUrl).lastPathSegment }.getOrNull() ?: normalizedUrl
         val lowerUrl = normalizedUrl.lowercase()
         val isHttpLike = lowerUrl.startsWith("http://") || lowerUrl.startsWith("https://")
@@ -1288,6 +1298,16 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 Snackbar.LENGTH_LONG
             ).show()
         }
+    }
+
+    private fun extractTvBoxChapterPlaybackUrl(url: String): String? {
+        val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return null
+        if (uri.scheme != "tvbox" || uri.host != "chapter") {
+            return null
+        }
+        return uri.getQueryParameter("play")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
     }
 
     private fun resolvePlaybackPageAndPlay(
