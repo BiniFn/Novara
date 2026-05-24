@@ -82,6 +82,7 @@ fun ChaptersScreenRoot(
 	}
 
 	val selectedItemIds = remember { mutableStateListOf<Long>() }
+	var hasShownSelectionHint by remember { mutableStateOf(false) }
     val selectedIds = remember(selectedItemIds.toList()) {
         selectedItemIds.toSet()
     }
@@ -131,6 +132,25 @@ fun ChaptersScreenRoot(
     LaunchedEffect(visibleChapterIds) {
         selectedItemIds.retainAll(visibleChapterIds)
     }
+	LaunchedEffect(selectedIds.isNotEmpty()) {
+		if (selectedIds.isNotEmpty() && !hasShownSelectionHint) {
+			hasShownSelectionHint = true
+			try {
+				Snackbar.make(
+					viewForSnackbar,
+					R.string.chapter_range_selection_hint,
+					Snackbar.LENGTH_LONG,
+				).show()
+			} catch (e: IllegalArgumentException) {
+				e.printStackTraceDebug()
+				Toast.makeText(
+					context,
+					R.string.chapter_range_selection_hint,
+					Toast.LENGTH_LONG,
+				).show()
+			}
+		}
+	}
     val handleSelectionAction: (Int) -> Unit = remember(
         context,
         router,
@@ -270,7 +290,18 @@ fun ChaptersScreenRoot(
 			}
 		},
 		onItemLongClick = { item ->
-			if (selectedItemIds.contains(item.chapter.id)) {
+			val range = resolveVisibleSelectionRange(
+				visibleChapterIds = visibleSelectableIds,
+				selectedIds = selectedIds,
+				targetId = item.chapter.id,
+			)
+			if (range != null) {
+				range.forEach { id ->
+					if (!selectedItemIds.contains(id)) {
+						selectedItemIds.add(id)
+					}
+				}
+			} else if (selectedItemIds.contains(item.chapter.id)) {
 				selectedItemIds.remove(item.chapter.id)
 			} else {
 				selectedItemIds.add(item.chapter.id)
@@ -291,6 +322,30 @@ fun ChaptersScreenRoot(
 		onSelectionActionClick = handleSelectionAction,
 		onClearSelection = { selectedItemIds.clear() }
 	)
+}
+
+private fun resolveVisibleSelectionRange(
+	visibleChapterIds: List<Long>,
+	selectedIds: Set<Long>,
+	targetId: Long,
+): List<Long>? {
+	if (selectedIds.size != 2 || targetId in selectedIds) {
+		return null
+	}
+	val endpointIndexes = selectedIds.map { visibleChapterIds.indexOf(it) }
+	if (endpointIndexes.any { it == -1 }) {
+		return null
+	}
+	val targetIndex = visibleChapterIds.indexOf(targetId)
+	if (targetIndex == -1) {
+		return null
+	}
+	val start = endpointIndexes.minOrNull() ?: return null
+	val end = endpointIndexes.maxOrNull() ?: return null
+	if (targetIndex !in start..end) {
+		return null
+	}
+	return visibleChapterIds.subList(start, end + 1)
 }
 
 @Composable
