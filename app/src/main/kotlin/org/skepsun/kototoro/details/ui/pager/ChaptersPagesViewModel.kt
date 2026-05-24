@@ -103,6 +103,12 @@ abstract class ChaptersPagesViewModel(
 		valueProducer = { isChaptersGridView },
 	)
 
+	val isHideReadChapters = settings.observeAsStateFlow(
+		scope = viewModelScope + Dispatchers.Default,
+		key = AppSettings.KEY_HIDE_READ_CHAPTERS,
+		valueProducer = { isHideReadChapters },
+	)
+
 	val isDownloadedOnly = MutableStateFlow(false)
 
 	val newChaptersCount = mangaDetails.flatMapLatest { d ->
@@ -160,9 +166,12 @@ abstract class ChaptersPagesViewModel(
 	val chapters = combine(
 		combine(baseChaptersFlow, downloadInvalidation) { list, _ -> list },
 		isChaptersReversed,
+		isHideReadChapters,
 		chaptersQuery,
-	) { list, reversed, query ->
-		(if (reversed) list.asReversed() else list).filterSearch(query)
+	) { list, reversed, hideReadChapters, query ->
+		val ordered = if (reversed) list.asReversed() else list
+		val filtered = if (hideReadChapters) ordered.filterReadBeforeCurrent() else ordered
+		filtered.filterSearch(query)
 	}.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, emptyList())
 
 	protected fun notifyDownloadChanged() {
@@ -220,6 +229,10 @@ abstract class ChaptersPagesViewModel(
 
 	fun setChaptersInGridView(newValue: Boolean) {
 		settings.isChaptersGridView = newValue
+	}
+
+	fun setHideReadChapters(newValue: Boolean) {
+		settings.isHideReadChapters = newValue
 	}
 
 	fun setSelectedBranch(branch: String?) {
@@ -371,6 +384,16 @@ abstract class ChaptersPagesViewModel(
 			return this
 		}
 		return filter { it.contains(query) }
+	}
+
+	private fun List<ChapterListItem>.filterReadBeforeCurrent(): List<ChapterListItem> {
+		val currentIndex = indexOfFirst { it.isCurrent }
+		if (currentIndex <= 0) {
+			return this
+		}
+		return filterIndexed { index, item ->
+			index >= currentIndex || item.isUnread || item.isCurrent
+		}
 	}
 
 	private suspend fun onDownloadComplete(downloadedContent: LocalContent?) {

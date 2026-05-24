@@ -298,6 +298,7 @@ data class DetailsPrimaryUiState(
 data class ChaptersPaneControlsUiState(
 	val isChaptersReversed: Boolean = false,
 	val isChaptersInGridView: Boolean = false,
+	val isHideReadChapters: Boolean = false,
 	val isDownloadedOnly: Boolean = false,
 	val emptyReason: EmptyContentReason? = null,
 )
@@ -637,12 +638,14 @@ class DetailsViewModel @Inject constructor(
 	val chaptersPaneControlsUiState: StateFlow<ChaptersPaneControlsUiState> = combine(
 		isChaptersReversed,
 		isChaptersInGridView,
+		isHideReadChapters,
 		isDownloadedOnly,
 		emptyReason,
-	) { isChaptersReversed, isChaptersInGridView, isDownloadedOnly, emptyReason ->
+	) { isChaptersReversed, isChaptersInGridView, isHideReadChapters, isDownloadedOnly, emptyReason ->
 		ChaptersPaneControlsUiState(
 			isChaptersReversed = isChaptersReversed,
 			isChaptersInGridView = isChaptersInGridView,
+			isHideReadChapters = isHideReadChapters,
 			isDownloadedOnly = isDownloadedOnly,
 			emptyReason = emptyReason,
 		)

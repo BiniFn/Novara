@@ -224,6 +224,7 @@ fun DetailsScreen(
     val activeLocalBrowserContent = detailsPrimaryUiState.activeLocalBrowserContent
     val isChaptersReversed = chaptersPaneControlsUiState.isChaptersReversed
     val isChaptersInGridView = chaptersPaneControlsUiState.isChaptersInGridView
+    val isHideReadChapters = chaptersPaneControlsUiState.isHideReadChapters
     val isDownloadedOnly = chaptersPaneControlsUiState.isDownloadedOnly
     val chapterEmptyReason = chaptersPaneControlsUiState.emptyReason
     val activeLocalSourceOptions = sourceBindingUiState.activeLocalSourceOptions
@@ -910,6 +911,7 @@ fun DetailsScreen(
                         isChapterSearchAvailable = chapterEmptyReason == null,
                         isChaptersReversed = isChaptersReversed,
                         isChaptersInGridView = isChaptersInGridView,
+                        isHideReadChapters = isHideReadChapters,
                         isDownloadedOnly = isDownloadedOnly,
                         isDownloadedFilterVisible = mangaDetails?.local != null,
                         pageGridSizeValue = pageGridSizeValue,
@@ -917,6 +919,7 @@ fun DetailsScreen(
                         onChapterSearchToggle = toggleChapterSearch,
                         onToggleChaptersReversed = { viewModel.setChaptersReversed(!isChaptersReversed) },
                         onToggleChaptersGrid = { viewModel.setChaptersInGridView(!isChaptersInGridView) },
+                        onToggleHideReadChapters = { viewModel.setHideReadChapters(!isHideReadChapters) },
                         onToggleDownloadedOnly = { viewModel.isDownloadedOnly.value = !isDownloadedOnly },
                         onPageGridSizeChange = updatePageGridSize,
                         showCollapsedHandle = false,
@@ -1079,6 +1082,7 @@ fun DetailsScreen(
                         isChapterSearchAvailable = chapterEmptyReason == null,
                         isChaptersReversed = isChaptersReversed,
                         isChaptersInGridView = isChaptersInGridView,
+                        isHideReadChapters = isHideReadChapters,
                         isDownloadedOnly = isDownloadedOnly,
                         isDownloadedFilterVisible = mangaDetails?.local != null,
                         pageGridSizeValue = pageGridSizeValue,
@@ -1086,6 +1090,7 @@ fun DetailsScreen(
                         onChapterSearchToggle = toggleChapterSearch,
                         onToggleChaptersReversed = { viewModel.setChaptersReversed(!isChaptersReversed) },
                         onToggleChaptersGrid = { viewModel.setChaptersInGridView(!isChaptersInGridView) },
+                        onToggleHideReadChapters = { viewModel.setHideReadChapters(!isHideReadChapters) },
                         onToggleDownloadedOnly = { viewModel.isDownloadedOnly.value = !isDownloadedOnly },
                         onPageGridSizeChange = updatePageGridSize,
                         showCollapsedHandle = true,
@@ -2037,6 +2042,7 @@ private fun DetailsPaneContent(
     isChapterSearchAvailable: Boolean,
     isChaptersReversed: Boolean,
     isChaptersInGridView: Boolean,
+    isHideReadChapters: Boolean,
     isDownloadedOnly: Boolean,
     isDownloadedFilterVisible: Boolean,
     pageGridSizeValue: Float,
@@ -2044,6 +2050,7 @@ private fun DetailsPaneContent(
     onChapterSearchToggle: () -> Unit,
     onToggleChaptersReversed: () -> Unit,
     onToggleChaptersGrid: () -> Unit,
+    onToggleHideReadChapters: () -> Unit,
     onToggleDownloadedOnly: () -> Unit,
     onPageGridSizeChange: (Float) -> Unit,
     showCollapsedHandle: Boolean,
@@ -2176,12 +2183,14 @@ private fun DetailsPaneContent(
                         isChapterSearchAvailable = isChapterSearchAvailable,
                         isChaptersReversed = isChaptersReversed,
                         isChaptersInGridView = isChaptersInGridView,
+                        isHideReadChapters = isHideReadChapters,
                         isDownloadedOnly = isDownloadedOnly,
                         isDownloadedFilterVisible = isDownloadedFilterVisible,
                         pageGridSizeValue = pageGridSizeValue,
                         onChapterSearchToggle = onChapterSearchToggle,
                         onToggleChaptersReversed = onToggleChaptersReversed,
                         onToggleChaptersGrid = onToggleChaptersGrid,
+                        onToggleHideReadChapters = onToggleHideReadChapters,
                         onToggleDownloadedOnly = onToggleDownloadedOnly,
                         onPageGridSizeChange = onPageGridSizeChange,
                         showCollapsedHandle = showCollapsedHandle,
@@ -2240,12 +2249,14 @@ private fun DetailsPaneActionsRow(
     isChapterSearchAvailable: Boolean,
     isChaptersReversed: Boolean,
     isChaptersInGridView: Boolean,
+    isHideReadChapters: Boolean,
     isDownloadedOnly: Boolean,
     isDownloadedFilterVisible: Boolean,
     pageGridSizeValue: Float,
     onChapterSearchToggle: () -> Unit,
     onToggleChaptersReversed: () -> Unit,
     onToggleChaptersGrid: () -> Unit,
+    onToggleHideReadChapters: () -> Unit,
     onToggleDownloadedOnly: () -> Unit,
     onPageGridSizeChange: (Float) -> Unit,
     showCollapsedHandle: Boolean,
@@ -2376,11 +2387,13 @@ private fun DetailsPaneActionsRow(
                                 isSearchActive = isChapterSearchVisible,
                                 isChaptersReversed = isChaptersReversed,
                                 isChaptersInGridView = isChaptersInGridView,
+                                isHideReadChapters = isHideReadChapters,
                                 isDownloadedOnly = isDownloadedOnly,
                                 isDownloadedFilterVisible = isDownloadedFilterVisible,
                                 onSearchClick = onChapterSearchToggle,
                                 onToggleChaptersReversed = onToggleChaptersReversed,
                                 onToggleChaptersGrid = onToggleChaptersGrid,
+                                onToggleHideReadChapters = onToggleHideReadChapters,
                                 onToggleDownloadedOnly = onToggleDownloadedOnly,
                                 onShowGridSizeControls = detailsPaneState::showGridSizeControls,
                             )
@@ -2411,11 +2424,13 @@ private fun DetailsPaneActionsRow(
                                 isSearchActive = isChapterSearchVisible,
                                 isChaptersReversed = isChaptersReversed,
                                 isChaptersInGridView = isChaptersInGridView,
+                                isHideReadChapters = isHideReadChapters,
                                 isDownloadedOnly = isDownloadedOnly,
                                 isDownloadedFilterVisible = isDownloadedFilterVisible,
                                 onSearchClick = onChapterSearchToggle,
                                 onToggleChaptersReversed = onToggleChaptersReversed,
                                 onToggleChaptersGrid = onToggleChaptersGrid,
+                                onToggleHideReadChapters = onToggleHideReadChapters,
                                 onToggleDownloadedOnly = onToggleDownloadedOnly,
                                 onShowGridSizeControls = detailsPaneState::showGridSizeControls,
                             )
@@ -2582,11 +2597,13 @@ private fun ExpandedPaneUtilityDock(
     isSearchActive: Boolean,
     isChaptersReversed: Boolean,
     isChaptersInGridView: Boolean,
+    isHideReadChapters: Boolean,
     isDownloadedOnly: Boolean,
     isDownloadedFilterVisible: Boolean,
     onSearchClick: () -> Unit,
     onToggleChaptersReversed: () -> Unit,
     onToggleChaptersGrid: () -> Unit,
+    onToggleHideReadChapters: () -> Unit,
     onToggleDownloadedOnly: () -> Unit,
     onShowGridSizeControls: () -> Unit,
 ) {
@@ -2651,6 +2668,16 @@ private fun ExpandedPaneUtilityDock(
                         onClick = {
                             expanded = false
                             onToggleChaptersGrid()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.hide_read_chapters)) },
+                        leadingIcon = {
+                            MenuSelectionIndicator(selected = isHideReadChapters)
+                        },
+                        onClick = {
+                            expanded = false
+                            onToggleHideReadChapters()
                         },
                     )
                     if (isChaptersInGridView) {

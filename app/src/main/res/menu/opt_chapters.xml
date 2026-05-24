@@ -21,6 +21,13 @@
 		app:showAsAction="never" />
 
 	<item
+		android:id="@+id/action_hide_read_chapters"
+		android:checkable="true"
+		android:orderInCategory="19"
+		android:title="@string/hide_read_chapters"
+		app:showAsAction="never" />
+
+	<item
 		android:id="@+id/action_reversed"
 		android:checkable="true"
 		android:orderInCategory="20"
