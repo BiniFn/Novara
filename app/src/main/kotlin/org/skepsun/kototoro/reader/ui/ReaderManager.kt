@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.reader.ui
 
 import android.content.res.Configuration
+import android.util.Log
 import androidx.fragment.app.FragmentContainerView
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.commit
@@ -40,6 +41,11 @@ class ReaderManager(
 
 	fun replace(newMode: ReaderMode) {
 		val readerClass = requireNotNull(modeMap[newMode])
+		Log.d(
+			LOG_TAG,
+			"replace: newMode=$newMode, readerClass=${readerClass.simpleName}, " +
+				"currentReader=${currentReader?.javaClass?.simpleName}, currentMode=$currentMode",
+		)
 		fragmentManager.commit {
 			setReorderingAllowed(true)
 			replace(container.id, readerClass, null, null)
@@ -51,6 +57,11 @@ class ReaderManager(
 		val prevReader = currentReader?.javaClass
 		invalidateTypesMap(isEnabled)
 		val newReader = modeMap[mode]
+		Log.d(
+			LOG_TAG,
+			"setDoubleReaderMode: isEnabled=$isEnabled, mode=$mode, " +
+				"prevReader=${prevReader?.simpleName}, newReader=${newReader?.simpleName}",
+		)
 		if (mode != null && newReader != prevReader) {
 			replace(mode)
 		}
@@ -72,4 +83,8 @@ class ReaderManager(
 	}
 
 	private fun isLandscape() = container.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+	companion object {
+		private const val LOG_TAG = "ReaderDebug"
+	}
 }

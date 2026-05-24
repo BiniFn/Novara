@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.reader.ui.pager.reversed
 
+import android.util.Log
 import androidx.viewpager2.widget.ViewPager2
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -42,12 +43,38 @@ class ReversedReaderFragment : BasePagerReaderFragment() {
 		super.onPagesChanged(pages.reversed(), pendingState)
 	}
 
+	override fun getCurrentState(): ReaderState? = viewBinding?.run {
+		val itemCount = readerAdapter?.itemCount ?: return@run null
+		if (itemCount <= 0) {
+			return@run null
+		}
+		val adapterPosition = pager.currentItem.coerceIn(0, itemCount - 1)
+		val contentPosition = reversed(adapterPosition)
+		val page = viewModel.content.value.pages.getOrNull(contentPosition) ?: return@run null
+		val state = ReaderState(
+			chapterId = page.chapterId,
+			page = page.index,
+			scroll = 0,
+		)
+		Log.d(
+			LOG_TAG,
+			"reversedPager.getCurrentState: adapterPosition=$adapterPosition, " +
+				"contentPosition=$contentPosition, page=${page.chapterId}:${page.index}, state=$state",
+		)
+		state
+	}
+
 	override fun notifyPageChanged(page: Int) {
 		val pos = reversed(page)
+		Log.d(LOG_TAG, "reversedPager.notifyPageChanged: adapterPosition=$page, contentPosition=$pos")
 		viewModel.onCurrentPageChanged(pos, pos)
 	}
 
 	private fun reversed(position: Int): Int {
 		return ((readerAdapter?.itemCount ?: 0) - position - 1).coerceAtLeast(0)
+	}
+
+	companion object {
+		private const val LOG_TAG = "ReaderDebug"
 	}
 }

@@ -175,6 +175,9 @@ class ReaderViewModel @Inject constructor(
 
     // 避免切换章节/模式后首次 onCurrentPageChanged 触发边界加载，将其忽略一次
     private val skipBoundaryLoadOnce = AtomicBoolean(false)
+    private val suppressTransientCrossChapterUpdates = AtomicBoolean(false)
+    @Volatile
+    private var transientRestoreAnchorState: ReaderState? = null
 
     val pageAnimation = settings.observeAsStateFlow(
         scope = viewModelScope + Dispatchers.Default,
@@ -465,6 +468,10 @@ class ReaderViewModel @Inject constructor(
 
     fun saveCurrentState(state: ReaderState? = null) {
         if (state != null) {
+            Log.d(
+                LOG_TAG,
+                "saveCurrentState: incoming=$state, previous=${readingState.value}",
+            )
             readingState.value = state
             savedStateHandle[ReaderIntent.EXTRA_STATE] = state
         }
@@ -488,6 +495,22 @@ class ReaderViewModel @Inject constructor(
 
     fun skipBoundaryLoadNext() {
         skipBoundaryLoadOnce.set(true)
+        suppressTransientCrossChapterUpdates.set(true)
+    }
+
+    fun beginTransientStateSuppression(anchorState: ReaderState?) {
+        transientRestoreAnchorState = anchorState
+        suppressTransientCrossChapterUpdates.set(anchorState != null)
+        Log.d(
+            LOG_TAG,
+            "beginTransientStateSuppression: anchorState=$anchorState",
+        )
+    }
+
+    fun clearTransientCrossChapterSuppression() {
+        suppressTransientCrossChapterUpdates.set(false)
+        transientRestoreAnchorState = null
+        Log.d(LOG_TAG, "clearTransientCrossChapterSuppression")
     }
 
     fun saveCurrentPage(
@@ -526,10 +549,18 @@ class ReaderViewModel @Inject constructor(
         val prevJob = loadingJob
         loadingJob = launchLoadingJob(Dispatchers.Default) {
             prevJob?.cancelAndJoin()
+            Log.d(
+                LOG_TAG,
+                "switchChapter: targetChapterId=$id, targetPage=$page, previousState=${readingState.value}",
+            )
             content.value = ReaderContent(emptyList(), null)
             chaptersLoader.loadSingleChapter(id)
             val newState = ReaderState(id, page, 0)
             content.value = ReaderContent(getSplitPagesSnapshot(), newState)
+            Log.d(
+                LOG_TAG,
+                "switchChapter: loaded targetChapterId=$id, pages=${content.value.pages.size}, newState=$newState",
+            )
             saveCurrentState(newState)
         }
     }
@@ -550,6 +581,10 @@ class ReaderViewModel @Inject constructor(
             } else {
                 prevState.chapterId
             }
+            Log.d(
+                LOG_TAG,
+                "switchChapterBy: delta=$delta, prevState=$prevState, newChapterId=$newChapterId",
+            )
             content.value = ReaderContent(emptyList(), null)
             chaptersLoader.loadSingleChapter(newChapterId)
             val newState = ReaderState(
@@ -559,6 +594,10 @@ class ReaderViewModel @Inject constructor(
             )
             skipBoundaryLoadOnce.set(true)
             content.value = ReaderContent(getSplitPagesSnapshot(), newState)
+            Log.d(
+                LOG_TAG,
+                "switchChapterBy: applied newState=$newState, pages=${content.value.pages.size}",
+            )
             saveCurrentState(newState)
         }
     }
@@ -570,29 +609,55 @@ class ReaderViewModel @Inject constructor(
         targetPagePosition.value = null
         stateChangeJob = launchJob(Dispatchers.Default) {
             prevJob?.cancelAndJoin()
-            val centerPos = (lowerPos + upperPos) / 2
-            val selectedPos = if (lowerPos >= 0 && upperPos >= 0 && pages.isNotEmpty()) {
-                val lastIndex = pages.lastIndex
-                val safeLower = lowerPos.coerceIn(0, lastIndex)
-                val safeUpper = upperPos.coerceIn(0, lastIndex)
-                when {
-                    safeUpper >= lastIndex - BOUNDS_PAGE_OFFSET -> safeUpper
-                    safeLower <= BOUNDS_PAGE_OFFSET -> safeLower
-                    else -> (safeLower + safeUpper) / 2
-                }
-            } else {
-                centerPos
-            }
+            val selectedPos = resolveVisiblePageSelection(
+                pages = pages,
+                lowerPos = lowerPos,
+                upperPos = upperPos,
+                currentChapterId = readingState.value?.chapterId,
+                boundsPageOffset = BOUNDS_PAGE_OFFSET,
+            )
+            val selectedPage = pages.getOrNull(selectedPos)
             Log.d(
                 LOG_TAG,
                 "onCurrentPageChanged: lower=$lowerPos, upper=$upperPos, selected=$selectedPos, " +
-                    "pages=${pages.size}, skipBoundary=${skipBoundaryLoadOnce.get()}",
+                    "selectedPage=${selectedPage?.chapterId}:${selectedPage?.index}, " +
+                    "currentState=${readingState.value}, pages=${pages.size}, " +
+                    "skipBoundary=${skipBoundaryLoadOnce.get()}, anchorState=$transientRestoreAnchorState, " +
+                    "suppressTransientCrossChapter=${suppressTransientCrossChapterUpdates.get()}",
             )
-            pages.getOrNull(selectedPos)?.let { page ->
+            val currentState = readingState.value
+            val anchorState = transientRestoreAnchorState ?: currentState
+            if (
+                suppressTransientCrossChapterUpdates.get() &&
+                anchorState != null &&
+                selectedPage != null &&
+                pages.any { it.chapterId == anchorState.chapterId && it.index == anchorState.page } &&
+                (
+                    selectedPage.chapterId != anchorState.chapterId ||
+                        kotlin.math.abs(selectedPage.index - anchorState.page) > 1
+                    )
+            ) {
+                Log.d(
+                    LOG_TAG,
+                    "onCurrentPageChanged: ignore transient restore update " +
+                        "selected=${selectedPage.chapterId}:${selectedPage.index}, " +
+                        "anchor=${anchorState.chapterId}:${anchorState.page}",
+                )
+                return@launchJob
+            }
+            selectedPage?.let { page ->
                 readingState.update { cs ->
                     cs?.copy(chapterId = page.chapterId, page = page.index)
                 }
                 updateTranslationStateForCurrentPage(page.id)
+                if (
+                    suppressTransientCrossChapterUpdates.get() &&
+                    anchorState != null &&
+                    page.chapterId == anchorState.chapterId &&
+                    kotlin.math.abs(page.index - anchorState.page) <= 1
+                ) {
+                    clearTransientCrossChapterSuppression()
+                }
             }
             notifyStateChanged()
             val currentLoadingJob = loadingJob
@@ -783,6 +848,11 @@ class ReaderViewModel @Inject constructor(
             Log.d(LOG_TAG, "loadPrevNextChapter: currentId=$currentId, isNext=$isNext")
             chaptersLoader.loadPrevNextChapter(mangaDetails.requireValue(), currentId, isNext)
             content.value = ReaderContent(getSplitPagesSnapshot(), null)
+            Log.d(
+                LOG_TAG,
+                "loadPrevNextChapter: completed currentId=$currentId, isNext=$isNext, " +
+                    "snapshotSize=${content.value.pages.size}, currentState=${readingState.value}",
+            )
         }
     }
 

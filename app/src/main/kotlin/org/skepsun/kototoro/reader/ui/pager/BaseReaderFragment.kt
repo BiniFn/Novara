@@ -58,6 +58,7 @@ abstract class BaseReaderFragment<B : ViewBinding> : BaseFragment<B>(), ZoomCont
 				"onContent: pages=${it.pages.size}, contentState=${it.state}, " +
 					"currentState=$currentState, pendingState=$pendingState",
 			)
+			viewModel.beginTransientStateSuppression(pendingState)
 			onPagesChanged(it.pages, pendingState)
 		}
 	}
@@ -66,13 +67,32 @@ abstract class BaseReaderFragment<B : ViewBinding> : BaseFragment<B>(), ZoomCont
 
 	override fun onPause() {
 		super.onPause()
-		viewModel.saveCurrentState(getCurrentState())
+		saveReaderStateForLifecycle("onPause")
 	}
 
 	override fun onDestroyView() {
-		viewModel.saveCurrentState(getCurrentState())
+		Log.d(
+			LOG_TAG,
+			"onDestroyView: persist existing state only=${viewModel.getCurrentState()}",
+		)
+		viewModel.saveCurrentState()
 		readerAdapter = null
 		super.onDestroyView()
+	}
+
+	private fun saveReaderStateForLifecycle(source: String) {
+		val activity = activity
+		if (activity?.isChangingConfigurations == true) {
+			Log.d(
+				LOG_TAG,
+				"$source: activity is changing configurations, keep existing state=${viewModel.getCurrentState()}",
+			)
+			viewModel.saveCurrentState()
+			return
+		}
+		val state = getCurrentState()
+		Log.d(LOG_TAG, "$source: saving fragment state=$state")
+		viewModel.saveCurrentState(state)
 	}
 
 	protected fun requireAdapter() = checkNotNull(readerAdapter) {

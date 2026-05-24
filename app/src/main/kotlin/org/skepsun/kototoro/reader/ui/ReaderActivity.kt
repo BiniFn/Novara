@@ -5,6 +5,7 @@ import android.content.DialogInterface
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
+import android.util.Log
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -461,7 +462,13 @@ class ReaderActivity :
     }
 
     override fun onReaderModeChanged(mode: ReaderMode) {
-        viewModel.saveCurrentState(readerManager.currentReader?.getCurrentState())
+        val stateBeforeSwitch = readerManager.currentReader?.getCurrentState()
+        Log.d(
+            LOG_TAG,
+            "onReaderModeChanged: mode=$mode, currentMode=${readerManager.currentMode}, " +
+                "stateBeforeSwitch=$stateBeforeSwitch, reader=${readerManager.currentReader?.javaClass?.simpleName}",
+        )
+        viewModel.saveCurrentState(stateBeforeSwitch)
         viewModel.switchMode(mode)
         viewBinding.timerControl.onReaderModeChanged(mode)
     }
@@ -492,10 +499,32 @@ class ReaderActivity :
         val autoFoldable = settings.isReaderDoubleOnFoldable && isFoldUnfolded && isSuitableForDual
         val manualLandscape = (manualEnabled ?: settings.isReaderDoubleOnLandscape) && isLandscape && isSuitableForDual
         val autoSplitScreen = settings.isReaderDoubleOnFoldable && isSuitableForDual && !isLandscape
-        
+
         val autoEnabled = autoFoldable || manualLandscape || autoSplitScreen
+        Log.d(
+            LOG_TAG,
+            "applyDoubleModeAuto: manualEnabled=$manualEnabled, isLandscape=$isLandscape, " +
+                "window=${windowWidth}x${windowHeight}, aspectRatio=$aspectRatio, " +
+                "isSuitableForDual=$isSuitableForDual, isFoldUnfolded=$isFoldUnfolded, " +
+                "autoFoldable=$autoFoldable, manualLandscape=$manualLandscape, " +
+                "autoSplitScreen=$autoSplitScreen, autoEnabled=$autoEnabled, " +
+                "currentMode=${readerManager.currentMode}, reader=${readerManager.currentReader?.javaClass?.simpleName}, " +
+                "viewModelState=${viewModel.getCurrentState()}, fragmentState=${readerManager.currentReader?.getCurrentState()}",
+        )
         isDoubleReaderMode = autoEnabled
         readerManager.setDoubleReaderMode(autoEnabled)
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        Log.d(
+            LOG_TAG,
+            "onConfigurationChanged: orientation=${newConfig.orientation}, " +
+                "isDoubleReaderMode=$isDoubleReaderMode, currentMode=${readerManager.currentMode}, " +
+                "reader=${readerManager.currentReader?.javaClass?.simpleName}, " +
+                "viewModelState=${viewModel.getCurrentState()}, fragmentState=${readerManager.currentReader?.getCurrentState()}",
+        )
+        applyDoubleModeAuto()
     }
 
 
@@ -575,6 +604,11 @@ class ReaderActivity :
     }
 
     override fun switchChapterBy(delta: Int) {
+        Log.d(
+            LOG_TAG,
+            "switchChapterBy: delta=$delta, currentState=${viewModel.getCurrentState()}, " +
+                "reader=${readerManager.currentReader?.javaClass?.simpleName}",
+        )
         viewModel.switchChapterBy(delta)
     }
 
@@ -1023,6 +1057,7 @@ class ReaderActivity :
 
     companion object {
 
+        private const val LOG_TAG = "ReaderDebug"
         private const val TOAST_DURATION = 2000L
         private const val TRANSLATION_PROGRESS_MIN_INTERVAL_MS = 800L
     }

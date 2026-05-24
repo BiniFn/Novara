@@ -99,7 +99,9 @@ open class DoubleReaderFragment : BaseReaderFragment<FragmentReaderDoubleBinding
 			}
 			Log.d(
 				LOG_TAG,
-				"double.onPagesChanged: pages=${pages.size}, pending=$pendingState, pos=$position",
+				"double.onPagesChanged: pages=${pages.size}, pending=$pendingState, pos=$position, " +
+					"firstPage=${pages.firstOrNull()?.chapterId}:${pages.firstOrNull()?.index}, " +
+					"lastPage=${pages.lastOrNull()?.chapterId}:${pages.lastOrNull()?.index}",
 			)
 			items.join()
 			if (position != -1) {
@@ -162,20 +164,33 @@ open class DoubleReaderFragment : BaseReaderFragment<FragmentReaderDoubleBinding
 
 	override fun getCurrentState(): ReaderState? = viewBinding?.run {
 		val adapter = recyclerView.adapter as? BaseReaderAdapter<*>
-		val page = adapter?.getItemOrNull(getCurrentItem()) ?: return@run null
-		ReaderState(
+		val currentItem = getCurrentItem()
+		val page = adapter?.getItemOrNull(currentItem) ?: return@run null
+		val state = ReaderState(
 			chapterId = page.chapterId,
 			page = page.index,
 			scroll = 0,
 		)
+		Log.d(
+			LOG_TAG,
+			"double.getCurrentState: currentItem=$currentItem, page=${page.chapterId}:${page.index}, state=$state",
+		)
+		state
 	}
 
 	protected open fun notifyPageChanged(lowerPos: Int, upperPos: Int) {
+		Log.d(LOG_TAG, "double.notifyPageChanged: lower=$lowerPos, upper=$upperPos")
 		viewModel.onCurrentPageChanged(lowerPos, upperPos)
 	}
 
-	private fun getCurrentItem() = (requireViewBinding().recyclerView.layoutManager as LinearLayoutManager)
-		.findFirstCompletelyVisibleItemPosition().toPagePosition()
+	private fun getCurrentItem(): Int {
+		val lm = requireViewBinding().recyclerView.layoutManager as LinearLayoutManager
+		return resolveCurrentDoublePageViewport(
+			firstCompletelyVisibleItemPosition = lm.findFirstCompletelyVisibleItemPosition(),
+			firstVisibleItemPosition = lm.findFirstVisibleItemPosition(),
+			itemCount = readerAdapter?.itemCount ?: 0,
+		)?.lowerPos ?: RecyclerView.NO_POSITION
+	}
 
 	private fun Int.toPagePosition() = this and 1.inv()
 
@@ -192,8 +207,13 @@ open class DoubleReaderFragment : BaseReaderFragment<FragmentReaderDoubleBinding
 				lastPos = RecyclerView.NO_POSITION
 				return
 			}
-			val newFirstPos = lm.findFirstVisibleItemPosition()
-			val newLastPos = lm.findLastVisibleItemPosition()
+			val viewport = resolveCurrentDoublePageViewport(
+				firstCompletelyVisibleItemPosition = lm.findFirstCompletelyVisibleItemPosition(),
+				firstVisibleItemPosition = lm.findFirstVisibleItemPosition(),
+				itemCount = recyclerView.adapter?.itemCount ?: 0,
+			)
+			val newFirstPos = viewport?.lowerPos ?: RecyclerView.NO_POSITION
+			val newLastPos = viewport?.upperPos ?: RecyclerView.NO_POSITION
 			if (newFirstPos != firstPos || newLastPos != lastPos) {
 				firstPos = newFirstPos
 				lastPos = newLastPos
