@@ -535,6 +535,7 @@ private fun premiumIconResId(itemId: Int, isSelected: Boolean): Int {
 
 private fun navEnterAnimationResId(itemId: Int): Int? {
     return when (itemId) {
+        R.id.nav_home -> R.drawable.avd_home_enter
         R.id.nav_history -> R.drawable.avd_history_enter
         R.id.nav_feed -> R.drawable.avd_feed_enter
         R.id.nav_explore -> R.drawable.avd_explore_enter

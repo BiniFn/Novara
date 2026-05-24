@@ -435,6 +435,7 @@ class ReaderActivity :
 
     override fun onChapterSelected(chapter: ContentChapter): Boolean {
         dismissChapterPagesSheet()
+        viewModel.recordExplicitJump(ReaderState(chapter.id, 0, 0), "chapter_list")
         viewModel.switchChapter(chapter.id, 0)
         return true
     }
@@ -446,9 +447,11 @@ class ReaderActivity :
             val index = pages.indexOfFirst { it.chapterId == page.chapterId && it.id == page.id }
             if (index != -1) {
                 withContext(Dispatchers.Main) {
+                    viewModel.recordExplicitJump(ReaderState(page.chapterId, page.index, 0), "page")
                     readerManager.currentReader?.switchPageTo(index, true)
                 }
             } else {
+                viewModel.recordExplicitJump(ReaderState(page.chapterId, page.index, 0), "page")
                 viewModel.switchChapter(page.chapterId, page.index)
             }
         }

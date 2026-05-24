@@ -207,34 +207,39 @@ fun AppNavGraph(
                         navigateToDetailsWithContent(content, sharedElementKey)
                     }
                 }
+                val markReturnHomeOnBack = remember(navController) {
+                    {
+                        navController.currentBackStackEntry
+                            ?.savedStateHandle
+                            ?.set(RETURN_HOME_ON_BACK_KEY, true)
+                        Unit
+                    }
+                }
                 val onHomeSettingsClick = remember(appRouter) { { appRouter.openSettings() } }
                 val onHomeReaderSettingsClick = remember(appRouter) { { appRouter.openReaderSettings() } }
                 val onHomeSyncSettingsClick = remember(appRouter) { { appRouter.openSyncSettings() } }
-                val onHomeViewAllRecentClick = remember(navController) {
+                val onHomeViewAllRecentClick = remember(navController, markReturnHomeOnBack) {
                     {
                         navController.navigate(HistoryRoute) {
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
                             launchSingleTop = true
-                            restoreState = true
                         }
+                        markReturnHomeOnBack()
                     }
                 }
-                val onHomeViewAllUpdatesClick = remember(navController) {
+                val onHomeViewAllUpdatesClick = remember(navController, markReturnHomeOnBack) {
                     {
                         navController.navigate(UpdatedRoute) {
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
                             launchSingleTop = true
-                            restoreState = true
                         }
+                        markReturnHomeOnBack()
                     }
                 }
-                val onHomeViewAllRecommendationsClick = remember(navController) {
+                val onHomeViewAllRecommendationsClick = remember(navController, markReturnHomeOnBack) {
                     {
                         navController.navigate(SuggestionsRoute) {
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
                             launchSingleTop = true
-                            restoreState = true
                         }
+                        markReturnHomeOnBack()
                     }
                 }
                 val onHomeRecentSearchClick = remember(onOpenSearch) {
@@ -254,31 +259,28 @@ fun AppNavGraph(
                     }
                 }
                 val onHomeSourceSettingsClick = remember(appRouter) { { appRouter.openSourcesSettings() } }
-                val onHomeLibraryOpenClick = remember(navController) {
+                val onHomeLibraryOpenClick = remember(navController, markReturnHomeOnBack) {
                     {
                         navController.navigate(FavoritesRoute) {
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
                             launchSingleTop = true
-                            restoreState = true
                         }
+                        markReturnHomeOnBack()
                     }
                 }
-                val onHomeBookmarksClick = remember(navController) {
+                val onHomeBookmarksClick = remember(navController, markReturnHomeOnBack) {
                     {
                         navController.navigate(BookmarksRoute) {
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
                             launchSingleTop = true
-                            restoreState = true
                         }
+                        markReturnHomeOnBack()
                     }
                 }
-                val onHomeLocalClick = remember(navController) {
+                val onHomeLocalClick = remember(navController, markReturnHomeOnBack) {
                     {
                         navController.navigate(LocalRoute) {
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
                             launchSingleTop = true
-                            restoreState = true
                         }
+                        markReturnHomeOnBack()
                     }
                 }
                 val onHomeDownloadsClick = remember(appRouter) { { appRouter.openDownloads() } }

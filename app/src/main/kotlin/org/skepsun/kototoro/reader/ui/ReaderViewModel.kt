@@ -65,6 +65,7 @@ import org.skepsun.kototoro.parsers.model.ContentPage
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.parsers.util.sizeOrZero
+import org.skepsun.kototoro.readingrecord.data.ReadingRecordRepository
 import org.skepsun.kototoro.reader.domain.ChaptersLoader
 import org.skepsun.kototoro.reader.domain.DetectReaderModeUseCase
 import org.skepsun.kototoro.reader.domain.PageLoader
@@ -97,6 +98,7 @@ class ReaderViewModel @Inject constructor(
     private val appShortcutManager: AppShortcutManager,
     private val detailsLoadUseCase: DetailsLoadUseCase,
     private val historyUpdateUseCase: HistoryUpdateUseCase,
+    private val readingRecordRepository: ReadingRecordRepository,
     private val detectReaderModeUseCase: DetectReaderModeUseCase,
     private val statsCollector: StatsCollector,
     private val discordRpc: DiscordRpc,
@@ -166,6 +168,9 @@ class ReaderViewModel @Inject constructor(
     private val translationStateByPageId = linkedMapOf<Long, TranslationLayerState>()
     private val translationStateUpdatedAtByPageId = linkedMapOf<Long, Long>()
     private val pageReloadNonces = linkedMapOf<Long, Long>()
+    private var sessionStartAt: Long = 0L
+    private var sessionStartState: ReaderState? = null
+    private var sessionStartPercent: Float = PROGRESS_NONE
 
     val isIncognitoMode = MutableStateFlow(savedStateHandle.get<Boolean>(ReaderIntent.EXTRA_INCOGNITO))
 
@@ -439,6 +444,7 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun onPause() {
+        finishReadingSession()
         getContentOrNull()?.let {
             statsCollector.onPause(it.id)
         }
@@ -479,6 +485,7 @@ class ReaderViewModel @Inject constructor(
             return
         }
         val readerState = state ?: readingState.value ?: return
+        ensureReadingSession(readerState)
         historyUpdateUseCase.invokeAsync(
             manga = getContentOrNull() ?: return,
             readerState = readerState,
@@ -960,6 +967,87 @@ class ReaderViewModel @Inject constructor(
         val pagePercent = (pageIndex + 1) / pagesCount.toFloat()
         val ppc = 1f / chaptersCount
         return ppc * chapterIndex + ppc * pagePercent
+    }
+
+    fun recordExplicitJump(toState: ReaderState, source: String) {
+        val fromState = readingState.value ?: return
+        finishReadingSession(allowShort = true, continueFromEnd = false)
+        recordJumpPointIfNeeded(fromState, toState, source, force = true)
+    }
+
+    private fun ensureReadingSession(state: ReaderState) {
+        if (sessionStartState != null) return
+        sessionStartAt = System.currentTimeMillis()
+        sessionStartState = state
+        sessionStartPercent = computePercent(state.chapterId, state.page)
+    }
+
+    private fun finishReadingSession(
+        allowShort: Boolean = false,
+        continueFromEnd: Boolean = true,
+    ) {
+        if (isIncognitoMode.value != false) return
+        val manga = getContentOrNull() ?: return
+        val startState = sessionStartState ?: readingState.value ?: return
+        val endState = readingState.value ?: startState
+        val startAt = sessionStartAt.takeIf { it > 0L } ?: System.currentTimeMillis()
+        val endAt = System.currentTimeMillis()
+        val startPercent = sessionStartPercent
+        val endPercent = computePercent(endState.chapterId, endState.page)
+        if (continueFromEnd) {
+            sessionStartAt = endAt
+            sessionStartState = endState
+            sessionStartPercent = endPercent
+        } else {
+            sessionStartAt = 0L
+            sessionStartState = null
+            sessionStartPercent = PROGRESS_NONE
+        }
+        launchJob(Dispatchers.Default) {
+            readingRecordRepository.recordSession(
+                manga = manga,
+                startAt = startAt,
+                endAt = endAt,
+                startState = startState,
+                startPercent = startPercent,
+                endState = endState,
+                endPercent = endPercent,
+                allowShort = allowShort,
+            )
+        }
+    }
+
+    private fun recordJumpPointIfNeeded(
+        fromState: ReaderState?,
+        toState: ReaderState,
+        source: String,
+        force: Boolean = false,
+    ) {
+        if (isIncognitoMode.value != false) return
+        val manga = getContentOrNull() ?: return
+        val from = fromState ?: return
+        if (from == toState || (!force && !isExplicitJump(from, toState))) return
+        launchJob(Dispatchers.Default) {
+            readingRecordRepository.recordJumpPoint(
+                manga = manga,
+                fromState = from,
+                fromPercent = computePercent(from.chapterId, from.page),
+                toState = toState,
+                toPercent = computePercent(toState.chapterId, toState.page),
+                source = source,
+            )
+        }
+    }
+
+    private fun isExplicitJump(fromState: ReaderState, toState: ReaderState): Boolean {
+        if (fromState.chapterId == toState.chapterId) {
+            return kotlin.math.abs(fromState.page - toState.page) > 1
+        }
+        val chapters = mangaDetails.value?.allChapters.orEmpty()
+        val fromIndex = chapters.indexOfFirst { it.id == fromState.chapterId }
+        val toIndex = chapters.indexOfFirst { it.id == toState.chapterId }
+        if (fromIndex < 0 || toIndex < 0) return true
+        return kotlin.math.abs(fromIndex - toIndex) > 1
     }
 
     private fun observeIsWebtoonZoomEnabled() = settings.observeAsFlow(

@@ -13,6 +13,7 @@ import org.skepsun.kototoro.bookmarks.domain.Bookmark
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.nav.ReaderIntent
 import org.skepsun.kototoro.core.util.ext.findActivity
+import org.skepsun.kototoro.details.ui.DetailsViewModel
 import org.skepsun.kototoro.details.ui.compose.state.DetailsPaneState
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
 import org.skepsun.kototoro.details.ui.pager.bookmarks.BookmarksViewModel
@@ -57,10 +58,12 @@ fun BookmarksScreenRoot(
 				if (navigationCallback?.onBookmarkSelected(bookmark) == true) {
 					return@BookmarksScreen
 				}
+				val targetState = org.skepsun.kototoro.reader.ui.ReaderState(bookmark.chapterId, bookmark.page, bookmark.scroll)
+				(activityViewModel as? DetailsViewModel)?.recordDetailsJump(targetState, "detail_bookmark")
 				router.openReader(
 					ReaderIntent.Builder(context)
 						.manga(bookmark.manga)
-						.state(org.skepsun.kototoro.reader.ui.ReaderState(bookmark.chapterId, bookmark.page, bookmark.scroll))
+						.state(targetState)
 						.build(),
 				)
 			}

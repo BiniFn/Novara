@@ -20,6 +20,8 @@ object AppRouteNames {
     const val DETAILS = "details"
 }
 
+internal const val RETURN_HOME_ON_BACK_KEY = "return_home_on_back"
+
 @Serializable
 @SerialName(AppRouteNames.HOME)
 data object HomeRoute

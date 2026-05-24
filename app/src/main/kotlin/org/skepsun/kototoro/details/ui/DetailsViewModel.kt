@@ -99,6 +99,8 @@ import org.skepsun.kototoro.parsers.model.SortOrder
 import org.skepsun.kototoro.parsers.util.findById
 import org.skepsun.kototoro.parsers.util.ifNullOrEmpty
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.readingrecord.data.ReadingRecordRepository
+import org.skepsun.kototoro.readingrecord.data.ReadingRecordSnapshot
 import org.skepsun.kototoro.reader.ui.ReaderState
 import org.skepsun.kototoro.scrobbling.common.domain.Scrobbler
 import org.skepsun.kototoro.scrobbling.common.domain.tryScrobble
@@ -399,6 +401,7 @@ private data class DetailsPaneSummaryUiState(
 class DetailsViewModel @Inject constructor(
 	@ApplicationContext private val context: Context,
 	private val historyRepository: HistoryRepository,
+	private val readingRecordRepository: ReadingRecordRepository,
 	bookmarksRepository: BookmarksRepository,
 	settings: AppSettings,
 	private val scrobblers: Set<@JvmSuppressWildcards Scrobbler>,
@@ -2082,6 +2085,39 @@ class DetailsViewModel @Inject constructor(
 	val isStatsAvailable = activeMangaIdFlow.filterNotNull().flatMapLatest { statsRepository.observeHasStats(it) }
 		.withErrorHandling()
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, false)
+
+	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+	val readingRecordSnapshot: StateFlow<ReadingRecordSnapshot> = activeMangaIdFlow
+		.filterNotNull()
+		.flatMapLatest { readingRecordRepository.observeSnapshot(it) }
+		.withErrorHandling()
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, ReadingRecordSnapshot())
+
+	fun recordDetailsJump(toState: ReaderState, source: String) {
+		val fromState = readingState.value ?: return
+		if (fromState == toState) return
+		val manga = getContentOrNull() ?: return
+		launchJob(Dispatchers.Default) {
+			readingRecordRepository.recordJumpPoint(
+				manga = manga,
+				fromState = fromState,
+				fromPercent = estimateProgress(fromState),
+				toState = toState,
+				toPercent = estimateProgress(toState),
+				source = source,
+				force = true,
+			)
+		}
+	}
+
+	private fun estimateProgress(state: ReaderState): Float {
+		val chapters = mangaDetails.value?.allChapters.orEmpty()
+		if (chapters.isEmpty()) return 0f
+		val chapterIndex = chapters.indexOfFirst { it.id == state.chapterId }
+		if (chapterIndex < 0) return 0f
+		val chapterProgress = (state.scroll / 10000f).coerceIn(0f, 1f)
+		return ((chapterIndex + chapterProgress) / chapters.size).coerceIn(0f, 1f)
+	}
 
 	val isMarkedSafe = MutableStateFlow(false)
 

@@ -95,6 +95,7 @@ internal fun handleDetailsAction(
         is DetailsAction.RemoveTrackingMatch -> viewModel.removeTrackingMatch(action.match)
         DetailsAction.Download -> Unit
         DetailsAction.OpenStatistics -> Unit
+        DetailsAction.OpenReadingRecord -> Unit
 
         DetailsAction.ToggleList,
         DetailsAction.ToggleGrid,

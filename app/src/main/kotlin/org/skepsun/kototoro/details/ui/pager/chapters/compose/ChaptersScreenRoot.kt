@@ -34,6 +34,7 @@ import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.util.ext.findActivity
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.details.ui.DetailsViewModel
 import org.skepsun.kototoro.details.ui.model.ChapterListItem
 import org.skepsun.kototoro.details.ui.compose.state.DetailsPaneState
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
@@ -281,10 +282,12 @@ fun ChaptersScreenRoot(
 				if (navigationCallback?.onChapterSelected(item.chapter) == true) {
 					return@ChaptersScreen
 				}
+				val targetState = org.skepsun.kototoro.reader.ui.ReaderState(item.chapter.id, 0, 0)
+				(viewModel as? DetailsViewModel)?.recordDetailsJump(targetState, "detail_chapter")
 				router.openReader(
 					ReaderIntent.Builder(context)
 						.manga(manga)
-						.state(org.skepsun.kototoro.reader.ui.ReaderState(item.chapter.id, 0, 0))
+						.state(targetState)
 						.build()
 				)
 			}

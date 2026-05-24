@@ -32,6 +32,7 @@ import android.util.Log
 import org.skepsun.kototoro.core.util.ext.consumeAll
 import org.skepsun.kototoro.R
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import okhttp3.Request
 import okhttp3.Response
@@ -76,6 +77,7 @@ import okhttp3.Headers
 import org.skepsun.kototoro.core.util.ext.menuView
 import org.skepsun.kototoro.history.data.HistoryRepository
 import org.skepsun.kototoro.history.domain.HistoryUpdateUseCase
+import org.skepsun.kototoro.readingrecord.data.ReadingRecordRepository
 import org.skepsun.kototoro.reader.ui.ReaderNavigationCallback
 import org.skepsun.kototoro.parsers.model.ContentChapter
 import org.skepsun.kototoro.parsers.model.ContentPage
@@ -186,6 +188,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
     // ReaderState（用于历史保存时提供章节与页信息?
     private var readerState: ReaderState? = null
     private var mangaContent: Content? = null
+    private var sessionStartAt: Long = 0L
+    private var sessionStartState: ReaderState? = null
+    private var sessionStartPercent: Float = 0f
     // 待应用的历史定位百分比（在播放器 STATE_READY 时按时长换算?seek?
     private var pendingInitialSeekPercent: Float? = null
     // 标志：是否已经恢复过进度（避免重复恢复）
@@ -475,6 +480,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
 
     @Inject
     lateinit var historyUpdateUseCase: HistoryUpdateUseCase
+
+    @Inject
+    lateinit var readingRecordRepository: ReadingRecordRepository
 
     @Inject
     lateinit var contentDataRepository: org.skepsun.kototoro.core.parser.ContentDataRepository
@@ -2832,6 +2840,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         // 保存当前播放进度（本地与历史?
         savePlaybackProgress()
         saveHistoryProgressAsync()
+        finishReadingSession()
         videoLocalCacheProxy.logSessionStats("onStop")
         mpvPlayer?.pause()
         danmakuController.pause()
@@ -2847,6 +2856,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         // 兜底保存进度（本地与历史?
         savePlaybackProgress()
         saveHistoryProgressAsync()
+        finishReadingSession()
         mpvPlayer?.release()
         mpvPlayer = null
         runCatching { mpvView.destroy() }
@@ -3397,6 +3407,11 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 // ReaderState 已提供：直接计算整体百分比并保存
                 val overall = computeSeriesPercent(manga, state, episodePercent)
                 android.util.Log.d("VideoPlayer", "Saving history with ReaderState: chapterId=${state.chapterId}, overall=$overall")
+                val timedState = state.copy(
+                    page = pos.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                    scroll = episodePercentToScroll(episodePercent),
+                )
+                ensureReadingSession(timedState, overall)
                 historyUpdateUseCase.invokeAsync(manga, state, overall)
             } else {
                 // ?ReaderState：优先使用已有历史，否则用首章构?
@@ -3405,12 +3420,112 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 if (fallbackState != null) {
                     android.util.Log.d("VideoPlayer", "Using fallback ReaderState: chapterId=${fallbackState.chapterId}")
                     val overall = computeSeriesPercent(manga, fallbackState, episodePercent)
+                    val timedState = fallbackState.copy(
+                        page = pos.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                        scroll = episodePercentToScroll(episodePercent),
+                    )
+                    ensureReadingSession(timedState, overall)
                     historyUpdateUseCase.invokeAsync(manga, fallbackState, overall)
                 } else {
                     android.util.Log.w("VideoPlayer", "Cannot create fallback ReaderState")
                 }
             }
         }
+    }
+
+    private fun episodePercentToScroll(percent: Float): Int {
+        return (percent.coerceIn(0f, 1f) * 10000).toInt()
+    }
+
+    private fun currentVideoRecordState(): ReaderState? {
+        val state = readerState ?: return null
+        val pos = mpvPlayer?.positionMs ?: 0L
+        val dur = mpvPlayer?.durationMs ?: 0L
+        val episodePercent = if (dur > 0L) {
+            (pos.toFloat() / dur).coerceIn(0f, 1f)
+        } else {
+            0f
+        }
+        return state.copy(
+            page = pos.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+            scroll = episodePercentToScroll(episodePercent),
+        )
+    }
+
+    private fun ensureReadingSession(state: ReaderState, percent: Float) {
+        if (sessionStartState != null) return
+        sessionStartAt = System.currentTimeMillis()
+        sessionStartState = state
+        sessionStartPercent = percent
+    }
+
+    private fun finishReadingSession(
+        allowShort: Boolean = false,
+        continueFromEnd: Boolean = true,
+    ) {
+        val manga = intent.getParcelableExtraCompat<ParcelableContent>(AppRouter.KEY_MANGA)?.manga ?: return
+        if (readingRecordRepository.shouldSkip(manga)) return
+        val startState = sessionStartState ?: currentVideoRecordState() ?: return
+        val endState = currentVideoRecordState() ?: startState
+        val startAt = sessionStartAt.takeIf { it > 0L } ?: System.currentTimeMillis()
+        val endAt = System.currentTimeMillis()
+        val startPercent = sessionStartPercent
+        val endPercent = computeVideoSeriesPercent(manga, endState)
+        if (continueFromEnd) {
+            sessionStartAt = endAt
+            sessionStartState = endState
+            sessionStartPercent = endPercent
+        } else {
+            sessionStartAt = 0L
+            sessionStartState = null
+            sessionStartPercent = 0f
+        }
+        lifecycleScope.launch(Dispatchers.Default) {
+            readingRecordRepository.recordSession(
+                manga = manga,
+                startAt = startAt,
+                endAt = endAt,
+                startState = startState,
+                startPercent = startPercent,
+                endState = endState,
+                endPercent = endPercent,
+                allowShort = allowShort,
+            )
+        }
+    }
+
+    private fun recordVideoJumpPoint(
+        fromState: ReaderState?,
+        toState: ReaderState,
+        source: String,
+        force: Boolean = false,
+    ) {
+        val manga = intent.getParcelableExtraCompat<ParcelableContent>(AppRouter.KEY_MANGA)?.manga ?: return
+        val from = fromState ?: return
+        if (readingRecordRepository.shouldSkip(manga)) return
+        if (!force && from.chapterId == toState.chapterId && kotlin.math.abs(from.page - toState.page) < 5_000) return
+        lifecycleScope.launch(Dispatchers.Default) {
+            readingRecordRepository.recordJumpPoint(
+                manga = manga,
+                fromState = from,
+                fromPercent = computeVideoSeriesPercent(manga, from),
+                toState = toState,
+                toPercent = computeVideoSeriesPercent(manga, toState),
+                source = source,
+            )
+        }
+    }
+
+    private fun computeVideoSeriesPercent(manga: Content, state: ReaderState): Float {
+        val chapters = manga.chapters.orEmpty()
+        val episodePercent = (state.scroll / 10000f).coerceIn(0f, 1f)
+        if (chapters.isEmpty()) return episodePercent
+        val current = chapters.find { it.id == state.chapterId } ?: return episodePercent
+        val branchChapters = chapters.filter { it.branch == current.branch }
+        if (branchChapters.isEmpty()) return episodePercent
+        val index = branchChapters.indexOfFirst { it.id == current.id }.coerceAtLeast(0)
+        val perChapter = 1f / branchChapters.size
+        return (perChapter * index + perChapter * episodePercent).coerceIn(0f, 1f)
     }
 
     override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
@@ -3475,6 +3590,7 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
         android.util.Log.d("VideoPlayer", "Chapter selected: ${chapter.title} (id=${chapter.id})")
         
         // Save current progress before switching
+        val previousState = currentVideoRecordState()
         savePlaybackProgress()
         saveHistoryProgressAsync()
         
@@ -3484,7 +3600,9 @@ class VideoPlayerActivity : BaseFullscreenActivity<ActivityVideoPlayerBinding>()
                 val repo = mangaRepositoryFactory.create(manga.source)
                 var resolved = false
                 val resetChapterState = {
+                    finishReadingSession(allowShort = true, continueFromEnd = false)
                     readerState = ReaderState(chapter.id, 0, 0)
+                    recordVideoJumpPoint(previousState, ReaderState(chapter.id, 0, 0), "chapter_list", force = true)
                     chaptersViewModel.setCurrentChapter(chapter.id)
                     hasSkippedIntro = false
                     hasTriggeredOutro = false

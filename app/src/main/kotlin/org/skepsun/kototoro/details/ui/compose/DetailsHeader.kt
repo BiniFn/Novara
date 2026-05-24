@@ -174,6 +174,7 @@ fun DetailsHeader(
     onInfoCardTopSync: (Float) -> Unit,
     onCoverClick: (String?) -> Unit,
     onFavoriteClick: () -> Unit,
+    onReadingRecordClick: () -> Unit,
     onCommentsClick: () -> Unit,
     onReviewsClick: () -> Unit,
     onSelectActiveLocalSource: (Long) -> Unit,
@@ -399,16 +400,16 @@ fun DetailsHeader(
                     },
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(
-                    text = displayTitle,
-                    style = MaterialTheme.typography.headlineSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        lineHeight = 28.sp,
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                SelectionContainer {
+                    Text(
+                        text = displayTitle,
+                        style = MaterialTheme.typography.headlineSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            lineHeight = 28.sp,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
                 if (alternateTitlesText.isNotEmpty()) {
                     Text(
                         text = alternateTitlesText,
@@ -451,6 +452,13 @@ fun DetailsHeader(
                         iconRes = if (isFavourite) R.drawable.ic_heart else R.drawable.ic_heart_outline,
                         onClick = onFavoriteClick,
                         filled = isFavourite,
+                    )
+                    DetailsHeaderIconButton(
+                        iconRes = R.drawable.ic_timeline,
+                        onClick = onReadingRecordClick,
+                        onLongClick = {
+                            Toast.makeText(context, R.string.reading_record, Toast.LENGTH_SHORT).show()
+                        },
                     )
                     if (showCommentsAction) {
                         DetailsHeaderIconButton(

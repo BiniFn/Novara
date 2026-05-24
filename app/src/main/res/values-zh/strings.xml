@@ -2539,4 +2539,16 @@ SHA-256 指纹:
     <string name="zoom_mode_fit_width">适应宽度</string>
     <string name="zoom_mode_keep_start">原始大小</string>
     <string name="zoom_out">缩小</string>
+    <string name="reading_record">阅读记录</string>
+    <string name="total_reading_time">总时长</string>
+    <string name="reading_days">阅读天数</string>
+    <string name="recent_reading">最近阅读</string>
+    <string name="current_progress">当前进度</string>
+    <string name="timeline">时间线</string>
+    <string name="chapter_statistics">章节统计</string>
+    <string name="jump_points">跳转点</string>
+    <string name="no_reading_record">暂无阅读记录</string>
+    <string name="no_jump_points">暂无跳转点</string>
+    <string name="restore_jump_point">点按恢复到跳转前位置</string>
+    <string name="reading_chapter_record_format">%1$d 次 · %2$s</string>
 </resources>

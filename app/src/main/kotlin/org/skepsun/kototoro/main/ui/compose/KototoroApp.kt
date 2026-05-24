@@ -307,17 +307,31 @@ fun KototoroApp(
     }
 
     val navController = rememberNavController()
-    fun navigateToBottomNavItem(itemId: Int) {
+    fun navigateToBottomNavItem(
+        itemId: Int,
+        restoreState: Boolean = true,
+    ) {
         val route = routeForBottomNavItem(itemId)
         if (!navController.currentDestination.isBottomNavRoute(itemId)) {
             navController.navigate(route) {
                 popUpTo<HomeRoute> {
                     inclusive = false
-                    saveState = true
+                    saveState = restoreState
                 }
                 launchSingleTop = true
-                restoreState = true
+                this.restoreState = restoreState
             }
+        }
+    }
+    fun navigateFromBottomNav(itemId: Int) {
+        val shouldReturnHome = navController.currentBackStackEntry
+            ?.savedStateHandle
+            ?.get<Boolean>(RETURN_HOME_ON_BACK_KEY) == true
+        if (itemId == org.skepsun.kototoro.R.id.nav_home && shouldReturnHome) {
+            navController.currentBackStackEntry?.savedStateHandle?.set(RETURN_HOME_ON_BACK_KEY, false)
+            navigateToBottomNavItem(itemId, restoreState = false)
+        } else {
+            navigateToBottomNavItem(itemId)
         }
     }
     val mainNavItems by appSettings.observeAsState(AppSettings.KEY_NAV_MAIN) { mainNavItems }
@@ -708,8 +722,8 @@ fun KototoroApp(
                     ) {
                         KototoroBottomNav(
                             state = navStateFlow,
-                            onItemSelected = ::navigateToBottomNavItem,
-                            onItemReselected = ::navigateToBottomNavItem,
+                            onItemSelected = ::navigateFromBottomNav,
+                            onItemReselected = ::navigateFromBottomNav,
                             showContinueReadingButton = isLandscapeNavigation && isResumeEnabled,
                             onContinueReadingClick = onResumeClick,
                         )
@@ -804,27 +818,44 @@ fun KototoroApp(
     ) { isExitConfirmationEnabled }
 
     var lastBackTime by remember { mutableLongStateOf(0L) }
+    val primaryNavItemId = mainNavItems.firstOrNull()?.id ?: org.skepsun.kototoro.R.id.nav_home
 
     BackHandler(enabled = !isSearchRoute && !isDetailsRoute && !isSearchOverlayMounted) {
-        if (!exitConfirmationEnabled) {
-            (context as? Activity)?.moveTaskToBack(true)
+        val shouldReturnHome = navBackStackEntry
+            ?.savedStateHandle
+            ?.get<Boolean>(RETURN_HOME_ON_BACK_KEY) == true
+        if (shouldReturnHome) {
+            navBackStackEntry?.savedStateHandle?.set(RETURN_HOME_ON_BACK_KEY, false)
+            navigateToBottomNavItem(org.skepsun.kototoro.R.id.nav_home, restoreState = false)
+            lastBackTime = 0L
+        } else if (!currentDestination.matchesBottomNavItem(primaryNavItemId)) {
+            navigateToBottomNavItem(primaryNavItemId)
+            lastBackTime = 0L
         } else {
-            val now = System.currentTimeMillis()
-            if (now - lastBackTime < 2000L) {
+            if (!exitConfirmationEnabled) {
                 (context as? Activity)?.moveTaskToBack(true)
             } else {
-                lastBackTime = now
-                Toast.makeText(
-                    context,
-                    org.skepsun.kototoro.R.string.confirm_exit,
-                    Toast.LENGTH_SHORT,
-                ).show()
+                val now = System.currentTimeMillis()
+                if (now - lastBackTime < 2000L) {
+                    (context as? Activity)?.moveTaskToBack(true)
+                } else {
+                    lastBackTime = now
+                    Toast.makeText(
+                        context,
+                        org.skepsun.kototoro.R.string.confirm_exit,
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
             }
         }
     }
 }
 
 private fun androidx.navigation.NavDestination?.isBottomNavRoute(itemId: Int): Boolean {
+    return matchesBottomNavItem(itemId)
+}
+
+private fun androidx.navigation.NavDestination?.matchesBottomNavItem(itemId: Int): Boolean {
     return when (itemId) {
         org.skepsun.kototoro.R.id.nav_home -> this?.hasRoute<HomeRoute>() == true
         org.skepsun.kototoro.R.id.nav_history -> this?.hasRoute<HistoryRoute>() == true

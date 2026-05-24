@@ -53,6 +53,7 @@ import org.skepsun.kototoro.core.db.migrations.Migration40To41
 import org.skepsun.kototoro.core.db.migrations.Migration41To42
 import org.skepsun.kototoro.core.db.migrations.Migration42To43
 import org.skepsun.kototoro.core.db.migrations.Migration43To44
+import org.skepsun.kototoro.core.db.migrations.Migration44To45
 import org.skepsun.kototoro.core.db.migrations.Migration1To2
 import org.skepsun.kototoro.core.db.migrations.Migration20To21
 import org.skepsun.kototoro.core.db.migrations.Migration21To22
@@ -92,6 +93,9 @@ import org.skepsun.kototoro.local.data.index.LocalContentIndexDao
 import org.skepsun.kototoro.local.data.index.LocalContentIndexEntity
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblingDao
 import org.skepsun.kototoro.scrobbling.common.data.ScrobblingEntity
+import org.skepsun.kototoro.readingrecord.data.ReadingJumpPointEntity
+import org.skepsun.kototoro.readingrecord.data.ReadingRecordDao
+import org.skepsun.kototoro.readingrecord.data.ReadingRecordEntity
 import org.skepsun.kototoro.stats.data.StatsDao
 import org.skepsun.kototoro.stats.data.StatsEntity
 import org.skepsun.kototoro.suggestions.data.SuggestionDao
@@ -103,7 +107,7 @@ import org.skepsun.kototoro.tracker.data.TracksDao
 import org.skepsun.kototoro.explore.data.SourcePresetEntity
 import org.skepsun.kototoro.explore.data.SourcePresetsDao
 
-const val DATABASE_VERSION = 44
+const val DATABASE_VERSION = 45
 
 @Database(
 	entities = [
@@ -114,6 +118,7 @@ const val DATABASE_VERSION = 44
 		JsonSourceEntity::class, ExternalExtensionRepoEntity::class,
 		TrackingSiteItemEntity::class, TrackingSiteLinkEntity::class, SourcePresetEntity::class,
 		EntityRecord::class, EntityBindingRecord::class, RelationRecord::class,
+		ReadingRecordEntity::class, ReadingJumpPointEntity::class,
 		// EpubChapterEntity::class,
 	],
 	version = DATABASE_VERSION,
@@ -161,6 +166,8 @@ abstract class MangaDatabase : RoomDatabase() {
 	abstract fun getSourcePresetsDao(): SourcePresetsDao
 
 	abstract fun getEntityGraphDao(): EntityGraphDao
+
+	abstract fun getReadingRecordDao(): ReadingRecordDao
 
 	// abstract fun getEpubChapterDao(): EpubChapterDao
 }
@@ -210,6 +217,7 @@ fun getDatabaseMigrations(context: Context): Array<Migration> = arrayOf(
 	Migration41To42(),
 	Migration42To43(),
 	Migration43To44(),
+	Migration44To45(),
 )
 
 fun MangaDatabase(context: Context): MangaDatabase = Room

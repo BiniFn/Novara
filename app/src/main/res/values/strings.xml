@@ -2587,4 +2587,16 @@
     <string name="details_show_translation">Show translation</string>
     <string name="details_translate_button_visible">Show translate button in details</string>
     <string name="details_translate_button_visible_summary">Show the translation action on the work details page when translation is available</string>
+    <string name="reading_record">Reading record</string>
+    <string name="total_reading_time">Total time</string>
+    <string name="reading_days">Reading days</string>
+    <string name="recent_reading">Recent reading</string>
+    <string name="current_progress">Current progress</string>
+    <string name="timeline">Timeline</string>
+    <string name="chapter_statistics">Chapter statistics</string>
+    <string name="jump_points">Jump points</string>
+    <string name="no_reading_record">No reading record yet</string>
+    <string name="no_jump_points">No jump points yet</string>
+    <string name="restore_jump_point">Tap to restore the position before this jump</string>
+    <string name="reading_chapter_record_format">%1$d sessions · %2$s</string>
 </resources>

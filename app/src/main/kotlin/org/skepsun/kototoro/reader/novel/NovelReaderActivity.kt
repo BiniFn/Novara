@@ -49,7 +49,9 @@ import org.skepsun.kototoro.databinding.ActivityNovelReaderV2Binding
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentChapter
 
+import org.skepsun.kototoro.readingrecord.data.ReadingRecordRepository
 import org.skepsun.kototoro.reader.ui.ReaderControlDelegate
+import org.skepsun.kototoro.reader.ui.ReaderState
 import javax.inject.Inject
 
 /**
@@ -82,6 +84,9 @@ class NovelReaderActivity :
     lateinit var historyUpdateUseCase: org.skepsun.kototoro.history.domain.HistoryUpdateUseCase
 
     @Inject
+    lateinit var readingRecordRepository: ReadingRecordRepository
+
+    @Inject
     lateinit var novelContentLoader: NovelContentLoader
     
     @Inject
@@ -112,6 +117,9 @@ class NovelReaderActivity :
     private var desiredProgressRatio: Float? = null
     private var pendingTtsAutoStart: Boolean = false
     private var isHandlingTtsCompletion: Boolean = false  // Guard against re-entrant handleTtsPageCompleted
+    private var sessionStartAt: Long = 0L
+    private var sessionStartState: ReaderState? = null
+    private var sessionStartPercent: Float = 0f
     
     // Continuous Scroll mode properties
     private var continuousAdapter: NovelContinuousAdapter? = null
@@ -241,6 +249,7 @@ class NovelReaderActivity :
 
     override fun onStop() {
         super.onStop()
+        finishReadingSession()
         if (isFinishing) {
             ttsService?.stopTts()
         }
@@ -632,12 +641,17 @@ class NovelReaderActivity :
     override fun switchChapterBy(delta: Int) {
         val targetIndex = currentChapterIndex + delta
         if (targetIndex in chapters.indices) {
+            val previousState = currentReaderState()
             currentChapterIndex = targetIndex
             // 如果是向下一章，从第一页开始；如果是向上一章，从最后一页开始
             currentPageIndex = if (delta > 0) 0 else -1  // -1 表示最后一页
             // 切章时取消旧的翻译任务
             translationJob?.cancel()
             translationJob = null
+            val targetChapter = chapters.getOrNull(currentChapterIndex)
+            if (previousState != null && targetChapter != null) {
+                recordJumpPointIfNeeded(previousState, ReaderState(targetChapter.id, 0, 0), "chapter")
+            }
             loadChapter(currentChapterIndex)
         } else {
             // 已经是第一章或最后一章
@@ -2663,8 +2677,18 @@ class NovelReaderActivity :
     override fun onChapterSelected(index: Int) {
         android.util.Log.d("NovelReaderActivity", "onChapterSelected: index=$index, currentChapterIndex=$currentChapterIndex, chapters.size=${chapters.size}")
         if (index != currentChapterIndex && index in chapters.indices) {
+            val previousState = currentReaderState()
             val selectedChapter = chapters[index]
             android.util.Log.d("NovelReaderActivity", "Loading selected chapter: index=$index, title='${selectedChapter.title}', url='${selectedChapter.url}'")
+            if (previousState != null) {
+                finishReadingSession(allowShort = true, continueFromEnd = false)
+                recordJumpPointIfNeeded(
+                    previousState,
+                    ReaderState(selectedChapter.id, 0, 0),
+                    "chapter_list",
+                    force = true,
+                )
+            }
             currentChapterIndex = index
             loadChapter(currentChapterIndex)
         } else {
@@ -2932,11 +2956,12 @@ class NovelReaderActivity :
                 android.util.Log.d("NovelReaderActivity", "Updating history: chapter=$currentChapterIndex/${chapters.size}, page=$page/$total, progress=$totalProgress")
                 
                 // 创建 ReaderState（仍沿用页码字段，历史恢复时会重新分页）
-                val readerState = org.skepsun.kototoro.reader.ui.ReaderState(
+                val readerState = ReaderState(
                     chapterId = chapter.id,
                     page = page,
                     scroll = (chapterProgress * 10000).toInt()
                 )
+                ensureReadingSession(readerState, totalProgress)
                 
                 // 异步更新历史记录
                 historyUpdateUseCase.invokeAsync(mangaWithChapters, readerState, totalProgress)
@@ -2946,6 +2971,96 @@ class NovelReaderActivity :
                 android.util.Log.e("NovelReaderActivity", "Failed to update history", e)
             }
         }
+    }
+
+    private fun currentReaderState(): ReaderState? {
+        val chapter = chapters.getOrNull(currentChapterIndex) ?: return null
+        val progress = getCurrentProgressRatio()
+        return ReaderState(
+            chapterId = chapter.id,
+            page = viewBinding.readerView.getCurrentPage(),
+            scroll = (progress * 10000).toInt(),
+        )
+    }
+
+    private fun ensureReadingSession(state: ReaderState, percent: Float) {
+        if (sessionStartState != null) return
+        sessionStartAt = System.currentTimeMillis()
+        sessionStartState = state
+        sessionStartPercent = percent
+    }
+
+    private fun finishReadingSession(
+        allowShort: Boolean = false,
+        continueFromEnd: Boolean = true,
+    ) {
+        val mangaWithChapters = manga.copy(chapters = chapters)
+        if (readingRecordRepository.shouldSkip(mangaWithChapters)) return
+        val startState = sessionStartState ?: currentReaderState() ?: return
+        val endState = currentReaderState() ?: startState
+        val startAt = sessionStartAt.takeIf { it > 0L } ?: System.currentTimeMillis()
+        val endAt = System.currentTimeMillis()
+        val startPercent = sessionStartPercent
+        val endPercent = computeTotalProgress(endState)
+        if (continueFromEnd) {
+            sessionStartAt = endAt
+            sessionStartState = endState
+            sessionStartPercent = endPercent
+        } else {
+            sessionStartAt = 0L
+            sessionStartState = null
+            sessionStartPercent = 0f
+        }
+        lifecycleScope.launch(Dispatchers.Default) {
+            readingRecordRepository.recordSession(
+                manga = mangaWithChapters,
+                startAt = startAt,
+                endAt = endAt,
+                startState = startState,
+                startPercent = startPercent,
+                endState = endState,
+                endPercent = endPercent,
+                allowShort = allowShort,
+            )
+        }
+    }
+
+    private fun recordJumpPointIfNeeded(
+        fromState: ReaderState,
+        toState: ReaderState,
+        source: String,
+        force: Boolean = false,
+    ) {
+        val mangaWithChapters = manga.copy(chapters = chapters)
+        if (readingRecordRepository.shouldSkip(mangaWithChapters)) return
+        if (fromState == toState || (!force && !isExplicitJump(fromState, toState))) return
+        lifecycleScope.launch(Dispatchers.Default) {
+            readingRecordRepository.recordJumpPoint(
+                manga = mangaWithChapters,
+                fromState = fromState,
+                fromPercent = computeTotalProgress(fromState),
+                toState = toState,
+                toPercent = computeTotalProgress(toState),
+                source = source,
+            )
+        }
+    }
+
+    private fun computeTotalProgress(state: ReaderState): Float {
+        val chapterIndex = chapters.indexOfFirst { it.id == state.chapterId }
+        if (chapterIndex < 0 || chapters.isEmpty()) return 0f
+        val chapterProgress = (state.scroll / 10000f).coerceIn(0f, 1f)
+        return ((chapterIndex + chapterProgress) / chapters.size).coerceIn(0f, 1f)
+    }
+
+    private fun isExplicitJump(fromState: ReaderState, toState: ReaderState): Boolean {
+        if (fromState.chapterId == toState.chapterId) {
+            return kotlin.math.abs(fromState.page - toState.page) > 1
+        }
+        val fromIndex = chapters.indexOfFirst { it.id == fromState.chapterId }
+        val toIndex = chapters.indexOfFirst { it.id == toState.chapterId }
+        if (fromIndex < 0 || toIndex < 0) return true
+        return kotlin.math.abs(fromIndex - toIndex) > 1
     }
 
     /**

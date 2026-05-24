@@ -15,6 +15,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.util.ext.findActivity
 import org.skepsun.kototoro.core.util.ext.observeEvent
+import org.skepsun.kototoro.details.ui.DetailsViewModel
 import org.skepsun.kototoro.details.ui.compose.state.DetailsPaneState
 import org.skepsun.kototoro.details.ui.pager.ChaptersPagesViewModel
 import org.skepsun.kototoro.details.ui.pager.pages.PageThumbnail
@@ -92,10 +93,12 @@ fun PagesScreenRoot(
 					return@PagesScreen
 				}
 				val manga = activityViewModel.getContentOrNull() ?: return@PagesScreen
+				val targetState = org.skepsun.kototoro.reader.ui.ReaderState(thumbnail.page.chapterId, thumbnail.page.index, 0)
+				(activityViewModel as? DetailsViewModel)?.recordDetailsJump(targetState, "detail_page")
 				router.openReader(
 					org.skepsun.kototoro.core.nav.ReaderIntent.Builder(context)
 						.manga(manga)
-						.state(org.skepsun.kototoro.reader.ui.ReaderState(thumbnail.page.chapterId, thumbnail.page.index, 0))
+						.state(targetState)
 						.build(),
 				)
 			}

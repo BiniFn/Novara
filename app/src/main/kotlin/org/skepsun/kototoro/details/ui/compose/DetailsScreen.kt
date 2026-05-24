@@ -18,6 +18,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -63,6 +64,7 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Slider
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -84,6 +86,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.draw.alpha
@@ -129,6 +132,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.LocalMangaSource
 import org.skepsun.kototoro.core.model.appUrl
 import org.skepsun.kototoro.core.model.getContentType
+import org.skepsun.kototoro.core.model.getLocalizedTitle
 import org.skepsun.kototoro.core.model.isBroken
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.model.isNsfw
@@ -172,7 +176,12 @@ import org.skepsun.kototoro.download.ui.worker.DownloadStartedObserver
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.ContentType
+import org.skepsun.kototoro.readingrecord.data.ReadingChapterAggregateEntity
+import org.skepsun.kototoro.readingrecord.data.ReadingJumpPointEntity
+import org.skepsun.kototoro.readingrecord.data.ReadingRecordEntity
+import org.skepsun.kototoro.readingrecord.data.ReadingRecordSnapshot
 import org.skepsun.kototoro.reader.ui.PageSaveHelper
+import org.skepsun.kototoro.reader.ui.ReaderState
 import org.skepsun.kototoro.favourites.ui.categories.select.compose.FavoriteCategoryDialog
 import org.skepsun.kototoro.stats.ui.sheet.compose.ContentStatsDialog
 import org.skepsun.kototoro.stats.ui.sheet.ContentStatsViewModel
@@ -185,6 +194,9 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import java.util.Locale
+import java.text.DateFormat
+import java.util.Date
+import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -201,6 +213,7 @@ fun DetailsScreen(
     isTemporaryReadOnly: Boolean = false,
 ) {
     val detailsPrimaryUiState by viewModel.detailsPrimaryUiState.collectAsStateWithLifecycle()
+    val readingRecordSnapshot by viewModel.readingRecordSnapshot.collectAsStateWithLifecycle()
     val translationUiState by viewModel.translationUiState.collectAsStateWithLifecycle()
     val chaptersPaneControlsUiState by viewModel.chaptersPaneControlsUiState.collectAsStateWithLifecycle()
     val pagesGridScale by pagesViewModel.gridScale.collectAsStateWithLifecycle(initialValue = settings.gridSizePages / 100f)
@@ -327,6 +340,7 @@ fun DetailsScreen(
     var showFavoriteDialog by remember { mutableStateOf(false) }
     var showDownloadDialog by remember { mutableStateOf(false) }
     var showStatsDialog by remember { mutableStateOf(false) }
+    var showReadingRecordSheet by remember { mutableStateOf(false) }
     var showCommentsDialog by remember { mutableStateOf(false) }
     var showReviewsDialog by remember { mutableStateOf(false) }
     var selectedSupplementalRelationItem by remember { mutableStateOf<EntityRelationItem?>(null) }
@@ -599,6 +613,9 @@ fun DetailsScreen(
             }
             DetailsAction.Download -> {
                 showDownloadDialog = true
+            }
+            DetailsAction.OpenReadingRecord -> {
+                showReadingRecordSheet = true
             }
             DetailsAction.OpenAlternatives -> {
                 showReadingSourceDialog = true
@@ -1219,6 +1236,29 @@ fun DetailsScreen(
                     onDismissRequest = { showStatsDialog = false },
                     onOpenDetails = {
                         showStatsDialog = false
+                    },
+                )
+            }
+
+            if (showReadingRecordSheet && content != null) {
+                ReadingRecordSheet(
+                    snapshot = readingRecordSnapshot,
+                    chapterTitle = { chapterId ->
+                        content.chapters
+                            ?.firstOrNull { it.id == chapterId }
+                            ?.getLocalizedTitle(context.resources)
+                            ?: context.getString(R.string.chapter_number, chapterId.toString())
+                    },
+                    progressPercent = historyInfo.percent,
+                    onDismissRequest = { showReadingRecordSheet = false },
+                    onJumpPointClick = { point ->
+                        showReadingRecordSheet = false
+                        appRouter.openReader(
+                            org.skepsun.kototoro.core.nav.ReaderIntent.Builder(context)
+                                .manga(content)
+                                .state(ReaderState(point.fromChapterId, point.fromPage, point.fromScroll))
+                                .build(),
+                        )
                     },
                 )
             }
@@ -1899,6 +1939,7 @@ private fun DetailsScrollableContent(
             onInfoCardTopSync = onInfoCardTopSync,
             onCoverClick = { onActionClick(DetailsAction.OpenCover) },
             onFavoriteClick = onFavoriteClick,
+            onReadingRecordClick = { onActionClick(DetailsAction.OpenReadingRecord) },
             onCommentsClick = onCommentsClick,
             onReviewsClick = onReviewsClick,
             onSelectActiveLocalSource = onSelectActiveLocalSource,
@@ -2819,6 +2860,7 @@ sealed interface DetailsAction {
     data object OpenMetadataInBrowser : DetailsAction
     data object OpenLocalSourceInBrowser : DetailsAction
     data object OpenStatistics : DetailsAction
+    data object OpenReadingRecord : DetailsAction
     data object ToggleSafe : DetailsAction
     data object ToggleList : DetailsAction
     data object ToggleGrid : DetailsAction
@@ -3006,6 +3048,385 @@ private fun ReadDock(
 private fun lerpFloat(start: Float, stop: Float, fraction: Float): Float {
     return start + (stop - start) * fraction.coerceIn(0f, 1f)
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReadingRecordSheet(
+    snapshot: ReadingRecordSnapshot,
+    chapterTitle: (Long) -> String,
+    progressPercent: Float,
+    onDismissRequest: () -> Unit,
+    onJumpPointClick: (ReadingJumpPointEntity) -> Unit,
+) {
+    val sessions = snapshot.sessions
+    val lastReadAt = snapshot.summary.lastReadAt ?: sessions.maxOfOrNull { it.endAt }
+    val totalDuration = snapshot.summary.totalDuration.takeIf { it > 0L }
+        ?: sessions.sumOf { (it.endAt - it.startAt).coerceAtLeast(0L) }
+    val readingDays = snapshot.summary.readingDays.takeIf { it > 0 }
+        ?: sessions.map { it.startAt / MILLIS_PER_DAY }.distinct().size
+    val timelineItems = remember(sessions, snapshot.jumpPoints) {
+        (sessions.map { ReadingTimelineItem.Session(it) } +
+            snapshot.jumpPoints.map { ReadingTimelineItem.Jump(it) })
+            .sortedByDescending { it.time }
+            .take(30)
+    }
+    val progress = progressPercent.coerceIn(0f, 1f)
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.86f)
+                .padding(horizontal = 20.dp),
+            contentPadding = PaddingValues(
+                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 20.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            item {
+                Text(
+                    text = stringResource(R.string.reading_record),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            item {
+                ReadingRecordSummaryCard(
+                    totalDuration = totalDuration,
+                    readingDays = readingDays,
+                    lastReadAt = lastReadAt,
+                    progress = progress,
+                )
+            }
+            if (snapshot.chapters.isNotEmpty()) {
+                item {
+                    ChapterStatisticsSummary(
+                        chapters = snapshot.chapters.take(4),
+                        chapterTitle = chapterTitle,
+                    )
+                }
+            }
+            item {
+                RecordSectionHeader(
+                    title = stringResource(R.string.timeline),
+                    count = timelineItems.size,
+                )
+            }
+            if (timelineItems.isEmpty()) {
+                item { RecordEmptyLine(stringResource(R.string.no_reading_record)) }
+            } else {
+                items(timelineItems, key = { it.key }) { item ->
+                    when (item) {
+                        is ReadingTimelineItem.Session -> TimelineSessionRow(item.session, chapterTitle)
+                        is ReadingTimelineItem.Jump -> TimelineJumpRow(item.point, chapterTitle, onJumpPointClick)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReadingRecordSummaryCard(
+    totalDuration: Long,
+    readingDays: Int,
+    lastReadAt: Long?,
+    progress: Float,
+) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.36f),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SummaryMetric(
+                    label = stringResource(R.string.total_reading_time),
+                    value = formatDuration(totalDuration),
+                    modifier = Modifier.weight(1.2f),
+                )
+                SummaryMetric(
+                    label = stringResource(R.string.reading_days),
+                    value = readingDays.toString(),
+                    modifier = Modifier.weight(0.8f),
+                )
+                SummaryMetric(
+                    label = stringResource(R.string.current_progress),
+                    value = "${(progress * 100f).roundToInt()}%",
+                    modifier = Modifier.weight(0.8f),
+                )
+            }
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(5.dp)
+                    .clip(RoundedCornerShape(999.dp)),
+            )
+            Text(
+                text = "${stringResource(R.string.recent_reading)}: ${lastReadAt?.let(::formatDateTime) ?: "-"}",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+private sealed interface ReadingTimelineItem {
+    val time: Long
+    val key: String
+
+    data class Session(val session: ReadingRecordEntity) : ReadingTimelineItem {
+        override val time: Long = session.endAt
+        override val key: String = "session_${session.id}"
+    }
+
+    data class Jump(val point: ReadingJumpPointEntity) : ReadingTimelineItem {
+        override val time: Long = point.createdAt
+        override val key: String = "jump_${point.id}"
+    }
+}
+
+@Composable
+private fun SummaryMetric(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun ChapterStatisticsSummary(
+    chapters: List<ReadingChapterAggregateEntity>,
+    chapterTitle: (Long) -> String,
+) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.chapter_statistics),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            chapters.forEach { chapter ->
+                RecordCompactRow(
+                    title = chapterTitle(chapter.chapterId),
+                    body = stringResource(
+                        R.string.reading_chapter_record_format,
+                        chapter.sessionsCount,
+                        formatDuration(chapter.duration),
+                    ),
+                    trailing = formatDateTime(chapter.lastReadAt),
+                    modifier = Modifier,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecordSectionHeader(title: String, count: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(count.toString(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+    }
+}
+
+@Composable
+private fun RecordEmptyLine(text: String) {
+    Text(
+        text = text,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+    )
+}
+
+@Composable
+private fun TimelineSessionRow(
+    session: ReadingRecordEntity,
+    chapterTitle: (Long) -> String,
+) {
+    val lineColor = MaterialTheme.colorScheme.surfaceVariant
+    val nodeColor = MaterialTheme.colorScheme.primary
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .drawBehind {
+                val x = 10.dp.toPx()
+                val centerY = size.height / 2f
+                drawLine(
+                    color = lineColor,
+                    start = Offset(x, 0f),
+                    end = Offset(x, size.height),
+                    strokeWidth = 2.dp.toPx(),
+                )
+                drawCircle(
+                    color = nodeColor,
+                    radius = 4.dp.toPx(),
+                    center = Offset(x, centerY),
+                )
+            }
+            .padding(start = 28.dp, top = 6.dp, bottom = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = formatTime(session.endAt),
+            modifier = Modifier.width(48.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(chapterTitle(session.endChapterId), style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                text = formatDuration(session.endAt - session.startAt),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(
+            text = "${(session.endPercent.coerceIn(0f, 1f) * 100f).roundToInt()}%",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+}
+
+@Composable
+private fun TimelineJumpRow(
+    point: ReadingJumpPointEntity,
+    chapterTitle: (Long) -> String,
+    onJumpPointClick: (ReadingJumpPointEntity) -> Unit,
+) {
+    val lineColor = MaterialTheme.colorScheme.surfaceVariant
+    val nodeColor = MaterialTheme.colorScheme.secondary
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .drawBehind {
+                val x = 10.dp.toPx()
+                val centerY = size.height / 2f
+                drawLine(
+                    color = lineColor,
+                    start = Offset(x, 0f),
+                    end = Offset(x, size.height),
+                    strokeWidth = 2.dp.toPx(),
+                )
+                drawCircle(
+                    color = nodeColor,
+                    radius = 4.dp.toPx(),
+                    center = Offset(x, centerY),
+                )
+            }
+            .clip(MaterialTheme.shapes.small)
+            .clickable { onJumpPointClick(point) }
+            .padding(start = 28.dp, top = 8.dp, bottom = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = formatTime(point.createdAt),
+            modifier = Modifier.width(48.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "${chapterTitle(point.fromChapterId)} P${point.fromPage + 1} -> ${chapterTitle(point.toChapterId)} P${point.toPage + 1}",
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = stringResource(R.string.restore_jump_point),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun RecordCompactRow(
+    title: String,
+    body: String,
+    trailing: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text(
+            text = trailing,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.End,
+            maxLines = 2,
+            modifier = Modifier.width(92.dp),
+        )
+    }
+}
+
+private fun formatDuration(durationMs: Long): String {
+    val minutes = TimeUnit.MILLISECONDS.toMinutes(durationMs.coerceAtLeast(0L))
+    val hours = minutes / 60
+    val remainingMinutes = minutes % 60
+    return when {
+        hours > 0 -> "${hours}h ${remainingMinutes}m"
+        minutes > 0 -> "${minutes}m"
+        else -> "<1m"
+    }
+}
+
+private fun formatDateTime(timestamp: Long): String {
+    return DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(timestamp))
+}
+
+private fun formatTime(timestamp: Long): String {
+    return DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(timestamp))
+}
+
+private const val MILLIS_PER_DAY = 86_400_000L
 
 private fun calculateDetailsScrollProgress(
     scrollValue: Int,
