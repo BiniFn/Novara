@@ -100,8 +100,9 @@ abstract class CoroutineIntentService : BaseService() {
 					try {
 						unregisterReceiver(it)
 					} catch (e: IllegalArgumentException) {
-						e.printStackTraceDebug()
+						// Receiver may already be removed by the platform during service shutdown.
 					}
+					cancelReceiver = null
 				}
 				isStopped = true
 			}
