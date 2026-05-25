@@ -2446,6 +2446,9 @@
     <string name="novel_reading_mode">Reading Mode</string>
     <string name="novel_mode_paged">Paged</string>
     <string name="novel_mode_scroll">Scroll</string>
+    <string name="novel_page_turn_animation">Page Turn Animation</string>
+    <string name="novel_page_turn_slide">Slide</string>
+    <string name="novel_page_turn_simulation">Simulation</string>
     <string name="fetching_video_quality">Fetching video qualities…</string>
     <string name="reader_translation_task_diag_baseline">[Chapter Translation Baseline Export]</string>
     <string name="reader_translation_task_diag_time">Time: %1$s</string>

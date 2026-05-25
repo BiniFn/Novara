@@ -16,9 +16,10 @@ data class NovelReaderSettings(
     val marginVertical: Int = 36,
     val themePreset: NovelReaderThemePreset = NovelReaderThemePreset.PAPER,
     val readingMode: ReadingMode = ReadingMode.PAGED,
+    val pageTurnAnimation: NovelPageTurnAnimation = NovelPageTurnAnimation.SLIDE,
     val textDirection: TextDirection = TextDirection.LTR,
     val enableDualPage: Boolean = true,
-    val enableFullscreen: Boolean = true,
+    val enableFullscreen: Boolean = false,
     val showReadingStatus: Boolean = true,  // 显示阅读状态（之前是 showFooter）
     val isReadingStatusTransparent: Boolean = true,
     val enableParagraphIndent: Boolean = true, // 段首缩进两个全角空格
@@ -66,6 +67,7 @@ data class NovelReaderSettings(
             putInt(KEY_MARGIN_VERTICAL, normalized.marginVertical)
             putString(KEY_THEME_PRESET, normalized.themePreset.name)
             putString(KEY_READING_MODE, normalized.readingMode.name)
+            putString(KEY_PAGE_TURN_ANIMATION, normalized.pageTurnAnimation.name)
             putString(KEY_TEXT_DIRECTION, normalized.textDirection.name)
             putBoolean(KEY_DUAL_PAGE, normalized.enableDualPage)
             putBoolean(KEY_FULLSCREEN, normalized.enableFullscreen)
@@ -95,6 +97,7 @@ data class NovelReaderSettings(
         private const val KEY_MARGIN_VERTICAL = "margin_vertical"
         private const val KEY_THEME_PRESET = "theme_preset"
         private const val KEY_READING_MODE = "reading_mode"
+        private const val KEY_PAGE_TURN_ANIMATION = "page_turn_animation"
         private const val KEY_TEXT_DIRECTION = "text_direction"
         private const val KEY_DUAL_PAGE = "dual_page"
         private const val KEY_FULLSCREEN = "fullscreen"
@@ -120,11 +123,16 @@ data class NovelReaderSettings(
                 readingMode = runCatching {
                     ReadingMode.valueOf(prefs.getString(KEY_READING_MODE, null) ?: ReadingMode.PAGED.name)
                 }.getOrDefault(ReadingMode.PAGED),
+                pageTurnAnimation = runCatching {
+                    NovelPageTurnAnimation.valueOf(
+                        prefs.getString(KEY_PAGE_TURN_ANIMATION, null) ?: NovelPageTurnAnimation.SLIDE.name
+                    )
+                }.getOrDefault(NovelPageTurnAnimation.SLIDE),
                 textDirection = runCatching {
                     TextDirection.valueOf(prefs.getString(KEY_TEXT_DIRECTION, null) ?: TextDirection.LTR.name)
                 }.getOrDefault(TextDirection.LTR),
                 enableDualPage = prefs.getBoolean(KEY_DUAL_PAGE, true),
-                enableFullscreen = prefs.getBoolean(KEY_FULLSCREEN, true),
+                enableFullscreen = prefs.getBoolean(KEY_FULLSCREEN, false),
                 showReadingStatus = prefs.getBoolean(KEY_SHOW_READING_STATUS, true),
                 isReadingStatusTransparent = prefs.getBoolean(KEY_READING_STATUS_TRANSPARENT, true),
                 enableParagraphIndent = prefs.getBoolean(KEY_PARAGRAPH_INDENT, true),
@@ -166,6 +174,11 @@ enum class NovelReaderThemePreset {
     SEPIA,
     MOSS,
     SLATE,
+}
+
+enum class NovelPageTurnAnimation {
+    SLIDE,
+    SIMULATION,
 }
 
 data class NovelReaderPalette(

@@ -1776,6 +1776,9 @@
     <string name="shiki_category_seasonal">当季动画</string>
     <string name="shiki_category_manga_ranked">漫画排行</string>
     <string name="shiki_category_manga_popular">热门漫画</string>
+    <string name="novel_page_turn_animation">翻页动画</string>
+    <string name="novel_page_turn_slide">平移</string>
+    <string name="novel_page_turn_simulation">仿真</string>
 
     <!-- Extracted from hardcoded Chinese -->
     <string name="group_by_tvbox_repository">按 TVBox 仓库分组</string>

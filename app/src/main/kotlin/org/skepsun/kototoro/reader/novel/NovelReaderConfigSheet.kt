@@ -60,6 +60,13 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         binding.switchReadingStatusTransparent.isChecked = settings.isReadingStatusTransparent
         binding.switchParagraphIndent.isChecked = settings.enableParagraphIndent
         binding.toggleGroupReadingMode.check(if (settings.readingMode == ReadingMode.SCROLL) org.skepsun.kototoro.R.id.btnModeScroll else org.skepsun.kototoro.R.id.btnModePaged)
+        binding.toggleGroupPageTurnAnimation.check(
+            if (settings.pageTurnAnimation == NovelPageTurnAnimation.SIMULATION) {
+                org.skepsun.kototoro.R.id.btnAnimationSimulation
+            } else {
+                org.skepsun.kototoro.R.id.btnAnimationSlide
+            }
+        )
         binding.toggleGroupThemePreset.check(
             when (settings.themePreset) {
                 NovelReaderThemePreset.PAPER -> org.skepsun.kototoro.R.id.btnThemePaper
@@ -80,6 +87,7 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
 
         // 初始化值显示
         updateValueDisplays()
+        updatePageTurnAnimationEnabled()
         updatePreviewCard()
 
         // 设置监听器
@@ -104,7 +112,21 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
                 settings = settings.copy(
                     readingMode = if (checkedId == org.skepsun.kototoro.R.id.btnModeScroll) ReadingMode.SCROLL else ReadingMode.PAGED
                 )
+                updatePageTurnAnimationEnabled()
                 updatePreviewCard()
+                applySettings()
+            }
+        }
+
+        binding.toggleGroupPageTurnAnimation.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (isChecked) {
+                settings = settings.copy(
+                    pageTurnAnimation = if (checkedId == org.skepsun.kototoro.R.id.btnAnimationSimulation) {
+                        NovelPageTurnAnimation.SIMULATION
+                    } else {
+                        NovelPageTurnAnimation.SLIDE
+                    }
+                )
                 applySettings()
             }
         }
@@ -246,6 +268,14 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         binding.switchShowReadingStatus.isChecked = settings.showReadingStatus
         binding.switchReadingStatusTransparent.isChecked = settings.isReadingStatusTransparent
         binding.switchParagraphIndent.isChecked = settings.enableParagraphIndent
+        binding.toggleGroupReadingMode.check(if (settings.readingMode == ReadingMode.SCROLL) org.skepsun.kototoro.R.id.btnModeScroll else org.skepsun.kototoro.R.id.btnModePaged)
+        binding.toggleGroupPageTurnAnimation.check(
+            if (settings.pageTurnAnimation == NovelPageTurnAnimation.SIMULATION) {
+                org.skepsun.kototoro.R.id.btnAnimationSimulation
+            } else {
+                org.skepsun.kototoro.R.id.btnAnimationSlide
+            }
+        )
         binding.toggleGroupThemePreset.check(
             when (settings.themePreset) {
                 NovelReaderThemePreset.PAPER -> org.skepsun.kototoro.R.id.btnThemePaper
@@ -256,6 +286,7 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         )
 
         updateValueDisplays()
+        updatePageTurnAnimationEnabled()
         updatePreviewCard()
         applySettings()
     }
@@ -270,6 +301,13 @@ class NovelReaderConfigSheet : BottomSheetDialogFragment(),
         }
         binding.textMarginHorizontalValue.text = "${settings.marginHorizontal}dp"
         binding.textMarginVerticalValue.text = "${settings.marginVertical}dp"
+    }
+
+    private fun updatePageTurnAnimationEnabled() {
+        binding.toggleGroupPageTurnAnimation.isEnabled = settings.readingMode == ReadingMode.PAGED
+        for (i in 0 until binding.toggleGroupPageTurnAnimation.childCount) {
+            binding.toggleGroupPageTurnAnimation.getChildAt(i).isEnabled = settings.readingMode == ReadingMode.PAGED
+        }
     }
 
     private fun updatePreviewCard() {

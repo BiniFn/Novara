@@ -8,8 +8,13 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.PointF
+import android.graphics.Region
 import android.graphics.Rect
 import android.graphics.RectF
+import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
@@ -19,6 +24,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.animation.DecelerateInterpolator
+import android.view.animation.LinearInterpolator
 import androidx.collection.LruCache
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GestureDetectorCompat
@@ -45,10 +51,14 @@ import org.skepsun.kototoro.local.epub.EpubImageExtractor
 import java.io.File
 import javax.inject.Inject
 import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sign
+import kotlin.math.sin
 
 /**
  * 小说阅读器视图 - 基于 TextView 的自定义实现
@@ -121,6 +131,9 @@ class NovelReaderView @JvmOverloads constructor(
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
     private val pageTurnThresholdFraction = 0.18f
     private val pageTurnInterpolator = DecelerateInterpolator()
+    private val simulationPageTurnInterpolator = LinearInterpolator()
+    private var pageSwipeDownX: Float = 0f
+    private var pageSwipeDownY: Float = 0f
     private var pageSwipeStartX: Float = 0f
     private var pageSwipeStartY: Float = 0f
     private var isPageDragging: Boolean = false
@@ -129,11 +142,82 @@ class NovelReaderView @JvmOverloads constructor(
     private var pageSwipeOffsetX: Float = 0f
     private var pageSwipeAnimator: ValueAnimator? = null
     private var pageSwipeChapterDelta: Int = 0
+    private var pageSwipeDirection: Int = 0
+    private var pageSwipeLastX: Float = 0f
+    private var pageSwipeCurrentX: Float = 0f
+    private var pageSwipeCurrentY: Float = 0f
+    private var isSimulationAutoPageTurn: Boolean = false
     private var isAwaitingChapterTransitionContent: Boolean = false
     private var previousChapterPreviewText: String? = null
     private var nextChapterPreviewText: String? = null
     private var previousChapterPreviewPages: List<PageInfo> = emptyList()
     private var nextChapterPreviewPages: List<PageInfo> = emptyList()
+    private val foldPath = Path()
+    private val foldBackPath = Path()
+    private val foldStart1 = PointF()
+    private val foldControl1 = PointF()
+    private val foldVertex1 = PointF()
+    private val foldEnd1 = PointF()
+    private val foldStart2 = PointF()
+    private val foldControl2 = PointF()
+    private val foldVertex2 = PointF()
+    private val foldEnd2 = PointF()
+    private val foldBitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+        style = Paint.Style.FILL
+    }
+    private val foldFolderShadowDrawableRL = GradientDrawable(
+        GradientDrawable.Orientation.RIGHT_LEFT,
+        intArrayOf(0x333333, -0x4fcccccd),
+    ).apply { gradientType = GradientDrawable.LINEAR_GRADIENT }
+    private val foldFolderShadowDrawableLR = GradientDrawable(
+        GradientDrawable.Orientation.LEFT_RIGHT,
+        intArrayOf(0x333333, -0x4fcccccd),
+    ).apply { gradientType = GradientDrawable.LINEAR_GRADIENT }
+    private val foldBackShadowDrawableRL = GradientDrawable(
+        GradientDrawable.Orientation.RIGHT_LEFT,
+        intArrayOf(-0xeeeeef, 0x111111),
+    ).apply { gradientType = GradientDrawable.LINEAR_GRADIENT }
+    private val foldBackShadowDrawableLR = GradientDrawable(
+        GradientDrawable.Orientation.LEFT_RIGHT,
+        intArrayOf(-0xeeeeef, 0x111111),
+    ).apply { gradientType = GradientDrawable.LINEAR_GRADIENT }
+    private val foldFrontShadowDrawableVLR = GradientDrawable(
+        GradientDrawable.Orientation.LEFT_RIGHT,
+        intArrayOf(-0x7feeeeef, 0x111111),
+    ).apply { gradientType = GradientDrawable.LINEAR_GRADIENT }
+    private val foldFrontShadowDrawableVRL = GradientDrawable(
+        GradientDrawable.Orientation.RIGHT_LEFT,
+        intArrayOf(-0x7feeeeef, 0x111111),
+    ).apply { gradientType = GradientDrawable.LINEAR_GRADIENT }
+    private val foldFrontShadowDrawableHTB = GradientDrawable(
+        GradientDrawable.Orientation.TOP_BOTTOM,
+        intArrayOf(-0x7feeeeef, 0x111111),
+    ).apply { gradientType = GradientDrawable.LINEAR_GRADIENT }
+    private val foldFrontShadowDrawableHBT = GradientDrawable(
+        GradientDrawable.Orientation.BOTTOM_TOP,
+        intArrayOf(-0x7feeeeef, 0x111111),
+    ).apply { gradientType = GradientDrawable.LINEAR_GRADIENT }
+    private var foldCurrentBitmap: Bitmap? = null
+    private var foldTargetBitmap: Bitmap? = null
+    private var foldCurrentHalfBitmap: Bitmap? = null
+    private var foldTargetHalfBitmap: Bitmap? = null
+    private val foldBitmapCanvas = Canvas()
+    private var foldBitmapBaseIndex: Int = -1
+    private var foldBitmapTargetIndex: Int = -1
+    private var foldBitmapChapterDelta: Int = 0
+    private var foldMaxLength: Float = 0f
+    private var foldDegrees: Float = 0f
+    private var foldTouchToCornerDistance: Float = 0f
+    private var foldCornerX: Float = 0f
+    private var foldCornerY: Float = 0f
+    private var foldTouchX: Float = 0f
+    private var foldTouchY: Float = 0f
+    private var foldIsRtOrLb: Boolean = false
+    private var foldViewWidth: Int = 0
+    private var foldViewHeight: Int = 0
+    private var pageSwipeFoldCornerX: Float = 0f
+    private var pageSwipeFoldCornerY: Float = 0f
+    private var pageSwipeFoldCornerLocked: Boolean = false
 
     var onPageChangeListener: ((page: Int, total: Int) -> Unit)? = null
     var onTapListener: ((x: Float, y: Float) -> Unit)? = null
@@ -270,7 +354,7 @@ class NovelReaderView @JvmOverloads constructor(
             return
         }
 
-        if (pageSwipeBaseIndex >= 0 && pageSwipeTargetIndex >= 0 && pageSwipeOffsetX != 0f) {
+        if (pageSwipeBaseIndex >= 0 && pageSwipeTargetIndex >= 0) {
             drawPageSwipe(canvas)
             return
         }
@@ -280,6 +364,14 @@ class NovelReaderView @JvmOverloads constructor(
     }
 
     private fun drawPageSwipe(canvas: Canvas) {
+        if (settings.pageTurnAnimation == NovelPageTurnAnimation.SIMULATION) {
+            drawPageSimulationSwipe(canvas)
+            return
+        }
+        if (pageSwipeOffsetX == 0f) {
+            drawSpread(canvas, pageSwipeBaseIndex, 0f)
+            return
+        }
         drawSpread(canvas, pageSwipeBaseIndex, pageSwipeOffsetX)
         if (pageSwipeChapterDelta != 0) {
             drawChapterBoundaryPreview(canvas, pageSwipeChapterDelta, pageSwipeOffsetX)
@@ -291,6 +383,91 @@ class NovelReaderView @JvmOverloads constructor(
             pageSwipeOffsetX - width
         }
         drawSpread(canvas, pageSwipeTargetIndex, targetOffset)
+    }
+
+    private fun drawPageSimulationSwipe(canvas: Canvas) {
+        if (width <= 0 || height <= 0) return
+        val forward = pageSwipeDirection < 0
+        val currentBitmap = getFoldCurrentBitmap() ?: run {
+            drawSpread(canvas, pageSwipeBaseIndex, pageSwipeOffsetX)
+            return
+        }
+        val targetBitmap = getFoldTargetBitmap(forward) ?: run {
+            drawSpread(canvas, pageSwipeBaseIndex, pageSwipeOffsetX)
+            return
+        }
+        calcFoldCornerXY(forward)
+        calcFoldPoints(
+            forward = forward,
+            touchX = getSimulationTouchX(),
+            touchY = pageSwipeCurrentY,
+        )
+        drawFoldCurrentPageArea(canvas, currentBitmap)
+        drawFoldNextPageAreaAndShadow(canvas, targetBitmap)
+        drawFoldCurrentPageShadow(canvas)
+        drawFoldCurrentBackArea(canvas)
+    }
+
+    @Suppress("unused")
+    private fun drawDualPageSimulationSwipe(canvas: Canvas) {
+        val forward = pageSwipeDirection < 0
+        val currentBitmap = getFoldCurrentBitmap() ?: run {
+            drawSpread(canvas, pageSwipeBaseIndex, pageSwipeOffsetX)
+            return
+        }
+        val targetBitmap = getFoldTargetBitmap(forward) ?: run {
+            drawSpread(canvas, pageSwipeBaseIndex, pageSwipeOffsetX)
+            return
+        }
+        drawDualPageSimulationBase(canvas, currentBitmap, targetBitmap, forward)
+        val halfWidth = width / 2f
+        val pageRect = if (forward) {
+            RectF(halfWidth, 0f, width.toFloat(), height.toFloat())
+        } else {
+            RectF(0f, 0f, halfWidth, height.toFloat())
+        }
+        val currentHalf = cropFoldBitmap(currentBitmap, pageRect) ?: return
+        val targetHalf = cropFoldBitmap(
+            targetBitmap,
+            if (forward) {
+                RectF(halfWidth, 0f, width.toFloat(), height.toFloat())
+            } else {
+                RectF(0f, 0f, halfWidth, height.toFloat())
+            },
+        ) ?: return
+
+        canvas.save()
+        canvas.translate(pageRect.left, 0f)
+        calcFoldCornerXY(forward, halfWidth.toInt(), height)
+        calcFoldPoints(
+            forward = forward,
+            viewWidth = halfWidth.toInt(),
+            viewHeight = height,
+            touchX = pageSwipeCurrentX - pageRect.left,
+            touchY = pageSwipeCurrentY,
+        )
+        drawFoldCurrentPageArea(canvas, currentHalf)
+        drawFoldNextPageAreaAndShadow(canvas, targetHalf)
+        drawFoldCurrentPageShadow(canvas)
+        drawFoldCurrentBackArea(canvas)
+        canvas.restore()
+    }
+
+    private fun drawDualPageSimulationBase(
+        canvas: Canvas,
+        currentBitmap: Bitmap,
+        targetBitmap: Bitmap,
+        forward: Boolean,
+    ) {
+        canvas.drawBitmap(targetBitmap, 0f, 0f, null)
+        val halfWidth = width / 2
+        val stableSrc = if (forward) {
+            Rect(0, 0, halfWidth, height)
+        } else {
+            Rect(halfWidth, 0, width, height)
+        }
+        val stableDst = stableSrc
+        canvas.drawBitmap(currentBitmap, stableSrc, stableDst, null)
     }
 
     private fun drawSpread(canvas: Canvas, startIndex: Int, offsetX: Float) {
@@ -339,6 +516,420 @@ class NovelReaderView @JvmOverloads constructor(
             drawPage(canvas, page, offsetX, offsetX + width.toFloat())
         }
     }
+
+    private fun getFoldCurrentBitmap(): Bitmap? {
+        if (
+            foldCurrentBitmap == null ||
+            foldCurrentBitmap?.width != width ||
+            foldCurrentBitmap?.height != height ||
+            foldBitmapBaseIndex != pageSwipeBaseIndex
+        ) {
+            foldCurrentBitmap = renderFoldBitmap(foldCurrentBitmap) { canvas ->
+                drawSpread(canvas, pageSwipeBaseIndex, 0f)
+            }
+            foldBitmapBaseIndex = pageSwipeBaseIndex
+        }
+        return foldCurrentBitmap
+    }
+
+    private fun getFoldTargetBitmap(forward: Boolean): Bitmap? {
+        if (
+            foldTargetBitmap == null ||
+            foldTargetBitmap?.width != width ||
+            foldTargetBitmap?.height != height ||
+            foldBitmapTargetIndex != pageSwipeTargetIndex ||
+            foldBitmapChapterDelta != pageSwipeChapterDelta
+        ) {
+            foldTargetBitmap = renderFoldBitmap(foldTargetBitmap) { canvas ->
+                if (pageSwipeChapterDelta != 0) {
+                    val previewPages = if (pageSwipeChapterDelta > 0) {
+                        nextChapterPreviewPages
+                    } else {
+                        previousChapterPreviewPages
+                    }
+                    val previewIndex = if (pageSwipeChapterDelta < 0) {
+                        getLastBoundaryPreviewStartIndex(previewPages.size)
+                    } else {
+                        0
+                    }
+                    drawPreviewSpread(canvas, previewPages, previewIndex, 0f)
+                } else {
+                    drawSpread(canvas, pageSwipeTargetIndex, 0f)
+                }
+            }
+            foldBitmapTargetIndex = pageSwipeTargetIndex
+            foldBitmapChapterDelta = pageSwipeChapterDelta
+        }
+        return foldTargetBitmap?.takeIf { forward || pageSwipeTargetIndex >= 0 || pageSwipeChapterDelta != 0 }
+    }
+
+    private inline fun renderFoldBitmap(
+        reusable: Bitmap?,
+        draw: (Canvas) -> Unit,
+    ): Bitmap? {
+        if (width <= 0 || height <= 0) return null
+        val bitmap = reusable
+            ?.takeIf { it.width == width && it.height == height && !it.isRecycled }
+            ?: Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        foldBitmapCanvas.setBitmap(bitmap)
+        foldBitmapCanvas.drawColor(palette.backgroundColor)
+        draw(foldBitmapCanvas)
+        foldBitmapCanvas.setBitmap(null)
+        return bitmap
+    }
+
+    private fun cropFoldBitmap(source: Bitmap, rect: RectF): Bitmap? {
+        val targetWidth = rect.width().toInt().coerceAtLeast(1)
+        val targetHeight = rect.height().toInt().coerceAtLeast(1)
+        val reusable = if (source === foldTargetBitmap) foldTargetHalfBitmap else foldCurrentHalfBitmap
+        val bitmap = reusable
+            ?.takeIf { it.width == targetWidth && it.height == targetHeight && !it.isRecycled }
+            ?: Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+        if (source === foldTargetBitmap) {
+            foldTargetHalfBitmap = bitmap
+        } else {
+            foldCurrentHalfBitmap = bitmap
+        }
+        foldBitmapCanvas.setBitmap(bitmap)
+        foldBitmapCanvas.drawColor(palette.backgroundColor)
+        val src = Rect(rect.left.toInt(), rect.top.toInt(), rect.right.toInt(), rect.bottom.toInt())
+        val dst = Rect(0, 0, targetWidth, targetHeight)
+        foldBitmapCanvas.drawBitmap(source, src, dst, null)
+        foldBitmapCanvas.setBitmap(null)
+        return bitmap
+    }
+
+    private fun calcFoldCornerXY(forward: Boolean, viewWidth: Int = width, viewHeight: Int = height) {
+        foldViewWidth = viewWidth
+        foldViewHeight = viewHeight
+        if (!pageSwipeFoldCornerLocked) {
+            lockFoldCorner(forward = forward)
+        }
+        foldCornerX = pageSwipeFoldCornerX.coerceIn(0f, viewWidth.toFloat())
+        foldCornerY = pageSwipeFoldCornerY.coerceIn(0f, viewHeight.toFloat())
+        foldIsRtOrLb = (foldCornerX == 0f && foldCornerY == viewHeight.toFloat()) ||
+            (foldCornerY == 0f && foldCornerX == viewWidth.toFloat())
+    }
+
+    private fun calcFoldCornerXYFromPoint(x: Float, y: Float, viewWidth: Int, viewHeight: Int) {
+        foldCornerX = if (x <= viewWidth / 2f) 0f else viewWidth.toFloat()
+        foldCornerY = if (y <= viewHeight / 2f) {
+            0f
+        } else {
+            viewHeight.toFloat()
+        }
+        foldIsRtOrLb = (foldCornerX == 0f && foldCornerY == viewHeight.toFloat()) ||
+            (foldCornerY == 0f && foldCornerX == viewWidth.toFloat())
+    }
+
+    private fun getFoldLocalDownX(forward: Boolean, viewWidth: Int): Float {
+        return if (viewWidth == width) {
+            pageSwipeDownX
+        } else if (forward) {
+            pageSwipeDownX - width / 2f
+        } else {
+            pageSwipeDownX
+        }.coerceIn(1f, viewWidth - 1f)
+    }
+
+    private fun lockFoldCorner(forward: Boolean) {
+        if (width <= 0 || height <= 0) return
+        val cornerPoint = when {
+            !forward && pageSwipeDownX < width / 2f -> {
+                pageSwipeDownX to height.toFloat()
+            }
+            !forward -> {
+                (width - pageSwipeDownX) to height.toFloat()
+            }
+            forward && pageSwipeDownX < width / 2f -> {
+                (width - pageSwipeDownX) to pageSwipeDownY
+            }
+            else -> {
+                pageSwipeDownX to pageSwipeDownY
+            }
+        }
+        calcFoldCornerXYFromPoint(
+            x = cornerPoint.first.coerceIn(1f, width - 1f),
+            y = cornerPoint.second.coerceIn(1f, height - 1f),
+            viewWidth = width,
+            viewHeight = height,
+        )
+        pageSwipeFoldCornerX = foldCornerX
+        pageSwipeFoldCornerY = foldCornerY
+        pageSwipeFoldCornerLocked = true
+    }
+
+    private fun calcFoldPoints(
+        forward: Boolean,
+        viewWidth: Int = width,
+        viewHeight: Int = height,
+        touchX: Float = pageSwipeCurrentX,
+        touchY: Float = pageSwipeCurrentY,
+    ) {
+        foldViewWidth = viewWidth
+        foldViewHeight = viewHeight
+        foldMaxLength = hypot(viewWidth.toDouble(), viewHeight.toDouble()).toFloat()
+        foldTouchX = touchX
+        foldTouchY = touchY.coerceIn(1f, viewHeight - 1f)
+
+        var middleX = (foldTouchX + foldCornerX) / 2f
+        var middleY = (foldTouchY + foldCornerY) / 2f
+        foldControl1.x = middleX - (foldCornerY - middleY) * (foldCornerY - middleY) /
+            safeDenominator(foldCornerX - middleX)
+        foldControl1.y = foldCornerY
+        foldControl2.x = foldCornerX
+        foldControl2.y = middleY - (foldCornerX - middleX) * (foldCornerX - middleX) /
+            safeDenominator(foldCornerY - middleY)
+        foldStart1.x = foldControl1.x - (foldCornerX - foldControl1.x) / 2f
+        foldStart1.y = foldCornerY
+
+        if (foldTouchX > 0f && foldTouchX < viewWidth && (foldStart1.x < 0f || foldStart1.x > viewWidth)) {
+            if (foldStart1.x < 0f) {
+                foldStart1.x = viewWidth - foldStart1.x
+            }
+            val f1 = abs(foldCornerX - foldTouchX).coerceAtLeast(0.1f)
+            val f2 = viewWidth * f1 / safeDenominator(foldStart1.x)
+            foldTouchX = abs(foldCornerX - f2).coerceIn(0.1f, viewWidth - 0.1f)
+            val f3 = abs(foldCornerX - foldTouchX) * abs(foldCornerY - foldTouchY) / f1
+            foldTouchY = abs(foldCornerY - f3).coerceIn(1f, viewHeight - 1f)
+            middleX = (foldTouchX + foldCornerX) / 2f
+            middleY = (foldTouchY + foldCornerY) / 2f
+            foldControl1.x = middleX - (foldCornerY - middleY) * (foldCornerY - middleY) /
+                safeDenominator(foldCornerX - middleX)
+            foldControl1.y = foldCornerY
+            foldControl2.x = foldCornerX
+            foldControl2.y = middleY - (foldCornerX - middleX) * (foldCornerX - middleX) /
+                safeDenominator(foldCornerY - middleY)
+            foldStart1.x = foldControl1.x - (foldCornerX - foldControl1.x) / 2f
+        }
+
+        foldStart2.x = foldCornerX
+        foldStart2.y = foldControl2.y - (foldCornerY - foldControl2.y) / 2f
+        setFoldCross(foldEnd1, foldTouchX, foldTouchY, foldControl1, foldStart1, foldStart2)
+        setFoldCross(foldEnd2, foldTouchX, foldTouchY, foldControl2, foldStart1, foldStart2)
+        foldVertex1.x = (foldStart1.x + 2f * foldControl1.x + foldEnd1.x) / 4f
+        foldVertex1.y = (2f * foldControl1.y + foldStart1.y + foldEnd1.y) / 4f
+        foldVertex2.x = (foldStart2.x + 2f * foldControl2.x + foldEnd2.x) / 4f
+        foldVertex2.y = (2f * foldControl2.y + foldStart2.y + foldEnd2.y) / 4f
+        foldTouchToCornerDistance = hypot(
+            (foldTouchX - foldCornerX).toDouble(),
+            (foldTouchY - foldCornerY).toDouble(),
+        ).toFloat()
+    }
+
+    private fun drawFoldCurrentBackArea(canvas: Canvas) {
+        val i = ((foldStart1.x + foldControl1.x) / 2f).toInt()
+        val f1 = abs(i - foldControl1.x)
+        val i1 = ((foldStart2.y + foldControl2.y) / 2f).toInt()
+        val f2 = abs(i1 - foldControl2.y)
+        val f3 = min(f1, f2)
+        foldBackPath.reset()
+        foldBackPath.moveTo(foldVertex2.x, foldVertex2.y)
+        foldBackPath.lineTo(foldVertex1.x, foldVertex1.y)
+        foldBackPath.lineTo(foldEnd1.x, foldEnd1.y)
+        foldBackPath.lineTo(foldTouchX, foldTouchY)
+        foldBackPath.lineTo(foldEnd2.x, foldEnd2.y)
+        foldBackPath.close()
+        val folderShadowDrawable: GradientDrawable
+        val left: Int
+        val right: Int
+        if (foldIsRtOrLb) {
+            left = (foldStart1.x - 1).toInt()
+            right = (foldStart1.x + f3 + 1).toInt()
+            folderShadowDrawable = foldFolderShadowDrawableLR
+        } else {
+            left = (foldStart1.x - f3 - 1).toInt()
+            right = (foldStart1.x + 1).toInt()
+            folderShadowDrawable = foldFolderShadowDrawableRL
+        }
+
+        canvas.save()
+        canvas.clipPath(foldPath)
+        clipPathIntersect(canvas, foldBackPath)
+        canvas.drawColor(palette.backgroundColor)
+        canvas.rotate(foldDegrees, foldStart1.x, foldStart1.y)
+        folderShadowDrawable.setBounds(left, foldStart1.y.toInt(), right, (foldStart1.y + foldMaxLength).toInt())
+        folderShadowDrawable.draw(canvas)
+        canvas.restore()
+    }
+
+    private fun drawFoldCurrentPageShadow(canvas: Canvas) {
+        val shadowOnRight = foldIsRtOrLb
+        val degree = if (shadowOnRight) {
+            Math.PI / 4 - atan2(foldControl1.y - foldTouchY, foldTouchX - foldControl1.x)
+        } else {
+            Math.PI / 4 - atan2(foldTouchY - foldControl1.y, foldTouchX - foldControl1.x)
+        }
+        val d1 = (25f * 1.414f * cos(degree)).toFloat()
+        val d2 = (25f * 1.414f * sin(degree)).toFloat()
+        val x = foldTouchX + d1
+        val y = if (shadowOnRight) foldTouchY + d2 else foldTouchY - d2
+        foldBackPath.reset()
+        foldBackPath.moveTo(x, y)
+        foldBackPath.lineTo(foldTouchX, foldTouchY)
+        foldBackPath.lineTo(foldControl1.x, foldControl1.y)
+        foldBackPath.lineTo(foldStart1.x, foldStart1.y)
+        foldBackPath.close()
+        canvas.save()
+        clipOutPath(canvas, foldPath)
+        clipPathIntersect(canvas, foldBackPath)
+
+        var leftX: Int
+        var rightX: Int
+        var currentPageShadow: GradientDrawable
+        if (shadowOnRight) {
+            leftX = foldControl1.x.toInt()
+            rightX = (foldControl1.x + 25).toInt()
+            currentPageShadow = foldFrontShadowDrawableVLR
+        } else {
+            leftX = (foldControl1.x - 25).toInt()
+            rightX = (foldControl1.x + 1).toInt()
+            currentPageShadow = foldFrontShadowDrawableVRL
+        }
+        var rotateDegrees = Math.toDegrees(
+            atan2(foldTouchX - foldControl1.x, foldControl1.y - foldTouchY).toDouble()
+        ).toFloat()
+        canvas.rotate(rotateDegrees, foldControl1.x, foldControl1.y)
+        currentPageShadow.setBounds(leftX, (foldControl1.y - foldMaxLength).toInt(), rightX, foldControl1.y.toInt())
+        currentPageShadow.draw(canvas)
+        canvas.restore()
+
+        foldBackPath.reset()
+        foldBackPath.moveTo(x, y)
+        foldBackPath.lineTo(foldTouchX, foldTouchY)
+        foldBackPath.lineTo(foldControl2.x, foldControl2.y)
+        foldBackPath.lineTo(foldStart2.x, foldStart2.y)
+        foldBackPath.close()
+        canvas.save()
+        clipOutPath(canvas, foldPath)
+        canvas.clipPath(foldBackPath)
+
+        if (shadowOnRight) {
+            leftX = foldControl2.y.toInt()
+            rightX = (foldControl2.y + 25).toInt()
+            currentPageShadow = foldFrontShadowDrawableHTB
+        } else {
+            leftX = (foldControl2.y - 25).toInt()
+            rightX = (foldControl2.y + 1).toInt()
+            currentPageShadow = foldFrontShadowDrawableHBT
+        }
+        rotateDegrees = Math.toDegrees(
+            atan2(foldControl2.y - foldTouchY, foldControl2.x - foldTouchX).toDouble()
+        ).toFloat()
+        canvas.rotate(rotateDegrees, foldControl2.x, foldControl2.y)
+        val temp = if (foldControl2.y < 0f) {
+            (foldControl2.y - foldViewHeight).toDouble()
+        } else {
+            foldControl2.y.toDouble()
+        }
+        val hmg = hypot(foldControl2.x.toDouble(), temp)
+        if (hmg > foldMaxLength) {
+            currentPageShadow.setBounds(
+                (foldControl2.x - 25 - hmg).toInt(),
+                leftX,
+                (foldControl2.x + foldMaxLength - hmg).toInt(),
+                rightX,
+            )
+        } else {
+            currentPageShadow.setBounds(
+                (foldControl2.x - foldMaxLength).toInt(),
+                leftX,
+                foldControl2.x.toInt(),
+                rightX,
+            )
+        }
+        currentPageShadow.draw(canvas)
+        canvas.restore()
+    }
+
+    private fun drawFoldNextPageAreaAndShadow(canvas: Canvas, bitmap: Bitmap) {
+        foldBackPath.reset()
+        foldBackPath.moveTo(foldStart1.x, foldStart1.y)
+        foldBackPath.lineTo(foldVertex1.x, foldVertex1.y)
+        foldBackPath.lineTo(foldVertex2.x, foldVertex2.y)
+        foldBackPath.lineTo(foldStart2.x, foldStart2.y)
+        foldBackPath.lineTo(foldCornerX, foldCornerY)
+        foldBackPath.close()
+        foldDegrees = Math.toDegrees(
+            atan2((foldControl1.x - foldCornerX).toDouble(), foldControl2.y - foldCornerY.toDouble())
+        ).toFloat()
+        val leftX: Int
+        val rightX: Int
+        val backShadowDrawable: GradientDrawable
+        if (foldIsRtOrLb) {
+            leftX = foldStart1.x.toInt()
+            rightX = (foldStart1.x + foldTouchToCornerDistance / 4f).toInt()
+            backShadowDrawable = foldBackShadowDrawableLR
+        } else {
+            leftX = (foldStart1.x - foldTouchToCornerDistance / 4f).toInt()
+            rightX = foldStart1.x.toInt()
+            backShadowDrawable = foldBackShadowDrawableRL
+        }
+        canvas.save()
+        canvas.clipPath(foldPath)
+        clipPathIntersect(canvas, foldBackPath)
+        canvas.drawBitmap(bitmap, 0f, 0f, null)
+        canvas.rotate(foldDegrees, foldStart1.x, foldStart1.y)
+        backShadowDrawable.setBounds(leftX, foldStart1.y.toInt(), rightX, (foldMaxLength + foldStart1.y).toInt())
+        backShadowDrawable.draw(canvas)
+        canvas.restore()
+    }
+
+    private fun drawFoldCurrentPageArea(canvas: Canvas, bitmap: Bitmap) {
+        foldPath.reset()
+        foldPath.moveTo(foldStart1.x, foldStart1.y)
+        foldPath.quadTo(foldControl1.x, foldControl1.y, foldEnd1.x, foldEnd1.y)
+        foldPath.lineTo(foldTouchX, foldTouchY)
+        foldPath.lineTo(foldEnd2.x, foldEnd2.y)
+        foldPath.quadTo(foldControl2.x, foldControl2.y, foldStart2.x, foldStart2.y)
+        foldPath.lineTo(foldCornerX, foldCornerY)
+        foldPath.close()
+
+        canvas.save()
+        clipOutPath(canvas, foldPath)
+        canvas.drawBitmap(bitmap, 0f, 0f, null)
+        canvas.restore()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun clipOutPath(canvas: Canvas, path: Path) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            canvas.clipOutPath(path)
+        } else {
+            canvas.clipPath(path, Region.Op.XOR)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun clipPathIntersect(canvas: Canvas, path: Path) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            canvas.clipPath(path)
+        } else {
+            canvas.clipPath(path, Region.Op.INTERSECT)
+        }
+    }
+
+    private fun setFoldCross(
+        out: PointF,
+        p1x: Float,
+        p1y: Float,
+        p2: PointF,
+        p3: PointF,
+        p4: PointF,
+    ) {
+        val a1 = (p2.y - p1y) / safeDenominator(p2.x - p1x)
+        val b1 = (p1x * p2.y - p2.x * p1y) / safeDenominator(p1x - p2.x)
+        val a2 = (p4.y - p3.y) / safeDenominator(p4.x - p3.x)
+        val b2 = (p3.x * p4.y - p4.x * p3.y) / safeDenominator(p3.x - p4.x)
+        out.x = (b2 - b1) / safeDenominator(a1 - a2)
+        out.y = a1 * out.x + b1
+    }
+
+    private fun safeDenominator(value: Float): Float {
+        if (abs(value) >= 0.1f) return value
+        return if (value < 0f) -0.1f else 0.1f
+    }
+
     private fun drawPage(canvas: Canvas, page: PageInfo, left: Float, right: Float) {
         canvas.save()
         // 考虑 View 的 padding（用于避开状态栏等系统 UI）和设置的边距
@@ -645,7 +1236,7 @@ class NovelReaderView @JvmOverloads constructor(
             }
             return false
         }
-        val step = if (isDualPage) 2 else 1
+        val step = getPageTurnStep()
         if (currentPageIndex + step < pages.size) {
             animatePageSettle(targetIndex = currentPageIndex + step, commit = true, direction = -1)
             return true
@@ -667,7 +1258,7 @@ class NovelReaderView @JvmOverloads constructor(
             }
             return false
         }
-        val step = if (isDualPage) 2 else 1
+        val step = getPageTurnStep()
         if (currentPageIndex - step >= 0) {
             animatePageSettle(targetIndex = currentPageIndex - step, commit = true, direction = 1)
             return true
@@ -1479,6 +2070,14 @@ class NovelReaderView @JvmOverloads constructor(
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         pageSwipeAnimator?.cancel()
+        foldCurrentBitmap?.recycle()
+        foldTargetBitmap?.recycle()
+        foldCurrentHalfBitmap?.recycle()
+        foldTargetHalfBitmap?.recycle()
+        foldCurrentBitmap = null
+        foldTargetBitmap = null
+        foldCurrentHalfBitmap = null
+        foldTargetHalfBitmap = null
         scope.cancel()
     }
 
@@ -1624,15 +2223,21 @@ class NovelReaderView @JvmOverloads constructor(
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 pageSwipeAnimator?.cancel()
+                pageSwipeDownX = event.x
+                pageSwipeDownY = event.y
                 pageSwipeStartX = event.x
                 pageSwipeStartY = event.y
+                pageSwipeLastX = event.x
+                pageSwipeCurrentX = event.x
+                pageSwipeCurrentY = event.y
                 isPageDragging = false
+                resetFoldBitmaps()
                 resetPageSwipeState(keepOffset = false)
             }
 
             MotionEvent.ACTION_MOVE -> {
-                val deltaX = event.x - pageSwipeStartX
-                val deltaY = event.y - pageSwipeStartY
+                val deltaX = event.x - pageSwipeDownX
+                val deltaY = event.y - pageSwipeDownY
                 if (!isPageDragging && abs(deltaX) > touchSlop && abs(deltaX) > abs(deltaY)) {
                     val targetIndex = resolveSwipeTargetIndex(deltaX)
                     val chapterDelta = if (targetIndex < 0) resolveSwipeChapterDelta(deltaX) else 0
@@ -1641,13 +2246,26 @@ class NovelReaderView @JvmOverloads constructor(
                         pageSwipeBaseIndex = currentPageIndex
                         pageSwipeTargetIndex = if (targetIndex >= 0) targetIndex else currentPageIndex
                         pageSwipeChapterDelta = chapterDelta
+                        pageSwipeDirection = deltaX.sign.toInt()
+                        pageSwipeLastX = event.x
+                        pageSwipeCurrentX = pageSwipeDownX
+                        pageSwipeCurrentY = event.y
+                        pageSwipeOffsetX = event.x - pageSwipeDownX
+                        lockFoldCorner(forward = pageSwipeDirection < 0)
+                        applyLegadoTouchYPolicy(pageSwipeDirection)
                         parent?.requestDisallowInterceptTouchEvent(true)
+                        invalidate()
+                        return true
                     } else {
                         return false
                     }
                 }
                 if (isPageDragging) {
-                    pageSwipeOffsetX = deltaX.coerceIn(-width.toFloat(), width.toFloat())
+                    pageSwipeOffsetX = coerceSwipeOffsetForLockedDirection(deltaX)
+                    pageSwipeLastX = event.x
+                    pageSwipeCurrentX = getSimulationTouchX()
+                    pageSwipeCurrentY = event.y
+                    applyLegadoTouchYPolicy(pageSwipeDirection)
                     invalidate()
                     return true
                 }
@@ -1656,11 +2274,11 @@ class NovelReaderView @JvmOverloads constructor(
             MotionEvent.ACTION_CANCEL,
             MotionEvent.ACTION_UP -> {
                 if (isPageDragging) {
-                    val shouldCommit = abs(pageSwipeOffsetX) >= width * pageTurnThresholdFraction
+                    val shouldCommit = abs(pageSwipeOffsetX) >= getPageTurnDistance() * pageTurnThresholdFraction
                     animatePageSettle(
                         targetIndex = pageSwipeTargetIndex,
                         commit = shouldCommit,
-                        direction = pageSwipeOffsetX.sign.toInt(),
+                        direction = pageSwipeDirection,
                     )
                     isPageDragging = false
                     return true
@@ -1668,6 +2286,15 @@ class NovelReaderView @JvmOverloads constructor(
             }
         }
         return false
+    }
+
+    private fun applyLegadoTouchYPolicy(direction: Int) {
+        if (pageSwipeStartY > height / 3f && pageSwipeStartY < height * 2f / 3f || direction > 0) {
+            pageSwipeCurrentY = height.toFloat()
+        }
+        if (pageSwipeStartY > height / 3f && pageSwipeStartY < height / 2f && direction < 0) {
+            pageSwipeCurrentY = 1f
+        }
     }
 
     private fun animatePageSettle(targetIndex: Int, commit: Boolean, direction: Int) {
@@ -1685,19 +2312,51 @@ class NovelReaderView @JvmOverloads constructor(
             direction
         }
         if (resolvedDirection == 0) return
+        if (pageSwipeDirection != resolvedDirection) {
+            pageSwipeDirection = resolvedDirection
+        }
+        if (settings.pageTurnAnimation == NovelPageTurnAnimation.SIMULATION && !isPageDragging) {
+            prepareSimulationAutoPageTurn(resolvedDirection)
+        }
 
         pageSwipeAnimator?.cancel()
-        val targetOffset = if (commit) {
-            if (resolvedDirection > 0) width.toFloat() else -width.toFloat()
+        val settleFromX = getSimulationTouchX()
+        val settleFromY = pageSwipeCurrentY
+        val settleFromOffset = pageSwipeOffsetX
+        val settleToX = if (commit) {
+            if (resolvedDirection < 0) -getPageTurnDistance() else getPageTurnDistance()
+        } else {
+            if (resolvedDirection < 0) getPageTurnDistance() else -getPageTurnDistance()
+        }
+        val settleToY = if (!commit) {
+            pageSwipeCurrentY
+        } else if (pageSwipeFoldCornerLocked && pageSwipeFoldCornerY == 0f) {
+            1f
+        } else {
+            height.toFloat()
+        }
+        val settleToOffset = if (commit) {
+            if (resolvedDirection < 0) -getPageTurnDistance() else getPageTurnDistance()
         } else {
             0f
         }
-        pageSwipeAnimator = ValueAnimator.ofFloat(pageSwipeOffsetX, targetOffset).apply {
+        pageSwipeAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
             var cancelled = false
-            duration = 180L
-            interpolator = pageTurnInterpolator
+            duration = pageTurnSettleDuration(
+                fromOffset = settleFromOffset,
+                toOffset = settleToOffset,
+                commit = commit,
+            )
+            interpolator = if (settings.pageTurnAnimation == NovelPageTurnAnimation.SIMULATION) {
+                simulationPageTurnInterpolator
+            } else {
+                pageTurnInterpolator
+            }
             addUpdateListener { animator ->
-                pageSwipeOffsetX = animator.animatedValue as Float
+                val fraction = animator.animatedFraction
+                pageSwipeCurrentX = settleFromX + (settleToX - settleFromX) * fraction
+                pageSwipeCurrentY = settleFromY + (settleToY - settleFromY) * fraction
+                pageSwipeOffsetX = settleFromOffset + (settleToOffset - settleFromOffset) * fraction
                 invalidate()
             }
             addListener(object : AnimatorListenerAdapter() {
@@ -1725,8 +2384,60 @@ class NovelReaderView @JvmOverloads constructor(
         }
     }
 
+    private fun getSimulationTouchX(): Float {
+        val anchorX = if (isSimulationAutoPageTurn) pageSwipeStartX else pageSwipeDownX
+        return (anchorX + pageSwipeOffsetX).coerceIn(0.1f, width.toFloat() - 0.1f)
+    }
+
+    private fun prepareSimulationAutoPageTurn(direction: Int) {
+        if (width <= 0 || height <= 0) return
+        pageSwipeStartX = if (direction < 0) {
+            width * 0.92f
+        } else {
+            width * 0.08f
+        }
+        pageSwipeStartY = height * 0.9f
+        pageSwipeLastX = pageSwipeStartX
+        pageSwipeCurrentX = pageSwipeStartX
+        pageSwipeCurrentY = pageSwipeStartY
+        pageSwipeOffsetX = 0f
+        pageSwipeDownX = pageSwipeStartX
+        pageSwipeDownY = pageSwipeStartY
+        isSimulationAutoPageTurn = true
+        lockFoldCorner(forward = direction < 0)
+        resetFoldBitmaps()
+    }
+
+    private fun coerceSwipeOffsetForLockedDirection(deltaX: Float): Float {
+        val distance = getPageTurnDistance()
+        return if (pageSwipeDirection < 0) {
+            deltaX.coerceIn(-distance, 0f)
+        } else {
+            deltaX.coerceIn(0f, distance)
+        }
+    }
+
+    private fun pageTurnSettleDuration(fromOffset: Float, toOffset: Float, commit: Boolean): Long {
+        if (settings.pageTurnAnimation != NovelPageTurnAnimation.SIMULATION) {
+            return 180L
+        }
+        val distanceRatio = (abs(toOffset - fromOffset) / getPageTurnDistance().coerceAtLeast(1f)).coerceIn(0f, 1f)
+        val baseDuration = if (isSimulationAutoPageTurn && commit) {
+            450L
+        } else if (commit) {
+            420L
+        } else {
+            260L
+        }
+        return (baseDuration * distanceRatio).toLong().coerceIn(120L, baseDuration)
+    }
+
+    private fun getPageTurnDistance(): Float {
+        return width.toFloat().coerceAtLeast(1f)
+    }
+
     private fun resolveSwipeTargetIndex(deltaX: Float): Int {
-        val step = if (isDualPage) 2 else 1
+        val step = getPageTurnStep()
         return when {
             deltaX < 0f && currentPageIndex + step < pages.size -> currentPageIndex + step
             deltaX > 0f && currentPageIndex - step >= 0 -> currentPageIndex - step
@@ -1735,12 +2446,16 @@ class NovelReaderView @JvmOverloads constructor(
     }
 
     private fun resolveSwipeChapterDelta(deltaX: Float): Int {
-        val step = if (isDualPage) 2 else 1
+        val step = getPageTurnStep()
         return when {
             deltaX < 0f && currentPageIndex + step >= pages.size -> 1
             deltaX > 0f && currentPageIndex - step < 0 -> -1
             else -> 0
         }
+    }
+
+    private fun getPageTurnStep(): Int {
+        return if (isDualPage) 2 else 1
     }
 
     private fun resetPageSwipeState(keepOffset: Boolean = false) {
@@ -1749,9 +2464,23 @@ class NovelReaderView @JvmOverloads constructor(
         pageSwipeBaseIndex = -1
         pageSwipeTargetIndex = -1
         pageSwipeChapterDelta = 0
+        pageSwipeDirection = 0
+        pageSwipeFoldCornerX = 0f
+        pageSwipeFoldCornerY = 0f
+        pageSwipeFoldCornerLocked = false
+        isSimulationAutoPageTurn = false
+        resetFoldBitmaps()
         if (!keepOffset) {
             pageSwipeOffsetX = 0f
         }
+    }
+
+    private fun resetFoldBitmaps() {
+        foldBitmapBaseIndex = -1
+        foldBitmapTargetIndex = -1
+        foldBitmapChapterDelta = 0
+        foldCurrentHalfBitmap?.eraseColor(Color.TRANSPARENT)
+        foldTargetHalfBitmap?.eraseColor(Color.TRANSPARENT)
     }
 
     fun cancelPendingChapterTransition() {

@@ -103,6 +103,39 @@
                 android:text="@string/novel_mode_scroll" />
         </com.google.android.material.button.MaterialButtonToggleGroup>
 
+        <!-- 翻页动画 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/novel_page_turn_animation"
+            android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+        <com.google.android.material.button.MaterialButtonToggleGroup
+            android:id="@+id/toggleGroupPageTurnAnimation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="16dp"
+            app:singleSelection="true"
+            app:selectionRequired="true">
+
+            <Button
+                android:id="@+id/btnAnimationSlide"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/novel_page_turn_slide" />
+
+            <Button
+                android:id="@+id/btnAnimationSimulation"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/novel_page_turn_simulation" />
+        </com.google.android.material.button.MaterialButtonToggleGroup>
+
         <!-- 字体大小 -->
         <LinearLayout
             android:layout_width="match_parent"
