@@ -63,14 +63,38 @@ object LocalApkExtensionSupport {
         if (!sourceFile.exists()) {
             return sourcePath
         }
-        val managedRoot = getManagedExtensionsDir(context, ecosystem)
-        if (!sourceFile.isWithin(managedRoot)) {
-            return sourcePath
-        }
+
         val cacheRoot = File(context.codeCacheDir, LOAD_CACHE_DIR).apply { mkdirs() }
         val targetFile = File(cacheRoot, "$ecosystem-$pkgName.apk")
-        sourceFile.copyTo(targetFile, overwrite = true)
-        targetFile.setReadOnly()
+
+        if (
+            targetFile.exists() &&
+            targetFile.length() == sourceFile.length() &&
+            targetFile.lastModified() == sourceFile.lastModified()
+        ) {
+            return targetFile.absolutePath
+        }
+
+        val tempFile = File(cacheRoot, "$ecosystem-$pkgName.apk.tmp")
+        if (tempFile.exists()) {
+            tempFile.delete()
+        }
+
+        sourceFile.copyTo(tempFile, overwrite = true)
+        tempFile.setLastModified(sourceFile.lastModified())
+        tempFile.setReadOnly()
+
+        if (targetFile.exists()) {
+            targetFile.delete()
+        }
+
+        if (!tempFile.renameTo(targetFile)) {
+            tempFile.copyTo(targetFile, overwrite = true)
+            targetFile.setLastModified(sourceFile.lastModified())
+            targetFile.setReadOnly()
+            tempFile.delete()
+        }
+
         return targetFile.absolutePath
     }
 

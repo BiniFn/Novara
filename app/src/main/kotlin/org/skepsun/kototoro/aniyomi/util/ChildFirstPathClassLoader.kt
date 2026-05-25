@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.aniyomi.util
 
-import dalvik.system.PathClassLoader
+import dalvik.system.DexClassLoader
+import java.io.File
 
 /**
  * A ClassLoader that loads classes from its own path before delegating to its parent.
@@ -12,7 +13,12 @@ class ChildFirstPathClassLoader(
     dexPath: String,
     librarySearchPath: String?,
     parent: ClassLoader,
-) : PathClassLoader(dexPath, librarySearchPath, parent) {
+) : DexClassLoader(
+    dexPath,
+    File(dexPath).parentFile?.absolutePath,
+    librarySearchPath,
+    parent,
+) {
  
     init {
         android.util.Log.i("ChildFirstPathClassLoader", "Created for path: $dexPath")
