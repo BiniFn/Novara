@@ -669,7 +669,7 @@ fun DetailsScreen(
                             },
                             backgroundColor = MaterialTheme.colorScheme.surface,
                             crossfadeEnabled = false,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier,
                         )
                     }
                 }
@@ -2134,7 +2134,7 @@ private fun DetailsPaneContent(
         colorScheme.surfaceContainerLow
     }
     val paneTopAlpha = when {
-        !showCollapsedHandle -> if (isDarkTheme) 0.76f else 0f
+        !showCollapsedHandle -> if (isDarkTheme) 0.74f else 0.18f
         useCompactPaneSurfaceTint && isCollapsedPane -> if (isDarkTheme) 0.92f else 0.90f
         useCompactPaneSurfaceTint && isSheetFullyExpanded -> if (isDarkTheme) 0.88f else 0.84f
         useCompactPaneSurfaceTint -> if (isDarkTheme) 0.84f else 0.80f
@@ -2208,7 +2208,15 @@ private fun DetailsPaneContent(
                                 ),
                             )
                         } else {
-                            Modifier
+                            Modifier.background(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        paneTopGradientColor,
+                                        paneMiddleGradientColor,
+                                        paneBottomGradientColor,
+                                    ),
+                                ),
+                            )
                         }
                     ),
             ) {
@@ -2341,7 +2349,12 @@ private fun DetailsPaneActionsRow(
                 enabled = detailsPaneState.anchor == CompactDetailsPaneAnchor.Full &&
                     !detailsPaneState.isGridSizeControlsVisible,
             )
-            .padding(horizontal = 8.dp, vertical = 2.dp),
+            .padding(
+                start = 8.dp,
+                end = 8.dp,
+                top = if (showCollapsedHandle) 2.dp else 7.dp,
+                bottom = 2.dp,
+            ),
         verticalArrangement = Arrangement.spacedBy(4.dp),
         horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
     ) {

@@ -498,7 +498,13 @@ fun KototoroApp(
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
                 .nestedScroll(nestedScrollConnection)
-                .padding(start = displayCutoutStartDp, end = displayCutoutEndDp)) {
+                .then(
+                    if (!isDetailsRoute) {
+                        Modifier.padding(start = displayCutoutStartDp, end = displayCutoutEndDp)
+                    } else {
+                        Modifier
+                    },
+                )) {
                 SharedTransitionLayout {
                     CompositionLocalProvider(
                         LocalSharedTransitionScope provides if (isSharedElementTransitionsEnabled) {
