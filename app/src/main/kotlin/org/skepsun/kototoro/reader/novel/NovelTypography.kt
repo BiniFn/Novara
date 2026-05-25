@@ -12,7 +12,7 @@ import kotlin.math.max
 object NovelTypography {
 
     private val titleLinePattern = Regex("""^[《【].+[》】]$|^第[0-9一二三四五六七八九十百千零〇两]+[章节卷回部篇话集].*$""")
-    private val westernSpacingPattern = Regex("""([\\p{IsHan}])([A-Za-z0-9@#&])|([A-Za-z0-9@#&])([\\p{IsHan}])""")
+    private val westernSpacingPattern = Regex("""([\p{IsHan}])([A-Za-z0-9@#&])|([A-Za-z0-9@#&])([\p{IsHan}])""")
 
     fun prepareContentText(
         text: String,
