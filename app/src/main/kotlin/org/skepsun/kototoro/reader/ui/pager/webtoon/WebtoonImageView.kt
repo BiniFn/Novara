@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.PointF
 import android.util.AttributeSet
+import android.util.Log
 import androidx.core.view.ancestors
 import androidx.recyclerview.widget.RecyclerView
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
@@ -19,6 +20,7 @@ class WebtoonImageView @JvmOverloads constructor(
 	private val ct = PointF()
 
 	private var scrollPos = 0
+	private var isSourceReady = false
 	private var debugPaint: Paint? = null
 
 	override fun onDraw(canvas: Canvas) {
@@ -31,6 +33,7 @@ class WebtoonImageView @JvmOverloads constructor(
 	fun scrollBy(delta: Int) {
 		val maxScroll = getScrollRange()
 		if (maxScroll == 0) {
+			Log.d(TAG, "scrollBy: delta=$delta, maxScroll=0, ignored")
 			return
 		}
 		val newScroll = scrollPos + delta
@@ -49,17 +52,23 @@ class WebtoonImageView @JvmOverloads constructor(
 	fun getScroll() = scrollPos
 
 	fun getScrollRange(): Int {
-		if (!isReady) {
+		if (!isScrollReady()) {
 			return 0
 		}
-		val totalHeight = (sHeight * width / sWidth.toFloat()).roundToInt()
-		return (totalHeight - height).coerceAtLeast(0)
+		return getMaxScrollForCurrentImage()
 	}
 
 	override fun recycle() {
-		scrollPos = 0
+		resetSourceState()
 		super.recycle()
 	}
+
+	fun resetSourceState() {
+		scrollPos = 0
+		isSourceReady = false
+	}
+
+	fun isScrollReady(): Boolean = isSourceReady && isReady && width > 0 && height > 0 && sWidth > 0 && sHeight > 0
 
 	override fun getSuggestedMinimumHeight(): Int {
 		var desiredHeight = super.getSuggestedMinimumHeight()
@@ -93,35 +102,73 @@ class WebtoonImageView @JvmOverloads constructor(
 		}
 		desiredWidth = desiredWidth.coerceAtLeast(suggestedMinimumWidth)
 		desiredHeight = desiredHeight.coerceAtLeast(suggestedMinimumHeight).coerceAtMost(parentHeight())
+		Log.d(TAG, "onMeasure: specModes=$widthSpecMode/$heightSpecMode, parentSize=${parentWidth}x$parentHeight, imgSize=${sWidth}x${sHeight}, desired=${desiredWidth}x$desiredHeight, currentScale=$minScale/$maxScale, scaleType=$minimumScaleType")
 		setMeasuredDimension(desiredWidth, desiredHeight)
 	}
 
 	override fun onDownSamplingChanged() {
 		super.onDownSamplingChanged()
 		if (isReady) {
-			adjustScale()
-			onImageEventListener.onReady()
+			updateReadyState()
 		}
 	}
 
 	override fun onReady() {
+		Log.d(TAG, "onReady: viewSize=${width}x$height, imgSize=${sWidth}x${sHeight}, isReady=$isReady")
 		super.onReady()
-		adjustScale()
+		updateReadyState()
 	}
 
 	private fun scrollToInternal(pos: Int) {
+		if (width <= 0 || height <= 0 || sWidth <= 0 || sHeight <= 0) {
+			scrollPos = 0
+			return
+		}
 		minScale = width / sWidth.toFloat()
 		maxScale = minScale
-		scrollPos = pos
-		ct.set(sWidth / 2f, (height / 2f + pos.toFloat()) / minScale)
+		scrollPos = pos.coerceIn(0, getMaxScrollForCurrentImage())
+		ct.set(sWidth / 2f, (height / 2f + scrollPos.toFloat()) / minScale)
+		Log.d(TAG, "scrollToInternal: viewSize=${width}x$height, imgSize=${sWidth}x${sHeight}, scale=$minScale, scroll=$scrollPos")
 		setScaleAndCenter(minScale, ct)
 	}
 
 	private fun adjustScale() {
-		minScale = width / sWidth.toFloat()
-		maxScale = minScale
+		if (width <= 0 || height <= 0 || sWidth <= 0 || sHeight <= 0) {
+			return
+		}
+		val newScale = width / sWidth.toFloat()
+		Log.d(TAG, "adjustScale: viewSize=${width}x$height, imgSize=${sWidth}x${sHeight}, newScale=$newScale, isReady=$isReady")
+		minScale = newScale
+		maxScale = newScale
 		minimumScaleType = SCALE_TYPE_CUSTOM
-		requestLayoutKeepingReaderPosition()
+		if (scrollPos == 0) {
+			setScaleAndCenter(newScale, PointF(sWidth / 2f, height / 2f / newScale))
+		} else {
+			scrollToInternal(scrollPos)
+		}
+		if (shouldRequestLayoutForCurrentImage()) {
+			requestLayoutKeepingReaderPosition()
+		}
+	}
+
+	private fun updateReadyState() {
+		if (width <= 0 || height <= 0 || sWidth <= 0 || sHeight <= 0) {
+			return
+		}
+		isSourceReady = true
+		adjustScale()
+	}
+
+	private fun getMaxScrollForCurrentImage(): Int {
+		val totalHeight = (sHeight * width / sWidth.toFloat()).roundToInt()
+		return (totalHeight - height).coerceAtLeast(0)
+	}
+
+	private fun shouldRequestLayoutForCurrentImage(): Boolean {
+		val desiredHeight = (sHeight * width / sWidth.toFloat()).roundToInt()
+			.coerceAtLeast(suggestedMinimumHeight)
+			.coerceAtMost(parentHeight())
+		return desiredHeight != height
 	}
 
 	private fun parentHeight(): Int {
@@ -149,5 +196,9 @@ class WebtoonImageView @JvmOverloads constructor(
 		canvas.drawRect(1f, 1f, width.toFloat() - 1f, height.toFloat() - 1f, paint)
 		paint.style = Paint.Style.FILL
 		canvas.drawText("${getScroll()} / ${getScrollRange()}", 100f, 100f, paint)
+	}
+
+	companion object {
+		private const val TAG = "WebtoonImageView"
 	}
 }

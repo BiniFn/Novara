@@ -19,6 +19,7 @@ import androidx.core.view.GestureDetectorCompat
 import coil3.ImageLoader
 import coil3.request.ErrorResult
 import coil3.request.ImageRequest
+import coil3.request.allowHardware
 import coil3.request.SuccessResult
 import coil3.toBitmap
 import coil3.network.NetworkHeaders
@@ -535,9 +536,13 @@ class NovelChapterView @JvmOverloads constructor(
     }
 
     private suspend fun loadCoilImage(url: String): Bitmap? = withContext(Dispatchers.IO) {
-        val requestBuilder = ImageRequest.Builder(context).data(url)
+        val requestBuilder = ImageRequest.Builder(context)
+            .data(url)
+            .allowHardware(false)
         imageHeadersProvider?.invoke(url)?.takeIf { it.isNotEmpty() }?.let { extra ->
-            val headers = NetworkHeaders.Builder().apply { extra.forEach { (k, v) -> add(k, v) } }.build()
+            val headers = NetworkHeaders.Builder().apply {
+                extra.forEach { (k, v) -> add(k, v) }
+            }.build()
             requestBuilder.httpHeaders(headers)
         }
         when (val result = imageLoader.execute(requestBuilder.build())) {
@@ -550,9 +555,16 @@ class NovelChapterView @JvmOverloads constructor(
         val file = epubFile ?: return@withContext null
         if (!file.exists()) return@withContext null
         val extractor = EpubImageExtractor(file)
-        val resolvedPath = if (chapterPath != null) extractor.resolveImagePath(chapterPath!!, imagePath) else imagePath
+        val resolvedPath = if (chapterPath != null) {
+            extractor.resolveImagePath(chapterPath!!, imagePath)
+        } else {
+            imagePath
+        }
         val bytes = extractor.extractImage(resolvedPath) ?: return@withContext null
-        val request = ImageRequest.Builder(context).data(bytes).build()
+        val request = ImageRequest.Builder(context)
+            .data(bytes)
+            .allowHardware(false)
+            .build()
         when (val result = imageLoader.execute(request)) {
             is SuccessResult -> result.image.toBitmap(width = result.image.width, height = result.image.height)
             is ErrorResult -> throw result.throwable

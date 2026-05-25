@@ -7,6 +7,7 @@ import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
 import coil3.request.ErrorResult
 import coil3.request.ImageRequest
+import coil3.request.allowHardware
 import coil3.request.SuccessResult
 import coil3.toBitmap
 import kotlinx.coroutines.Dispatchers
@@ -74,7 +75,9 @@ internal object NovelInlineImageLoader {
         source: ContentSource?,
         headers: Map<String, String>,
     ): Bitmap? {
-        val requestBuilder = ImageRequest.Builder(context).data(imagePath)
+        val requestBuilder = ImageRequest.Builder(context)
+            .data(imagePath)
+            .allowHardware(false)
         if (source != null) {
             requestBuilder.mangaSourceExtra(source)
         }
@@ -104,7 +107,10 @@ internal object NovelInlineImageLoader {
             return null
         }
         val bytes = EpubImageExtractor(file).extractImage(entryPath) ?: return null
-        return when (val result = imageLoader.execute(ImageRequest.Builder(context).data(bytes).build())) {
+        return when (val result = imageLoader.execute(ImageRequest.Builder(context)
+            .data(bytes)
+            .allowHardware(false)
+            .build())) {
             is SuccessResult -> result.image.toBitmap(
                 width = result.image.width,
                 height = result.image.height,

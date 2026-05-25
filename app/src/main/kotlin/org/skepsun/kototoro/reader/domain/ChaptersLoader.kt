@@ -1,11 +1,15 @@
 package org.skepsun.kototoro.reader.domain
 
 import android.util.LongSparseArray
+import androidx.core.net.toUri
 import androidx.annotation.CheckResult
 import dagger.hilt.android.scopes.ViewModelScoped
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.core.util.ext.isFileUri
+import org.skepsun.kototoro.core.util.ext.isZipUri
 import org.skepsun.kototoro.details.data.ContentDetails
 import org.skepsun.kototoro.parsers.model.ContentChapter
 import org.skepsun.kototoro.parsers.model.ContentPage
@@ -125,10 +129,12 @@ class ChaptersLoader @Inject constructor(
 	}
 
 	private fun ContentChapter.isLocalPageSource(): Boolean {
-		val urlStr = url
-		return urlStr.startsWith("file://") ||
-			urlStr.startsWith("zip://") ||
-			urlStr.startsWith("file+zip://") ||
-			urlStr.startsWith("content://")
+		val uri = url.toUri()
+		return uri.isFileUri() ||
+			uri.isZipUri() ||
+			uri.scheme == "content" ||
+			uri.scheme == "epub" ||
+			uri.scheme == "localepub" ||
+			source.isLocal
 	}
 }

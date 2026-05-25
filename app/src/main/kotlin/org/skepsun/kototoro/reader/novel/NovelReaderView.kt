@@ -32,6 +32,7 @@ import coil3.ImageLoader
 import coil3.asDrawable
 import coil3.request.ErrorResult
 import coil3.request.ImageRequest
+import coil3.request.allowHardware
 import coil3.request.SuccessResult
 import coil3.toBitmap
 import coil3.network.NetworkHeaders
@@ -2165,6 +2166,7 @@ class NovelReaderView @JvmOverloads constructor(
     private suspend fun loadCoilImage(url: String): Bitmap? = withContext(Dispatchers.IO) {
         val requestBuilder = ImageRequest.Builder(context)
             .data(url)
+            .allowHardware(false)
 
         // 为需要防盗链的图片附加头，由外部提供
         imageHeadersProvider?.invoke(url)?.takeIf { it.isNotEmpty() }?.let { extra: Map<String, String> ->
@@ -2205,6 +2207,7 @@ class NovelReaderView @JvmOverloads constructor(
         // 使用 Coil 加载字节数组，确保持久缓存和正确解码
         val request = ImageRequest.Builder(context)
             .data(bytes)
+            .allowHardware(false)
             .build()
             
         return@withContext when (val result = imageLoader.execute(request)) {

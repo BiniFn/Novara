@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.runInterruptible
+import org.skepsun.kototoro.core.model.LocalNovelSource
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.nav.ContentIntent
 import org.skepsun.kototoro.core.os.NetworkState
@@ -270,11 +271,11 @@ class DetailsLoadUseCase @Inject constructor(
 							title = mapping.chapterTitle,
 							number = mapping.chapterIndex.toFloat(),
 							volume = chapter.volume,  // 保留父章节的volume
-							url = "epub://${manga.id}/chapter/${mapping.chapterIndex}",
-							scanlator = mapping.epubFileName,
-							uploadDate = mapping.createdAt,
-							branch = null,  // EPUB internal chapters have no branch
-							source = manga.source,
+						url = "epub://${manga.id}/chapter/${mapping.chapterIndex}",
+						scanlator = mapping.epubFileName,
+						uploadDate = mapping.createdAt,
+						branch = null,  // EPUB internal chapters have no branch
+						source = LocalNovelSource,
 						)
 					}
 				

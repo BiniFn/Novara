@@ -167,12 +167,12 @@ class LocalContentParser {
 							val path = fileName?.toPath()
 							if (path != null && fileSystem.exists(rootPath / path)) {
 								// 已加载的本地章节
-									c.copy(url = buildChildUriString(path, resolve = false))
+									c.copy(url = buildChildUriString(path, resolve = false), source = resolvedLocalSource)
 								} else if (fileName == null) {
 								// 单个CBZ漫画场景，章节没有独立文件夹，但通过 entries 记录了页面
 								val pattern = index.getChapterNamesPattern(c)
 								if (zipEntriesCache.value.any { it.matches(pattern) }) {
-										c.copy(url = buildChildUriString("".toPath(), resolve = false))
+										c.copy(url = buildChildUriString("".toPath(), resolve = false), source = resolvedLocalSource)
 									} else {
 									c
 								}
@@ -190,11 +190,11 @@ class LocalContentParser {
 							val fileName = index.getChapterFileName(c.id)
 							val path = fileName?.toPath()
 							if (path != null && fileSystem.exists(rootPath / path)) {
-									c.copy(url = buildChildUriString(path, resolve = false))
+									c.copy(url = buildChildUriString(path, resolve = false), source = resolvedLocalSource)
 								} else if (fileName == null) {
 									val pattern = index.getChapterNamesPattern(c)
 									if (zipEntriesCache.value.any { it.matches(pattern) }) {
-										c.copy(url = buildChildUriString("".toPath(), resolve = false))
+										c.copy(url = buildChildUriString("".toPath(), resolve = false), source = resolvedLocalSource)
 									} else {
 									c
 								}
