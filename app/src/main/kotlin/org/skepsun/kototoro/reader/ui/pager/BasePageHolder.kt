@@ -145,8 +145,6 @@ abstract class BasePageHolder<B : ViewBinding>(
 	@CallSuper
 	protected open fun onBind(data: ReaderPage) = Unit
 
-	protected open fun shouldShowLoadingPreview() = true
-
 	override fun onCreate() {
 		super.onCreate()
 		context.registerComponentCallbacks(this)
@@ -259,7 +257,7 @@ abstract class BasePageHolder<B : ViewBinding>(
 			}
 
 			is PageState.Loading -> {
-				if (shouldShowLoadingPreview() && state.preview != null && ssiv.getState() == null) {
+				if (state.preview != null && ssiv.getState() == null) {
 					ssiv.setImage(state.preview)
 				}
 			}
