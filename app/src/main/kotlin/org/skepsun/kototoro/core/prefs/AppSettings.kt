@@ -82,6 +82,22 @@ private fun SharedPreferences.getSafeLong(key: String, defValue: Long): Long {
 	}
 }
 
+private fun SharedPreferences.getSafeFloat(key: String, defValue: Float): Float {
+	return try {
+		getFloat(key, defValue)
+	} catch (_: ClassCastException) {
+		when (val raw = all[key]) {
+			is Int -> raw.toFloat()
+			is Long -> raw.toFloat()
+			is Double -> raw.toFloat()
+			is String -> raw.toFloatOrNull() ?: defValue
+			else -> defValue
+		}.also {
+			edit { putFloat(key, it) }
+		}
+	}
+}
+
 @Singleton
 class AppSettings @Inject constructor(@ApplicationContext private val context: Context) {
 
@@ -394,7 +410,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 
 	@get:FloatRange(0.0, 1.0)
 	var readerDoublePagesSensitivity: Float
-		get() = prefs.getFloat(KEY_READER_DOUBLE_PAGES_SENSITIVITY, 0.5f)
+		get() = prefs.getSafeFloat(KEY_READER_DOUBLE_PAGES_SENSITIVITY, 0.5f)
 		set(@FloatRange(0.0, 1.0) value) = prefs.edit { putFloat(KEY_READER_DOUBLE_PAGES_SENSITIVITY, value) }
 
 	val readerScreenOrientation: Int
