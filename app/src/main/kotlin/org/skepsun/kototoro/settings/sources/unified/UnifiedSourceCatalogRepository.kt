@@ -490,7 +490,7 @@ class UnifiedSourceCatalogRepository @Inject constructor(
 	private fun ExternalExtensionRepo.toUnifiedRepositoryItem(isPreset: Boolean): UnifiedSourceRepositoryItem {
 		val kind = type.toUnifiedKind()
 		val repositoryUrl = when (type) {
-			ExternalExtensionType.CLOUDSTREAM -> "$baseUrl/repo.json"
+			ExternalExtensionType.CLOUDSTREAM -> baseUrl
 			else -> "$baseUrl/index.min.json"
 		}
 		return UnifiedSourceRepositoryItem(
@@ -734,7 +734,17 @@ private fun packageId(kind: UnifiedSourceKind, value: String): String {
 }
 
 private fun normalizeRepositoryUrl(url: String): String {
-	return url.trim()
+	val trimmed = url.trim()
+	val lower = trimmed.lowercase()
+	if (
+		lower.endsWith(".json") &&
+		!lower.endsWith("/index.min.json") &&
+		!lower.endsWith("/plugins.json") &&
+		!lower.endsWith("/repo.json")
+	) {
+		return trimmed.trimEnd('/')
+	}
+	return trimmed
 		.trimEnd('/')
 		.removeSuffix("/index.min.json")
 		.removeSuffix("/plugins.json")

@@ -3,6 +3,7 @@ package org.skepsun.kototoro.extensions.repo
 import android.util.Log
 import androidx.annotation.Keep
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.network.awaitSuccess
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.SerialName
@@ -57,43 +58,22 @@ class ExtensionRepoService @Inject constructor(
 			value.endsWith(".json")
 	}
 
-	private fun normalizeCloudstreamBaseUrl(url: okhttp3.HttpUrl): String {
-		val normalizedSegments = url.pathSegments
-			.filter { it.isNotEmpty() }
-			.toMutableList()
-		if (isCloudstreamIndexEntry(normalizedSegments.lastOrNull())) {
-			normalizedSegments.removeLastOrNull()
-		}
-		val normalizedPath = if (normalizedSegments.isEmpty()) "/" else "/" + normalizedSegments.joinToString("/")
-		return url.newBuilder()
-			.encodedPath(normalizedPath)
-			.fragment(null)
-			.query(null)
-			.build()
-			.toString()
-			.trimEnd('/')
-	}
-
 	suspend fun fetchRepoDetails(baseUrl: String, type: ExternalExtensionType): ExternalExtensionRepo {
 		if (type == ExternalExtensionType.CLOUDSTREAM) {
 			val normalizedInputUrl = baseUrl.toHttpUrlOrNull() ?: error("Invalid Cloudstream repository URL: $baseUrl")
-			val metadataUrl = resolveCloudstreamRepoMetadataUrl(normalizedInputUrl)
-			val body = withTimeout(REPO_DETAILS_TIMEOUT_MS) {
-				httpClient.newCall(GET(applyMirror(metadataUrl))).awaitSuccess().use { response ->
-					response.body.string()
-				}
+			val (metadataUrl, body) = withTimeout(REPO_DETAILS_TIMEOUT_MS) {
+				fetchCloudstreamRepoMetadata(normalizedInputUrl)
 			}
 			val dto = json.decodeFromString<CloudstreamRepositoryMetaDto>(body)
 			val now = System.currentTimeMillis()
-			val normalizedBaseUrl = normalizeCloudstreamBaseUrl(normalizedInputUrl)
-			val derived = deriveRepoName(normalizedBaseUrl, "Cloudstream")
+			val derived = deriveRepoName(metadataUrl, "Cloudstream")
 			return ExternalExtensionRepo(
 				type = type,
-				baseUrl = normalizedBaseUrl,
+				baseUrl = metadataUrl,
 				name = dto.name.ifBlank { "Cloudstream: $derived" },
 				shortName = dto.name.takeIf { it.isNotBlank() } ?: derived,
-				website = dto.repositoryUrl ?: dto.website ?: normalizedBaseUrl,
-				signingKeyFingerprint = normalizedBaseUrl.hashCode().toString(16),
+				website = dto.repositoryUrl ?: dto.website ?: metadataUrl,
+				signingKeyFingerprint = cloudstreamRepositoryIdentityUrl(metadataUrl).hashCode().toString(16),
 				createdAt = now,
 				updatedAt = now,
 				lastSuccessAt = now,
@@ -206,7 +186,7 @@ class ExtensionRepoService @Inject constructor(
 						ExternalExtensionType.CLOUDSTREAM -> {
 							val dto = json.decodeFromString<List<CloudstreamPluginIndexDto>>(body)
 							dto.asSequence()
-								.mapNotNull { item -> item.toAvailableExtension(repo) }
+								.mapNotNull { item -> item.toAvailableExtension(repo, requestUrl) }
 								.toList()
 						}
 						else -> {
@@ -233,14 +213,14 @@ class ExtensionRepoService @Inject constructor(
 		}
 	}
 
-	fun normalizeIndexUrl(input: String): String? {
+	fun normalizeIndexUrl(input: String, type: ExternalExtensionType? = null): String? {
 		val processUrl = input.trim()
 
 		val url = processUrl.toHttpUrlOrNull() ?: return null
 		if (url.scheme != "https") {
 			return null
 		}
-		if (looksLikeCloudstreamRepoUrl(url)) {
+		if (type == ExternalExtensionType.CLOUDSTREAM || looksLikeCloudstreamRepoUrl(url) || looksLikeCloudstreamRepoRootUrl(url)) {
 			return url.newBuilder()
 				.fragment(null)
 				.query(null)
@@ -266,11 +246,22 @@ class ExtensionRepoService @Inject constructor(
 	fun baseUrlFromIndexUrl(indexUrl: String): String {
 		val url = indexUrl.toHttpUrlOrNull()
 		if (url != null && looksLikeCloudstreamRepoUrl(url)) {
-			return normalizeCloudstreamBaseUrl(url)
+			return url.newBuilder()
+				.fragment(null)
+				.query(null)
+				.build()
+				.toString()
+				.trimEnd('/')
 		}
 		return indexUrl
 			.removeSuffix("/index.min.json")
 			.removeSuffix("/plugins.json")
+	}
+
+	fun looksLikeResolvedCloudstreamMetadataUrl(url: String): Boolean {
+		val httpUrl = url.toHttpUrlOrNull() ?: return false
+		val lastSegment = httpUrl.pathSegments.filter { it.isNotEmpty() }.lastOrNull() ?: return false
+		return isCloudstreamIndexEntry(lastSegment)
 	}
 
 	private fun ExtensionIndexDto.toAvailableExtension(repo: ExternalExtensionRepo): RepoAvailableExtension? {
@@ -338,8 +329,8 @@ class ExtensionRepoService @Inject constructor(
 		)
 	}
 
-	private fun CloudstreamPluginIndexDto.toAvailableExtension(repo: ExternalExtensionRepo): RepoAvailableExtension? {
-		val normalizedUrl = pluginUrlFrom(repo.baseUrl, url)
+	private fun CloudstreamPluginIndexDto.toAvailableExtension(repo: ExternalExtensionRepo, pluginListUrl: String): RepoAvailableExtension? {
+		val normalizedUrl = pluginUrlFrom(pluginListUrl, url)
 		val archiveName = normalizedUrl.substringAfterLast('/').ifBlank { "$internalName.cs3" }
 		val normalizedLanguage = language ?: "all"
 		val normalizedVersionName = version.toString()
@@ -355,7 +346,7 @@ class ExtensionRepoService @Inject constructor(
 			sourceNames = listOf(name),
 			archiveName = archiveName,
 			archiveUrl = normalizedUrl,
-			iconUrl = iconUrl?.let(::applyMirror).orEmpty(),
+			iconUrl = iconUrl?.let { pluginUrlFrom(pluginListUrl, it) }.orEmpty(),
 			repoUrl = repo.baseUrl,
 			repoName = repo.displayName,
 			// Cloudstream catalogs expose file hashes, not Android package signing fingerprints.
@@ -366,49 +357,175 @@ class ExtensionRepoService @Inject constructor(
 	}
 
 	private suspend fun fetchCloudstreamPluginListUrls(repo: ExternalExtensionRepo): List<String> {
-		val metadataUrl = resolveCloudstreamRepoMetadataUrl(requireNotNull(repo.baseUrl.toHttpUrlOrNull()))
-		val body = httpClient.newCall(GET(applyMirror(metadataUrl))).awaitSuccess().use { response ->
-			response.body.string()
-		}
+		val (metadataUrl, body) = fetchCloudstreamRepoMetadata(requireNotNull(repo.baseUrl.toHttpUrlOrNull()))
 		val dto = json.decodeFromString<CloudstreamRepositoryMetaDto>(body)
 		return dto.pluginLists
-			.map { pluginUrlFrom(repo.baseUrl, it) }
-			.ifEmpty { listOf(pluginUrlFrom(repo.baseUrl, "plugins.json")) }
+			.map { pluginUrlFrom(metadataUrl, it) }
+			.ifEmpty { listOf(pluginUrlFrom(metadataUrl, "plugins.json")) }
 	}
 
-	private fun resolveCloudstreamRepoMetadataUrl(url: okhttp3.HttpUrl): String {
-		val lastSegment = url.pathSegments.filter { it.isNotEmpty() }.lastOrNull()
-		if (isCloudstreamIndexEntry(lastSegment)) {
-			return url.newBuilder()
-				.fragment(null)
-				.query(null)
-				.build()
-				.toString()
+	private suspend fun fetchCloudstreamRepoMetadata(url: okhttp3.HttpUrl): Pair<String, String> {
+		var lastNotFound: HttpException? = null
+		for (metadataUrl in resolveCloudstreamRepoMetadataUrls(url)) {
+			try {
+				val body = httpClient.newCall(GET(applyMirror(metadataUrl))).awaitSuccess().use { response ->
+					response.body.string()
+				}
+				return metadataUrl to body
+			} catch (error: HttpException) {
+				if (error.code != 404) {
+					throw error
+				}
+				lastNotFound = error
+			}
 		}
+		discoverCloudstreamMetadataUrl(url)?.let { metadataUrl ->
+			val body = httpClient.newCall(GET(applyMirror(metadataUrl))).awaitSuccess().use { response ->
+				response.body.string()
+			}
+			return metadataUrl to body
+		}
+		throw checkNotNull(lastNotFound) { "No Cloudstream metadata URL candidates for $url" }
+	}
+
+	private fun resolveCloudstreamRepoMetadataUrls(url: okhttp3.HttpUrl): List<String> {
+		val sanitizedUrl = url.newBuilder()
+			.fragment(null)
+			.query(null)
+			.build()
+		val lastSegment = sanitizedUrl.pathSegments.filter { it.isNotEmpty() }.lastOrNull()
+		if (isCloudstreamIndexEntry(lastSegment)) {
+			return listOf(sanitizedUrl.toString())
+		}
+		return listOf("repo.json", "repo")
+			.map { suffix ->
+				sanitizedUrl.newBuilder()
+					.addPathSegment(suffix)
+					.build()
+					.toString()
+			}
+	}
+
+	private fun cloudstreamRepositoryIdentityUrl(metadataUrl: String): String {
+		val url = metadataUrl.toHttpUrlOrNull() ?: return metadataUrl.trimEnd('/')
+		val lastSegment = url.pathSegments.filter { it.isNotEmpty() }.lastOrNull()
+		if (lastSegment == null || !isCanonicalCloudstreamRepoFile(lastSegment)) {
+			return metadataUrl.trimEnd('/')
+		}
+		val segments = url.pathSegments
+			.filter { it.isNotEmpty() }
+			.dropLast(1)
+		val normalizedPath = if (segments.isEmpty()) "/" else "/" + segments.joinToString("/")
 		return url.newBuilder()
-			.addPathSegment("repo.json")
+			.encodedPath(normalizedPath)
 			.fragment(null)
 			.query(null)
 			.build()
 			.toString()
+			.trimEnd('/')
+	}
+
+	private fun isCanonicalCloudstreamRepoFile(segment: String): Boolean {
+		val value = segment.lowercase()
+		return value == "repo" || value == "repo.json"
 	}
 
 	private fun looksLikeCloudstreamRepoUrl(url: okhttp3.HttpUrl): Boolean {
 		val joinedPath = url.encodedPath.lowercase()
-		return joinedPath.contains("/builds/") ||
-			joinedPath.endsWith("/repo.json") ||
+		return joinedPath.endsWith("/repo.json") ||
 			joinedPath.endsWith("/plugins.json") ||
 			joinedPath.endsWith("/repo") ||
-			url.host.contains("codeberg.org")
+			(joinedPath.endsWith(".json") && !joinedPath.endsWith("/index.min.json"))
+	}
+
+	private fun looksLikeCloudstreamRepoRootUrl(url: okhttp3.HttpUrl): Boolean {
+		val joinedPath = url.encodedPath.lowercase()
+		return joinedPath.contains("/builds/") || url.host.contains("codeberg.org")
+	}
+
+	private suspend fun discoverCloudstreamMetadataUrl(url: okhttp3.HttpUrl): String? {
+		val rawDirectory = parseGitHubRawDirectory(url) ?: return null
+		val body = httpClient.newCall(GET(rawDirectory.contentsApiUrl)).awaitSuccess().use { response ->
+			response.body.string()
+		}
+		val items = runCatching {
+			json.decodeFromString<List<GitHubContentsItemDto>>(body)
+		}.getOrNull().orEmpty()
+		val candidates = items
+			.asSequence()
+			.filter { it.type == "file" }
+			.filter { it.downloadUrl?.endsWith(".json", ignoreCase = true) == true }
+			.filterNot { it.name.equals("plugins.json", ignoreCase = true) }
+			.sortedWith(compareBy<GitHubContentsItemDto> { cloudstreamMetadataCandidateRank(rawDirectory, it.name) }.thenBy { it.name.length })
+			.toList()
+		for (candidate in candidates) {
+			val downloadUrl = candidate.downloadUrl ?: continue
+			val candidateBody = runCatching {
+				httpClient.newCall(GET(applyMirror(downloadUrl))).awaitSuccess().use { response ->
+					response.body.string()
+				}
+			}.getOrNull() ?: continue
+			val metadata = runCatching {
+				json.decodeFromString<CloudstreamRepositoryMetaDto>(candidateBody)
+			}.getOrNull() ?: continue
+			if (metadata.pluginLists.isNotEmpty() || metadata.manifestVersion != null || metadata.name.isNotBlank()) {
+				return downloadUrl
+			}
+		}
+		return null
+	}
+
+	private fun cloudstreamMetadataCandidateRank(directory: GitHubRawDirectory, fileName: String): Int {
+		val lowerName = fileName.lowercase()
+		val repoJsonName = "${directory.repo.lowercase()}.json"
+		return when {
+			lowerName == repoJsonName -> 0
+			lowerName == "manifest.json" -> 1
+			lowerName.endsWith(".json") -> 2
+			else -> 3
+		}
+	}
+
+	private fun parseGitHubRawDirectory(url: okhttp3.HttpUrl): GitHubRawDirectory? {
+		if (url.host != "raw.githubusercontent.com") return null
+		val segments = url.pathSegments.filter { it.isNotEmpty() }
+		if (segments.size < 3) return null
+		val owner = segments[0]
+		val repo = segments[1]
+		val remainder = segments.drop(2)
+		val ref: String
+		val directoryPathSegments: List<String>
+		if (remainder.size >= 3 && remainder[0] == "refs" && remainder[1] == "heads") {
+			ref = remainder[2]
+			directoryPathSegments = remainder.drop(3)
+		} else {
+			ref = remainder[0]
+			directoryPathSegments = remainder.drop(1)
+		}
+		val apiBuilder = okhttp3.HttpUrl.Builder()
+			.scheme(url.scheme)
+			.host("api.github.com")
+			.port(url.port)
+			.addPathSegment("repos")
+			.addPathSegment(owner)
+			.addPathSegment(repo)
+			.addPathSegment("contents")
+		directoryPathSegments.forEach { apiBuilder.addPathSegment(it) }
+		apiBuilder.addQueryParameter("ref", ref)
+		return GitHubRawDirectory(
+			repo = repo,
+			contentsApiUrl = apiBuilder.build().toString(),
+		)
 	}
 
 	private fun pluginUrlFrom(baseUrl: String, url: String): String {
 		if (url.startsWith("http://") || url.startsWith("https://")) {
 			return applyMirror(url)
 		}
-		val base = baseUrl.trimEnd('/')
-		val suffix = url.removePrefix("/")
-		return applyMirror("$base/$suffix")
+		val resolved = baseUrl.toHttpUrlOrNull()
+			?.resolve(url)
+			?.toString()
+		return applyMirror(resolved ?: "${baseUrl.trimEnd('/')}/${url.removePrefix("/")}")
 	}
 
 
@@ -490,6 +607,20 @@ class ExtensionRepoService @Inject constructor(
 		val pluginLists: List<String> = emptyList(),
 		val repositoryUrl: String? = null,
 		val website: String? = null,
+	)
+
+	@Keep
+	@Serializable
+	private data class GitHubContentsItemDto(
+		val name: String,
+		val type: String,
+		@SerialName("download_url")
+		val downloadUrl: String? = null,
+	)
+
+	private data class GitHubRawDirectory(
+		val repo: String,
+		val contentsApiUrl: String,
 	)
 
 	private companion object {

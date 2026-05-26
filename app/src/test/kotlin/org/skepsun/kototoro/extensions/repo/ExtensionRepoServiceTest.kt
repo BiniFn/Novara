@@ -10,8 +10,10 @@ import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.ResponseBody.Companion.toResponseBody
 import io.mockk.mockk
 import org.skepsun.kototoro.core.prefs.AppSettings
 
@@ -20,7 +22,7 @@ class ExtensionRepoServiceTest : FunSpec({
 	lateinit var server: MockWebServer
 	lateinit var service: ExtensionRepoService
 
-	beforeSpec {
+	beforeTest {
 		server = MockWebServer()
 		server.start()
 		service = ExtensionRepoService(
@@ -36,13 +38,25 @@ class ExtensionRepoServiceTest : FunSpec({
 		)
 	}
 
-	afterSpec {
+	afterTest {
 		server.shutdown()
 	}
 
 	test("normalizeIndexUrl appends index path and strips query and fragment") {
 		service.normalizeIndexUrl(" https://example.org/extensions/?foo=1#bar ") shouldBe
 			"https://example.org/extensions/index.min.json"
+	}
+
+	test("baseUrlFromIndexUrl strips standard index file for non cloudstream repositories") {
+		service.baseUrlFromIndexUrl("https://example.org/extensions/index.min.json") shouldBe
+			"https://example.org/extensions"
+	}
+
+	test("normalizeIndexUrl keeps cloudstream root urls when type is cloudstream") {
+		service.normalizeIndexUrl(
+			" https://raw.githubusercontent.com/Abodabodd/re-3arabi/refs/heads/main#frag ",
+			ExternalExtensionType.CLOUDSTREAM,
+		) shouldBe "https://raw.githubusercontent.com/Abodabodd/re-3arabi/refs/heads/main"
 	}
 
 	test("normalizeIndexUrl rejects non-https urls") {
@@ -78,6 +92,38 @@ class ExtensionRepoServiceTest : FunSpec({
 			repo.shortName shouldBe "Kei"
 			repo.website shouldBe "https://keiyoushi.example"
 			repo.signingKeyFingerprint shouldBe "AA:BB:CC"
+		}
+	}
+
+	test("fetchRepoDetails falls back to repo endpoint for cloudstream repositories") {
+		runBlocking {
+			server.enqueue(MockResponse().setResponseCode(404))
+			server.enqueue(
+				MockResponse().setBody(
+					"""
+					{
+					  "name": "3rabi عربي",
+					  "manifestVersion": 1,
+					  "repositoryUrl": "https://github.com/Abodabodd/re-3arabi",
+					  "pluginLists": ["plugins.json"]
+					}
+					""".trimIndent(),
+				),
+			)
+
+			val repo = service.fetchRepoDetails(
+				baseUrl = server.url("/cloudstream").toString().removeSuffix("/"),
+				type = ExternalExtensionType.CLOUDSTREAM,
+			)
+
+			repo.shouldNotBeNull()
+			repo.type shouldBe ExternalExtensionType.CLOUDSTREAM
+			repo.baseUrl shouldBe server.url("/cloudstream/repo").toString()
+			repo.name shouldBe "3rabi عربي"
+			repo.website shouldBe "https://github.com/Abodabodd/re-3arabi"
+
+			server.takeRequest().path shouldBe "/cloudstream/repo.json"
+			server.takeRequest().path shouldBe "/cloudstream/repo"
 		}
 	}
 
@@ -148,6 +194,218 @@ class ExtensionRepoServiceTest : FunSpec({
 
 			extensions[1].name shouldBe "Legacy"
 			extensions[1].isCompatible.shouldBeFalse()
+		}
+	}
+
+	test("fetchAvailableExtensions falls back to repo endpoint for cloudstream repositories") {
+		runBlocking {
+			server.enqueue(
+				MockResponse().setBody(
+					"""
+					{
+					  "name": "3rabi عربي",
+					  "manifestVersion": 1,
+					  "pluginLists": ["plugins.json"]
+					}
+					""".trimIndent(),
+				),
+			)
+			server.enqueue(
+				MockResponse().setBody(
+					"""
+					[
+					  {
+					    "url": "build/Aflaam.cs3",
+					    "version": 7,
+					    "apiVersion": 1,
+					    "name": "Aflaam",
+					    "internalName": "Aflaam",
+					    "language": "ar",
+					    "iconUrl": "https://example.org/aflaam.png"
+					  }
+					]
+					""".trimIndent(),
+				),
+			)
+
+			val repo = ExternalExtensionRepo(
+				type = ExternalExtensionType.CLOUDSTREAM,
+				baseUrl = server.url("/cloudstream/repo").toString(),
+				name = "3rabi عربي",
+				shortName = "3rabi عربي",
+				website = "https://github.com/Abodabodd/re-3arabi",
+				signingKeyFingerprint = "cloudstream",
+				createdAt = 1L,
+				updatedAt = 1L,
+				lastSuccessAt = 1L,
+				lastError = null,
+			)
+
+			val extensions = service.fetchAvailableExtensionsOrThrow(repo)
+
+			extensions shouldHaveSize 1
+			extensions.first().archiveUrl shouldBe server.url("/cloudstream/build/Aflaam.cs3").toString()
+			extensions.first().iconUrl shouldBe "https://example.org/aflaam.png"
+
+			server.takeRequest().path shouldBe "/cloudstream/repo"
+			server.takeRequest().path shouldBe "/cloudstream/plugins.json"
+		}
+	}
+
+	test("fetchRepoDetails keeps exact cloudstream json metadata url") {
+		runBlocking {
+			server.enqueue(
+				MockResponse().setBody(
+					"""
+					{
+					  "name": "CXXX",
+					  "manifestVersion": 1,
+					  "pluginLists": ["plugins.json"]
+					}
+					""".trimIndent(),
+				),
+			)
+
+			val metadataUrl = server.url("/builds/CXXX.json").toString()
+			val repo = service.fetchRepoDetails(
+				baseUrl = metadataUrl,
+				type = ExternalExtensionType.CLOUDSTREAM,
+			)
+
+			repo.baseUrl shouldBe metadataUrl
+			server.takeRequest().path shouldBe "/builds/CXXX.json"
+		}
+	}
+
+	test("fetchAvailableExtensions resolves cloudstream plugin urls relative to plugin list file") {
+		runBlocking {
+			server.enqueue(
+				MockResponse().setBody(
+					"""
+					{
+					  "name": "CXXX",
+					  "manifestVersion": 1,
+					  "pluginLists": ["plugins.json"]
+					}
+					""".trimIndent(),
+				),
+			)
+			server.enqueue(
+				MockResponse().setBody(
+					"""
+					[
+					  {
+					    "url": "plugins/test.cs3",
+					    "version": 3,
+					    "apiVersion": 1,
+					    "name": "CXXX Test",
+					    "internalName": "cxxx_test",
+					    "language": "en",
+					    "iconUrl": "icons/test.png"
+					  }
+					]
+					""".trimIndent(),
+				),
+			)
+
+			val metadataUrl = server.url("/builds/CXXX.json").toString()
+			val repo = ExternalExtensionRepo(
+				type = ExternalExtensionType.CLOUDSTREAM,
+				baseUrl = metadataUrl,
+				name = "CXXX",
+				shortName = "CXXX",
+				website = "https://github.com/phisher98/CXXX",
+				signingKeyFingerprint = "cxxx",
+				createdAt = 1L,
+				updatedAt = 1L,
+				lastSuccessAt = 1L,
+				lastError = null,
+			)
+
+			val extensions = service.fetchAvailableExtensionsOrThrow(repo)
+
+			extensions shouldHaveSize 1
+			extensions.first().archiveUrl shouldBe server.url("/builds/plugins/test.cs3").toString()
+			extensions.first().iconUrl shouldBe server.url("/builds/icons/test.png").toString()
+			server.takeRequest().path shouldBe "/builds/CXXX.json"
+			server.takeRequest().path shouldBe "/builds/plugins.json"
+		}
+	}
+
+	test("fetchRepoDetails discovers custom cloudstream metadata file from github contents api") {
+		runBlocking {
+			val baseUrl = "https://raw.githubusercontent.com/example/CXXX/builds"
+			val apiUrl = "https://api.github.com/repos/example/CXXX/contents/builds?ref=master"
+			val client = OkHttpClient.Builder()
+				.addInterceptor { chain ->
+					val url = chain.request().url.toString()
+					when (url) {
+						"$baseUrl/repo.json" -> okhttp3.Response.Builder()
+							.request(chain.request())
+							.protocol(okhttp3.Protocol.HTTP_1_1)
+							.code(404)
+							.message("Not Found")
+							.body("404".toResponseBody("text/plain".toMediaType()))
+							.build()
+						"$baseUrl/repo" -> okhttp3.Response.Builder()
+							.request(chain.request())
+							.protocol(okhttp3.Protocol.HTTP_1_1)
+							.code(404)
+							.message("Not Found")
+							.body("404".toResponseBody("text/plain".toMediaType()))
+							.build()
+						apiUrl -> okhttp3.Response.Builder()
+							.request(chain.request())
+							.protocol(okhttp3.Protocol.HTTP_1_1)
+							.code(200)
+							.message("OK")
+							.body(
+								"""
+								[
+								  {"name":"plugins.json","type":"file","download_url":"$baseUrl/plugins.json"},
+								  {"name":"CXXX.json","type":"file","download_url":"$baseUrl/CXXX.json"}
+								]
+								""".trimIndent().toResponseBody("application/json".toMediaType())
+							)
+							.build()
+						"$baseUrl/CXXX.json" -> okhttp3.Response.Builder()
+							.request(chain.request())
+							.protocol(okhttp3.Protocol.HTTP_1_1)
+							.code(200)
+							.message("OK")
+							.body(
+								"""
+								{
+								  "name": "CXXX",
+								  "manifestVersion": 1,
+								  "pluginLists": ["plugins.json"]
+								}
+								""".trimIndent().toResponseBody("application/json".toMediaType())
+							)
+							.build()
+						else -> error("Unexpected URL: $url")
+					}
+				}
+				.build()
+			val discoveryService = ExtensionRepoService(
+				httpClient = client,
+				json = Json {
+					ignoreUnknownKeys = true
+					isLenient = true
+					encodeDefaults = true
+					prettyPrint = true
+					coerceInputValues = true
+				},
+				settings = mockk<AppSettings>(relaxed = true),
+			)
+
+			val repo = discoveryService.fetchRepoDetails(
+				baseUrl = baseUrl,
+				type = ExternalExtensionType.CLOUDSTREAM,
+			)
+
+			repo.baseUrl shouldBe "$baseUrl/CXXX.json"
+			repo.name shouldBe "CXXX"
 		}
 	}
 })

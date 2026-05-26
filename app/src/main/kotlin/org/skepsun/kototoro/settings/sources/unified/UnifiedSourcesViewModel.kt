@@ -1531,7 +1531,17 @@ private fun UnifiedSourceKind.displayNameForMessage(context: Context): String {
 }
 
 private fun normalizeRepositoryUrlForAction(url: String): String {
-	return url.trim()
+	val trimmed = url.trim()
+	val lower = trimmed.lowercase()
+	if (
+		lower.endsWith(".json") &&
+		!lower.endsWith("/index.min.json") &&
+		!lower.endsWith("/plugins.json") &&
+		!lower.endsWith("/repo.json")
+	) {
+		return trimmed.trimEnd('/')
+	}
+	return trimmed
 		.trimEnd('/')
 		.removeSuffix("/index.min.json")
 		.removeSuffix("/plugins.json")

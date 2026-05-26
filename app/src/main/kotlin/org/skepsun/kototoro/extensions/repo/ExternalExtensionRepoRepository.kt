@@ -27,6 +27,7 @@ class ExternalExtensionRepoRepository @Inject constructor(
 	}
 
 	suspend fun getByType(type: ExternalExtensionType): List<ExternalExtensionRepo> {
+		upgradeLegacyCloudstreamReposIfNeeded(type)
 		return dao.getByType(type).map { it.toDomain() }
 	}
 
@@ -42,7 +43,7 @@ class ExternalExtensionRepoRepository @Inject constructor(
 
 	suspend fun prepareAddRepo(type: ExternalExtensionType, indexUrl: String): PrepareAddRepoResult {
 		Log.d(TAG, "prepareAddRepo:start type=$type input=$indexUrl")
-		val normalizedIndexUrl = service.normalizeIndexUrl(indexUrl) ?: return PrepareAddRepoResult.InvalidUrl
+		val normalizedIndexUrl = service.normalizeIndexUrl(indexUrl, type) ?: return PrepareAddRepoResult.InvalidUrl
 			.also { Log.d(TAG, "prepareAddRepo:invalidUrl type=$type input=$indexUrl") }
 		val baseUrl = service.baseUrlFromIndexUrl(normalizedIndexUrl)
 		Log.d(TAG, "prepareAddRepo:normalized type=$type normalizedIndexUrl=$normalizedIndexUrl baseUrl=$baseUrl")
@@ -57,6 +58,10 @@ class ExternalExtensionRepoRepository @Inject constructor(
 			.getOrElse { error ->
 				return PrepareAddRepoResult.FetchFailed(error)
 			}
+		if (dao.get(type, repo.baseUrl) != null) {
+			Log.d(TAG, "prepareAddRepo:duplicateResolvedBaseUrl type=$type baseUrl=${repo.baseUrl}")
+			return PrepareAddRepoResult.RepoAlreadyExists
+		}
 		val duplicate = dao.getByFingerprint(type, repo.signingKeyFingerprint)
 		if (duplicate != null) {
 			Log.d(
@@ -93,6 +98,7 @@ class ExternalExtensionRepoRepository @Inject constructor(
 	}
 
 	suspend fun refresh(type: ExternalExtensionType) {
+		upgradeLegacyCloudstreamReposIfNeeded(type)
 		getByType(type).forEach { refresh(it) }
 	}
 
@@ -115,6 +121,9 @@ class ExternalExtensionRepoRepository @Inject constructor(
 					?: appContext.getString(R.string.extension_repository_refresh_failed_message),
 			).toEntity()
 		}
+		if (entity.baseUrl != repo.baseUrl) {
+			dao.delete(repo.type, repo.baseUrl)
+		}
 		dao.upsert(entity)
 	}
 
@@ -124,6 +133,7 @@ class ExternalExtensionRepoRepository @Inject constructor(
 	}
 
 	suspend fun getCatalogExtensions(type: ExternalExtensionType): List<RepoAvailableExtension> = coroutineScope {
+		upgradeLegacyCloudstreamReposIfNeeded(type)
 		getByType(type)
 			.map { repo -> async { fetchCatalogExtensions(repo) } }
 			.awaitAll()
@@ -141,6 +151,43 @@ class ExternalExtensionRepoRepository @Inject constructor(
 		}.onFailure { error ->
 			markCatalogRefreshFailed(repo, error)
 		}.getOrDefault(emptyList())
+	}
+
+	private suspend fun upgradeLegacyCloudstreamReposIfNeeded(type: ExternalExtensionType) {
+		if (type != ExternalExtensionType.CLOUDSTREAM) return
+		dao.getByType(type)
+			.map { it.toDomain() }
+			.filter { repo -> !service.looksLikeResolvedCloudstreamMetadataUrl(repo.baseUrl) }
+			.forEach { repo ->
+				runCatching { service.fetchRepoDetails(repo.baseUrl, repo.type) }
+					.onSuccess { resolved ->
+						if (resolved.baseUrl != repo.baseUrl) {
+							Log.d(
+								TAG,
+								"upgradeLegacyCloudstreamReposIfNeeded:migrated oldBaseUrl=${repo.baseUrl} newBaseUrl=${resolved.baseUrl}",
+							)
+							if (dao.get(type, resolved.baseUrl) == null) {
+								dao.delete(type, repo.baseUrl)
+								dao.upsert(
+									resolved.copy(
+										createdAt = repo.createdAt,
+										updatedAt = maxOf(repo.updatedAt, System.currentTimeMillis()),
+										lastSuccessAt = maxOf(repo.lastSuccessAt, System.currentTimeMillis()),
+										lastError = null,
+									).toEntity(),
+								)
+							} else {
+								dao.delete(type, repo.baseUrl)
+							}
+						}
+					}
+					.onFailure { error ->
+						Log.w(
+							TAG,
+							"upgradeLegacyCloudstreamReposIfNeeded:skip baseUrl=${repo.baseUrl} message=${error.message}",
+						)
+					}
+			}
 	}
 
 	private suspend fun clearCatalogRefreshError(repo: ExternalExtensionRepo) {
