@@ -180,6 +180,9 @@ fun HomeScreen(
     val badgePrefs = screenPrefs.badgePrefs
     val posterStyle = remember(gridScale) { compactPosterRailCardStyle(gridScale) }
     val panoramaPrefs = rememberPanoramaBackdropPrefs(settings)
+    val homeHeroPanoramaPrefs = remember(panoramaPrefs) {
+        panoramaPrefs.copy(isAnimationEnabled = false)
+    }
     val recentSearches = remember(state.recentSearches) { state.recentSearches.map { it.query } }
     val heroEntries = remember(
         state.resumeState.content,
@@ -279,7 +282,7 @@ fun HomeScreen(
         if (heroEntries.isNotEmpty()) {
             HomeHeroSection(
                 entries = heroEntries,
-                panoramaPrefs = panoramaPrefs,
+                panoramaPrefs = homeHeroPanoramaPrefs,
                 onClick = onContentClick,
                 topContentInset = topInset + 8.dp,
                 modifier = Modifier
