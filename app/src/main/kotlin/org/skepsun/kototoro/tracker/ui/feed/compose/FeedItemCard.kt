@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.tracker.ui.feed.compose
 
 import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,10 +15,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.getValue
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,7 +28,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -106,13 +107,26 @@ fun FeedItemCard(
 		Spacer(modifier = Modifier.width(16.dp))
 
 		Column(modifier = Modifier.weight(1f)) {
-			Text(
-				text = item.title,
-				style = MaterialTheme.typography.titleSmall,
-				color = MaterialTheme.colorScheme.onSurface,
-				maxLines = 1,
-				overflow = TextOverflow.Ellipsis
-			)
+			Row(
+				verticalAlignment = Alignment.CenterVertically,
+			) {
+				if (item.isNew) {
+					Box(
+						modifier = Modifier
+							.size(8.dp)
+							.clip(CircleShape)
+							.background(MaterialTheme.colorScheme.error),
+					)
+					Spacer(modifier = Modifier.width(6.dp))
+				}
+				Text(
+					text = item.title,
+					style = MaterialTheme.typography.titleSmall,
+					color = MaterialTheme.colorScheme.onSurface,
+					maxLines = 1,
+					overflow = TextOverflow.Ellipsis,
+				)
+			}
 			Text(
 				text = pluralStringResource(
 					id = R.plurals.new_chapters,
