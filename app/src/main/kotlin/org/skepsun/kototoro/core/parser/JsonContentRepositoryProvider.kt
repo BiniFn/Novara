@@ -34,12 +34,14 @@ class JsonContentRepositoryProvider @Inject constructor(
 					context = context,
 					cookieJar = PersistentCookieJar(legadoHttpClient.getCookieJar()),
 				)
+				val legadoPrefs = context.getSharedPreferences("legado_source_store", Context.MODE_PRIVATE)
 				LegadoRepository(
 					source = source,
 					httpClient = legadoHttpClient,
 					jsEngine = jsEngine,
 					memoryCache = contentCache,
 					browserLauncher = browserLauncher,
+					legadoPrefs = legadoPrefs,
 				)
 			}
 			JsonSourceType.TVBOX -> TVBoxRepository(

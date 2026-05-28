@@ -67,6 +67,26 @@ class WebViewExecutor @Inject constructor(
     private val foregroundActivityHolder: ForegroundActivityHolder,
 	private val mangaRepositoryFactoryProvider: Provider<ContentRepository.Factory>,
 ) {
+    data class WebViewSniffResult(
+        val url: String,
+        val body: String,
+        val code: Int = 200,
+        val headers: Map<String, String> = emptyMap(),
+    )
+
+    data class WebViewOverrideResult(
+        val url: String,
+        val body: String,
+        val code: Int = 200,
+        val headers: Map<String, String> = emptyMap(),
+    )
+
+    data class WebViewSniffConfig(
+        val sourceRegex: Regex?,
+        val overrideUrlRegex: Regex?,
+        val javaScript: String?,
+        val delayMs: Long,
+    )
 
 	private var webViewCached: WeakReference<WebView>? = null
 	private val mutex = Mutex()
@@ -544,6 +564,212 @@ class WebViewExecutor @Inject constructor(
 		}
 	}
 
+	suspend fun loadHtml(
+		html: String,
+		baseUrl: String,
+		delayMs: Long = 2500,
+		webJs: String? = null,
+		userAgent: String? = null,
+	): String = mutex.withLock {
+		withContext(Dispatchers.Main.immediate) {
+			val webView = obtainWebView()
+			try {
+				webView.configureForParser(userAgent, blockImages = true)
+				withTimeout(60000L) {
+					suspendCancellableCoroutine<Unit> { cont ->
+						webView.webViewClient = object : WebViewClient() {
+							override fun onPageFinished(view: WebView?, loadedUrl: String?) {
+								if (cont.isActive) {
+									cont.resume(Unit)
+								}
+							}
+						}
+						webView.loadDataWithBaseURL(baseUrl, html, "text/html", "UTF-8", null)
+					}
+					kotlinx.coroutines.delay(delayMs)
+					val extractionJs = webJs?.takeIf { it.isNotBlank() } ?: "document.documentElement.outerHTML"
+					suspendCancellableCoroutine<String> { cont ->
+						webView.evaluateJavascript(extractionJs) { result ->
+							cont.resume(decodeJavascriptString(result))
+						}
+					}
+				}
+			} finally {
+				webView.reset()
+			}
+		}
+	}
+
+    suspend fun sniff(
+        url: String,
+        headers: Map<String, String>? = null,
+        delayMs: Long = 2500,
+        timeoutMs: Long = 60000,
+        sourceRegex: String? = null,
+        overrideUrlRegex: String? = null,
+        javaScript: String? = null,
+        blockImages: Boolean = true,
+    ): WebViewSniffResult? = mutex.withLock {
+        withContext(Dispatchers.Main.immediate) {
+            val webView = obtainWebView()
+            try {
+                webView.configureForParser(headers?.get(CommonHeaders.USER_AGENT), blockImages = blockImages)
+                val config = WebViewSniffConfig(
+                    sourceRegex = sourceRegex?.takeIf { it.isNotBlank() }?.let(::Regex),
+                    overrideUrlRegex = overrideUrlRegex?.takeIf { it.isNotBlank() }?.let(::Regex),
+                    javaScript = javaScript?.takeIf { it.isNotBlank() },
+                    delayMs = delayMs,
+                )
+                withTimeout(timeoutMs) {
+                    suspendCancellableCoroutine { cont ->
+                        val finished = AtomicBoolean(false)
+
+                        fun tryResume(result: WebViewSniffResult?) {
+                            if (finished.compareAndSet(false, true) && cont.isActive) {
+                                cont.resume(result)
+                            }
+                        }
+
+                        webView.webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(
+                                view: WebView?,
+                                request: WebResourceRequest?,
+                            ): Boolean {
+                                val candidate = request?.url?.toString().orEmpty()
+                                if (config.overrideUrlRegex?.matches(candidate) == true) {
+                                    tryResume(
+                                        WebViewSniffResult(
+                                            url = url,
+                                            body = candidate,
+                                            code = 200,
+                                        ),
+                                    )
+                                    return true
+                                }
+                                return super.shouldOverrideUrlLoading(view, request)
+                            }
+
+                            override fun onLoadResource(view: WebView?, resUrl: String?) {
+                                val candidate = resUrl ?: return
+                                if (config.sourceRegex?.matches(candidate) == true) {
+                                    tryResume(
+                                        WebViewSniffResult(
+                                            url = url,
+                                            body = candidate,
+                                            code = 200,
+                                        ),
+                                    )
+                                }
+                            }
+
+                            override fun onPageFinished(view: WebView?, loadedUrl: String?) {
+                                if (config.javaScript != null) {
+                                    webView.loadUrl("javascript:${config.javaScript}")
+                                }
+                                kotlinx.coroutines.CoroutineScope(cont.context).launch(Dispatchers.Main.immediate) {
+                                    kotlinx.coroutines.delay(1000L + config.delayMs)
+                                    tryResume(null)
+                                }
+                            }
+                        }
+
+                        if (!headers.isNullOrEmpty()) {
+                            webView.loadUrl(url, headers)
+                        } else {
+                            webView.loadUrl(url)
+                        }
+                    }
+                }
+            } finally {
+                webView.reset()
+            }
+        }
+    }
+
+    suspend fun sniffResource(
+        url: String,
+        headers: Map<String, String>? = null,
+        delayMs: Long = 2500,
+        timeoutMs: Long = 60000,
+        sourceRegex: String,
+        javaScript: String? = null,
+        blockImages: Boolean = true,
+    ): WebViewSniffResult? {
+        return sniff(
+            url = url,
+            headers = headers,
+            delayMs = delayMs,
+            timeoutMs = timeoutMs,
+            sourceRegex = sourceRegex,
+            overrideUrlRegex = null,
+            javaScript = javaScript,
+            blockImages = blockImages,
+        )
+    }
+
+    suspend fun sniffOverrideUrl(
+        url: String,
+        headers: Map<String, String>? = null,
+        delayMs: Long = 2500,
+        timeoutMs: Long = 60000,
+        overrideUrlRegex: String,
+        javaScript: String? = null,
+        blockImages: Boolean = true,
+    ): WebViewOverrideResult? = mutex.withLock {
+        withContext(Dispatchers.Main.immediate) {
+            val webView = obtainWebView()
+            try {
+                webView.configureForParser(headers?.get(CommonHeaders.USER_AGENT), blockImages = blockImages)
+                withTimeout(timeoutMs) {
+                    suspendCancellableCoroutine { cont ->
+                        val finished = AtomicBoolean(false)
+
+                        fun tryResume(result: WebViewOverrideResult?) {
+                            if (finished.compareAndSet(false, true) && cont.isActive) {
+                                cont.resume(result)
+                            }
+                        }
+
+                        webView.webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                                val candidate = request?.url?.toString().orEmpty()
+                                if (candidate.matches(overrideUrlRegex.toRegex())) {
+                                    tryResume(
+                                        WebViewOverrideResult(
+                                            url = url,
+                                            body = candidate,
+                                            code = 200,
+                                        ),
+                                    )
+                                    return true
+                                }
+                                return super.shouldOverrideUrlLoading(view, request)
+                            }
+
+                            override fun onPageFinished(view: WebView?, loadedUrl: String?) {
+                                if (!javaScript.isNullOrBlank()) {
+                                    webView.loadUrl("javascript:$javaScript")
+                                }
+                                kotlinx.coroutines.CoroutineScope(cont.context).launch(Dispatchers.Main.immediate) {
+                                    kotlinx.coroutines.delay(1000L + delayMs)
+                                    tryResume(null)
+                                }
+                            }
+                        }
+
+                        if (!headers.isNullOrEmpty()) {
+                            webView.loadUrl(url, headers)
+                        } else {
+                            webView.loadUrl(url)
+                        }
+                    }
+                }
+            } finally {
+                webView.reset()
+            }
+        }
+    }
+
 	suspend fun sniffMediaUrl(
 		url: String,
 		headers: Map<String, String>? = null,
@@ -718,6 +944,7 @@ class WebViewExecutor @Inject constructor(
         val callback = object : org.skepsun.kototoro.browser.cloudflare.CloudFlareCallback {
             override fun onLoadingStateChanged(isLoading: Boolean) = Unit
             override fun onHistoryChanged() = Unit
+            override fun onPageFinished(webView: android.webkit.WebView, url: String) = Unit
 
             override fun onPageLoaded() {
                 if (finished) return

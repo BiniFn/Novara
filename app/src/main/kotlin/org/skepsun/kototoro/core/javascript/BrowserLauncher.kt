@@ -18,8 +18,6 @@ import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.network.jsonsource.PersistentCookieJar
 import org.skepsun.kototoro.core.parser.legado.LegadoNetworkUtils
 import org.skepsun.kototoro.parsers.model.ContentSource
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
 /**
  * 浏览器启动器
@@ -32,6 +30,11 @@ class BrowserLauncher(
     private val context: Context,
     private val cookieJar: PersistentCookieJar? = null
 ) {
+    data class BrowserWaitResult(
+        val url: String,
+        val html: String,
+    )
+
     
     companion object {
         private const val TAG = "BrowserLauncher"
@@ -48,16 +51,24 @@ class BrowserLauncher(
      * @param source 源信息（可选）
      * @return 浏览器最终页面的 HTML 内容，如果失败则返回空字符串
      */
-    fun launchAndWait(url: String, title: String, source: ContentSource? = null): String {
+    fun launchAndWait(
+        url: String,
+        title: String,
+        source: ContentSource? = null,
+        refetchAfterSuccess: Boolean = true,
+        html: String? = null,
+    ): BrowserWaitResult? {
         Log.i(TAG, "Launching browser: url=$url, title=$title")
-        
+        val token = BrowserVerificationBridge.register()
         // 创建 Intent
         val intent = AppRouter.browserIntent(
             context = context,
             url = url,
             source = source,
             title = title
-        )
+        ).putExtra(AppRouter.KEY_BROWSER_WAIT_TOKEN, token)
+            .putExtra(AppRouter.KEY_BROWSER_REFETCH_AFTER_SUCCESS, refetchAfterSuccess)
+            .putExtra(AppRouter.KEY_BROWSER_HTML, html)
         
         // 添加标志以在新任务中启动
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -65,39 +76,22 @@ class BrowserLauncher(
         // 启动 Activity
         try {
             context.startActivity(intent)
-            
-            // 使用 CountDownLatch 等待浏览器操作完成
-            val latch = CountDownLatch(1)
-            var result = ""
-            
-            // 创建一个简单的等待机制
-            // 注意：这是一个简化的实现，实际应用中应该使用更复杂的回调机制
-            Thread {
-                try {
-                    // 等待用户操作（最多5分钟）
-                    if (latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                        Log.d(TAG, "Browser operation completed")
-                    } else {
-                        Log.w(TAG, "Browser operation timed out")
-                    }
-                } catch (e: InterruptedException) {
-                    Log.w(TAG, "Browser wait interrupted", e)
-                }
-            }.start()
-            
-            // 模拟等待一段时间让用户完成操作
-            // 在实际实现中，这应该通过 Activity 结果或广播来触发
-            Thread.sleep(3000) // 等待3秒让浏览器启动
-            
-            // 尝试从 WebView 同步 Cookie
+            val result = BrowserVerificationBridge.await(token, TIMEOUT_SECONDS)
             syncCookiesFromWebView(url)
-            
-            Log.i(TAG, "Browser launched successfully, cookies synced")
-            return "browser_launched" // 返回一个标识表示浏览器已启动
-            
+            if (result == null) {
+                Log.w(TAG, "Browser operation timed out or canceled")
+                return null
+            }
+            syncCookiesFromWebView(result.url)
+            Log.i(TAG, "Browser verification completed: finalUrl=${result.url}")
+            return BrowserWaitResult(
+                url = result.url.ifBlank { url },
+                html = result.html,
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to launch browser", e)
-            return ""
+            BrowserVerificationBridge.cancel(token)
+            return null
         }
     }
     

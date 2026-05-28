@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.core.model
 
+import android.util.Log
 import android.content.res.Resources
 import android.net.Uri
 import android.text.SpannableStringBuilder
@@ -91,17 +92,27 @@ val Demographic.titleResId: Int
 fun Content.getPreferredBranch(history: ContentHistory?): String? {
 	val ch = chapters
 	if (ch.isNullOrEmpty()) {
+		Log.d("ContentBranch", "getPreferredBranch: contentId=$id has no chapters")
 		return null
 	}
 	if (history != null) {
 		val currentChapter = ch.findById(history.chapterId)
 		if (currentChapter != null) {
+			Log.d(
+				"ContentBranch",
+				"getPreferredBranch: contentId=$id using history chapterId=${history.chapterId}, branch=${currentChapter.branch}",
+			)
 			return currentChapter.branch
 		}
 	}
 	val groups = ch.groupBy { it.branch }
 	if (groups.size == 1) {
-		return groups.keys.first()
+		val onlyBranch = groups.keys.first()
+		Log.d(
+			"ContentBranch",
+			"getPreferredBranch: contentId=$id single branch=$onlyBranch, count=${groups[onlyBranch]?.size ?: 0}",
+		)
+		return onlyBranch
 	}
 	for (locale in LocaleListCompat.getAdjustedDefault()) {
 		val displayLanguage = locale.getDisplayLanguage(locale)
@@ -117,10 +128,20 @@ fun Content.getPreferredBranch(history: ContentHistory?): String? {
 			}
 		}
 		if (candidates.isNotEmpty()) {
-			return candidates.maxBy { it.value.size }.key
+			val matched = candidates.maxBy { it.value.size }.key
+			Log.d(
+				"ContentBranch",
+				"getPreferredBranch: contentId=$id locale matched branch=$matched, groups=${groups.mapValues { it.value.size }}",
+			)
+			return matched
 		}
 	}
-	return groups.maxByOrNull { it.value.size }?.key
+	val fallback = groups.maxByOrNull { it.value.size }?.key
+	Log.d(
+		"ContentBranch",
+		"getPreferredBranch: contentId=$id fallback branch=$fallback, groups=${groups.mapValues { it.value.size }}",
+	)
+	return fallback
 }
 
 val Content.isLocal: Boolean

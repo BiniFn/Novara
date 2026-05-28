@@ -82,9 +82,15 @@ class WebViewRequestInterceptorExecutor @Inject constructor(
                     override fun onLoadingStateChanged(isLoading: Boolean) {
                         Log.v(TAG_VRF, "Loading state changed isLoading=$isLoading")
                     }
+
                     override fun onTitleChanged(title: CharSequence, subtitle: CharSequence?) {
                         Log.v(TAG_VRF, "Title changed title=$title subtitle=$subtitle")
                     }
+
+                    override fun onPageFinished(webView: WebView, url: String) {
+                        Log.v(TAG_VRF, "Page finished url=$url")
+                    }
+
                     override fun onHistoryChanged() {
                         Log.v(TAG_VRF, "History changed")
                     }

@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.details.domain
 
+import android.os.SystemClock
 import android.text.Html
 import android.text.SpannableString
 import android.text.Spanned
@@ -100,6 +101,12 @@ class DetailsLoadUseCase @Inject constructor(
 			)
 		} else {
 			val remoteDetails = getDetails(remoteContent, force).getOrNull()
+			if (remoteDetails != null) {
+				android.util.Log.d(
+					"DetailsLoadUseCase",
+					"loadLocal: remote fallback details ready, mangaId=${remoteDetails.id}, chapters=${remoteDetails.chapters?.size ?: 0}, localChapters=${localDetails.chapters?.size ?: 0}",
+				)
+			}
 			emit(
 				ContentDetails(
 					manga = remoteDetails ?: remoteContent,
@@ -126,6 +133,10 @@ class DetailsLoadUseCase @Inject constructor(
 	) = coroutineScope {
 		val localContent = localContentRepository.findSavedContent(manga, withDetails = true)
 		val skipNetworkLoad = !force && networkState.isOfflineOrRestricted()
+		android.util.Log.d(
+			"DetailsLoadUseCase",
+			"loadRemote: mangaId=${manga.id}, localContentChapters=${localContent?.manga?.chapters?.size ?: 0}, skipNetworkLoad=$skipNetworkLoad, force=$force",
+		)
 
 		if (skipNetworkLoad && localContent != null) {
 			emit(
@@ -155,6 +166,10 @@ class DetailsLoadUseCase @Inject constructor(
 			)
 		}
 		val remoteResult = remoteDeferred.await()
+		android.util.Log.d(
+			"DetailsLoadUseCase",
+			"loadRemote: remoteDeferred completed for mangaId=${manga.id}, success=${remoteResult.isSuccess}, exception=${remoteResult.exceptionOrNull()?.javaClass?.simpleName}",
+		)
 		val remoteDetails = if (localContent != null) {
 			// If we have local content, don't let network errors crash the flow
 			remoteResult.getOrNull()
@@ -163,6 +178,10 @@ class DetailsLoadUseCase @Inject constructor(
 			remoteResult.getOrThrow()
 		}
 		if (remoteDetails != null) {
+			android.util.Log.d(
+				"DetailsLoadUseCase",
+				"loadRemote: remote details ready, mangaId=${remoteDetails.id}, chapters=${remoteDetails.chapters?.size ?: 0}, localChapters=${localContent?.manga?.chapters?.size ?: 0}",
+			)
 			emit(
 				ContentDetails(
 					manga = remoteDetails,
@@ -189,6 +208,7 @@ class DetailsLoadUseCase @Inject constructor(
 	}
 
 	private suspend fun getDetails(seed: Content, force: Boolean) = runCatchingCancellable {
+		val start = SystemClock.elapsedRealtime()
 		val repository = mangaRepositoryFactory.create(seed.source)
 		
 		// 对于EPUB源（NoveliaWenku等），强制从服务器获取最新章节列表
@@ -202,12 +222,29 @@ class DetailsLoadUseCase @Inject constructor(
 		} else {
 			repository.getDetails(seed)
 		}
+		android.util.Log.d(
+			"DetailsLoadUseCase",
+			"getDetails: repository returned in ${SystemClock.elapsedRealtime() - start}ms for mangaId=${seed.id}",
+		)
 		
 		android.util.Log.d("DetailsLoadUseCase", "getDetails: source=${seed.source.name}, isEpubSource=$isEpubSource, force=$force, shouldForceRefresh=$shouldForceRefresh")
 		android.util.Log.d("DetailsLoadUseCase", "getDetails: manga has ${manga.chapters?.size ?: 0} chapters from server")
+		android.util.Log.d(
+			"DetailsLoadUseCase",
+			"getDetails: mangaId=${manga.id}, url=${manga.url}, branches=${manga.chapters.orEmpty().groupBy { it.branch }.mapValues { it.value.size }}",
+		)
+		android.util.Log.d(
+			"DetailsLoadUseCase",
+			"getDetails: first chapters=${manga.chapters.orEmpty().take(3).map { "${it.id}|${it.branch}|${it.title}|${it.url}" }}",
+		)
 		
 		// 检查是否有EPUB内部章节需要加载
-		expandEpubChaptersIfNeeded(manga)
+		val expanded = expandEpubChaptersIfNeeded(manga)
+		android.util.Log.d(
+			"DetailsLoadUseCase",
+			"getDetails: returning manga with ${expanded.chapters?.size ?: 0} chapters after post-processing, totalCost=${SystemClock.elapsedRealtime() - start}ms",
+		)
+		expanded
 	}.recoverNotNull { e ->
 		if (e is NotFoundException) {
 			recoverUseCase(seed)

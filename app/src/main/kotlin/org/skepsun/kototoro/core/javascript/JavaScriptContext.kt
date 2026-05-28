@@ -1,6 +1,8 @@
 package org.skepsun.kototoro.core.javascript
 
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
+import org.skepsun.kototoro.core.parser.legado.LegadoReflectiveAccess
+import org.skepsun.kototoro.core.parser.legado.runtime.LegadoRuleRuntimeContext
 
 /**
  * JavaScript 执行上下文
@@ -14,16 +16,22 @@ data class JavaScriptContext(
     val book: BookInfo? = null,
     val chapter: ChapterInfo? = null,
     val source: LegadoBookSource? = null,
+    val sourceName: String? = null,
+    val runtimeContext: LegadoRuleRuntimeContext? = null,
     val key: String? = null,
     val page: Int? = null,
-    var result: Any? = null  // 当前规则的输入/输出数据
+    var result: Any? = null,  // 当前规则的输入/输出数据
+    var src: Any? = null,
 ) {
+    var javaBridge: Any? = null
+
     /**
      * 设置变量
      */
     fun setVariable(name: String, value: Any?) {
         when (name) {
-            "result", "src" -> result = value
+            "result" -> result = value
+            "src" -> src = value
             else -> variables[name] = value
         }
     }
@@ -60,9 +68,11 @@ data class JavaScriptContext(
             "book" -> book
             "chapter" -> chapter
             "source" -> source
+            "sourceName" -> sourceName
             "key" -> key
             "page" -> page
-            "result", "src" -> result
+            "result" -> result
+            "src" -> src ?: result
             else -> null
         }
     }
@@ -104,7 +114,7 @@ data class JavaScriptContext(
                 else -> null
             }
             is Map<*, *> -> obj[currentProperty]
-            else -> null
+            else -> LegadoReflectiveAccess.readProperty(obj, currentProperty)
         }
         
         // 如果还有更多层级，递归获取
@@ -129,18 +139,22 @@ data class JavaScriptContext(
         book?.let { allVars["book"] = it }
         chapter?.let { allVars["chapter"] = it }
         source?.let { allVars["source"] = it }
+        sourceName?.let { allVars["sourceName"] = it }
         key?.let { allVars["key"] = it }
         page?.let { allVars["page"] = it }
-        result?.let { 
-            allVars["result"] = it
-            allVars["src"] = it
-        }
+        result?.let { allVars["result"] = it }
+        (src ?: result)?.let { allVars["src"] = it }
         
         // java 绑定在 Sandbox.setResult 时注入，以便可替换为具备方法的绑定对象
+        javaBridge?.let { allVars["java"] = it }
         variables["java"]?.let { allVars["java"] = it }
         // cookie 和 cache 将在 Sandbox 中实际注入
         
         return allVars
+    }
+
+    fun getMutableVariables(): Map<String, Any?> {
+        return variables.toMap()
     }
     
     companion object {
@@ -305,6 +319,24 @@ data class BookInfo(
  */
 data class ChapterInfo(
     val chapterUrl: String,
-    val name: String,
-    val index: Int
-)
+    var name: String,
+    val index: Int,
+    private val variableMap: MutableMap<String, String> = mutableMapOf(),
+) {
+    fun putVariable(key: String, value: String?): Boolean {
+        if (value == null) {
+            variableMap.remove(key)
+        } else {
+            variableMap[key] = value
+        }
+        return true
+    }
+
+    fun getVariable(key: String): String {
+        return variableMap[key] ?: ""
+    }
+
+    fun getVariableMap(): Map<String, String> {
+        return variableMap.toMap()
+    }
+}

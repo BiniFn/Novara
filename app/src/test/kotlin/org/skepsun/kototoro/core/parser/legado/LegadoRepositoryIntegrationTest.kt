@@ -14,14 +14,21 @@ import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.javascript.JavaScriptEngine
 import org.skepsun.kototoro.core.javascript.JavaScriptContext
 import org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient
-import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentListFilter
+import org.skepsun.kototoro.parsers.model.ContentSource
+import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
 import org.skepsun.kototoro.core.network.jsonsource.UserAgentManager
 import io.mockk.mockk
+import android.content.SharedPreferences
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
+import org.skepsun.kototoro.core.model.jsonsource.TocRule
+import org.skepsun.kototoro.core.parser.legado.book.BookChapterList
 
 /**
  * Integration test for LegadoRepository
@@ -31,6 +38,7 @@ class LegadoRepositoryIntegrationTest {
 	private lateinit var mockServer: MockWebServer
 	private lateinit var httpClient: LegadoHttpClient
 	private lateinit var mockJsEngine: JavaScriptEngine
+    private lateinit var prefs: SharedPreferences
 	
 	@BeforeEach
 	fun setup() {
@@ -59,6 +67,7 @@ class LegadoRepositoryIntegrationTest {
 			
 			override fun dispose() {}
 		}
+        prefs = mockk(relaxed = true)
 	}
 	
 	@AfterEach
@@ -113,9 +122,9 @@ class LegadoRepositoryIntegrationTest {
 		)
 		
 		val source = JsonContentSource(entity)
-		val repository = LegadoRepository(source, httpClient, mockJsEngine)
+		val repository = LegadoRepository(source, httpClient, mockJsEngine, legadoPrefs = prefs)
 		
-		val results = repository.getList(0, null, null)
+		val results = repository.getList(0, null, ContentListFilter(query = "test"))
 		
 		assertEquals(2, results.size)
 		assertEquals("Test Book 1", results[0].title)
@@ -177,7 +186,7 @@ class LegadoRepositoryIntegrationTest {
 		)
 		
 		val source = JsonContentSource(entity)
-		val repository = LegadoRepository(source, httpClient, mockJsEngine)
+		val repository = LegadoRepository(source, httpClient, mockJsEngine, legadoPrefs = prefs)
 		
 		val testContent = Content(
 			id = 1L,
@@ -200,9 +209,51 @@ class LegadoRepositoryIntegrationTest {
 		val result = repository.getDetails(testContent)
 		
 		assertNotNull(result)
-		assertEquals("Test Novel", result.title)
+		assertEquals("Original Title", result.title)
 		assertEquals("Test Author", result.authors.first())
 		assertTrue(result.coverUrl?.contains("/cover.jpg") == true)
 		assertEquals("Test description", result.description)
+	}
+
+	@Test
+	fun `test TOC rules can read runtime chapter title and index like MD3`() = runTest {
+		val html = """
+			<html>
+			<body>
+					<div id="content_1">
+						<a>ChapterOne</a>
+						<a>ChapterTwo</a>
+					</div>
+				</body>
+				</html>
+		""".trimIndent()
+
+		val config = LegadoBookSource(
+			bookSourceName = "Test Source",
+			bookSourceUrl = mockServer.url("/").toString(),
+			ruleToc = TocRule(
+				chapterList = "id.content_1.0@tag.a",
+				chapterName = "text",
+				chapterUrl = "/chapter/@get:{title}/@get:{index}"
+			)
+		)
+		val source = object : ContentSource {
+			override val name: String = "Test Source"
+			override val locale: String = "zh"
+			override val contentType: ContentType = ContentType.NOVEL
+		}
+		val result = BookChapterList.parseWithRuntimeContext(
+			content = html,
+			baseUrl = mockServer.url("/book/runtime").toString(),
+			source = source,
+			config = config,
+			runtimeContext = TestLegadoRuleRuntimeContext(),
+		)
+		val chapters = result.chapters
+
+		assertEquals(2, chapters.size)
+		assertTrue(chapters[0].url.endsWith("/chapter/ChapterOne/1"))
+		assertTrue(chapters[1].url.endsWith("/chapter/ChapterTwo/2"))
+		assertFalse(result.shouldReverse)
 	}
 }

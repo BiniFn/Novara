@@ -91,8 +91,16 @@ data class ContentDetails(
         val chapters = manga.chapters
         val localChapters = local?.manga?.chapters.orEmpty()
         if (chapters.isNullOrEmpty()) {
+            android.util.Log.d(
+                "ContentDetails",
+                "mergeChapters: remote empty, localCount=${localChapters.size}, branches=${localChapters.groupBy { it.branch }.mapValues { it.value.size }}",
+            )
             return localChapters
         }
+        android.util.Log.d(
+            "ContentDetails",
+            "mergeChapters: remoteCount=${chapters.size}, localCount=${localChapters.size}, remoteBranches=${chapters.groupBy { it.branch }.mapValues { it.value.size }}, localBranches=${localChapters.groupBy { it.branch }.mapValues { it.value.size }}",
+        )
         val localMap = if (localChapters.isNotEmpty()) {
             localChapters.associateByTo(LinkedHashMap(localChapters.size)) { it.id }
         } else {
@@ -131,6 +139,10 @@ data class ContentDetails(
         if (remainingLocalChapters.isNotEmpty()) {
             result.addAll(remainingLocalChapters)
         }
+        android.util.Log.d(
+            "ContentDetails",
+            "mergeChapters: resultCount=${result.size}, resultBranches=${result.groupBy { it.branch }.mapValues { it.value.size }}, first=${result.take(3).map { "${it.id}|${it.branch}|${it.title}" }}",
+        )
         return result
     }
 

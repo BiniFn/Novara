@@ -252,6 +252,10 @@
 			android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
 			android:windowSoftInputMode="adjustResize" />
 		<activity
+			android:name="org.skepsun.kototoro.browser.OpenUrlConfirmActivity"
+			android:exported="false"
+			android:theme="@style/Theme.Kototoro" />
+		<activity
 			android:name="org.skepsun.kototoro.browser.cloudflare.CloudFlareActivity"
 			android:autoRemoveFromRecents="true"
 			android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"

@@ -136,8 +136,8 @@ class UnifiedSourcesActivity : BaseActivity<ActivityUnifiedSourcesBinding>() {
 
 	companion object {
 
-		private const val EXTRA_INITIAL_REPOSITORY_KIND = "initial_repository_kind"
-		private const val EXTRA_INITIAL_REPOSITORY_URL = "initial_repository_url"
+		const val EXTRA_INITIAL_REPOSITORY_KIND = "initial_repository_kind"
+		const val EXTRA_INITIAL_REPOSITORY_URL = "initial_repository_url"
 		private const val HOST_ADD_REPO = "add-repo"
 
 		fun newIntent(

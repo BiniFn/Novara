@@ -3,7 +3,9 @@ package org.skepsun.kototoro.core.parser.legado
 import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.channels.ProducerScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
@@ -13,16 +15,24 @@ import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
 import org.skepsun.kototoro.core.network.jsonsource.LegadoHttpClient
 import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.core.parser.legado.bridge.KototoroLegadoHttpExecutor
+import org.skepsun.kototoro.core.parser.legado.bridge.KototoroLegadoRuntimeBridge
 import org.skepsun.kototoro.core.parser.legado.book.BookChapterList
 import org.skepsun.kototoro.core.parser.legado.book.BookContent
 import org.skepsun.kototoro.core.parser.legado.book.BookInfo
 import org.skepsun.kototoro.core.parser.legado.book.BookList
+import org.skepsun.kototoro.core.parser.legado.runtime.LegadoRuleRuntimeContext
+import org.skepsun.kototoro.core.parser.legado.runtime.LegadoRequestPlan
+import org.skepsun.kototoro.core.parser.legado.runtime.StandaloneLegadoListRuntime
+import org.skepsun.kototoro.core.parser.legado.runtime.StandaloneLegadoRuntimeState
 import org.skepsun.kototoro.core.parser.legado.sandbox.LegadoSandbox
 import org.skepsun.kototoro.core.javascript.JavaScriptEngine
+import org.skepsun.kototoro.core.parser.legado.bridge.KototoroLegadoCookieStore
+import org.skepsun.kototoro.core.parser.legado.bridge.KototoroLegadoVariableStore
+import org.skepsun.kototoro.core.parser.legado.bridge.LegadoSandboxRuleRuntimeContext
+import org.skepsun.kototoro.core.parser.legado.bridge.StandaloneLegadoRuleRuntimeContext
 import org.skepsun.kototoro.parsers.model.*
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.RequestBody.Companion.toRequestBody
 import java.nio.charset.Charset
 import org.skepsun.kototoro.core.cache.MemoryContentCache
 import org.skepsun.kototoro.core.cache.SafeDeferred
@@ -45,12 +55,14 @@ class LegadoRepository(
     private val httpClient: LegadoHttpClient,
     private val jsEngine: JavaScriptEngine,
     private val memoryCache: MemoryContentCache? = null,
-    private val browserLauncher: org.skepsun.kototoro.core.javascript.BrowserLauncher? = null
-) : ContentRepository {
+    private val browserLauncher: org.skepsun.kototoro.core.javascript.BrowserLauncher? = null,
+    private val legadoPrefs: android.content.SharedPreferences? = null
+) : ContentRepository, org.skepsun.kototoro.parsers.ContentParserAuthProvider {
 
     companion object {
         private const val TAG = "LegadoRepository"
         private const val MAX_AUTO_TOC_PAGES = 200
+        private const val PREF_DEBUG_STANDALONE_LIST_RUNTIME = "debug_standalone_legado_list_runtime"
         private val json = Json {
             ignoreUnknownKeys = true
             isLenient = true
@@ -63,8 +75,44 @@ class LegadoRepository(
         json.decodeFromString<LegadoBookSource>(jsonSource.entity.config)
     }
 
+    private val runtimeBridge by lazy {
+        val variableStore = legadoPrefs?.let(::KototoroLegadoVariableStore)
+        val cookieStore = KototoroLegadoCookieStore(
+            org.skepsun.kototoro.core.javascript.LegadoCookieAPI(
+                org.skepsun.kototoro.core.network.jsonsource.PersistentCookieJar(httpClient.getCookieJar()),
+            ),
+        )
+        KototoroLegadoRuntimeBridge(
+            httpExecutor = httpExecutor,
+            cookieStore = cookieStore,
+            variableStore = variableStore ?: error("LegadoRepository requires SharedPreferences-backed variable store"),
+            logger = org.skepsun.kototoro.core.parser.legado.runtime.NoOpLegadoRuntimeLogger,
+        )
+    }
+
     private val sandbox: LegadoSandbox by lazy {
-        LegadoSandbox(jsEngine, httpClient, config)
+        LegadoSandbox(
+            jsEngine = jsEngine,
+            httpClient = httpClient,
+            source = config,
+            parserSourceName = source.name,
+            prefs = legadoPrefs,
+            runtimeBridge = runtimeBridge,
+        )
+    }
+
+    private val ruleRuntimeContext by lazy {
+        LegadoSandboxRuleRuntimeContext(sandbox)
+    }
+
+    private val standaloneListRuntime by lazy {
+        StandaloneLegadoListRuntime(
+            jsEngine = jsEngine,
+            source = config,
+            parserSourceName = source.name,
+            variableStore = legadoPrefs?.let(::KototoroLegadoVariableStore),
+            httpExecutor = httpExecutor,
+        )
     }
 
     private val manhuataiChapterNewIdCache = ConcurrentHashMap<Int, Map<String, String>>()
@@ -91,11 +139,45 @@ class LegadoRepository(
      * - 仅用于用户主动触发的“登录/配置”按钮，不应在后台自动高频调用。
      */
     fun runUserScript(script: String): Any? {
+        if (shouldUseStandaloneListRuntimeForDebug()) {
+            val runtimeContext = createStandaloneRuntimeContext()
+            return standaloneListRuntime.execute(
+                script = script,
+                runtimeContext = runtimeContext,
+                baseUrl = effectiveBaseUrlForRequest(config.bookSourceUrl),
+            )
+        }
         return sandbox.execute(script)
     }
 
     fun evalUserExpression(expression: String): Any? {
+        if (shouldUseStandaloneListRuntimeForDebug()) {
+            val runtimeContext = createStandaloneRuntimeContext()
+            return standaloneListRuntime.eval(
+                script = expression,
+                runtimeContext = runtimeContext,
+                baseUrl = effectiveBaseUrlForRequest(config.bookSourceUrl),
+            )
+        }
         return sandbox.eval(expression)
+    }
+
+    // ---- ContentParserAuthProvider for loginUrl WebView flow ----
+
+    override val authUrl: String
+        get() = config.loginUrl?.trim().orEmpty()
+
+    override suspend fun isAuthorized(): Boolean {
+        val checkJs = config.loginCheckJs?.trim() ?: return false
+        if (checkJs.isBlank()) return false
+        val result = runUserScript(checkJs)?.toString().orEmpty()
+        return result.isNotEmpty() && result != "false" && result != "0"
+    }
+
+    override suspend fun getUsername(): String {
+        val checkJs = config.loginCheckJs?.trim().orEmpty()
+        if (checkJs.isBlank()) return ""
+        return runUserScript(checkJs)?.toString().orEmpty()
     }
 
     /**
@@ -104,6 +186,28 @@ class LegadoRepository(
      */
     private fun getConfigHeaders(): Map<String, String> {
         return parseConfigHeaders(config.header)
+    }
+
+    private fun getLoginHeaders(): Map<String, String> {
+        val sourceKey = config.bookSourceUrl.trim().takeIf { it.isNotBlank() } ?: return emptyMap()
+        val raw = legadoPrefs?.let(::KototoroLegadoVariableStore)?.getLoginHeader(sourceKey)
+        return KototoroLegadoHttpExecutor.parseHeaderJson(raw)
+    }
+
+    private fun getLoginInfoMap(): MutableMap<String, String> {
+        val sourceKey = config.bookSourceUrl.trim().takeIf { it.isNotBlank() } ?: return linkedMapOf()
+        val raw = legadoPrefs?.let(::KototoroLegadoVariableStore)?.getLoginInfo(sourceKey).orEmpty()
+        if (raw.isBlank()) return linkedMapOf()
+        return runCatching {
+            val json = org.json.JSONObject(raw)
+            linkedMapOf<String, String>().apply {
+                val keys = json.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    put(key, json.optString(key, ""))
+                }
+            }
+        }.getOrElse { linkedMapOf() }
     }
 
     /**
@@ -223,7 +327,7 @@ class LegadoRepository(
 
         val analyzer = AnalyzeRule(
             content = "",
-            sandbox = sandbox,
+            runtimeContext = ruleRuntimeContext,
             baseUrl = config.bookSourceUrl,
         )
         val lines = analyzer.getStringList(trimmed, mContent = "", isUrl = false).orEmpty()
@@ -261,8 +365,17 @@ class LegadoRepository(
 
         // 对齐 legado-with-MD3：按页号翻页（{{page}}），并使用 0-based pageIndex 作为入参（page = pageIndex + 1）。
         val page = (offset + 1).coerceAtLeast(1)
+
+        if (shouldUseStandaloneListRuntimeForDebug()) {
+            return getListWithStandaloneRuntime(
+                ruleUrl = ruleUrl,
+                query = query,
+                page = page,
+                isSearch = isSearch,
+            )
+        }
         
-        fun buildRequest(key: String?): AnalyzeUrl.UrlResult {
+        fun buildRequest(key: String?): LegadoRequestPlan {
             return AnalyzeUrl(
                 ruleUrl = ruleUrl,
                 key = key,
@@ -270,173 +383,204 @@ class LegadoRepository(
                 baseUrl = effectiveBaseUrlForRequest(ruleUrl),
                 ruleData = sandbox.getRuleData(),
                 sandbox = sandbox,
-                useWebViewDefault = config.ruleSearch?.webView == true
+                enabledCookieJarDefault = config.enabledCookieJar != false,
+                useWebViewDefault = config.ruleSearch?.webView == true,
             ).build()
         }
 
-        val firstResult = executeRequest(buildRequest(query)) ?: return emptyList()
+        val firstResult = executeRequestWithLoginCheck(buildRequest(query)) ?: return emptyList()
         val (firstContent, firstFinalUrl) = firstResult
         val firstParsed = BookList.parse(firstContent, firstFinalUrl, source, config, isSearch, sandbox)
 
         return firstParsed
     }
 
+    private suspend fun getListWithStandaloneRuntime(
+        ruleUrl: String,
+        query: String?,
+        page: Int,
+        isSearch: Boolean,
+    ): List<Content> {
+        Log.d(TAG, "[StandaloneListRuntime] Enabled for source=${source.name}")
+        val prepared = standaloneListRuntime.prepareRequest(
+            ruleUrl = ruleUrl,
+            key = query,
+            page = page,
+            baseUrl = effectiveBaseUrlForRequest(ruleUrl),
+        )
+        val response = executeRequestWithLoginCheck(
+            plan = prepared.requestPlan,
+            runtimeContext = prepared.runtimeContext,
+        ) ?: return emptyList()
+        val (content, finalUrl) = response
+        return BookList.parseWithRuntimeContext(
+            content = content,
+            baseUrl = finalUrl,
+            source = source,
+            config = config,
+            isSearch = isSearch,
+            runtimeContext = prepared.runtimeContext,
+        )
+    }
+
+    private fun shouldUseStandaloneListRuntimeForDebug(): Boolean {
+        if (!org.skepsun.kototoro.BuildConfig.DEBUG) return false
+        return legadoPrefs?.getBoolean(PREF_DEBUG_STANDALONE_LIST_RUNTIME, false) == true
+    }
+
+    private fun createStandaloneRuntimeState(): StandaloneLegadoRuntimeState {
+        return StandaloneLegadoRuntimeState(
+            sourceKey = config.bookSourceUrl.trim().takeIf { it.isNotBlank() },
+            variableStore = legadoPrefs?.let(::KototoroLegadoVariableStore),
+        )
+    }
+
+    private fun createStandaloneRuntimeContext(
+        key: String? = null,
+        page: Int? = null,
+        state: StandaloneLegadoRuntimeState = createStandaloneRuntimeState(),
+        reGetBookAction: (() -> Unit)? = null,
+        refreshTocUrlAction: (() -> Unit)? = null,
+    ): StandaloneLegadoRuleRuntimeContext {
+        return standaloneListRuntime.createRuntimeContext(
+            key = key,
+            page = page,
+            state = state,
+            reGetBookAction = reGetBookAction,
+            refreshTocUrlAction = refreshTocUrlAction,
+        )
+    }
+
     private val rateLimiter by lazy {
         ConcurrentRateLimiter(config.bookSourceUrl, config.concurrentRate)
+    }
+
+    private val httpExecutor by lazy {
+        KototoroLegadoHttpExecutor(
+            source = source,
+            config = config,
+            httpClient = httpClient,
+            rateLimiter = rateLimiter,
+            configHeadersProvider = ::getConfigHeaders,
+            loginHeadersProvider = ::getLoginHeaders,
+            sourceUserAgentProvider = ::getSourceUserAgent,
+        )
     }
 
 
     /**
      * Centralized request executor with retry and protection logic
      */
-    private suspend fun executeRequest(request: AnalyzeUrl.UrlResult): Pair<String, String>? {
-        // Legado sources often have 0 retries by default, but we need more for stability
-        // Increase to 5 to handle aggressive sites like bilinovel
-        val maxRetries = (request.retry).coerceAtLeast(5)
-        
-        // Ensure URL is a valid web URL
-        if (!request.url.startsWith("http", ignoreCase = true)) {
-            Log.w(TAG, "Skipping non-HTTP request in LegadoRepository: ${request.url}")
+    private suspend fun executeRequest(plan: LegadoRequestPlan): Pair<String, String>? {
+        return try {
+            val response = httpExecutor.execute(plan)
+            applyBodyJsIfNeeded(
+                plan = plan,
+                body = response.body,
+                finalUrl = response.url,
+                runtimeContext = null,
+            ) to response.url
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            if (e is org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException) throw e
+            Log.e(TAG, "Request failed via runtime executor: ${plan.url}", e)
+            null
+        }
+    }
+
+    private suspend fun executeRequestWithLoginCheck(
+        plan: LegadoRequestPlan,
+        runtimeContext: StandaloneLegadoRuleRuntimeContext? = null,
+        ): Pair<String, String>? {
+        val response = try {
+            httpExecutor.execute(plan)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            if (e is org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException) throw e
+            Log.e(TAG, "Request failed via runtime executor: ${plan.url}", e)
             return null
         }
-        
-        repeat(maxRetries) { attempt ->
-            try {
-                // Extract priority from context
-                val priority = kotlin.coroutines.coroutineContext[RequestPriority]?.priority ?: RequestPriority.FOREGROUND
+        val processedBody = applyBodyJsIfNeeded(
+            plan = plan,
+            body = response.body,
+            finalUrl = response.url,
+            runtimeContext = runtimeContext,
+        )
+        val checkJs = config.loginCheckJs?.trim().orEmpty()
+        if (checkJs.isBlank()) return processedBody to response.url
 
-                // Apply concurrency limit
-                return rateLimiter.withLimit(priority) {
-                    // Sync CloudFlare cookies (部分书源的 bookSourceUrl 可能不是合法 URL，需回退到当前请求 URL)
-                    val cookieSyncUrl = config.bookSourceUrl.takeIf { it.startsWith("http", ignoreCase = true) } ?: request.url
-                    LegadoCloudFlareResolver.syncCloudFlareCookies(cookieSyncUrl)
-                    
-                    val headersWithUa = getConfigHeaders().toMutableMap()
-                    
-                    // Helper to check for key existence case-insensitively
-                    fun MutableMap<String, String>.containsKeyIgnoreCase(key: String): Boolean =
-                        this.keys.any { it.equals(key, ignoreCase = true) }
-
-                    // Request-specific headers override source config headers
-                    request.headers.forEach { (k, v) ->
-                        // Remove existing similar key to avoid duplicates with different casing
-                        val existingKey = headersWithUa.keys.find { it.equals(k, ignoreCase = true) }
-                        if (existingKey != null) headersWithUa.remove(existingKey)
-                        headersWithUa[k] = v
-                    }
-
-                    // Ensure User-Agent is present
-                    if (!headersWithUa.containsKeyIgnoreCase("User-Agent")) {
-                        headersWithUa["User-Agent"] = getSourceUserAgent()
-                    }
-
-                    // Many sites (including JSON APIs and image CDNs) require Referer to avoid blocking.
-                    if (!headersWithUa.containsKeyIgnoreCase("Referer")) {
-                        originForReferer(request.url)?.let { headersWithUa["Referer"] = it }
-                    }
-
-                    // OkHttp header values must be ASCII; drop unsafe values to avoid IllegalArgumentException.
-                    val sanitizedHeaders = headersWithUa.filterValues { isHeaderValueSafe(it) }.toMutableMap()
-                    if (sanitizedHeaders.size != headersWithUa.size) {
-                        val dropped = headersWithUa.keys - sanitizedHeaders.keys
-                        Log.w(TAG, "Dropping unsafe headers for ${request.url}: $dropped")
-                    }
-                    
-                    // Use WebView for sources that require JavaScript execution
-                    if (request.useWebView && request.method == "GET") {
-                        Log.d(TAG, "Final headers for ${request.url}: $sanitizedHeaders")
-                        Log.d(TAG, "[WebView] Loading URL: ${request.url}")
-                        val delayMs = if (request.webViewDelayTime > 0) request.webViewDelayTime else 2500L
-                        val content = httpClient.getWithWebView(
-                            url = request.url, 
-                            headers = sanitizedHeaders, 
-                            delayMs = delayMs,
-                            webJs = request.webJs
-                        )
-                        
-                        if (content.isBlank()) return@withLimit null
-                        
-                        // For WebView, the final URL is the same as the request URL
-                        return@withLimit content to request.url
-                    }
-
-                    val response = if (request.method == "POST") {
-                        val body = request.body ?: ""
-                        // legado-with-MD3 兼容：body 为 JSON 时应使用 application/json，否则部分 API 会返回 502/4xx
-                        // 允许通过显式 Content-Type 覆盖自动推断
-                        val explicitContentType = sanitizedHeaders.entries
-                            .firstOrNull { it.key.equals("Content-Type", ignoreCase = true) }
-                            ?.value
-                        val isJsonBody = body.trimStart().startsWith("{") || body.trimStart().startsWith("[")
-                        val inferredContentType = when {
-                            !explicitContentType.isNullOrBlank() -> explicitContentType
-                            isJsonBody -> "application/json; charset=${request.charset}"
-                            else -> "application/x-www-form-urlencoded; charset=${request.charset}"
-                        }
-                        val inferredMediaType = inferredContentType.toMediaTypeOrNull()
-                        val mediaType = inferredMediaType
-
-                        // 让最终 headers 可观测且与 MD3 更一致（OkHttp 也会从 RequestBody 写入 Content-Type，但这里显式补齐）。
-                        if (!sanitizedHeaders.containsKeyIgnoreCase("Content-Type")) {
-                            sanitizedHeaders["Content-Type"] = inferredContentType
-                        }
-                        if (!sanitizedHeaders.containsKeyIgnoreCase("Accept")) {
-                            sanitizedHeaders["Accept"] = if (isJsonBody) "application/json, text/plain, */*" else "*/*"
-                        }
-
-                        val bodyPreview = body.replace("\r", "").replace("\n", "\\n").take(180)
-                        Log.d(
-                            TAG,
-                            "Final request for ${request.url}: method=POST contentType=$inferredContentType bodyPreview=$bodyPreview headers=$sanitizedHeaders"
-                        )
-                        val requestBody = body.toRequestBody(mediaType)
-                        httpClient.post(request.url, requestBody, sanitizedHeaders, source = source)
-                    } else {
-                        Log.d(TAG, "Final request for ${request.url}: method=GET headers=$sanitizedHeaders")
-                        httpClient.get(request.url, sanitizedHeaders, source = source)
-                    }
-                    
-                    val content = getResponseBodyWithCharset(response)
-                    Log.d(TAG, "Response for ${request.url}: code=${response.code} contentType=${response.header("Content-Type")}")
-                    val responseClone = response.newBuilder().build()
-                    response.close()
-                    
-                    if (content == null) return@withLimit null
-                    
-                    // Check for CloudFlare challenge
-                    val cfStatus = LegadoCloudFlareResolver.checkResponseForProtection(responseClone, content)
-                    if (cfStatus == LegadoCloudFlareResolver.PROTECTION_CAPTCHA) {
-                        Log.w(TAG, "CF challenge detected, throwing exception for UI verification")
-                        val headersForException = toHeaders(headersWithUa)
-                        throw LegadoCloudFlareResolver.createException(request.url, source, headersForException)
-                    } else if (cfStatus == LegadoCloudFlareResolver.PROTECTION_BLOCKED) {
-                        Log.e(TAG, "CloudFlare BLOCKED this request!")
-                        return@withLimit null
-                    }
-                    
-                    val finalUrl = response.request.url.toString()
-                    content to finalUrl
-                }
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                if (e is org.skepsun.kototoro.core.exceptions.CloudFlareProtectedException) throw e
-                
-                if (e is org.skepsun.kototoro.parsers.exception.TooManyRequestExceptions) {
-                    val waitTime = e.getRetryDelay().coerceAtLeast(1000L)
-                    Log.w(TAG, "Rate limit hit (429), waiting ${waitTime}ms before retry $attempt/$maxRetries")
-                    delay(waitTime)
-                    // We don't throw here if we have more attempts, we just let the loop continue
-                    if (attempt == maxRetries - 1) throw e
-                } else {
-                    Log.e(TAG, "Request failed: ${request.url} (attempt $attempt/$maxRetries)", e)
-                    if (attempt == maxRetries - 1) throw e
-                    // For other errors, add a small 500ms delay before retrying
-                    delay(500)
-                }
+        val loginJsBridge = AnalyzeUrlLoginJsBridge(
+            basePlan = plan,
+            httpExecutor = httpExecutor,
+            initialHeaders = getConfigHeaders() + getLoginHeaders() + plan.headers,
+            sourceTag = config.bookSourceName,
+            sourceObject = config,
+            infoMap = getLoginInfoMap(),
+        )
+        val jsInput = LoginCheckStrResponse(
+            response = loginJsBridge.buildOkHttpResponse(
+                url = response.url,
+                code = response.code ?: 200,
+                headers = response.headers,
+                bodyText = processedBody,
+            ),
+            bodyText = processedBody,
+        )
+        val jsResult = if (runtimeContext != null) {
+            runtimeContext.withJavaBridge(loginJsBridge) {
+                standaloneListRuntime.eval(
+                    script = checkJs,
+                    runtimeContext = runtimeContext,
+                    result = jsInput,
+                    baseUrl = response.url,
+                )
+            }
+        } else {
+            sandbox.putVariable("url", response.url)
+            sandbox.setResult(jsInput)
+            sandbox.withJavaBridge(loginJsBridge) {
+                sandbox.eval(checkJs)
             }
         }
-        
-        return null
+
+        return when (jsResult) {
+            is LoginCheckStrResponse -> jsResult.body.toString() to jsResult.url
+            is org.skepsun.kototoro.core.javascript.StrResponse -> jsResult.body() to jsResult.url()
+            is okhttp3.Response -> jsResult.body?.string().orEmpty() to jsResult.request.url.toString()
+            is String -> jsResult to response.url
+            null -> processedBody to response.url
+            else -> jsResult.toString() to response.url
+        }
+    }
+
+    private fun applyBodyJsIfNeeded(
+        plan: LegadoRequestPlan,
+        body: String,
+        finalUrl: String,
+        runtimeContext: StandaloneLegadoRuleRuntimeContext?,
+    ): String {
+        if (plan.type != null) return body
+        val bodyJs = plan.bodyJs?.trim().orEmpty()
+        if (bodyJs.isBlank()) return body
+
+        return if (runtimeContext != null) {
+            val jsResult = runtimeContext.evalJs(bodyJs, body, finalUrl)
+            when (jsResult) {
+                null -> body
+                is String -> jsResult
+                else -> jsResult.toString()
+            }
+        } else {
+            sandbox.putVariable("url", finalUrl)
+            sandbox.putVariable("baseUrl", finalUrl)
+            sandbox.setResult(body)
+            val jsResult = sandbox.eval(bodyJs)
+            when (jsResult) {
+                null -> sandbox.getVariable("result") ?: body
+                is String -> jsResult
+                else -> jsResult.toString()
+            }
+        }
     }
 
     private fun originForReferer(url: String): String? {
@@ -466,7 +610,6 @@ class LegadoRepository(
         return true
     }
 
-
     override suspend fun getDetails(manga: Content): Content {
         val normalizedContentUrl = AnalyzeUrl.normalizeUrl(manga.url)
         memoryCache?.getDetails(source, normalizedContentUrl)?.let {
@@ -480,13 +623,18 @@ class LegadoRepository(
             android.util.Log.w(TAG, "Memory cache BYPASS (getDetails) for book: ${manga.title} (cached chapters empty)")
         }
 
+        if (shouldUseStandaloneListRuntimeForDebug()) {
+            return getDetailsWithStandaloneRuntime(manga, normalizedContentUrl)
+        }
+
         val request = AnalyzeUrl(
             manga.url, 
             baseUrl = effectiveBaseUrlForRequest(manga.url),
             sandbox = sandbox,
-            useWebViewDefault = config.ruleBookInfo?.webView == true
+            enabledCookieJarDefault = config.enabledCookieJar != false,
+            useWebViewDefault = config.ruleBookInfo?.webView == true,
         ).build()
-        val result = executeRequest(request)
+        val result = executeRequestWithLoginCheck(request)
         
         if (result == null) {
             return manga
@@ -522,6 +670,66 @@ class LegadoRepository(
         return finalContent
     }
 
+    private suspend fun getDetailsWithStandaloneRuntime(
+        manga: Content,
+        normalizedContentUrl: String,
+    ): Content {
+        val runtimeState = createStandaloneRuntimeState()
+        val runtimeContext = createStandaloneRuntimeContext(state = runtimeState)
+        val request = AnalyzeUrl(
+            manga.url,
+            baseUrl = effectiveBaseUrlForRequest(manga.url),
+            ruleData = runtimeState.ruleData(),
+            runtimeContext = runtimeContext,
+            jsEvaluator = runtimeContext.asJsEvaluator { effectiveBaseUrlForRequest(manga.url) },
+            enabledCookieJarDefault = config.enabledCookieJar != false,
+            useWebViewDefault = config.ruleBookInfo?.webView == true,
+        ).build()
+        val result = executeRequestWithLoginCheck(
+            plan = request,
+            runtimeContext = runtimeContext,
+        ) ?: return manga
+        val (content, finalUrl) = result
+
+        val infoResult = BookInfo.parseWithRuntimeContext(
+            manga = manga,
+            content = content,
+            baseUrl = finalUrl,
+            config = config,
+            runtimeContext = runtimeContext,
+        )
+
+        val tocUrl = infoResult.tocUrl
+            ?.takeIf { it.isNotBlank() }
+            ?: manga.url.takeIf { it.contains(",{") || it.contains(", {") }
+            ?: finalUrl
+
+        val chapters = if (tocUrl == manga.url) {
+            getChaptersHelperWithStandaloneRuntime(
+                manga = infoResult.manga,
+                tocUrl = tocUrl,
+                runtimeState = runtimeState,
+                initialContent = content,
+                initialFinalUrl = finalUrl,
+            )
+        } else {
+            getChaptersHelperWithStandaloneRuntime(
+                manga = infoResult.manga,
+                tocUrl = tocUrl,
+                runtimeState = runtimeState,
+            )
+        }
+
+        val finalContent = infoResult.manga.copy(chapters = chapters)
+        android.util.Log.d(TAG, "Memory cache FILL (getDetails standalone) for book: ${manga.title}")
+        memoryCache?.putDetails(
+            source,
+            normalizedContentUrl,
+            SafeDeferred(processLifecycleScope.async(Dispatchers.Default) { Result.success(finalContent) }),
+        )
+        return finalContent
+    }
+
 
     override suspend fun getPages(chapter: ContentChapter, nextChapterUrl: String?): List<ContentPage> {
         val normalizedUrl = AnalyzeUrl.normalizeUrl(chapter.url)
@@ -539,7 +747,21 @@ class LegadoRepository(
             send(it)
             return@channelFlow
         }
-        
+
+        if (shouldUseStandaloneListRuntimeForDebug()) {
+            sendStandalonePagesFlow(chapter, nextChapterUrl, normalizedUrl)
+            return@channelFlow
+        }
+
+        sandbox.setChapter(
+            LegadoSandbox.ChapterContext(
+                title = chapter.title.orEmpty(),
+                url = chapter.url,
+                index = chapter.number.toInt()
+            )
+        )
+        android.util.Log.d(TAG, "[getPagesFlow] setChapter: title='${chapter.title}' chapterName='${sandbox.getVariable("chapterName")}'")
+
         val visited = mutableSetOf<String>()
         val pages = mutableListOf<ContentPage>()
         val queue: ArrayDeque<String> = ArrayDeque()
@@ -565,16 +787,24 @@ class LegadoRepository(
                 url, 
                 baseUrl = effectiveBaseUrlForRequest(url),
                 sandbox = sandbox,
+                enabledCookieJarDefault = config.enabledCookieJar != false,
                 useWebViewDefault = isWebViewEnabled(contentRule?.webView),
                 webJsDefault = contentRule?.webJs,
-                webViewDelayDefault = contentRule?.webViewDelayTime ?: 0L
+                webViewDelayDefault = contentRule?.webViewDelayTime ?: 0L,
             ).build()
-            val result = executeRequest(request) ?: run {
+            val result = executeRequestWithLoginCheck(request) ?: run {
                 continue
             }
             val (content, finalUrl) = result
             val parseResult = try {
-                BookContent.parse(content, finalUrl, source, config, sandbox)
+                BookContent.parse(
+                    content = content,
+                    baseUrl = finalUrl,
+                    source = source,
+                    config = config,
+                    sandbox = sandbox,
+                    nextChapterUrl = nextChapterUrl,
+                )
             } catch (e: org.skepsun.kototoro.parsers.exception.ContentUnavailableException) {
                 // manhuatai/kanman 站点：目录页的 href 可能不是 chapter_newid，导致接口返回“章节不存在!”。
                 // legado-with-MD3 通常通过正确的目录接口拿到 chapter_newid；这里做兜底映射以提升兼容性。
@@ -584,13 +814,21 @@ class LegadoRepository(
                         fallbackUrl,
                         baseUrl = effectiveBaseUrlForRequest(fallbackUrl),
                         sandbox = sandbox,
+                        enabledCookieJarDefault = config.enabledCookieJar != false,
                         useWebViewDefault = isWebViewEnabled(contentRule?.webView),
                         webJsDefault = contentRule?.webJs,
-                        webViewDelayDefault = contentRule?.webViewDelayTime ?: 0L
+                        webViewDelayDefault = contentRule?.webViewDelayTime ?: 0L,
                     ).build()
-                    val retryResult = executeRequest(retryRequest) ?: continue
+                    val retryResult = executeRequestWithLoginCheck(retryRequest) ?: continue
                     val (retryContent, retryFinalUrl) = retryResult
-                    BookContent.parse(retryContent, retryFinalUrl, source, config, sandbox)
+                    BookContent.parse(
+                        content = retryContent,
+                        baseUrl = retryFinalUrl,
+                        source = source,
+                        config = config,
+                        sandbox = sandbox,
+                        nextChapterUrl = nextChapterUrl,
+                    )
                 } else {
                     throw e
                 }
@@ -602,7 +840,7 @@ class LegadoRepository(
             }
             
             // Emit current progress
-            send(pages.toList())
+            this.send(pages.toList())
             pageCount++
 
             // 安全限制：单章节页数超过 500 页（通常是规则误触了下一章）
@@ -638,7 +876,143 @@ class LegadoRepository(
         }
     }
 
-    private suspend fun resolveManhuataiChapterInfoUrl(originalUrl: String, chapterTitle: String): String? {
+    private suspend fun ProducerScope<List<ContentPage>>.sendStandalonePagesFlow(
+        chapter: ContentChapter,
+        nextChapterUrl: String?,
+        normalizedUrl: String,
+    ) {
+        val runtimeState = createStandaloneRuntimeState()
+        val runtimeContext = createStandaloneRuntimeContext(state = runtimeState)
+        runtimeContext.setChapter(
+            org.skepsun.kototoro.core.javascript.ChapterInfo(
+                chapterUrl = chapter.url,
+                name = chapter.title.orEmpty(),
+                index = chapter.number.toInt(),
+            ),
+        )
+        android.util.Log.d(
+            TAG,
+            "[getPagesFlow standalone] setChapter: title='${chapter.title}' chapterName='${runtimeContext.getVariable("chapterName")}'",
+        )
+
+        val visited = mutableSetOf<String>()
+        val pages = mutableListOf<ContentPage>()
+        val queue: ArrayDeque<String> = ArrayDeque()
+        queue.add(chapter.url)
+
+        while (queue.isNotEmpty()) {
+            val url = queue.removeFirst()
+            if (!visited.add(url)) continue
+
+            val normalizedCurrentUrl = url.substringBefore(",")
+            val normalizedNextChapter = nextChapterUrl?.substringBefore(",")
+            android.util.Log.d("LegadoRepository", "[BoundaryCheck] url=$normalizedCurrentUrl, nextChapterUrl=$normalizedNextChapter")
+            if (normalizedNextChapter != null && normalizedCurrentUrl == normalizedNextChapter) {
+                android.util.Log.w("LegadoRepository", "Reached next chapter URL: $url, stopping page load.")
+                break
+            }
+
+            val contentRule = config.ruleContent
+            val request = AnalyzeUrl(
+                url,
+                baseUrl = effectiveBaseUrlForRequest(url),
+                ruleData = runtimeState.ruleData(),
+                runtimeContext = runtimeContext,
+                jsEvaluator = runtimeContext.asJsEvaluator { effectiveBaseUrlForRequest(url) },
+                enabledCookieJarDefault = config.enabledCookieJar != false,
+                useWebViewDefault = isWebViewEnabled(contentRule?.webView, runtimeContext),
+                webJsDefault = contentRule?.webJs,
+                webViewDelayDefault = contentRule?.webViewDelayTime ?: 0L,
+            ).build()
+            val result = executeRequestWithLoginCheck(
+                plan = request,
+                runtimeContext = runtimeContext,
+            ) ?: continue
+            val (content, finalUrl) = result
+            val parseResult = try {
+                BookContent.parseWithRuntimeContext(
+                    content = content,
+                    baseUrl = finalUrl,
+                    source = source,
+                    config = config,
+                    runtimeContext = runtimeContext,
+                    nextChapterUrl = nextChapterUrl,
+                )
+            } catch (e: org.skepsun.kototoro.parsers.exception.ContentUnavailableException) {
+                val fallbackUrl = resolveManhuataiChapterInfoUrl(url, chapter.title.orEmpty(), runtimeState, runtimeContext)
+                if (fallbackUrl != null && fallbackUrl != url) {
+                    val retryRequest = AnalyzeUrl(
+                        fallbackUrl,
+                        baseUrl = effectiveBaseUrlForRequest(fallbackUrl),
+                        ruleData = runtimeState.ruleData(),
+                        runtimeContext = runtimeContext,
+                        jsEvaluator = runtimeContext.asJsEvaluator { effectiveBaseUrlForRequest(fallbackUrl) },
+                        enabledCookieJarDefault = config.enabledCookieJar != false,
+                        useWebViewDefault = isWebViewEnabled(contentRule?.webView, runtimeContext),
+                        webJsDefault = contentRule?.webJs,
+                        webViewDelayDefault = contentRule?.webViewDelayTime ?: 0L,
+                    ).build()
+                    val retryResult = executeRequestWithLoginCheck(
+                        plan = retryRequest,
+                        runtimeContext = runtimeContext,
+                    ) ?: continue
+                    val (retryContent, retryFinalUrl) = retryResult
+                    BookContent.parseWithRuntimeContext(
+                        content = retryContent,
+                        baseUrl = retryFinalUrl,
+                        source = source,
+                        config = config,
+                        runtimeContext = runtimeContext,
+                        nextChapterUrl = nextChapterUrl,
+                    )
+                } else {
+                    throw e
+                }
+            }
+
+            val startIndex = pages.size
+            parseResult.pages.forEachIndexed { index, page ->
+                val pageId = (source.name.hashCode().toLong() shl 32) + startIndex + index
+                pages.add(page.copy(id = pageId))
+            }
+
+            send(pages.toList())
+
+            if (pages.size > 500) {
+                android.util.Log.e("LegadoRepository", "Chapter has too many pages (>500), possible rule leakage. Stopping.")
+                break
+            }
+
+            parseResult.nextPageUrls.forEach { next ->
+                val normalizedNext = next.substringBefore(",")
+                val normalizedNextChapter = nextChapterUrl?.substringBefore(",")
+                android.util.Log.d("LegadoRepository", "[NextPageFilter] next=$normalizedNext, nextChapter=$normalizedNextChapter, match=${normalizedNext == normalizedNextChapter}")
+                if (!visited.contains(next)) {
+                    if (normalizedNextChapter != null && normalizedNext == normalizedNextChapter) {
+                        android.util.Log.d("LegadoRepository", "[NextPageFilter] SKIPPING next chapter URL: $next")
+                    } else {
+                        queue.add(next)
+                    }
+                }
+            }
+        }
+
+        if (pages.isNotEmpty()) {
+            android.util.Log.d(TAG, "Memory cache FILL for chapter: ${chapter.title}, pages: ${pages.size}")
+            memoryCache?.putPages(
+                source,
+                normalizedUrl,
+                SafeDeferred(processLifecycleScope.async(Dispatchers.Default) { Result.success(pages.toList()) }),
+            )
+        }
+    }
+
+    private suspend fun resolveManhuataiChapterInfoUrl(
+        originalUrl: String,
+        chapterTitle: String,
+        runtimeState: StandaloneLegadoRuntimeState? = null,
+        runtimeContext: StandaloneLegadoRuleRuntimeContext? = null,
+    ): String? {
         val httpUrl = originalUrl.toHttpUrlOrNull() ?: return null
         if (!httpUrl.encodedPath.contains("/api/getchapterinfov2")) return null
 
@@ -648,8 +1022,27 @@ class LegadoRepository(
 
         val mapping = manhuataiChapterNewIdCache[comicId] ?: run {
             val listUrl = "${httpUrl.scheme}://${httpUrl.host}/api/getchapterlist/?comic_id=$comicId"
-            val req = AnalyzeUrl(listUrl, baseUrl = effectiveBaseUrlForRequest(listUrl), sandbox = sandbox).build()
-            val resp = executeRequest(req) ?: return null
+            val req = if (runtimeState != null && runtimeContext != null) {
+                AnalyzeUrl(
+                    listUrl,
+                    baseUrl = effectiveBaseUrlForRequest(listUrl),
+                    ruleData = runtimeState.ruleData(),
+                    runtimeContext = runtimeContext,
+                    jsEvaluator = runtimeContext.asJsEvaluator { effectiveBaseUrlForRequest(listUrl) },
+                    enabledCookieJarDefault = config.enabledCookieJar != false,
+                ).build()
+            } else {
+                AnalyzeUrl(
+                    listUrl,
+                    baseUrl = effectiveBaseUrlForRequest(listUrl),
+                    sandbox = sandbox,
+                    enabledCookieJarDefault = config.enabledCookieJar != false,
+                ).build()
+            }
+            val resp = executeRequestWithLoginCheck(
+                plan = req,
+                runtimeContext = runtimeContext,
+            ) ?: return null
             val body = resp.first
             val obj = runCatching { JSONObject(body) }.getOrNull() ?: return null
             val arr = obj.optJSONArray("data") ?: return null
@@ -693,29 +1086,11 @@ class LegadoRepository(
     }
 
     override suspend fun getChapterContent(chapter: ContentChapter, nextChapterUrl: String?): NovelChapterContent? {
-        val pages = getPages(chapter, nextChapterUrl)
-        if (pages.isEmpty()) return null
-
-        val htmlBuilder = StringBuilder()
-        val images = mutableListOf<NovelChapterContent.NovelImage>()
-
-        pages.forEach { page ->
-            if (page.url.startsWith("data:", ignoreCase = true)) {
-                decodeDataUrl(page.url)?.let { decoded ->
-                    htmlBuilder.append(decoded.html)
-                    images.addAll(decoded.images)
-                }
-            } else {
-                // Legado novel chapters might return image URLs for illustrations
-                images.add(NovelChapterContent.NovelImage(page.url, page.headers ?: emptyMap()))
-                // Note: The HTML usually already contains <img> tags pointing to these URLs
-            }
+        return if (shouldUseStandaloneListRuntimeForDebug()) {
+            getStandaloneNovelChapterContent(chapter, nextChapterUrl)
+        } else {
+            getSandboxNovelChapterContent(chapter, nextChapterUrl)
         }
-
-        return NovelChapterContent(
-            html = htmlBuilder.toString(),
-            images = images
-        )
     }
 
     private fun decodeDataUrl(url: String): NovelChapterContent? {
@@ -737,6 +1112,244 @@ class LegadoRepository(
             Log.e(TAG, "Failed to decode data URL", e)
             null
         }
+    }
+
+    private suspend fun getSandboxNovelChapterContent(
+        chapter: ContentChapter,
+        nextChapterUrl: String?,
+    ): NovelChapterContent? {
+        if (config.bookSourceType == 2) {
+            return getPages(chapter, nextChapterUrl).toNovelChapterContentFromPages()
+        }
+
+        sandbox.setChapter(
+            LegadoSandbox.ChapterContext(
+                title = chapter.title.orEmpty(),
+                url = chapter.url,
+                index = chapter.number.toInt(),
+            ),
+        )
+
+        val visited = mutableSetOf<String>()
+        val pageContents = mutableListOf<String>()
+        val queue: ArrayDeque<String> = ArrayDeque()
+        queue.add(chapter.url)
+
+        while (queue.isNotEmpty()) {
+            val url = queue.removeFirst()
+            if (!visited.add(url)) continue
+
+            val normalizedCurrentUrl = url.substringBefore(",")
+            val normalizedNextChapter = nextChapterUrl?.substringBefore(",")
+            if (normalizedNextChapter != null && normalizedCurrentUrl == normalizedNextChapter) {
+                android.util.Log.w(TAG, "Reached next chapter URL while building novel chapter content: $url")
+                break
+            }
+
+            val contentRule = config.ruleContent
+            val request = AnalyzeUrl(
+                url,
+                baseUrl = effectiveBaseUrlForRequest(url),
+                sandbox = sandbox,
+                enabledCookieJarDefault = config.enabledCookieJar != false,
+                useWebViewDefault = isWebViewEnabled(contentRule?.webView),
+                webJsDefault = contentRule?.webJs,
+                webViewDelayDefault = contentRule?.webViewDelayTime ?: 0L,
+            ).build()
+            val result = executeRequestWithLoginCheck(request) ?: continue
+            val (content, finalUrl) = result
+            val parseResult = try {
+                BookContent.parseNovelPage(
+                    content = content,
+                    baseUrl = finalUrl,
+                    source = source,
+                    config = config,
+                    sandbox = sandbox,
+                    nextChapterUrl = nextChapterUrl,
+                )
+            } catch (e: org.skepsun.kototoro.parsers.exception.ContentUnavailableException) {
+                val fallbackUrl = resolveManhuataiChapterInfoUrl(url, chapter.title.orEmpty())
+                if (fallbackUrl != null && fallbackUrl != url) {
+                    val retryRequest = AnalyzeUrl(
+                        fallbackUrl,
+                        baseUrl = effectiveBaseUrlForRequest(fallbackUrl),
+                        sandbox = sandbox,
+                        enabledCookieJarDefault = config.enabledCookieJar != false,
+                        useWebViewDefault = isWebViewEnabled(contentRule?.webView),
+                        webJsDefault = contentRule?.webJs,
+                        webViewDelayDefault = contentRule?.webViewDelayTime ?: 0L,
+                    ).build()
+                    val retryResult = executeRequestWithLoginCheck(retryRequest) ?: continue
+                    val (retryContent, retryFinalUrl) = retryResult
+                    BookContent.parseNovelPage(
+                        content = retryContent,
+                        baseUrl = retryFinalUrl,
+                        source = source,
+                        config = config,
+                        sandbox = sandbox,
+                        nextChapterUrl = nextChapterUrl,
+                    )
+                } else {
+                    throw e
+                }
+            }
+            if (parseResult.content.isNotBlank()) {
+                pageContents.add(parseResult.content)
+            }
+            parseResult.nextPageUrls.forEach { next ->
+                val normalizedNext = next.substringBefore(",")
+                if (normalizedNextChapter != null && normalizedNext == normalizedNextChapter) return@forEach
+                if (!visited.contains(next)) {
+                    queue.add(next)
+                }
+            }
+        }
+
+        val finalHtml = BookContent.finalizeNovelChapter(
+            pageContents = pageContents,
+            baseUrl = effectiveBaseUrlForRequest(chapter.url),
+            config = config,
+            runtimeContext = LegadoSandboxRuleRuntimeContext(sandbox),
+            nextChapterUrl = nextChapterUrl,
+        )
+        return finalHtml
+            .takeIf { it.isNotBlank() }
+            ?.let { NovelChapterContent(html = it, images = emptyList()) }
+    }
+
+    private suspend fun getStandaloneNovelChapterContent(
+        chapter: ContentChapter,
+        nextChapterUrl: String?,
+    ): NovelChapterContent? {
+        if (config.bookSourceType == 2) {
+            return getPages(chapter, nextChapterUrl).toNovelChapterContentFromPages()
+        }
+
+        val runtimeState = createStandaloneRuntimeState()
+        val runtimeContext = createStandaloneRuntimeContext(state = runtimeState)
+        runtimeContext.setChapter(
+            org.skepsun.kototoro.core.javascript.ChapterInfo(
+                chapterUrl = chapter.url,
+                name = chapter.title.orEmpty(),
+                index = chapter.number.toInt(),
+            ),
+        )
+
+        val visited = mutableSetOf<String>()
+        val pageContents = mutableListOf<String>()
+        val queue: ArrayDeque<String> = ArrayDeque()
+        queue.add(chapter.url)
+
+        while (queue.isNotEmpty()) {
+            val url = queue.removeFirst()
+            if (!visited.add(url)) continue
+
+            val normalizedCurrentUrl = url.substringBefore(",")
+            val normalizedNextChapter = nextChapterUrl?.substringBefore(",")
+            if (normalizedNextChapter != null && normalizedCurrentUrl == normalizedNextChapter) {
+                android.util.Log.w(TAG, "Reached next chapter URL while building standalone novel chapter content: $url")
+                break
+            }
+
+            val contentRule = config.ruleContent
+            val request = AnalyzeUrl(
+                url,
+                baseUrl = effectiveBaseUrlForRequest(url),
+                ruleData = runtimeState.ruleData(),
+                runtimeContext = runtimeContext,
+                jsEvaluator = runtimeContext.asJsEvaluator { effectiveBaseUrlForRequest(url) },
+                enabledCookieJarDefault = config.enabledCookieJar != false,
+                useWebViewDefault = isWebViewEnabled(contentRule?.webView, runtimeContext),
+                webJsDefault = contentRule?.webJs,
+                webViewDelayDefault = contentRule?.webViewDelayTime ?: 0L,
+            ).build()
+            val result = executeRequestWithLoginCheck(
+                plan = request,
+                runtimeContext = runtimeContext,
+            ) ?: continue
+            val (content, finalUrl) = result
+            val parseResult = try {
+                BookContent.parseNovelPageWithRuntimeContext(
+                    content = content,
+                    baseUrl = finalUrl,
+                    source = source,
+                    config = config,
+                    runtimeContext = runtimeContext,
+                    nextChapterUrl = nextChapterUrl,
+                )
+            } catch (e: org.skepsun.kototoro.parsers.exception.ContentUnavailableException) {
+                val fallbackUrl = resolveManhuataiChapterInfoUrl(url, chapter.title.orEmpty(), runtimeState, runtimeContext)
+                if (fallbackUrl != null && fallbackUrl != url) {
+                    val retryRequest = AnalyzeUrl(
+                        fallbackUrl,
+                        baseUrl = effectiveBaseUrlForRequest(fallbackUrl),
+                        ruleData = runtimeState.ruleData(),
+                        runtimeContext = runtimeContext,
+                        jsEvaluator = runtimeContext.asJsEvaluator { effectiveBaseUrlForRequest(fallbackUrl) },
+                        enabledCookieJarDefault = config.enabledCookieJar != false,
+                        useWebViewDefault = isWebViewEnabled(contentRule?.webView, runtimeContext),
+                        webJsDefault = contentRule?.webJs,
+                        webViewDelayDefault = contentRule?.webViewDelayTime ?: 0L,
+                    ).build()
+                    val retryResult = executeRequestWithLoginCheck(
+                        plan = retryRequest,
+                        runtimeContext = runtimeContext,
+                    ) ?: continue
+                    val (retryContent, retryFinalUrl) = retryResult
+                    BookContent.parseNovelPageWithRuntimeContext(
+                        content = retryContent,
+                        baseUrl = retryFinalUrl,
+                        source = source,
+                        config = config,
+                        runtimeContext = runtimeContext,
+                        nextChapterUrl = nextChapterUrl,
+                    )
+                } else {
+                    throw e
+                }
+            }
+            if (parseResult.content.isNotBlank()) {
+                pageContents.add(parseResult.content)
+            }
+            parseResult.nextPageUrls.forEach { next ->
+                val normalizedNext = next.substringBefore(",")
+                if (normalizedNextChapter != null && normalizedNext == normalizedNextChapter) return@forEach
+                if (!visited.contains(next)) {
+                    queue.add(next)
+                }
+            }
+        }
+
+        val finalHtml = BookContent.finalizeNovelChapter(
+            pageContents = pageContents,
+            baseUrl = effectiveBaseUrlForRequest(chapter.url),
+            config = config,
+            runtimeContext = runtimeContext,
+            nextChapterUrl = nextChapterUrl,
+        )
+        return finalHtml
+            .takeIf { it.isNotBlank() }
+            ?.let { NovelChapterContent(html = it, images = emptyList()) }
+    }
+
+    private fun List<ContentPage>.toNovelChapterContentFromPages(): NovelChapterContent? {
+        if (isEmpty()) return null
+        val htmlBuilder = StringBuilder()
+        val images = mutableListOf<NovelChapterContent.NovelImage>()
+        forEach { page ->
+            if (page.url.startsWith("data:", ignoreCase = true)) {
+                decodeDataUrl(page.url)?.let { decoded ->
+                    htmlBuilder.append(decoded.html)
+                    images.addAll(decoded.images)
+                }
+            } else {
+                images.add(NovelChapterContent.NovelImage(page.url, page.headers ?: emptyMap()))
+            }
+        }
+        return NovelChapterContent(
+            html = htmlBuilder.toString(),
+            images = images,
+        )
     }
 
     override suspend fun getFilterOptions(): ContentListFilterOptions {
@@ -794,6 +1407,23 @@ class LegadoRepository(
                 tocUrl = tocUrl
             )
         )
+        sandbox.withPreUpdateActions(
+            reGetBookAction = {
+                runBlocking {
+                    reGetBookForSandboxPreUpdate()
+                }
+            },
+            refreshTocUrlAction = {
+                runBlocking {
+                    refreshTocUrlForSandboxPreUpdate()
+                }
+            },
+        ) {
+            runTocPreUpdateJsIfNeeded()
+        }
+        val effectiveTocUrl = sandbox.getVariable("tocUrl")
+            ?.takeIf { it.isNotBlank() }
+            ?: tocUrl
 
         // legado-with-MD3 聚合源常用：通过 source/book 变量控制目录翻页上限（cmpVariable）。
         // 返回值语义：0 表示不限制（含 -1 的约定），>0 表示最多加载多少“目录页”。
@@ -803,7 +1433,7 @@ class LegadoRepository(
         val chapters = mutableListOf<ContentChapter>()
         var shouldReverse = false
         val queue: ArrayDeque<String> = ArrayDeque()
-        queue.add(tocUrl)
+        queue.add(effectiveTocUrl)
         var usedInitial = false
         
         var pageCount = 0
@@ -817,7 +1447,7 @@ class LegadoRepository(
             
             pageCount++
 
-            val (content, finalUrl) = if (!usedInitial && url == tocUrl && initialContent != null && initialFinalUrl != null) {
+            val (content, finalUrl) = if (!usedInitial && url == effectiveTocUrl && initialContent != null && initialFinalUrl != null) {
                 usedInitial = true
                 initialContent to initialFinalUrl
             } else {
@@ -825,9 +1455,10 @@ class LegadoRepository(
                     url,
                     baseUrl = effectiveBaseUrlForRequest(url),
                     sandbox = sandbox,
-                    useWebViewDefault = config.ruleToc?.webView == true
+                    enabledCookieJarDefault = config.enabledCookieJar != false,
+                    useWebViewDefault = config.ruleToc?.webView == true,
                 ).build()
-                val result = executeRequest(request) ?: continue
+                val result = executeRequestWithLoginCheck(request) ?: continue
                 result
             }
 
@@ -864,11 +1495,13 @@ class LegadoRepository(
         }
         val ordered = deduped.values.toMutableList()
         
-        // legado 规则约定：`chapterList` 以 '-' 开头表示“反转章节列表”
+        // 默认保持源返回顺序；只有规则显式以 '-' 标记时才反转。
         if (shouldReverse) ordered.reverse()
-        
+
+        val formatted = applyTocFormatJsForSandbox(ordered, effectiveBaseUrlForRequest(effectiveTocUrl))
+
         // Re-assign sequential indices and numbers to ensure they are 1, 2, 3... in ascending order.
-        return ordered.mapIndexed { index, chapter ->
+        val result = formatted.mapIndexed { index, chapter ->
             // Use stable ID based on normalized URL hash instead of list index
             val normalizedUrl = AnalyzeUrl.normalizeUrl(chapter.url)
             val stableId = (source.name.hashCode().toLong() shl 32) + (normalizedUrl.hashCode().toLong() and 0xFFFFFFFFL)
@@ -877,9 +1510,383 @@ class LegadoRepository(
                 number = index.toFloat() + 1f
             )
         }
+        android.util.Log.d(
+            TAG,
+            "getChaptersHelper: book=${manga.title}, tocUrl=$effectiveTocUrl, visitedPages=${visited.size}, rawCount=${chapters.size}, dedupedCount=${ordered.size}, finalCount=${result.size}, shouldReverse=$shouldReverse, branches=${result.groupBy { it.branch }.mapValues { it.value.size }}, first=${result.take(3).map { "${it.id}|${it.branch}|${it.title}|${it.url}" }}, last=${result.takeLast(3).map { "${it.id}|${it.branch}|${it.title}|${it.url}" }}",
+        )
+        return result
     }
 
-    private fun computeTocPageLimitFromSourceComment(): Int? {
+    private suspend fun getChaptersHelperWithStandaloneRuntime(
+        manga: Content,
+        tocUrl: String,
+        runtimeState: StandaloneLegadoRuntimeState,
+        initialContent: String? = null,
+        initialFinalUrl: String? = null,
+    ): List<ContentChapter> {
+        val runtimeContext = createStandaloneRuntimeContext(
+            state = runtimeState,
+            reGetBookAction = {
+                runBlocking {
+                    reGetBookForPreUpdate(runtimeState)
+                }
+            },
+            refreshTocUrlAction = {
+                runBlocking {
+                    refreshTocUrlForPreUpdate(runtimeState)
+                }
+            },
+        )
+        runtimeContext.setBook(
+            org.skepsun.kototoro.core.javascript.BookInfo(
+                bookUrl = manga.url,
+                name = manga.title,
+                author = manga.authors.firstOrNull(),
+                tocUrl = tocUrl,
+            ),
+        )
+        runTocPreUpdateJsIfNeeded(runtimeContext)
+        val effectiveTocUrl = runtimeContext.getVariable("tocUrl")
+            ?.takeIf { it.isNotBlank() }
+            ?: runtimeContext.getBook()?.tocUrl
+            ?.takeIf { it.isNotBlank() }
+            ?: tocUrl
+
+        val tocPageLimit = computeTocPageLimitFromSourceComment(runtimeContext)
+        val visited = mutableSetOf<String>()
+        val chapters = mutableListOf<ContentChapter>()
+        var shouldReverse = false
+        val queue: ArrayDeque<String> = ArrayDeque()
+        queue.add(effectiveTocUrl)
+        var usedInitial = false
+        var pageCount = 0
+
+        while (queue.isNotEmpty()) {
+            val url = queue.removeFirst()
+            if (!visited.add(url)) continue
+            pageCount++
+
+            val (content, finalUrl) = if (!usedInitial && url == effectiveTocUrl && initialContent != null && initialFinalUrl != null) {
+                usedInitial = true
+                initialContent to initialFinalUrl
+            } else {
+                val request = AnalyzeUrl(
+                    url,
+                    baseUrl = effectiveBaseUrlForRequest(url),
+                    ruleData = runtimeState.ruleData(),
+                    runtimeContext = runtimeContext,
+                    jsEvaluator = runtimeContext.asJsEvaluator { effectiveBaseUrlForRequest(url) },
+                    enabledCookieJarDefault = config.enabledCookieJar != false,
+                    useWebViewDefault = config.ruleToc?.webView == true,
+                ).build()
+                executeRequestWithLoginCheck(
+                    plan = request,
+                    runtimeContext = runtimeContext,
+                ) ?: continue
+            }
+
+            val parseResult = BookChapterList.parseWithRuntimeContext(
+                content = content,
+                baseUrl = finalUrl,
+                source = source,
+                config = config,
+                runtimeContext = runtimeContext,
+            )
+
+            shouldReverse = shouldReverse || parseResult.shouldReverse
+            chapters.addAll(parseResult.chapters)
+
+            android.util.Log.d(TAG, "TOC page $pageCount: loaded ${parseResult.chapters.size} chapters, total: ${chapters.size}, nextPages: ${parseResult.nextPageUrls.size}")
+
+            parseResult.nextPageUrls.forEach { next ->
+                if (!visited.contains(next)) {
+                    queue.add(next)
+                }
+            }
+
+            if (parseResult.nextPageUrls.isEmpty()) {
+                enqueueAutoNextTocPageIfPossible(
+                    rawUrl = url,
+                    tocPageLimit = tocPageLimit,
+                    visited = visited,
+                    queue = queue,
+                    lastParseHadItems = parseResult.chapters.isNotEmpty(),
+                )
+            }
+        }
+
+        val deduped = linkedMapOf<String, ContentChapter>()
+        chapters.forEach { chapter ->
+            deduped.putIfAbsent(chapter.url, chapter)
+        }
+        val ordered = deduped.values.toMutableList()
+        if (shouldReverse) ordered.reverse()
+
+        val formatted = applyTocFormatJsForStandalone(ordered, runtimeContext, effectiveBaseUrlForRequest(effectiveTocUrl))
+
+        val result = formatted.mapIndexed { index, chapter ->
+            val normalizedUrl = AnalyzeUrl.normalizeUrl(chapter.url)
+            val stableId = (source.name.hashCode().toLong() shl 32) + (normalizedUrl.hashCode().toLong() and 0xFFFFFFFFL)
+            chapter.copy(
+                id = stableId,
+                number = index.toFloat() + 1f,
+            )
+        }
+        android.util.Log.d(
+            TAG,
+            "getChaptersHelperWithStandaloneRuntime: book=${manga.title}, tocUrl=$effectiveTocUrl, visitedPages=${visited.size}, rawCount=${chapters.size}, dedupedCount=${ordered.size}, finalCount=${result.size}, shouldReverse=$shouldReverse, branches=${result.groupBy { it.branch }.mapValues { it.value.size }}, first=${result.take(3).map { "${it.id}|${it.branch}|${it.title}|${it.url}" }}, last=${result.takeLast(3).map { "${it.id}|${it.branch}|${it.title}|${it.url}" }}",
+        )
+        return result
+    }
+
+    private fun runTocPreUpdateJsIfNeeded(runtimeContext: LegadoRuleRuntimeContext? = null) {
+        val script = config.ruleToc?.preUpdateJs?.takeIf { it.isNotBlank() } ?: return
+        runCatching {
+            if (runtimeContext != null) {
+                AnalyzeRule(
+                    content = "",
+                    runtimeContext = runtimeContext,
+                    baseUrl = config.bookSourceUrl,
+                    preUpdateJs = true,
+                ).evalJS(script, "")
+            } else {
+                sandbox.putVariable("baseUrl", config.bookSourceUrl)
+                sandbox.eval(script)
+            }
+        }.onFailure {
+            Log.w(TAG, "Failed to execute toc preUpdateJs", it)
+        }
+    }
+
+    private fun applyTocFormatJsForSandbox(
+        chapters: List<ContentChapter>,
+        baseUrl: String,
+    ): List<ContentChapter> {
+        val formatJs = config.ruleToc?.formatJs?.takeIf { it.isNotBlank() } ?: return chapters
+        sandbox.putVariable("gInt", "0")
+        return chapters.mapIndexed { index, chapter ->
+            val chapterContext = org.skepsun.kototoro.core.javascript.ChapterInfo(
+                chapterUrl = chapter.url,
+                name = chapter.title.orEmpty(),
+                index = index + 1,
+            )
+            sandbox.setChapter(
+                LegadoSandbox.ChapterContext(
+                    title = chapterContext.name,
+                    url = chapterContext.chapterUrl,
+                    index = chapterContext.index,
+                ),
+            )
+            sandbox.putVariable("index", (index + 1).toString())
+            sandbox.putVariable("title", chapterContext.name)
+            sandbox.setResult(chapterContext)
+            val formatResult = sandbox.execute(formatJs)
+            if (formatResult is String && formatResult.isNotEmpty()) {
+                chapter.copy(title = formatResult)
+            } else {
+                chapter
+            }
+        }
+    }
+
+    private fun applyTocFormatJsForStandalone(
+        chapters: List<ContentChapter>,
+        runtimeContext: StandaloneLegadoRuleRuntimeContext,
+        baseUrl: String,
+    ): List<ContentChapter> {
+        val formatJs = config.ruleToc?.formatJs?.takeIf { it.isNotBlank() } ?: return chapters
+        runtimeContext.putVariable("gInt", "0")
+        return chapters.mapIndexed { index, chapter ->
+            val chapterContext = org.skepsun.kototoro.core.javascript.ChapterInfo(
+                chapterUrl = chapter.url,
+                name = chapter.title.orEmpty(),
+                index = index + 1,
+            )
+            runtimeContext.setChapter(chapterContext)
+            runtimeContext.putVariable("index", (index + 1).toString())
+            runtimeContext.putVariable("title", chapterContext.name)
+            val formatResult = runtimeContext.executeJs(formatJs, chapterContext, baseUrl)
+            if (formatResult is String && formatResult.isNotEmpty()) {
+                chapter.copy(title = formatResult)
+            } else {
+                chapter
+            }
+        }
+    }
+
+    private suspend fun reGetBookForPreUpdate(runtimeState: StandaloneLegadoRuntimeState) {
+        val currentBook = runtimeState.getBook() ?: return
+        val name = currentBook.name?.trim().orEmpty()
+        if (name.isBlank()) return
+
+        val author = currentBook.author?.trim().orEmpty()
+        val matched = getList(
+            offset = 0,
+            order = null,
+            filter = ContentListFilter(query = name),
+        )
+            .asSequence()
+            .firstOrNull { item ->
+                val itemTitle = item.title.trim()
+                val itemAuthor = item.authors.firstOrNull()?.trim().orEmpty()
+                itemTitle == name && (author.isBlank() || itemAuthor == author)
+            } ?: return
+
+        val refreshed = getDetailsWithStandaloneRuntime(matched, AnalyzeUrl.normalizeUrl(matched.url))
+        runtimeState.setBook(
+            org.skepsun.kototoro.core.javascript.BookInfo(
+                bookUrl = refreshed.url,
+                name = refreshed.title,
+                author = refreshed.authors.firstOrNull(),
+                coverUrl = refreshed.coverUrl,
+                intro = refreshed.description,
+                kind = refreshed.tags.joinToString(",") { it.title },
+                tocUrl = runtimeState.getVariable("tocUrl")
+                    ?.takeIf { it.isNotBlank() }
+                    ?: currentBook.tocUrl,
+            ),
+        )
+    }
+
+    private suspend fun reGetBookForSandboxPreUpdate() {
+        val name = sandbox.getVariable("bookName")?.trim().orEmpty()
+        if (name.isBlank()) return
+        val author = sandbox.getVariable("bookAuthor")?.trim().orEmpty()
+
+        val matched = getList(
+            offset = 0,
+            order = null,
+            filter = ContentListFilter(query = name),
+        ).asSequence().firstOrNull { item ->
+            val itemTitle = item.title.trim()
+            val itemAuthor = item.authors.firstOrNull()?.trim().orEmpty()
+            itemTitle == name && (author.isBlank() || itemAuthor == author)
+        } ?: return
+
+        val refreshed = getDetails(matched)
+        sandbox.setBook(
+            LegadoSandbox.BookContext(
+                name = refreshed.title,
+                author = refreshed.authors.firstOrNull().orEmpty(),
+                url = refreshed.url,
+                coverUrl = refreshed.coverUrl.orEmpty(),
+                intro = refreshed.description.orEmpty(),
+                kind = refreshed.tags.joinToString(",") { it.title },
+                tocUrl = sandbox.getVariable("tocUrl").orEmpty(),
+            ),
+        )
+    }
+
+    private suspend fun refreshTocUrlForPreUpdate(runtimeState: StandaloneLegadoRuntimeState) {
+        val currentBook = runtimeState.getBook() ?: return
+        val runtimeContext = createStandaloneRuntimeContext(state = runtimeState)
+        val request = AnalyzeUrl(
+            currentBook.bookUrl,
+            baseUrl = effectiveBaseUrlForRequest(currentBook.bookUrl),
+            ruleData = runtimeState.ruleData(),
+            runtimeContext = runtimeContext,
+            jsEvaluator = runtimeContext.asJsEvaluator { effectiveBaseUrlForRequest(currentBook.bookUrl) },
+            enabledCookieJarDefault = config.enabledCookieJar != false,
+            useWebViewDefault = config.ruleBookInfo?.webView == true,
+        ).build()
+        val result = executeRequestWithLoginCheck(
+            plan = request,
+            runtimeContext = runtimeContext,
+        ) ?: return
+        val (content, finalUrl) = result
+        val infoSeed = Content(
+            id = currentBook.bookUrl.hashCode().toLong(),
+            title = currentBook.name.orEmpty(),
+            altTitles = emptySet(),
+            url = currentBook.bookUrl,
+            publicUrl = currentBook.bookUrl,
+            rating = -1f,
+            contentRating = null,
+            coverUrl = currentBook.coverUrl,
+            tags = emptySet(),
+            state = null,
+            authors = currentBook.author?.takeIf { it.isNotBlank() }?.let(::setOf) ?: emptySet(),
+            largeCoverUrl = null,
+            description = currentBook.intro,
+            chapters = null,
+            source = source,
+        )
+        val infoResult = BookInfo.parseWithRuntimeContext(
+            manga = infoSeed,
+            content = content,
+            baseUrl = finalUrl,
+            config = config,
+            runtimeContext = runtimeContext,
+        )
+        val refreshed = infoResult.manga
+        val updatedTocUrl = infoResult.tocUrl
+            ?.takeIf { it.isNotBlank() }
+            ?: runtimeContext.getVariable("tocUrl")
+            ?.takeIf { it.isNotBlank() }
+            ?: currentBook.tocUrl
+        runtimeState.setBook(
+            currentBook.copy(
+                name = refreshed.title.ifBlank { currentBook.name },
+                author = refreshed.authors.firstOrNull() ?: currentBook.author,
+                coverUrl = refreshed.coverUrl ?: currentBook.coverUrl,
+                intro = refreshed.description ?: currentBook.intro,
+                tocUrl = updatedTocUrl,
+            ),
+        )
+    }
+
+    private suspend fun refreshTocUrlForSandboxPreUpdate() {
+        val bookUrl = sandbox.getVariable("bookUrl")?.trim().orEmpty()
+        if (bookUrl.isBlank()) return
+        val seed = Content(
+            id = bookUrl.hashCode().toLong(),
+            title = sandbox.getVariable("bookName").orEmpty(),
+            altTitles = emptySet(),
+            url = bookUrl,
+            publicUrl = bookUrl,
+            rating = -1f,
+            contentRating = null,
+            coverUrl = null,
+            tags = emptySet(),
+            state = null,
+            authors = sandbox.getVariable("bookAuthor")?.takeIf { it.isNotBlank() }?.let(::setOf) ?: emptySet(),
+            largeCoverUrl = null,
+            description = null,
+            chapters = null,
+            source = source,
+        )
+        val request = AnalyzeUrl(
+            seed.url,
+            baseUrl = effectiveBaseUrlForRequest(seed.url),
+            sandbox = sandbox,
+            enabledCookieJarDefault = config.enabledCookieJar != false,
+            useWebViewDefault = config.ruleBookInfo?.webView == true,
+        ).build()
+        val result = executeRequestWithLoginCheck(request) ?: return
+        val (content, finalUrl) = result
+        val infoResult = BookInfo.parse(
+            manga = seed,
+            content = content,
+            baseUrl = finalUrl,
+            config = config,
+            sandbox = sandbox,
+        )
+        sandbox.setBook(
+            LegadoSandbox.BookContext(
+                name = infoResult.manga.title,
+                author = infoResult.manga.authors.firstOrNull().orEmpty(),
+                url = infoResult.manga.url,
+                coverUrl = infoResult.manga.coverUrl.orEmpty(),
+                intro = infoResult.manga.description.orEmpty(),
+                kind = infoResult.manga.tags.joinToString(",") { it.title },
+                tocUrl = infoResult.tocUrl.orEmpty(),
+            ),
+        )
+    }
+
+    private fun computeTocPageLimitFromSourceComment(
+        runtimeContext: StandaloneLegadoRuleRuntimeContext? = null,
+    ): Int? {
         val comment = config.bookSourceComment?.trim().orEmpty()
         if (comment.isBlank()) return null
         // 仅当源脚本定义了 cmpVariable 时才尝试，避免对其它源产生副作用。
@@ -896,7 +1903,13 @@ class LegadoRepository(
             }
         """.trimIndent()
 
-        val result = sandbox.eval(script) ?: return null
+        val result = runtimeContext?.let {
+            standaloneListRuntime.eval(
+                script = script,
+                runtimeContext = it,
+                baseUrl = effectiveBaseUrlForRequest(config.bookSourceUrl),
+            )
+        } ?: sandbox.eval(script) ?: return null
         val value = when (result) {
             is Number -> result.toInt()
             is String -> result.trim().toIntOrNull()
@@ -984,72 +1997,12 @@ class LegadoRepository(
     }
 
 
-    /**
-     * Decode response body with proper charset detection.
-     * Uses EncodingDetect with ICU4J for accurate charset identification.
-     */
-    private fun getResponseBodyWithCharset(response: Response): String? {
-        val body = response.body ?: return null
-        val bytes = body.bytes()
-        if (bytes.isEmpty()) return ""
-        
-        val encoding = response.header("Content-Encoding")
-        var decodedBytes = bytes
-        if (encoding != null) {
-            try {
-                if (encoding.equalsIgnoreCase("gzip")) {
-                    decodedBytes = java.util.zip.GZIPInputStream(java.io.ByteArrayInputStream(bytes)).readBytes()
-                } else if (encoding.equalsIgnoreCase("deflate")) {
-                    decodedBytes = java.util.zip.InflaterInputStream(java.io.ByteArrayInputStream(bytes)).readBytes()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Manual decompression failed: ${e.message}")
-            }
-        }
-
-        val contentTypeHeader = response.header("Content-Type") ?: ""
-        val isJson = contentTypeHeader.contains("json", ignoreCase = true)
-        
-        var charset: java.nio.charset.Charset? = null
-        
-        // Try to get from OkHttp's own parsing first
-        body.contentType()?.charset()?.let {
-            charset = it
-        }
-
-        if (charset == null) {
-            val parts = contentTypeHeader.split(";")
-            for (part in parts) {
-                val trimmed = part.trim()
-                if (trimmed.startsWith("charset", ignoreCase = true) && trimmed.contains("=")) {
-                    val charsetName = trimmed.substringAfter("=").trim().removeSurrounding("\"").removeSurrounding("'")
-                    try {
-                        charset = java.nio.charset.Charset.forName(charsetName)
-                    } catch (e: Exception) {}
-                }
-            }
-        }
-
-        if (charset == null) {
-            if (isJson) {
-                charset = Charsets.UTF_8
-            } else {
-                val detected = org.skepsun.kototoro.core.util.EncodingDetect.getHtmlEncode(decodedBytes)
-                charset = try {
-                    java.nio.charset.Charset.forName(detected)
-                } catch (e: Exception) {
-                    Charsets.UTF_8
-                }
-            }
-        }
-        
-        Log.d(TAG, "Decoded response using charset: ${charset?.name()} (Header: $contentTypeHeader)")
-        return String(decodedBytes, charset!!)
-    }
-
     private fun String.equalsIgnoreCase(other: String): Boolean = this.equals(other, ignoreCase = true)
 
-    private fun parseConfigHeaders(headerStr: String?): Map<String, String> {
+    private fun parseConfigHeaders(
+        headerStr: String?,
+        runtimeContext: StandaloneLegadoRuleRuntimeContext? = null,
+    ): Map<String, String> {
         if (headerStr.isNullOrBlank()) return emptyMap()
         
         var jsonStr = headerStr.trim()
@@ -1070,7 +2023,13 @@ class LegadoRepository(
             }
             
             try {
-                val result = sandbox.eval(jsCode.trim())?.toString()
+                val result = runtimeContext?.let {
+                    standaloneListRuntime.eval(
+                        script = jsCode.trim(),
+                        runtimeContext = it,
+                        baseUrl = effectiveBaseUrlForRequest(config.bookSourceUrl),
+                    )
+                }?.toString() ?: sandbox.eval(jsCode.trim())?.toString()
                 if (!result.isNullOrBlank()) {
                     jsonStr = result
                 }
@@ -1100,15 +2059,10 @@ class LegadoRepository(
         }
     }
 
-    private fun toHeaders(headersMap: Map<String, String>): okhttp3.Headers {
-        val builder = okhttp3.Headers.Builder()
-        headersMap.forEach { (k, v) ->
-            builder.add(k, v)
-        }
-        return builder.build()
-    }
-
-    private fun isWebViewEnabled(ruleValue: String?): Boolean {
+    private fun isWebViewEnabled(
+        ruleValue: String?,
+        runtimeContext: StandaloneLegadoRuleRuntimeContext? = null,
+    ): Boolean {
         if (ruleValue == null) return false
         if (ruleValue == "true" || ruleValue == "1") return true
         if (ruleValue == "false" || ruleValue == "0") return false
@@ -1121,7 +2075,14 @@ class LegadoRepository(
                 } else {
                     ruleValue.removePrefix("@js:")
                 }
-                sandbox.eval(script)?.toString() == "true"
+                val result = runtimeContext?.let {
+                    standaloneListRuntime.eval(
+                        script = script,
+                        runtimeContext = it,
+                        baseUrl = effectiveBaseUrlForRequest(config.bookSourceUrl),
+                    )
+                } ?: sandbox.eval(script)
+                result?.toString() == "true"
             } catch (e: Exception) {
                 false
             }

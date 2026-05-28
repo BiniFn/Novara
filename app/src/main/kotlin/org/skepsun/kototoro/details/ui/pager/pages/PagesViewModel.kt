@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.details.ui.pager.pages
 
+import android.util.Log
 import android.net.Uri
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -102,7 +103,15 @@ class PagesViewModel @Inject constructor(
 				}
 				val currentState = state.value ?: break
 				val details = currentState.details.filterChapters(currentState.branch)
+				Log.d(
+					"PagesViewModel",
+					"loadTowardsChapter: targetId=$targetId, branch=${currentState.branch}, filteredCount=${details.allChapters.size}, available=${details.allChapters.take(3).map { "${it.id}|${it.branch}|${it.title}" }}",
+				)
 				val direction = resolveLoadDirection(details, targetId) ?: run {
+					Log.d(
+						"PagesViewModel",
+						"loadTowardsChapter: cannot resolve direction for targetId=$targetId, branch=${currentState.branch}, filteredCount=${details.allChapters.size}",
+					)
 					if (pendingTargetChapterId == targetId) {
 						pendingTargetChapterId = null
 					}
@@ -139,10 +148,15 @@ class PagesViewModel @Inject constructor(
 
 	private suspend fun doInit(state: State) {
 		val details = state.details.filterChapters(state.branch)
+		Log.d(
+			"PagesViewModel",
+			"doInit: branch=${state.branch}, filteredCount=${details.allChapters.size}, first=${details.allChapters.firstOrNull()?.let { "${it.id}|${it.branch}|${it.title}" }}, readerChapter=${state.readerState?.chapterId}",
+		)
 		chaptersLoader.init(details)
 		val initialChapterId = state.readerState?.chapterId?.takeIf { chaptersLoader.peekChapter(it) != null }
 			?: details.allChapters.firstOrNull()?.id
 			?: return
+		Log.d("PagesViewModel", "doInit: initialChapterId=$initialChapterId")
 		chaptersLoader.loadSingleChapter(initialChapterId)
 		chaptersLoader.loadLocalChapters()
 		updateList(state.readerState)
@@ -152,6 +166,10 @@ class PagesViewModel @Inject constructor(
 		loadingJob?.join()
 		val currentState = state.value ?: return@launchJob
 		val details = currentState.details.filterChapters(currentState.branch)
+		Log.d(
+			"PagesViewModel",
+			"loadPrevNextChapter: isNext=$isNext, branch=${currentState.branch}, filteredCount=${details.allChapters.size}",
+		)
 		loadOneChapter(details, currentState.readerState, isNext)
 	}
 
@@ -179,14 +197,23 @@ class PagesViewModel @Inject constructor(
 
 	private fun resolveLoadDirection(details: ContentDetails, targetChapterId: Long): Boolean? {
 		if (chaptersLoader.snapshot().isEmpty()) {
+			Log.d("PagesViewModel", "resolveLoadDirection: loader snapshot empty, targetId=$targetChapterId")
 			return null
 		}
 		val targetIndex = details.allChapters.indexOfFirst { it.id == targetChapterId }
 		if (targetIndex < 0) {
+			Log.d(
+				"PagesViewModel",
+				"resolveLoadDirection: target not found, targetId=$targetChapterId, filteredCount=${details.allChapters.size}, first=${details.allChapters.take(3).map { "${it.id}|${it.branch}|${it.title}" }}",
+			)
 			return null
 		}
 		val firstIndex = details.allChapters.indexOfFirst { it.id == chaptersLoader.first().chapterId }
 		val lastIndex = details.allChapters.indexOfFirst { it.id == chaptersLoader.last().chapterId }
+		Log.d(
+			"PagesViewModel",
+			"resolveLoadDirection: targetId=$targetChapterId, targetIndex=$targetIndex, firstIndex=$firstIndex, lastIndex=$lastIndex, filteredCount=${details.allChapters.size}",
+		)
 		return when {
 			lastIndex >= 0 && targetIndex > lastIndex -> true
 			firstIndex >= 0 && targetIndex < firstIndex -> false

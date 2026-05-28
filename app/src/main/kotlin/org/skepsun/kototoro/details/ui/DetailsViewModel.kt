@@ -1638,6 +1638,10 @@ class DetailsViewModel @Inject constructor(
 			base != null -> base
 			else -> null
 		}
+		android.util.Log.d(
+			"DetailsViewModel",
+			"syncDisplayedState: baseId=${base?.id}, baseChapters=${base?.allChapters?.size ?: 0}, displayedId=${mangaDetails.value?.id}, displayedChapters=${mangaDetails.value?.allChapters?.size ?: 0}, tracking=${trackingDetails != null}",
+		)
 		updateSourceOptions()
 		refreshReadingSearchSources()
 		updateSupplementalDetailsState(trackingDetails)
@@ -1828,6 +1832,12 @@ class DetailsViewModel @Inject constructor(
 				isSelected = option.isSelected,
 			)
 		}
+		val metadataTabSummary = metadataChapterTabs.value.map { "${it.key}:${it.isSelected}:${it.chapters.size}" }
+		val readingTabSummary = readingChapterTabs.value.map { "${it.key}:${it.isSelected}:${it.chapters.size}" }
+		android.util.Log.d(
+			"DetailsViewModel",
+			"updateChapterSourceTabs: metadataTabs=$metadataTabSummary, readingTabs=$readingTabSummary",
+		)
 	}
 
 	private fun updateSupplementalDetailsState(
@@ -3852,6 +3862,10 @@ class DetailsViewModel @Inject constructor(
 					false
 				}
 			}.collect { details ->
+				android.util.Log.d(
+					"DetailsViewModel",
+					"doLoad.collect: incoming details id=${details.id}, allChapters=${details.allChapters.size}, branches=${details.chapters.mapValues { it.value.size }}, selectedBranchBefore=${selectedBranch.value}",
+				)
 				// For EPUB sources, DetailsLoadUseCase already handles chapter expansion
 				// We just need to reset selectedBranch to null for EPUB chapters
 				val finalDetails = if (localEpubSource.hasEpubFile(details.id)) {
@@ -3870,6 +3884,10 @@ class DetailsViewModel @Inject constructor(
 				} else {
 					details
 				}
+				android.util.Log.d(
+					"DetailsViewModel",
+					"doLoad.collect: final details id=${finalDetails.id}, allChapters=${finalDetails.allChapters.size}, branches=${finalDetails.chapters.mapValues { it.value.size }}, selectedBranchAfter=${selectedBranch.value}",
+				)
 				baseLoadedDetails = finalDetails
 				syncDisplayedState()
 				}

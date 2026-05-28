@@ -1405,6 +1405,9 @@ class AppRouter private constructor(
         const val KEY_USER_AGENT = "user_agent"
         const val KEY_SUCCESS_COOKIE_NAME = "success_cookie_name"
         const val KEY_SUCCESS_COOKIE_URL = "success_cookie_url"
+        const val KEY_BROWSER_WAIT_TOKEN = "browser_wait_token"
+        const val KEY_BROWSER_HTML = "browser_html"
+        const val KEY_BROWSER_REFETCH_AFTER_SUCCESS = "browser_refetch_after_success"
 
         val ACTION_HISTORY = "${BuildConfig.APPLICATION_ID}.action.MANAGE_HISTORY"
         val ACTION_MANAGE_DOWNLOADS = "${BuildConfig.APPLICATION_ID}.action.MANAGE_DOWNLOADS"

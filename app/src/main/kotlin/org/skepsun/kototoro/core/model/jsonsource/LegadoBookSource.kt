@@ -26,6 +26,9 @@ data class LegadoBookSource(
     val variableComment: String? = null, // 自定义变量说明
     val respondTime: Long = 180000L,    // 响应时间
     val weight: Int = 0,               // 权重
+    val bookUrlPattern: String? = null,
+    val eventListener: Boolean = false,
+    val customButton: Boolean = false,
     val ruleExplore: SearchRule? = null,  // 浏览规则
     val ruleSearch: SearchRule? = null,
     val ruleBookInfo: BookInfoRule? = null,
@@ -97,13 +100,16 @@ data class TocRule(
 @Serializable
 data class ContentRule(
     val content: String? = null,       // 内容规则
+    val subContent: String? = null,    // 副文规则（拼接在正文后面，或获取歌词等）
     val title: String? = null,         // 正文页内标题修正
     val nextContentUrl: String? = null,// 正文分页
     val webJs: String? = null,         // 网页JS
     val sourceRegex: String? = null,   // 资源正则
     val replaceRegex: String? = null,  // 正文替换
     val imageStyle: String? = null,    // 图片样式
+    val imageDecode: String? = null,   // 图片bytes二次解密JS
     val payAction: String? = null,     // 支付操作
+    val callBackJs: String? = null,    // 内容加载后回调JS
     val webView: String? = null,       // 是否启用 WebView (Legado 规则中此处可能是字符串 "true" 或 JS 脚本)
     val webViewDelayTime: Long? = null, // WebView 延迟时间
 )

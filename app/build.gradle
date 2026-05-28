@@ -372,6 +372,7 @@ configurations.all {
 	implementation libs.kotlinx.serialization.protobuf
 	implementation libs.kotlinx.serialization.json.okio
 	implementation libs.commons.compress
+	implementation libs.libarchive
 
 	// XPath and JSONPath support for rule engine
 	implementation libs.xsoup

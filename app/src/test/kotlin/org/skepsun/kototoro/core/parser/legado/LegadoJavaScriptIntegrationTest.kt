@@ -18,6 +18,7 @@ import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.core.network.cookies.MutableCookieJar
 import org.skepsun.kototoro.core.network.jsonsource.UserAgentManager
 import io.mockk.mockk
+import android.content.SharedPreferences
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -30,6 +31,7 @@ class LegadoJavaScriptIntegrationTest {
 	private lateinit var mockServer: MockWebServer
 	private lateinit var httpClient: LegadoHttpClient
 	private lateinit var jsEngine: RhinoJavaScriptEngine
+    private lateinit var prefs: SharedPreferences
 	
 	@BeforeEach
 	fun setup() {
@@ -52,6 +54,7 @@ class LegadoJavaScriptIntegrationTest {
 			androidContext = mockk(relaxed = true),
 			cookieJar = mockk(relaxed = true)
 		)
+        prefs = mockk(relaxed = true)
 	}
 	
 	@AfterEach
@@ -93,7 +96,7 @@ class LegadoJavaScriptIntegrationTest {
 		)
 		
 		val source = JsonContentSource(entity)
-		val repository = LegadoRepository(source, httpClient, jsEngine)
+		val repository = LegadoRepository(source, httpClient, jsEngine, legadoPrefs = prefs)
 		
 		val filter = ContentListFilter(query = "test query")
 		val results = repository.getList(0, null, filter)
@@ -139,9 +142,9 @@ class LegadoJavaScriptIntegrationTest {
 		)
 		
 		val source = JsonContentSource(entity)
-		val repository = LegadoRepository(source, httpClient, jsEngine)
+		val repository = LegadoRepository(source, httpClient, jsEngine, legadoPrefs = prefs)
 		
-		val results = repository.getList(0, null, null)
+		val results = repository.getList(0, null, ContentListFilter(query = "js"))
 		
 		assertEquals(1, results.size)
 		assertEquals("TEST BOOK", results[0].title)

@@ -1,7 +1,11 @@
 package org.skepsun.kototoro.core.parser.legado.book
 
+import android.os.SystemClock
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
+import org.skepsun.kototoro.core.javascript.ChapterInfo
 import org.skepsun.kototoro.core.parser.legado.*
+import org.skepsun.kototoro.core.parser.legado.bridge.LegadoSandboxRuleRuntimeContext
+import org.skepsun.kototoro.core.parser.legado.runtime.LegadoRuleRuntimeContext
 import org.skepsun.kototoro.core.parser.legado.sandbox.LegadoSandbox
 import org.skepsun.kototoro.parsers.model.ContentChapter
 import org.skepsun.kototoro.parsers.model.ContentSource
@@ -36,6 +40,40 @@ object BookChapterList {
         config: LegadoBookSource,
         sandbox: LegadoSandbox
     ): ParseResult {
+        val runtimeContext = LegadoSandboxRuleRuntimeContext(sandbox)
+        return parseInternal(
+            content = content,
+            baseUrl = baseUrl,
+            source = source,
+            config = config,
+            runtimeContext = runtimeContext,
+        )
+    }
+
+    fun parseWithRuntimeContext(
+        content: String,
+        baseUrl: String,
+        source: ContentSource,
+        config: LegadoBookSource,
+        runtimeContext: LegadoRuleRuntimeContext,
+    ): ParseResult {
+        return parseInternal(
+            content = content,
+            baseUrl = baseUrl,
+            source = source,
+            config = config,
+            runtimeContext = runtimeContext,
+        )
+    }
+
+    private fun parseInternal(
+        content: String,
+        baseUrl: String,
+        source: ContentSource,
+        config: LegadoBookSource,
+        runtimeContext: LegadoRuleRuntimeContext,
+    ): ParseResult {
+        val parseStart = SystemClock.elapsedRealtime()
         android.util.Log.d(TAG, "===== BookChapterList.parse START =====")
         android.util.Log.d(TAG, "baseUrl=$baseUrl")
         
@@ -64,64 +102,70 @@ object BookChapterList {
             listRule = listRule.removePrefix("+")
         }
         android.util.Log.d(TAG, "listRule (after prefix processing)=$listRule, shouldReverse=$shouldReverse")
+        android.util.Log.d(TAG, "ruleToc.formatJs=${rule.formatJs?.takeIf { it.isNotBlank() }?.let { "<present>" } ?: "<blank>"}")
 
-        val analyzeRule = AnalyzeRule(content, sandbox, baseUrl)
-        
-        var currentContent: Any = content
-
-        // legado 规则的 init 通常定义在 ruleBookInfo 上，但很多 JSON API 源会依赖它来“缩小根对象”（例如 `.data`）。
-        // 这里在 TOC 解析前先应用一次全局 init（若存在），以对齐 legado-with-MD3 行为并保持通用。
-        val globalInit = config.ruleBookInfo?.init?.trim()
-        val canApplyGlobalInitAsJsonPath = !globalInit.isNullOrBlank() && (
-            globalInit.startsWith("$") ||
-                globalInit.startsWith(".") ||
-                globalInit.startsWith("@Json:", ignoreCase = true)
-            )
-        if (canApplyGlobalInitAsJsonPath) {
-            val initResult = LegadoInitEvaluator.applyInitIfPresent(analyzeRule, globalInit, currentContent)
-            if (initResult != null) {
-                currentContent = initResult
-                analyzeRule.setContent(currentContent)
-            }
-        }
-
-        // Execute preUpdateJs if present (equivalent to init for TOC)
-        if (!rule.preUpdateJs.isNullOrBlank()) {
-            val preUpdateResult = analyzeRule.evalJS(rule.preUpdateJs!!, currentContent)
-            if (preUpdateResult != null) {
-                currentContent = preUpdateResult
-                analyzeRule.setContent(currentContent)
-            }
-        }
+        val analyzeRule = AnalyzeRule(content, runtimeContext, baseUrl)
+        val listStart = SystemClock.elapsedRealtime()
         val items = analyzeRule.getElements(listRule)
-        android.util.Log.d(TAG, "Found ${items.size} elements with listRule (raw)")
-
-        val normalizedItems = flattenNestedItems(items)
-        android.util.Log.d(TAG, "Found ${normalizedItems.size} elements with listRule (flattened)")
+        val listCost = SystemClock.elapsedRealtime() - listStart
+        android.util.Log.d(TAG, "Found ${items.size} elements with listRule")
+        android.util.Log.d(TAG, "listRule parsing took ${listCost}ms")
         
+        val nextPageStart = SystemClock.elapsedRealtime()
         val nextPageUrls = rule.nextTocUrl
             ?.let { 
                 android.util.Log.d(TAG, "Evaluating nextTocUrl rule: $it")
-                analyzeRule.getStringList(it) 
+                analyzeRule.getStringList(it, isUrl = true)
             }
             ?.mapNotNull { it.takeIf { url -> url.isNotBlank() } }
-            ?.map { resolveUrl(baseUrl, it) }
             ?: emptyList()
+        val nextPageCost = SystemClock.elapsedRealtime() - nextPageStart
         android.util.Log.d(TAG, "nextPageUrls=$nextPageUrls")
+        android.util.Log.d(TAG, "nextTocUrl parsing took ${nextPageCost}ms")
 
-        val chapters = normalizedItems.mapIndexedNotNull { index, item ->
-            val itemAnalyzer = AnalyzeRule(item, sandbox, baseUrl)
-            
+        var volumeIndex = 0
+        val chapterMapStart = SystemClock.elapsedRealtime()
+        val chapters = items.mapIndexedNotNull { index, item ->
+            val itemAnalyzer = AnalyzeRule(item, runtimeContext, baseUrl)
+            val runtimeChapter = ChapterInfo(
+                chapterUrl = "",
+                name = "",
+                index = index + 1,
+            )
+            runtimeContext.setChapter(runtimeChapter)
+            runtimeContext.putVariable("index", (index + 1).toString())
+
             val name = itemAnalyzer.getString(rule.chapterName)
+            if (name.isNotBlank()) {
+                runtimeChapter.name = name
+                runtimeChapter.putVariable("title", name)
+                runtimeContext.putVariable("chapterName", name)
+                runtimeContext.putVariable("title", name)
+                runtimeContext.setChapter(runtimeChapter)
+            }
+            val isVolume = rule.isVolume
+                ?.let { itemAnalyzer.getString(it) }
+                ?.trim()
+                ?.let { value ->
+                    value.isNotEmpty() && value != "0" && !value.equals("false", ignoreCase = true)
+                }
+                ?: false
             var url = itemAnalyzer.getString(rule.chapterUrl, isUrl = true)
-            
-            // 仅当源未提供 chapterUrl 规则时，才回退到 baseUrl（单页内容源：书籍页面本身就是内容页）。
-            // 若 chapterUrl 规则存在但解析失败，不应回退，否则会导致所有章节 url/id 相同。
-            if (rule.chapterUrl.isNullOrBlank() && url.isBlank() && name.isNotBlank()) {
+
+            if (url.isBlank() && isVolume && name.isNotBlank()) {
+                url = name + index
+                android.util.Log.d(TAG, "[TOC] Volume[$index] chapterUrl empty, falling back to synthetic url")
+            } else if (rule.chapterUrl.isNullOrBlank() && url.isBlank() && name.isNotBlank()) {
                 url = baseUrl
                 android.util.Log.d(TAG, "[TOC] Chapter[$index] chapterUrl empty, falling back to baseUrl")
             }
-            
+
+            if (url.isNotBlank()) {
+                runtimeChapter.putVariable("chapterUrl", url)
+                runtimeContext.putVariable("chapterUrl", url)
+                runtimeContext.setChapter(runtimeChapter.copy(chapterUrl = url))
+            }
+
             val absoluteUrl = resolveUrl(baseUrl, url)
 
             if (index < 5) {
@@ -139,59 +183,60 @@ object BookChapterList {
             if (index < 5) {
                 android.util.Log.d(TAG, "[TOC] Chapter[$index] name=\"$name\", stableId=$stableId, sourceName=${source.name}(hash=${source.name.hashCode()}), url=\"$absoluteUrl\", normalized=\"$normalizedUrl\"(hash=${normalizedUrl.hashCode()})")
             }
-            
-            var finalName = name
-            var finalUrl = absoluteUrl
-            
-            if (!rule.formatJs.isNullOrBlank()) {
-                sandbox.setResult(item)
-                val formatResult = sandbox.eval(rule.formatJs!!)
-                if (formatResult is String && formatResult.isNotEmpty()) {
-                    finalName = formatResult
-                }
+            if ((index + 1) % 200 == 0) {
+                val elapsed = SystemClock.elapsedRealtime() - chapterMapStart
+                android.util.Log.d(
+                    TAG,
+                    "[TOC] Progress ${index + 1}/${items.size}, elapsed=${elapsed}ms, avg=${elapsed / (index + 1)}ms/item",
+                )
             }
+            
+            val finalUrl = absoluteUrl
+            val vipMark = rule.isVip
+                ?.let { itemAnalyzer.getString(it) }
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() && it != "0" && !it.equals("false", ignoreCase = true) }
+            val payMark = rule.isPay
+                ?.let { itemAnalyzer.getString(it) }
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() && it != "0" && !it.equals("false", ignoreCase = true) }
 
-            val uploadDate = 0L // TODO: Parse updateTime if present
+            val branchTag = buildString {
+                if (vipMark != null) append(if (isNotEmpty()) ",vip" else "vip")
+                if (payMark != null) append(if (isNotEmpty()) ",pay" else "pay")
+            }.takeIf { it.isNotEmpty() }
+
+            val uploadDate = rule.updateTime
+                ?.let { itemAnalyzer.getString(it) }
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { parseTimestamp(it) }
+                ?: 0L
+
+            if (isVolume) {
+                volumeIndex++
+            }
 
             ContentChapter(
                 id = stableId,
-                title = finalName,
-                number = index.toFloat() + 1f,
-                volume = 0,
+                title = name,
+                number = if (isVolume) 0f else index.toFloat() + 1f,
+                volume = if (isVolume) volumeIndex else 0,
                 url = finalUrl,
                 scanlator = null,
                 uploadDate = uploadDate,
-                branch = null,
+                branch = branchTag,
                 source = source
             )
         }
+        val chapterMapCost = SystemClock.elapsedRealtime() - chapterMapStart
         
         android.util.Log.d(TAG, "Parsed ${chapters.size} chapters")
+        android.util.Log.d(TAG, "chapter materialization took ${chapterMapCost}ms")
+        android.util.Log.d(TAG, "===== BookChapterList.parse END (${SystemClock.elapsedRealtime() - parseStart}ms) =====")
         android.util.Log.d(TAG, "===== BookChapterList.parse END =====")
 
         return ParseResult(chapters, nextPageUrls, shouldReverse)
-    }
-
-    private fun flattenNestedItems(items: List<Any>): List<Any> {
-        if (items.isEmpty()) return items
-        val out = ArrayList<Any>(items.size)
-        val stack = ArrayDeque<Any>(items.size)
-        for (item in items) stack.addLast(item)
-
-        // Only flatten arrays/lists; keep primitive items as-is (they may be valid for some sources).
-        // Limit the recursion depth implicitly by using an explicit stack with element-wise expansion.
-        while (stack.isNotEmpty()) {
-            val current = stack.removeFirst()
-            when (current) {
-                is List<*> -> {
-                    for (child in current) {
-                        if (child != null) stack.addFirst(child)
-                    }
-                }
-                else -> out.add(current)
-            }
-        }
-        return out
     }
 
     private fun resolveUrl(baseUrl: String, relativeUrl: String): String {
@@ -201,5 +246,31 @@ object BookChapterList {
         } catch (e: Exception) {
             relativeUrl
         }
+    }
+
+    private fun parseTimestamp(text: String): Long {
+        if (text.isBlank()) return 0L
+        // Try numeric millis
+        text.toLongOrNull()?.let { return it }
+        // Try common formats
+        val formats = listOf(
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd HH:mm",
+            "yyyy-MM-dd",
+            "yyyy/MM/dd HH:mm:ss",
+            "yyyy/MM/dd",
+            "yyyy.MM.dd HH:mm:ss",
+            "yyyy.MM.dd",
+            "MM-dd",
+            "MM/dd",
+        )
+        for (fmt in formats) {
+            try {
+                val sdf = java.text.SimpleDateFormat(fmt, java.util.Locale.US)
+                sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                return sdf.parse(text)?.time ?: continue
+            } catch (_: Exception) {}
+        }
+        return 0L
     }
 }

@@ -105,6 +105,8 @@ abstract class BaseBrowserActivity : BaseActivity<ActivityBrowserBinding>(), Bro
 		supportActionBar?.subtitle = subtitle
 	}
 
+	override fun onPageFinished(webView: android.webkit.WebView, url: String) = Unit
+
 	override fun onHistoryChanged() {
 		onBackPressedCallback.onHistoryChanged()
 	}

@@ -66,6 +66,6 @@ object AnalyzeByRegex {
      */
     fun getElements(text: String, patterns: List<String>): List<Any> {
         if (patterns.isEmpty()) return emptyList()
-        return getElements(text, patterns.toTypedArray()).flatten()
+        return getElements(text, patterns.toTypedArray()).map { it as Any }
     }
 }

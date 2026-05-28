@@ -212,12 +212,25 @@ abstract class ChaptersPagesViewModel(
 		launchJob(Dispatchers.Default) {
 			mangaDetails.collect { details ->
 				val content = details?.toContent() ?: return@collect
+				android.util.Log.d(
+					"ChaptersPagesViewModel",
+					"mangaDetails.collect: mangaId=${content.id}, chapterCount=${content.chapters?.size ?: 0}, selectedBranch=${selectedBranch.value}, branches=${details.chapters.mapValues { it.value.size }}",
+				)
 				if (content.chapters.isNullOrEmpty()) {
 					return@collect
 				}
 				val currentBranch = selectedBranch.value
+				android.util.Log.d(
+					"ChaptersPagesViewModel",
+					"mangaDetails.collect: currentBranch=$currentBranch, currentBranchCount=${details.chapters[currentBranch].orEmpty().size}",
+				)
 				if (currentBranch == null || details.chapters[currentBranch].isNullOrEmpty()) {
-					selectedBranch.value = content.getPreferredBranch(null)
+					val preferredBranch = content.getPreferredBranch(null)
+					android.util.Log.d(
+						"ChaptersPagesViewModel",
+						"mangaDetails.collect: switching selectedBranch from $currentBranch to $preferredBranch",
+					)
+					selectedBranch.value = preferredBranch
 				}
 			}
 		}

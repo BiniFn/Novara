@@ -23,13 +23,14 @@ class AnalyzeByXPath(doc: Any) {
         private const val TAG = "AnalyzeByXPath"
     }
     
-    private var document: Document = parse(doc)
-    
-    private fun parse(doc: Any): Document {
+    private var node: Any = parse(doc)
+
+    private fun parse(doc: Any): Any {
         return when (doc) {
+            is LegadoXPathNode -> if (doc.isElement) doc else strToDocument(doc.toString())
             is Document -> doc
-            is Element -> Jsoup.parse(doc.outerHtml())
-            is Elements -> Jsoup.parse(doc.outerHtml())
+            is Element -> doc
+            is Elements -> if (doc.size == 1) doc.first()!! else Jsoup.parse(doc.outerHtml())
             is String -> strToDocument(doc)
             else -> strToDocument(doc.toString())
         }
@@ -51,41 +52,78 @@ class AnalyzeByXPath(doc: Any) {
         return Jsoup.parse(html1)
     }
     
-    private fun getResult(xPath: String): List<String> {
+    private fun getResult(xPath: String): List<LegadoXPathNode> {
         return try {
-            Xsoup.compile(xPath).evaluate(document).list() ?: emptyList()
+            val currentNode = node
+            when (currentNode) {
+                is Element -> {
+                    val evaluation = Xsoup.compile(xPath).evaluate(currentNode)
+                    val values = (evaluation.list() ?: emptyList()).map { LegadoXPathNode(rawValue = it, rawElement = null) }
+                    val elements = evaluation.elements?.map { LegadoXPathNode(rawValue = null, rawElement = it) }.orEmpty()
+                    if (shouldPreferScalarResult(xPath, values)) {
+                        values
+                    } else if (elements.isNotEmpty()) {
+                        elements
+                    } else {
+                        values
+                    }
+                }
+                is Document -> {
+                    val evaluation = Xsoup.compile(xPath).evaluate(currentNode)
+                    val values = (evaluation.list() ?: emptyList()).map { LegadoXPathNode(rawValue = it, rawElement = null) }
+                    val elements = evaluation.elements?.map { LegadoXPathNode(rawValue = null, rawElement = it) }.orEmpty()
+                    if (shouldPreferScalarResult(xPath, values)) {
+                        values
+                    } else if (elements.isNotEmpty()) {
+                        elements
+                    } else {
+                        values
+                    }
+                }
+                else -> emptyList()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing XPath: $xPath", e)
             emptyList()
         }
     }
-    
-    private fun getElements0(xPath: String): Elements {
-        return try {
-            Xsoup.compile(xPath).evaluate(document).elements ?: Elements()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting elements from XPath: $xPath", e)
-            Elements()
-        }
+
+    private fun shouldPreferScalarResult(
+        xPath: String,
+        values: List<LegadoXPathNode>,
+    ): Boolean {
+        if (values.isEmpty()) return false
+        val normalized = xPath.lowercase()
+        return normalized.contains("text()") ||
+            normalized.contains("/@") ||
+            normalized.startsWith("string(") ||
+            normalized.startsWith("normalize-space(") ||
+            normalized.startsWith("concat(") ||
+            normalized.startsWith("substring(") ||
+            normalized.startsWith("contains(") ||
+            normalized.startsWith("starts-with(") ||
+            normalized.startsWith("boolean(") ||
+            normalized.startsWith("number(") ||
+            normalized.startsWith("count(")
     }
     
     /**
      * Get elements matching XPath with && || %% support
      */
-    fun getElements(xPath: String): List<Element> {
-        if (xPath.isEmpty()) return emptyList()
+    fun getElements(xPath: String): List<LegadoXPathNode>? {
+        if (xPath.isEmpty()) return null
 
-        val elements = ArrayList<Element>()
+        val elements = ArrayList<LegadoXPathNode>()
         val ruleAnalyzes = RuleAnalyzer(xPath)
         val rules = ruleAnalyzes.splitRule("&&", "||", "%%")
 
         if (rules.size == 1) {
-            return getElements0(rules[0]).toList()
+            return getResult(rules[0])
         } else {
-            val results = ArrayList<List<Element>>()
+            val results = ArrayList<List<LegadoXPathNode>>()
             for (rl in rules) {
                 val temp = getElements(rl)
-                if (temp.isNotEmpty()) {
+                if (!temp.isNullOrEmpty()) {
                     results.add(temp)
                     if (temp.isNotEmpty() && ruleAnalyzes.elementsType == "||") {
                         break
@@ -120,7 +158,8 @@ class AnalyzeByXPath(doc: Any) {
         val rules = ruleAnalyzes.splitRule("&&", "||", "%%")
 
         if (rules.size == 1) {
-            return getResult(xPath)
+            getResult(xPath).mapTo(result) { it.asString() }
+            return result
         } else {
             val results = ArrayList<List<String>>()
             for (rl in rules) {
@@ -158,7 +197,7 @@ class AnalyzeByXPath(doc: Any) {
         val ruleAnalyzes = RuleAnalyzer(rule)
         val rules = ruleAnalyzes.splitRule("&&", "||")
         if (rules.size == 1) {
-            val result = getResult(rule)
+            val result = getResult(rule).map { it.asString() }
             return if (result.isNotEmpty()) result.joinToString("\n") else null
         } else {
             val textList = arrayListOf<String>()

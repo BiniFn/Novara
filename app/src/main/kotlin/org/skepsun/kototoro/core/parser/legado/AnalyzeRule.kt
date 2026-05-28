@@ -1,17 +1,26 @@
 package org.skepsun.kototoro.core.parser.legado
 
 import android.util.Log
-import android.text.Html
+import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import org.json.JSONArray
 import org.json.JSONObject
+import org.jsoup.parser.Parser
 import org.skepsun.kototoro.core.util.splitNotBlank
 import java.net.URL
 import java.util.regex.Pattern
 import org.jsoup.nodes.Element
+import org.skepsun.kototoro.core.javascript.BookInfo
+import org.skepsun.kototoro.core.javascript.ChapterInfo
+import org.skepsun.kototoro.core.parser.legado.bridge.LegadoSandboxRuleRuntimeContext
+import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
+import org.skepsun.kototoro.core.parser.legado.runtime.LegadoRuleRuntimeContext
 import org.skepsun.kototoro.core.parser.legado.sandbox.LegadoSandbox
-import java.util.regex.Matcher
+import org.skepsun.kototoro.parsers.exception.ParseException
 import org.mozilla.javascript.NativeArray
 import org.mozilla.javascript.NativeObject
 import org.mozilla.javascript.Undefined
+import kotlin.coroutines.CoroutineContext
 
 /**
  * Unified rule executor that delegates to appropriate analyzer based on rule syntax.
@@ -25,103 +34,101 @@ import org.mozilla.javascript.Undefined
  */
 class AnalyzeRule(
     private var content: Any?,
-    private val sandbox: LegadoSandbox,
-    private var baseUrl: String = ""
+    private val runtimeContext: LegadoRuleRuntimeContext,
+    private var baseUrl: String = "",
+    private val preUpdateJs: Boolean = false,
+    private val fromBookInfo: Boolean = false,
+    allowUninitializedContent: Boolean = false,
 ) {
+    private var nextChapterUrl: String? = null
+    private var redirectUrl: URL? = null
+    private var ruleName: String? = null
+    private var ruleDataOverride: RuleDataInterface? = null
+    private var ruleDataObjectOverride: Any? = null
+    private val javaBridge by lazy { JavaBridge(this) }
+
+    constructor(
+        content: Any?,
+        sandbox: LegadoSandbox,
+        baseUrl: String = "",
+    ) : this(
+        content = content,
+        runtimeContext = LegadoSandboxRuleRuntimeContext(sandbox),
+        baseUrl = baseUrl,
+    )
+
+    constructor() : this(
+        content = null,
+        runtimeContext = EmptyLegadoRuleRuntimeContext,
+        allowUninitializedContent = true,
+    )
+
+    constructor(
+        ruleData: Any?,
+        source: Any?,
+        preUpdateJs: Boolean = false,
+        fromBookInfo: Boolean = false,
+    ) : this(
+        content = null,
+        runtimeContext = SourceOnlyLegadoRuleRuntimeContext(source),
+        baseUrl = resolveSourceBaseUrl(source),
+        preUpdateJs = preUpdateJs,
+        fromBookInfo = fromBookInfo,
+        allowUninitializedContent = true,
+    ) {
+        setRuleData(ruleData)
+    }
+
     companion object {
         private const val TAG = "AnalyzeRule"
+        private val lenientJson = Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+        }
 
         private val putPattern = Pattern.compile("@put:(\\{[^}]+?\\})", Pattern.CASE_INSENSITIVE)
         private val evalPattern = Pattern.compile("@get:\\{[^}]+?\\}|\\{\\{[\\w\\W]*?\\}\\}", Pattern.CASE_INSENSITIVE)
         private val regexPattern = Pattern.compile("\\$\\d{1,2}")
         private val JS_PATTERN =
             Pattern.compile("<js>([\\s\\S]*?)</js>|@js:([\\s\\S]*)", Pattern.CASE_INSENSITIVE)
-        // Avoid clobbering JavaScript template strings like `${mid}` / `${id}`:
-        // legacy single-brace placeholders are `{key}` (NOT preceded by '$').
-        private val singleBracePlaceholderPattern = Pattern.compile("(?<!\\$)\\{([^{}]+)\\}")
-        private val doubleBracePlaceholderRegex = Regex("\\{\\{([\\s\\S]*?)\\}\\}")
 
         fun isRule(ruleStr: String): Boolean {
             if (ruleStr.isBlank()) return false
             val trimmed = ruleStr.trim()
-            // Identify standard JSoup tags, class selectors, JSONPath, XPath, or script markers
-            return trimmed.startsWith("@") || trimmed.startsWith("$") || trimmed.startsWith(".") || trimmed.startsWith("/")
-                    || trimmed.startsWith("<js>", ignoreCase = true) || trimmed.startsWith("@js:", ignoreCase = true)
-                    || trimmed.contains("@") || trimmed.contains("$") || trimmed.contains(".") || trimmed.contains("##") || trimmed.contains("{{")
-                    || (trimmed.contains("//") && !trimmed.startsWith("http"))
-                    || trimmed.startsWith("children", ignoreCase = true)
-                    || trimmed.startsWith("textNodes", ignoreCase = true)
-                    || (trimmed.isNotEmpty() && !trimmed.contains(" ") && trimmed.all { it.isLetterOrDigit() || it == '-' || it == '_' } && (trimmed.length > 3 || trimmed.startsWith("h") || trimmed.startsWith("a") || trimmed.startsWith("p") || trimmed.startsWith("li")))
+            return trimmed.startsWith("@") || trimmed.startsWith("$.") || trimmed.startsWith("$[") || trimmed.startsWith("//")
+        }
+
+        private fun resolveSourceBaseUrl(source: Any?): String {
+            return when (source) {
+                null -> ""
+                is LegadoBookSource -> source.bookSourceUrl
+                else -> LegadoReflectiveAccess.readProperty(source, "bookSourceUrl")?.toString().orEmpty()
+            }
+        }
+
+        private fun resolveSourceTag(source: Any?): String? {
+            return when (source) {
+                null -> null
+                is LegadoBookSource -> source.bookSourceName
+                else -> invokeSourceMethod(source, "getTag")?.toString()
+                    ?: LegadoReflectiveAccess.readProperty(source, "bookSourceName")?.toString()
+                    ?: LegadoReflectiveAccess.readProperty(source, "sourceName")?.toString()
+            }
+        }
+
+        private fun invokeSourceMethod(source: Any?, name: String, vararg args: Any?): Any? {
+            val target = source ?: return null
+            val method = target::class.java.methods.firstOrNull { candidate ->
+                candidate.name == name && candidate.parameterTypes.size == args.size
+            } ?: return null
+            return runCatching { method.invoke(target, *args) }.getOrNull()
         }
     }
 
     private var analyzeByJSoup: AnalyzeByJSoup? = null
     private var analyzeByJsonPath: AnalyzeByJsonPath? = null
     private var analyzeByXPath: AnalyzeByXPath? = null
-    private var isRegex: Boolean = false
 
-    private fun looksLikeJsonText(value: Any?): Boolean {
-        val text = value as? String ?: return false
-        val trimmed = text.trimStart()
-        return trimmed.startsWith("{") || trimmed.startsWith("[")
-    }
-
-    private fun looksLikeDottedJsonRule(rule: String): Boolean {
-        val trimmed = rule.trim()
-        if (trimmed.isEmpty()) return false
-        if (trimmed.startsWith("$") || trimmed.startsWith("@")) return false
-        // Typical JSON dotted path like data.xxx.yyy (common in legacy Legado rules).
-        // Avoid overly broad heuristics; only accept strict dotted identifiers.
-        return trimmed.matches(Regex("[A-Za-z_][\\w-]*(\\.[A-Za-z_][\\w-]*)+"))
-    }
-
-    private fun toJsonPath(rule: String): String {
-        val trimmed = rule.trim()
-        if (trimmed.startsWith("$")) return trimmed
-        if (trimmed.startsWith(".")) return "$$trimmed"
-        return "$.$trimmed"
-    }
-
-    /**
-     * JS 规则中的 `{{...}}` 占位符常用于把当前 item 的 JSON 字段注入脚本（如 `{{$.comic_id}}`）。
-     *
-     * 但 exploreUrl 这类“生成分类 URL 列表”的脚本也可能包含 `{{page}}` 作为后续 URL 模板的一部分，
-     * 这里仅替换“看起来像规则表达式”的占位符（JsonPath/规则前缀等），其它保持原样，避免提前把 `{{page}}` 等替换成残留变量。
-     */
-    private fun replaceJsDoubleBracePlaceholders(script: String, context: Any?): String {
-        if (!script.contains("{{")) return script
-        if (context == null) return script
-        // 仅在“item 上下文”为 JSON 对象时才做替换：
-        // - 列表项 @js: 规则常用 `{{$.comic_id}}` 这类占位符；
-        // - exploreUrl 之类脚本会包含 `{{page}}` / `{{/regex/.test(...)}}`，不应在此阶段被改写。
-        val isJsonContext = when (context) {
-            is Map<*, *>,
-            is JSONObject,
-            is NativeObject,
-            is NativeArray,
-            -> true
-            else -> false
-        }
-        if (!isJsonContext) return script
-
-        return doubleBracePlaceholderRegex.replace(script) { match ->
-            val expr = match.groups[1]?.value?.trim().orEmpty()
-            val looksLikeRuleExpr =
-                expr.startsWith("$") ||
-                    expr.startsWith(".") ||
-                    expr.startsWith("/") ||
-                    expr.startsWith("@", ignoreCase = true) ||
-                    (looksLikeJsonText(context) && looksLikeDottedJsonRule(expr))
-
-            if (!looksLikeRuleExpr) {
-                match.value
-            } else {
-                val ruleList = splitSourceRuleCacheString(expr)
-                getString(ruleList, context)
-            }
-        }
-    }
-    
     private fun previewForLog(value: Any?, limit: Int = 120): String {
         if (value == null) return "null"
         val text = value.toString()
@@ -141,17 +148,93 @@ class AnalyzeRule(
     }
 
     init {
-        setContent(content)
+        if (allowUninitializedContent) {
+            this.content = content
+        } else {
+            setContent(content)
+        }
     }
 
-    fun setContent(content: Any?, baseUrl: String? = null) {
-        this.content = content
-        if (baseUrl != null) {
-            this.baseUrl = baseUrl
+    fun setRuleName(name: String) {
+        if (name.isNotBlank()) {
+            ruleName = name
         }
+    }
+
+    fun setRuntimeBook(book: BookInfo?): AnalyzeRule {
+        runtimeContext.setBook(book)
+        return this
+    }
+
+    fun setCoroutineContext(context: CoroutineContext): AnalyzeRule {
+        return this
+    }
+
+    fun setRuleData(ruleData: Any?): AnalyzeRule {
+        when (ruleData) {
+            null -> {
+                ruleDataOverride = null
+                ruleDataObjectOverride = null
+            }
+            is RuleDataInterface -> {
+                ruleDataOverride = ruleData
+                ruleDataObjectOverride = ruleData
+            }
+            is BookInfo -> {
+                setRuntimeBook(ruleData)
+                ruleDataOverride = ReflectiveRuleDataAdapter(ruleData)
+                ruleDataObjectOverride = ruleData
+            }
+            is ChapterInfo -> {
+                setRuntimeChapter(ruleData)
+                ruleDataOverride = ReflectiveRuleDataAdapter(ruleData)
+                ruleDataObjectOverride = ruleData
+            }
+            else -> {
+                ruleDataOverride = ReflectiveRuleDataAdapter(ruleData)
+                ruleDataObjectOverride = ruleData
+            }
+        }
+        return this
+    }
+
+    fun setChapter(chapter: ChapterInfo?): AnalyzeRule {
+        return setRuntimeChapter(chapter)
+    }
+
+    fun setRuntimeChapter(chapter: ChapterInfo?): AnalyzeRule {
+        runtimeContext.setChapter(chapter)
+        return this
+    }
+
+    fun setContent(content: Any?, baseUrl: String? = null): AnalyzeRule {
+        if (content == null) {
+            throw AssertionError("内容不可空（Content cannot be null）")
+        }
+        this.content = content
+        setBaseUrl(baseUrl)
         analyzeByJSoup = null
         analyzeByJsonPath = null
         analyzeByXPath = null
+        return this
+    }
+
+    fun setBaseUrl(baseUrl: String?): AnalyzeRule {
+        if (baseUrl != null) {
+            this.baseUrl = baseUrl
+        }
+        return this
+    }
+
+    fun setRedirectUrl(url: String): URL? {
+        if (url.startsWith("data:", ignoreCase = true)) {
+            return redirectUrl
+        }
+        return runCatching { URL(url) }
+            .onSuccess { redirectUrl = it }
+            .onFailure { Log.w(TAG, "setRedirectUrl failed for $url", it) }
+            .getOrNull()
+            ?: redirectUrl
     }
 
     private fun getAnalyzeByJSoup(o: Any): AnalyzeByJSoup {
@@ -193,83 +276,65 @@ class AnalyzeRule(
     @Suppress("UNCHECKED_CAST")
     fun getStringList(ruleStr: String?, mContent: Any? = null, isUrl: Boolean = false): List<String>? {
         if (ruleStr.isNullOrBlank()) return null
-        var result: Any? = null
         val ruleList = splitSourceRuleCacheString(ruleStr)
+        return getStringList(ruleList, mContent = mContent, isUrl = isUrl)
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    fun getStringList(
+        ruleList: List<SourceRule>,
+        mContent: Any? = null,
+        isUrl: Boolean = false,
+    ): List<String>? {
+        var result: Any? = null
         val content = mContent ?: this.content
         if (content != null && ruleList.isNotEmpty()) {
             result = content
-            // 遍历所有规则，根据mode调用对应的解析器
-            for (sourceRule in ruleList) {
+            if (isDirectStructuredAccessForString(result)) {
+                val sourceRule = ruleList.first()
                 putRule(sourceRule.putMap)
                 sourceRule.makeUpRule(result)
-                result ?: continue
-                val rule = sourceRule.rule
-                if (rule.isNotEmpty()) {
-                    if ((sourceRule.mode == Mode.Default || sourceRule.mode == Mode.Regex) &&
-                        (rule.startsWith("http", true) || rule.startsWith("//") || !isRule(rule))
-                    ) {
-                        result = rule
-                        Log.d(TAG, "[getStringList] Rule is literal: $rule")
+                result = if (sourceRule.getParamSize() > 1) {
+                    sourceRule.rule
+                } else {
+                    resolveStructuredValue(result, sourceRule.rule)
+                }
+                result?.let {
+                    result = if (sourceRule.replaceRegex.isNotEmpty() && it is List<*>) {
+                        it.map { item -> replaceRegex(item.toString(), sourceRule) }
+                    } else if (sourceRule.replaceRegex.isNotEmpty()) {
+                        replaceRegex(it.toString(), sourceRule)
                     } else {
+                        it
+                    }
+                }
+            } else {
+            // 遍历所有规则，根据mode调用对应的解析器
+                for (sourceRule in ruleList) {
+                    putRule(sourceRule.putMap)
+                    sourceRule.makeUpRule(result)
+                    result ?: continue
+                    val rule = sourceRule.rule
+                    if (rule.isNotEmpty()) {
                         Log.d(
                             TAG,
                             "[getStringList] Executing mode=${sourceRule.mode}, rule=${previewRuleForLog(rule)} on content=${result?.javaClass?.simpleName}"
                         )
-                        result = if (result is List<*> && sourceRule.mode != Mode.Js) {
-                            val list = ArrayList<Any>()
-                            for (item in result) {
-                                if (item == null) continue
-                                val itemResult = when (sourceRule.mode) {
-                                    Mode.Json -> getAnalyzeByJsonPath(item).getStringList(rule)
-                                    Mode.XPath -> getAnalyzeByXPath(item).getStringList(rule)
-                                    Mode.Regex -> listOf(rule)
-                                    else -> getAnalyzeByJSoup(item).getStringList(rule)
-                                }
-                                if (itemResult != null) list.addAll(itemResult)
-                            }
-                            list
-                        } else {
-                            val context = result ?: content
-                            
-                            // For JS mode, if input is a list, join it to string for legacy compatibility.
-                            // Use '\n' to match legado behavior (many rules rely on result.split("\\n")).
-                            val jsInput = if (sourceRule.mode == Mode.Js && context is List<*>) {
-                                context.joinToString("\n")
-                            } else context
-                            
-                            when (sourceRule.mode) {
-                                Mode.Js -> evalJS(rule, jsInput)
-                                Mode.Json -> getAnalyzeByJsonPath(context ?: "").getStringList(rule)
-                                Mode.XPath -> getAnalyzeByXPath(context ?: "").getStringList(rule)
-                                Mode.Regex -> listOf(rule)
-                                else -> {
-                                    if (context is Map<*, *> || context is List<*>) {
-                                        val indexed = resolveIndexed(context, rule)
-                                        if (indexed != null) {
-                                            listOf(indexed.toString())
-                                        } else if (looksLikeJsonText(context) && looksLikeDottedJsonRule(rule)) {
-                                            getAnalyzeByJsonPath(context ?: "").getStringList(toJsonPath(rule))
-                                        } else {
-                                            getAnalyzeByJSoup(context ?: "").getStringList(rule)
-                                        }
-                                    } else
-                                    // legado-with-MD3 兼容：当内容为 JSON 字符串、规则为 "data.xxx" 这类 dotted path 时，
-                                    // 即使未显式标注 @json:/$ 前缀，也应按 JsonPath 执行。
-                                    if (looksLikeJsonText(context) && looksLikeDottedJsonRule(rule)) {
-                                        getAnalyzeByJsonPath(context ?: "").getStringList(toJsonPath(rule))
-                                    } else {
-                                        getAnalyzeByJSoup(context ?: "").getStringList(rule)
-                                    }
-                                }
-                            }
+
+                        result = when (sourceRule.mode) {
+                            Mode.Js -> evalJS(rule, result)
+                            Mode.Json -> getAnalyzeByJsonPath(result ?: content!!).getStringList(rule)
+                            Mode.XPath -> getAnalyzeByXPath(result ?: content!!).getStringList(rule)
+                            Mode.Regex -> listOf(rule)
+                            else -> getAnalyzeByJSoup(result ?: "").getStringList(rule)
                         }
                     }
-                }
-                Log.d(TAG, "[getStringList] Result after rule processing: ${previewForLog(result)}")
-                if (sourceRule.replaceRegex.isNotEmpty() && result is List<*>) {
-                    result = result.map { item -> replaceRegex(item.toString(), sourceRule) }
-                } else if (sourceRule.replaceRegex.isNotEmpty() && result != null) {
-                    result = replaceRegex(result.toString(), sourceRule)
+                    Log.d(TAG, "[getStringList] Result after rule processing: ${previewForLog(result)}")
+                    if (sourceRule.replaceRegex.isNotEmpty() && result is List<*>) {
+                        result = result.map { item -> replaceRegex(item.toString(), sourceRule) }
+                    } else if (sourceRule.replaceRegex.isNotEmpty() && result != null) {
+                        result = replaceRegex(result.toString(), sourceRule)
+                    }
                 }
             }
         }
@@ -306,14 +371,9 @@ class AnalyzeRule(
      * 获取文本
      */
     fun getString(ruleStr: String?, mContent: Any? = null, isUrl: Boolean = false): String {
-        val result = getStringList(ruleStr, mContent, isUrl)
-        if (!result.isNullOrEmpty()) {
-            val text = if (isUrl) result[0] else result.joinToString("\n") { it.toString() }
-            if (text.isNotEmpty()) return text
-        }
-        val rulePreview = ruleStr?.let { previewRuleForLog(it) } ?: "null"
-        Log.d(TAG, "[getString] Returned empty string for rule: $rulePreview")
-        return ""
+        if (ruleStr.isNullOrBlank()) return ""
+        val ruleList = splitSourceRuleCacheString(ruleStr)
+        return getString(ruleList, mContent = mContent, isUrl = isUrl)
     }
 
     fun getString(ruleStr: String?, unescape: Boolean): String {
@@ -322,113 +382,97 @@ class AnalyzeRule(
         return getString(ruleList, unescape = unescape)
     }
 
-    private fun getString(ruleList: List<SourceRule>, mContent: Any? = null, unescape: Boolean = false): String {
-        val result = getStringList(ruleList, mContent)
-        var text: String? = null
-        if (!result.isNullOrEmpty()) {
-            text = result[0]
-            if (result.size > 1) {
-                for (i in 1 until result.size) {
-                    text += if (unescape) {
-                        "\n${Html.fromHtml(result[i], Html.FROM_HTML_MODE_LEGACY)}"
-                    } else {
-                        "\n${result[i]}"
-                    }
-                }
-            }
-        }
-        return text ?: ""
-    }
-
-    /**
-     * 获取文本列表
-     */
-    private fun getStringList(ruleList: List<SourceRule>, mContent: Any? = null): List<String>? {
+    fun getString(
+        ruleList: List<SourceRule>,
+        mContent: Any? = null,
+        isUrl: Boolean = false,
+        unescape: Boolean = true,
+    ): String {
         var result: Any? = null
         val content = mContent ?: this.content
         if (content != null && ruleList.isNotEmpty()) {
             result = content
-            Log.d(TAG, "[getStringList(internal)] starting with content=${content.javaClass.simpleName}")
-            
+            if (isDirectStructuredAccessForStringList(result)) {
+                val sourceRule = ruleList.first()
+                putRule(sourceRule.putMap)
+                sourceRule.makeUpRule(result)
+                result = if (sourceRule.getParamSize() > 1) {
+                    sourceRule.rule
+                } else {
+                    resolveStructuredValue(result, sourceRule.rule)?.toString()
+                }?.let {
+                    if (sourceRule.replaceRegex.isNotEmpty()) {
+                        replaceRegex(it, sourceRule)
+                    } else {
+                        it
+                    }
+                }
+            } else {
+                for (sourceRule in ruleList) {
+                    putRule(sourceRule.putMap)
+                    sourceRule.makeUpRule(result)
+                    result ?: continue
+                    val rule = sourceRule.rule
+                    if (rule.isNotBlank() || sourceRule.replaceRegex.isEmpty()) {
+                        result = when (sourceRule.mode) {
+                            Mode.Js -> evalJS(rule, result)
+                            Mode.Json -> getAnalyzeByJsonPath(result ?: content).getString(rule)
+                            Mode.XPath -> getAnalyzeByXPath(result ?: content).getString(rule)
+                            Mode.Default -> if (isUrl) {
+                                getAnalyzeByJSoup(result ?: "").getString0(rule)
+                            } else {
+                                getAnalyzeByJSoup(result ?: "").getStringResult(rule)
+                            }
+                            Mode.Regex -> rule
+                        }
+                    }
+                    if (result != null && sourceRule.replaceRegex.isNotEmpty()) {
+                        result = replaceRegex(result.toString(), sourceRule)
+                    }
+                }
+            }
+        }
+        val resultStr = result?.toString().orEmpty()
+        val text = if (unescape) {
+            Parser.unescapeEntities(resultStr, false)
+        } else {
+            resultStr
+        }
+        if (isUrl) {
+            if (text.isBlank()) return baseUrl
+            return resolveUrl(baseUrl, text)
+        }
+        return text
+    }
+
+    /**
+     * 获取单个元素/对象
+     */
+    fun getElement(ruleStr: String): Any? {
+        if (ruleStr.isBlank()) return null
+        var result: Any? = null
+        val content = this.content
+        val ruleList = splitSourceRule(ruleStr, true)
+        if (content != null && ruleList.isNotEmpty()) {
+            result = content
             for (sourceRule in ruleList) {
                 putRule(sourceRule.putMap)
                 sourceRule.makeUpRule(result)
                 result ?: continue
                 val rule = sourceRule.rule
-                if (rule.isNotEmpty()) {
-                    Log.d(
-                        TAG,
-                        "[getStringList(internal)] Executing mode=${sourceRule.mode}, rule=${previewRuleForLog(rule)} on result=${result?.javaClass?.simpleName}"
-                    )
-                    
-                    // Handle list iteration if not in JavaScript mode
-                    result = if (result is List<*> && sourceRule.mode != Mode.Js) {
-                        val list = ArrayList<Any>()
-                        for (item in result) {
-                            if (item == null) continue
-                            val itemResult = when (sourceRule.mode) {
-                                Mode.Json -> getAnalyzeByJsonPath(item).getStringList(rule)
-                                Mode.XPath -> getAnalyzeByXPath(item).getStringList(rule)
-                                Mode.Regex -> listOf(rule)
-                                else -> {
-                                    if (item is Map<*, *>) {
-                                        val indexed = resolveIndexed(item, rule)
-                                        if (indexed != null) listOf(indexed.toString())
-                                        else getAnalyzeByJSoup(item).getStringList(rule)
-                                    } else {
-                                        getAnalyzeByJSoup(item).getStringList(rule)
-                                    }
-                                }
-                            }
-                            if (itemResult != null) list.addAll(itemResult)
-                        }
-                        list
-                    } else {
-                        // For JS mode, if input is a list, join it to string for legacy compatibility.
-                        // Use '\n' to match legado behavior (many rules rely on result.split("\\n")).
-                        val jsInput = if (sourceRule.mode == Mode.Js && result is List<*>) {
-                            result.joinToString("\n")
-                        } else result
-                        
-                        when (sourceRule.mode) {
-                            Mode.Js -> evalJS(rule, jsInput)
-                            Mode.Json -> getAnalyzeByJsonPath(result ?: content!!).getStringList(rule)
-                            Mode.XPath -> getAnalyzeByXPath(result ?: content!!).getStringList(rule)
-                            Mode.Default -> {
-                                if (rule.startsWith("http", true) || rule.startsWith("//")) {
-                                    listOf(rule)
-                                } else if (result is Map<*, *> || result is List<*>) {
-                                    val indexed = resolveIndexed(result, rule)
-                                    if (indexed != null) listOf(indexed.toString())
-                                    else getAnalyzeByJSoup(result).getStringList(rule)
-                                } else {
-                                    getAnalyzeByJSoup(result).getStringList(rule)
-                                }
-                            }
-                            Mode.Regex -> listOf(rule)
-                            else -> rule
-                        }
-                    }
+                result = when (sourceRule.mode) {
+                    Mode.Regex -> AnalyzeByRegex.getElement(result.toString(), rule.splitNotBlank("&&").toTypedArray())
+                    Mode.Js -> evalJS(rule, result)
+                    Mode.Json -> getAnalyzeByJsonPath(result).getObject(rule)
+                    Mode.XPath -> getAnalyzeByXPath(result).getElements(rule)
+                    else -> getAnalyzeByJSoup(result).getElements(rule)
                 }
-                
-                // Handle replacements
-                if (sourceRule.replaceRegex.isNotEmpty() && result is List<*>) {
-                    result = result.map { item -> replaceRegex(item.toString(), sourceRule) }
-                } else if (sourceRule.replaceRegex.isNotEmpty() && result != null) {
+                if (sourceRule.replaceRegex.isNotEmpty()) {
                     result = replaceRegex(result.toString(), sourceRule)
                 }
             }
         }
-        
-        if (result == null) return null
-        if (result is String) {
-            return result.split("\n")
-        }
-        @Suppress("UNCHECKED_CAST")
-        return when (result) {
-            is List<*> -> result.map { it.toString() }
-            else -> listOf(result.toString())
-        }
+        return result
     }
 
     /**
@@ -445,9 +489,6 @@ class AnalyzeRule(
                 putRule(sourceRule.putMap)
                 result ?: continue
                 val rule = sourceRule.rule
-                if (rule.isBlank() && sourceRule.mode != Mode.Regex) continue
-
-                // legado-with-MD3 对齐：getElements 不对 List 做隐式逐项映射，交由具体解析器/规则本身决定。
                 result = when (sourceRule.mode) {
                     Mode.Regex -> AnalyzeByRegex.getElements(result.toString(), rule.splitNotBlank("&&"))
                     Mode.Js -> evalJS(rule, result)
@@ -482,36 +523,62 @@ class AnalyzeRule(
             vRuleStr = vRuleStr.replace(putMatcher.group(), "")
             val putJsonStr = putMatcher.group(1) ?: continue
             try {
-                val jsonObj = JSONObject(putJsonStr)
+                val jsonObj = LegadoLenientJsonParser.parseObject(putJsonStr)
                 jsonObj.keys().forEach { k ->
                     val keyStr = k.toString()
                     putMap[keyStr] = jsonObj.optString(keyStr)
                 }
             } catch (_: Exception) {
+                runCatching {
+                    val normalized = if (putJsonStr.contains('\'')) {
+                        putJsonStr.replace('\'', '"')
+                    } else {
+                        putJsonStr
+                    }
+                    lenientJson.decodeFromString<Map<String, String>>(normalized)
+                }.getOrNull()?.let { parsed ->
+                    putMap.putAll(parsed)
+                }
             }
         }
         return vRuleStr
     }
 
     /**
-     * 替换正则
+     * 替换正则 (对齐 legado-with-MD3 AnalyzeRule.replaceRegex)
+     *
+     * 两层兜底：
+     * 1. 先尝试编译后的 Regex 替换（捕获非法组引用如 $）
+     * 2. 失败后回退到字面量 String.replace（不解析 $）
      */
     private fun replaceRegex(result: String, sourceRule: SourceRule): String {
-        return try {
-            if (sourceRule.replaceRegex.isNotEmpty()) {
-                if (sourceRule.replacement.isEmpty()) {
-                    Regex(sourceRule.replaceRegex).replace(result, "")
-                } else if (sourceRule.replaceFirst) {
-                    Regex(sourceRule.replaceRegex).replaceFirst(result, sourceRule.replacement)
-                } else {
-                    Regex(sourceRule.replaceRegex).replace(result, sourceRule.replacement)
+        if (sourceRule.replaceRegex.isEmpty()) return result
+
+        val regexStr = sourceRule.replaceRegex
+        val replacement = sourceRule.replacement
+        val compiledRegex = runCatching { Regex(regexStr) }.getOrNull()
+
+        return if (sourceRule.replaceFirst) {
+            if (compiledRegex != null) {
+                runCatching {
+                    val matcher = compiledRegex.toPattern().matcher(result)
+                    if (matcher.find()) {
+                        matcher.group().replaceFirst(compiledRegex, replacement)
+                    } else ""
+                }.getOrElse { replacement }
+            } else {
+                replacement
+            }
+        } else {
+            if (compiledRegex != null) {
+                runCatching {
+                    result.replace(compiledRegex, replacement)
+                }.getOrElse {
+                    runCatching { result.replace(regexStr, replacement) }.getOrDefault(result)
                 }
             } else {
-                result
+                runCatching { result.replace(regexStr, replacement) }.getOrDefault(result)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Regex replacement failed", e)
-            result
         }
     }
 
@@ -519,43 +586,131 @@ class AnalyzeRule(
      * eval js
      */
     fun evalJS(rule: String, result: Any?): Any? {
-        sandbox.putVariable("baseUrl", normalizeBaseUrlForJavaScript(baseUrl))
-        sandbox.setResult(result)
-        val jsResult = sandbox.eval(rule)
-        Log.d(TAG, "[evalJS] input=${previewForLog(result)}, output=${previewForLog(jsResult)}")
-        return jsResult
+        val currentRuleData = ruleDataObjectOverride
+        runtimeContext.putVariableAny("result", result)
+        runtimeContext.putVariableAny("src", content)
+        runtimeContext.putVariable("baseUrl", baseUrl)
+        runtimeContext.putVariable("title", runtimeContext.getVariable("chapterName").orEmpty())
+        nextChapterUrl?.let { runtimeContext.putVariable("nextChapterUrl", it) }
+        runtimeContext.putVariableAny("fromBookInfo", fromBookInfo)
+        resolveJavaScriptBookBinding(currentRuleData)?.let { runtimeContext.putVariableAny("book", it) }
+        resolveJavaScriptRssArticleBinding(currentRuleData)?.let { runtimeContext.putVariableAny("rssArticle", it) }
+        return runtimeContext.withJavaBridge(javaBridge) {
+            runtimeContext.evalJs(rule, result, baseUrl)
+        }
     }
 
-    private fun normalizeBaseUrlForJavaScript(url: String): String {
-        if (url.isBlank()) return url
+    fun reGetBook() {
+        if (!preUpdateJs) {
+            throw NoStackTraceException("只能在 preUpdateJs 中调用")
+        }
+        runtimeContext.reGetBook()
+    }
 
-        val trimmed = url.trim()
-        val commaIndex = trimmed.indexOf(",{").let { if (it >= 0) it else trimmed.indexOf(", {") }
-        val withoutOptions = if (commaIndex >= 0) trimmed.substring(0, commaIndex).trim() else trimmed
-
-        val splitIndex = withoutOptions.indexOfAny(charArrayOf('?', '#'))
-        val head = if (splitIndex >= 0) withoutOptions.substring(0, splitIndex) else withoutOptions
-        val tail = if (splitIndex >= 0) withoutOptions.substring(splitIndex) else ""
-
-        if (head.endsWith("/")) return head + tail
-        if (head.matches(Regex(".*/\\d+"))) return head + "/" + tail
-        return head + tail
+    fun refreshTocUrl() {
+        if (!preUpdateJs) {
+            throw NoStackTraceException("只能在 preUpdateJs 中调用")
+        }
+        runtimeContext.refreshTocUrl()
     }
 
     /**
      * 保存变量
      */
     fun put(key: String, value: String): String {
-        sandbox.putVariable(key, value)
-        return value
+        return when {
+            runtimeContext.getChapter() != null -> {
+                runtimeContext.getChapter()?.putVariable(key, value)
+                value
+            }
+            runtimeContext.getBook() != null -> {
+                runtimeContext.getBook()?.putVariable(key, value)
+                value
+            }
+            ruleDataOverride != null -> {
+                ruleDataOverride?.putVariable(key, value)
+                value
+            }
+            runtimeContext.getSourceObject() != null -> runtimeContext.putSourceVariable(key, value)
+            else -> {
+                runtimeContext.putVariable(key, value)
+                value
+            }
+        }
     }
 
     /**
      * 获取保存的数据
      */
     fun get(key: String): String {
-        sandbox.getVariable(key)?.let { return it }
+        val ruleDataObject = ruleDataObjectOverride
+        when (key) {
+            "title" -> runtimeContext.getChapter()?.name?.takeIf { it.isNotEmpty() }?.let { return it }
+                ?: runtimeContext.getVariable("chapterName")?.let { return it }
+                ?: LegadoReflectiveAccess.readProperty(ruleDataObject, "name")?.toString()?.takeIf { it.isNotEmpty() }
+                    ?.let { return it }
+            "bookName" -> runtimeContext.getBook()?.name?.takeIf { !it.isNullOrEmpty() }?.let { return it }
+                ?: runtimeContext.getVariable("bookName")?.let { return it }
+                ?: LegadoReflectiveAccess.readProperty(ruleDataObject, "name")?.toString()?.takeIf { it.isNotEmpty() }
+                    ?.let { return it }
+            "bookAuthor" -> runtimeContext.getBook()?.author?.takeIf { !it.isNullOrEmpty() }?.let { return it }
+                ?: runtimeContext.getVariable("bookAuthor")?.let { return it }
+                ?: LegadoReflectiveAccess.readProperty(ruleDataObject, "author")?.toString()?.takeIf { it.isNotEmpty() }
+                    ?.let { return it }
+            "bookUrl" -> runtimeContext.getBook()?.bookUrl?.takeIf { it.isNotEmpty() }?.let { return it }
+                ?: runtimeContext.getVariable("bookUrl")?.let { return it }
+                ?: LegadoReflectiveAccess.readProperty(ruleDataObject, "bookUrl")?.toString()?.takeIf { it.isNotEmpty() }
+                    ?.let { return it }
+            "nextChapterUrl" -> nextChapterUrl?.let { return it }
+            "chapterName" -> runtimeContext.getChapter()?.name?.takeIf { it.isNotEmpty() }?.let { return it }
+                ?: runtimeContext.getVariable("chapterName")?.let { return it }
+                ?: LegadoReflectiveAccess.readProperty(ruleDataObject, "name")?.toString()?.takeIf { it.isNotEmpty() }
+                    ?.let { return it }
+            "chapterUrl" -> runtimeContext.getChapter()?.chapterUrl?.takeIf { it.isNotEmpty() }?.let { return it }
+                ?: runtimeContext.getVariable("chapterUrl")?.let { return it }
+                ?: LegadoReflectiveAccess.readProperty(ruleDataObject, "chapterUrl")?.toString()?.takeIf { it.isNotEmpty() }
+                    ?.let { return it }
+        }
+        runtimeContext.getChapter()?.getVariable(key)?.takeIf { it.isNotEmpty() }?.let { return it }
+        runtimeContext.getBook()?.getVariable(key)?.takeIf { it.isNotEmpty() }?.let { return it }
+        ruleDataOverride?.getVariable(key)?.takeIf { it.isNotEmpty() }?.let { return it }
+        runtimeContext.getVariable(key)?.takeIf { it.isNotEmpty() }?.let { return it }
+        runtimeContext.getSourceVariable(key).takeIf { it.isNotEmpty() }?.let { return it }
         return ""
+    }
+
+    fun setNextChapterUrl(nextChapterUrl: String?): AnalyzeRule {
+        this.nextChapterUrl = nextChapterUrl
+        return this
+    }
+
+    fun getTag(): String? {
+        return runtimeContext.getSourceTag() ?: ruleName
+    }
+
+    fun getSource(): Any? {
+        return runtimeContext.getSourceObject()
+    }
+
+    fun ajax(url: Any): String? {
+        val urlStr = if (url is List<*>) {
+            url.firstOrNull().toString()
+        } else {
+            url.toString()
+        }
+        val httpExecutor = runtimeContext.getHttpExecutor() ?: return ""
+        val request = AnalyzeUrl(
+            ruleUrl = urlStr,
+            baseUrl = baseUrl,
+            ruleData = ruleDataOverride ?: runtimeContext.getRuleData(),
+            runtimeContext = runtimeContext,
+            httpExecutor = httpExecutor,
+        )
+        return runCatching {
+            request.getStrResponse().body()
+        }.getOrElse {
+            it.stackTraceToString()
+        }
     }
 
     /**
@@ -564,23 +719,25 @@ class AnalyzeRule(
     private val stringRuleCache = hashMapOf<String, List<SourceRule>>()
 
     private fun splitSourceRuleCacheString(rule: String): List<SourceRule> {
-        return stringRuleCache.getOrPut(rule) { splitSourceRule(rule, false) }
+        return stringRuleCache.getOrPut(rule) { splitSourceRuleInternal(rule, false) }
     }
 
     /**
      * 分离规则 (仅分离 JS 块，内部逻辑运算符由具体解析器处理)
      */
-    private fun splitSourceRule(ruleStr: String, isElements: Boolean): List<SourceRule> {
+    fun splitSourceRule(ruleStr: String?, allInOne: Boolean = false): List<SourceRule> {
+        if (ruleStr.isNullOrBlank()) return emptyList()
+        return splitSourceRuleInternal(ruleStr, allInOne)
+    }
+
+    private fun splitSourceRuleInternal(ruleStr: String, isElements: Boolean): List<SourceRule> {
         val ruleList = ArrayList<SourceRule>()
         var mode: Mode = Mode.Default
         var startIndex = 0
         // 与 legado-with-MD3 对齐：getElements/getElement 下，首字符为 ':' 时启用 AllInOne 正则模式
         if (isElements && ruleStr.startsWith(":")) {
             mode = Mode.Regex
-            isRegex = true
             startIndex = 1
-        } else if (isRegex) {
-            mode = Mode.Regex
         }
         ruleList.addAll(splitJSToSourceRule(ruleStr, startIndex, mode))
         return ruleList
@@ -616,6 +773,154 @@ class AnalyzeRule(
         return ruleList
     }
 
+    private class JavaBridge(
+        private val owner: AnalyzeRule,
+    ) {
+        fun ajax(url: Any): String? = owner.ajax(url)
+
+        fun get(key: String): String = owner.get(key)
+
+        fun put(key: String, value: String): String = owner.put(key, value)
+
+        fun reGetBook() = owner.reGetBook()
+
+        fun refreshTocUrl() = owner.refreshTocUrl()
+
+        fun getSource(): Any? = owner.getSource()
+
+        fun getTag(): String? = owner.getTag()
+    }
+
+    private class ReflectiveRuleDataAdapter(
+        private val target: Any,
+    ) : RuleDataInterface {
+        override fun getVariable(key: String): String? {
+            return invoke("getVariable", key)?.toString()
+        }
+
+        override fun putVariable(key: String, value: String?): String? {
+            val previous = getVariable(key)
+            invoke("putVariable", key, value)
+            return previous
+        }
+
+        override fun getVariableMap(): Map<String, String> {
+            val result = invoke("getVariableMap") ?: return emptyMap()
+            @Suppress("UNCHECKED_CAST")
+            return (result as? Map<Any?, Any?>)
+                ?.mapNotNull { (key, value) ->
+                    key?.toString()?.let { safeKey -> safeKey to value?.toString().orEmpty() }
+                }
+                ?.toMap()
+                .orEmpty()
+        }
+
+        override fun clearVariables() {
+            invoke("clearVariables")
+        }
+
+        private fun invoke(name: String, vararg args: Any?): Any? {
+            val method = target::class.java.methods.firstOrNull { candidate ->
+                candidate.name == name && candidate.parameterTypes.size == args.size
+            } ?: return null
+            return runCatching { method.invoke(target, *args) }.getOrNull()
+        }
+    }
+
+    private fun resolveJavaScriptBookBinding(ruleData: Any?): Any? {
+        return when {
+            ruleData == null -> runtimeContext.getBook()
+            ruleData is BookInfo -> ruleData
+            LegadoReflectiveAccess.readProperty(ruleData, "bookUrl") != null -> ruleData
+            else -> runtimeContext.getBook()
+        }
+    }
+
+    private fun resolveJavaScriptRssArticleBinding(ruleData: Any?): Any? {
+        if (ruleData == null) return null
+        val origin = LegadoReflectiveAccess.readProperty(ruleData, "origin")
+        val link = LegadoReflectiveAccess.readProperty(ruleData, "link")
+        return if (origin != null && link != null) ruleData else null
+    }
+
+    private object EmptyLegadoRuleRuntimeContext : LegadoRuleRuntimeContext {
+        override fun evalJs(script: String, result: Any?, baseUrl: String): Any? = result
+
+        override fun executeJs(script: String, result: Any?, baseUrl: String): Any? = result
+
+        override fun reGetBook() = Unit
+
+        override fun refreshTocUrl() = Unit
+
+        override fun putVariable(key: String, value: String) = Unit
+
+        override fun putVariableAny(key: String, value: Any?) = Unit
+
+        override fun getVariable(key: String): String? = null
+
+        override fun getVariableAny(key: String): Any? = null
+
+        override fun putSourceVariable(key: String, value: String): String = value
+
+        override fun getSourceVariable(key: String): String = ""
+
+        override fun setBook(book: BookInfo?) = Unit
+
+        override fun getBook(): BookInfo? = null
+
+        override fun setChapter(chapter: ChapterInfo?) = Unit
+
+        override fun getChapter(): ChapterInfo? = null
+    }
+
+    private class SourceOnlyLegadoRuleRuntimeContext(
+        private val source: Any?,
+    ) : LegadoRuleRuntimeContext by EmptyLegadoRuleRuntimeContext {
+        private val variables = linkedMapOf<String, Any?>()
+        private val sourceVariables = linkedMapOf<String, String>()
+        private var book: BookInfo? = null
+        private var chapter: ChapterInfo? = null
+
+        override fun putVariable(key: String, value: String) {
+            variables[key] = value
+        }
+
+        override fun putVariableAny(key: String, value: Any?) {
+            variables[key] = value
+        }
+
+        override fun getVariable(key: String): String? = variables[key]?.toString()
+
+        override fun getVariableAny(key: String): Any? = variables[key]
+
+        override fun putSourceVariable(key: String, value: String): String {
+            sourceVariables[key] = value
+            invokeSourceMethod(source, "put", key, value)
+            return value
+        }
+
+        override fun getSourceVariable(key: String): String {
+            return sourceVariables[key]
+                ?: invokeSourceMethod(source, "get", key)?.toString().orEmpty()
+        }
+
+        override fun setBook(book: BookInfo?) {
+            this.book = book
+        }
+
+        override fun getBook(): BookInfo? = book
+
+        override fun setChapter(chapter: ChapterInfo?) {
+            this.chapter = chapter
+        }
+
+        override fun getChapter(): ChapterInfo? = chapter
+
+        override fun getSourceObject(): Any? = source
+
+        override fun getSourceTag(): String? = resolveSourceTag(source)
+    }
+
     /**
      * 规则类（移植自 legado-with-MD3）
      */
@@ -624,158 +929,29 @@ class AnalyzeRule(
         internal var mode: Mode = Mode.Default
     ) {
         internal var rule: String
+        private val templateRule: String
         internal var replaceRegex = ""
         internal var replacement = ""
         internal var replaceFirst = false
         internal val putMap = HashMap<String, String>()
-        private val ruleParam = ArrayList<String>()
-        private val ruleType = ArrayList<Int>()
-        private val getRuleType = -2
-        private val jsRuleType = -1
-        private val defaultRuleType = 0
+        private var segments: List<LegadoSourceRuleSegmentParser.Segment> = emptyList()
 
         init {
-            rule = when {
-                mode == Mode.Js || mode == Mode.Regex -> ruleStr
-                ruleStr.startsWith("@CSS:", true) -> {
-                    mode = Mode.Default
-                    ruleStr
-                }
-
-                ruleStr.startsWith("@@") -> {
-                    mode = Mode.Default
-                    ruleStr.substring(2)
-                }
-
-                ruleStr.startsWith("@XPath:", true) -> {
-                    mode = Mode.XPath
-                    ruleStr.substring(7)
-                }
-
-                ruleStr.startsWith("@Json:", true) -> {
-                    mode = Mode.Json
-                    ruleStr.substring(6)
-                }
-
-                ruleStr.startsWith("$") -> {
-                    mode = Mode.Json
-                    ruleStr
-                }
-
-                ruleStr.startsWith("/") -> {
-                    mode = Mode.XPath
-                    ruleStr
-                }
-
-	                else -> {
-	                    // Detect if content is or looks like JSON
-	                    val isJsonLike = content is JSONObject || content is org.json.JSONArray || 
-	                                   content is Map<*, *> || content is List<*> ||
-	                                   content is NativeObject || content is NativeArray ||
-	                                   (content is String && (content.toString().trim().startsWith("{") || content.toString().trim().startsWith("[")))
-	                    
-	                    when {
-	                        // Shorthand JSONPath like .member
-	                        ruleStr.startsWith(".") && isJsonLike -> {
-	                            mode = Mode.Json
-	                            "\$$ruleStr"
-	                        }
-	                        // JSON dotted path without '$.' prefix, e.g. data.current_chapter.list[0]
-	                        // Some Legado rules rely on this shorthand when response body is JSON.
-	                        isJsonLike && looksLikeJsonDottedPath(ruleStr) -> {
-	                            mode = Mode.Json
-	                            "\$.$ruleStr"
-	                        }
-	                        // Simple key name (alphanumeric only, no special chars) when content is JSON
-	                        // This handles rules like "name", "author", "url" when init returns JSON
-	                        isJsonLike && ruleStr.isNotEmpty() && 
-	                        ruleStr.all { it.isLetterOrDigit() || it == '_' } &&
-	                        !ruleStr.contains("@") && !ruleStr.contains(".") -> {
-	                            mode = Mode.Json
-	                            Log.d(TAG, "[SourceRule] Converting simple key '$ruleStr' to JSONPath for JSON content")
-	                            "\$.$ruleStr"
-	                        }
-	                        else -> ruleStr
-	                    }
-	                }
+            val classifiedRule = LegadoSourceRuleClassifier.classify(
+                ruleStr = ruleStr,
+                mode = mode,
+                content = content,
+            ) { simpleKey ->
+                Log.d(TAG, "[SourceRule] Converting simple key '$simpleKey' to JSONPath for JSON content")
             }
+            mode = classifiedRule.mode
+            rule = classifiedRule.rule
             //分离put
             rule = splitPutRule(rule, putMap)
-            // @get / {{ }} 拆分：
-            // 对 JS 模式不做替换（脚本内可能包含用于后续 URL 模板的 {{page}} 等占位符），避免把脚本源码提前改写导致语义错误。
-            if (mode != Mode.Js) {
-                var start = 0
-                var tmp: String
-                val evalMatcher = evalPattern.matcher(rule)
-
-                if (evalMatcher.find()) {
-                    tmp = rule.substring(start, evalMatcher.start())
-                    if (mode != Mode.Js && mode != Mode.Regex &&
-                        (evalMatcher.start() == 0 || !tmp.contains("##"))
-                    ) {
-                        mode = Mode.Regex
-                    }
-                    do {
-                        if (evalMatcher.start() > start) {
-                            tmp = rule.substring(start, evalMatcher.start())
-                            splitRegex(tmp)
-                        }
-                        tmp = evalMatcher.group()
-                        when {
-                            tmp.startsWith("@get:", true) -> {
-                                ruleType.add(getRuleType)
-                                ruleParam.add(tmp.substring(6, tmp.lastIndex))
-                            }
-
-                            tmp.startsWith("{{") -> {
-                                ruleType.add(jsRuleType)
-                                ruleParam.add(tmp.substring(2, tmp.length - 2))
-                            }
-
-                            else -> {
-                                splitRegex(tmp)
-                            }
-                        }
-                        start = evalMatcher.end()
-                    } while (evalMatcher.find())
-                }
-                if (rule.length > start) {
-                    tmp = rule.substring(start)
-                    splitRegex(tmp)
-                }
-            }
-        }
-
-        /**
-         * 拆分\$\d{1,2}
-         */
-        private fun splitRegex(ruleStr: String) {
-            var start = 0
-            var tmp: String
-            val ruleStrArray = ruleStr.split("##")
-            val regexMatcher = regexPattern.matcher(ruleStrArray[0])
-
-            if (regexMatcher.find()) {
-                if (mode != Mode.Js && mode != Mode.Regex) {
-                    mode = Mode.Regex
-                }
-                do {
-                    if (regexMatcher.start() > start) {
-                        tmp = ruleStr.substring(start, regexMatcher.start())
-                        ruleType.add(defaultRuleType)
-                        ruleParam.add(tmp)
-                    }
-                    tmp = regexMatcher.group()
-                    ruleType.add(tmp.substring(1).toInt())
-                    ruleParam.add(tmp)
-                    start = regexMatcher.end()
-                } while (regexMatcher.find())
-            }
-            if (ruleStr.length > start) {
-                tmp = ruleStr.substring(start)
-                ruleType.add(defaultRuleType)
-                ruleParam.add(tmp)
-            }
+            templateRule = rule
+            val parseResult = LegadoSourceRuleSegmentParser.parse(rule = templateRule, mode = mode)
+            segments = parseResult.segments
+            mode = parseResult.mode
         }
 
         /**
@@ -783,34 +959,27 @@ class AnalyzeRule(
          */
         fun makeUpRule(result: Any?) {
             val infoVal = StringBuilder()
-            if (ruleParam.isNotEmpty()) {
-                var index = ruleParam.size
+            var workingRule = templateRule
+            if (segments.isNotEmpty()) {
+                var index = segments.size
                 while (index-- > 0) {
-                    val regType = ruleType[index]
-                    when {
-                        regType > defaultRuleType -> {
+                    when (val segment = segments[index]) {
+                        is LegadoSourceRuleSegmentParser.Segment.RegexGroup -> {
                             @Suppress("UNCHECKED_CAST")
                             (result as? List<String?>)?.run {
-                                if (this.size > regType) {
-                                    this[regType]?.let {
+                                if (this.size > segment.groupIndex) {
+                                    this[segment.groupIndex]?.let {
                                         infoVal.insert(0, it)
                                     }
                                 }
-                            } ?: infoVal.insert(0, ruleParam[index])
+                            } ?: infoVal.insert(0, segment.token)
                         }
 
-                        regType == jsRuleType -> {
-                            val expr = ruleParam[index].trim()
-                            val looksLikeRuleExpr =
-                                expr.startsWith("$") ||
-                                    expr.startsWith(".") ||
-                                    expr.startsWith("/") ||
-                                    expr.startsWith("@", ignoreCase = true) ||
-                                    (looksLikeJsonText(result) && looksLikeDottedJsonRule(expr))
-
-                            if (looksLikeRuleExpr) {
+                        is LegadoSourceRuleSegmentParser.Segment.JavaScript -> {
+                            val expr = segment.expression.trim()
+                            if (isRule(expr)) {
                                 val ruleList = splitSourceRuleCacheString(expr)
-                                infoVal.insert(0, getString(ruleList, result))
+                                infoVal.insert(0, getString(ruleList))
                             } else {
                                 val jsEval: Any? = evalJS(expr, result)
                                 when {
@@ -825,28 +994,23 @@ class AnalyzeRule(
                             }
                         }
 
-                        regType == getRuleType -> {
-                            infoVal.insert(0, get(ruleParam[index]))
+                        is LegadoSourceRuleSegmentParser.Segment.GetVariable -> {
+                            infoVal.insert(0, get(segment.key))
                         }
 
-                        else -> infoVal.insert(0, ruleParam[index])
+                        is LegadoSourceRuleSegmentParser.Segment.Literal -> {
+                            infoVal.insert(0, segment.value)
+                        }
                     }
                 }
-                rule = infoVal.toString()
+                workingRule = infoVal.toString()
             }
 
-            if (mode == Mode.Js) {
-                rule = replaceJsDoubleBracePlaceholders(rule, result)
-            }
-            // 单花括号占位符替换：
-            // - Default/Regex 下用于 URL/文本模板（如 https://.../{$.id}、{id}）
-            // - Json 模式下由 JsonPath 解析器自身处理 "{$.}"，避免提前替换破坏规则语义（例如 "/b/{$.FolderName}"）
-            // - Js 模式下禁止替换：脚本中大量存在对象字面量 `{ ... }`，若按占位符处理会破坏脚本语法。
-            if (mode != Mode.Js) {
-                rule = replaceSingleBracePlaceholders(rule, result, allowJsonPathExpr = mode != Mode.Json)
-            }
             //分离正则表达式
-            val ruleStrS = rule.split("##")
+            replaceRegex = ""
+            replacement = ""
+            replaceFirst = false
+            val ruleStrS = workingRule.split("##")
             rule = ruleStrS[0].trim()
             if (ruleStrS.size > 1) {
                 replaceRegex = ruleStrS[1]
@@ -857,12 +1021,13 @@ class AnalyzeRule(
             if (ruleStrS.size > 3) {
                 replaceFirst = true
             }
+
         }
 
 
 
         fun getParamSize(): Int {
-            return ruleParam.size
+            return segments.size
         }
     }
 
@@ -870,87 +1035,40 @@ class AnalyzeRule(
         XPath, Json, Default, Js, Regex
     }
 
-    private fun looksLikeJsonDottedPath(rule: String): Boolean {
-        if (rule.isBlank()) return false
-        if (rule.startsWith("$") || rule.startsWith("/") || rule.startsWith("@", ignoreCase = true)) return false
-        if (rule.contains("##") || rule.contains("{{") || rule.contains("}}")) return false
-        if (rule.startsWith("http", ignoreCase = true) || rule.startsWith("//")) return false
-        // Allow segments like a_b, a1, list[0], list[*]
-        return rule.matches(Regex("^[A-Za-z_][A-Za-z0-9_\\[\\]\\*]*(\\.[A-Za-z_][A-Za-z0-9_\\[\\]\\*]*)*\$"))
-    }
-
-    private fun replaceSingleBracePlaceholders(template: String, context: Any?, allowJsonPathExpr: Boolean): String {
-        if (!template.contains('{') || !template.contains('}')) return template
-        if (context !is Map<*, *> && context !is JSONObject) return template
-
-        val matcher = singleBracePlaceholderPattern.matcher(template)
-        if (!matcher.find()) return template
-        matcher.reset()
-
-        val sb = StringBuffer(template.length)
-        while (matcher.find()) {
-            val expr = matcher.group(1)?.trim().orEmpty()
-            val replacement = when {
-                expr.startsWith("$") || expr.startsWith(".") -> {
-                    if (!allowJsonPathExpr) {
-                        matcher.group()
-                    } else {
-                        val jsonPath = if (expr.startsWith(".")) "\$$expr" else expr
-                        getAnalyzeByJsonPath(context).getStringList(jsonPath)?.firstOrNull().orEmpty()
-                    }
-                }
-                context is Map<*, *> -> context[expr]?.toString().orEmpty()
-                context is JSONObject -> context.opt(expr)?.toString().orEmpty()
-                else -> ""
-            }
-            matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement))
-        }
-        matcher.appendTail(sb)
-        return sb.toString()
-    }
-
     private fun resolveIndexed(holder: Any?, key: String): Any? {
         return when (holder) {
             is Map<*, *> -> holder[key]
             is List<*> -> key.toIntOrNull()?.let { idx -> holder.getOrNull(idx) }
+            is JSONObject -> holder.opt(key)
+            is JSONArray -> key.toIntOrNull()?.takeIf { idx -> idx in 0 until holder.length() }?.let(holder::opt)
+            is NativeObject -> holder.get(key, holder).takeIf { it !is Undefined }
+            is NativeArray -> key.toIntOrNull()?.let { idx ->
+                if (idx in 0 until holder.length.toInt()) holder.get(idx, holder) else null
+            }?.takeIf { it !is Undefined }
             else -> null
         }
     }
 
-    /**
-     * Attempts to unwrap common JSON wrappers like {"code": 200, "data": [...]}
-     */
-    private fun unwrapJson(content: Any?): Any? {
-        if (content == null) return null
-        
-        // If content is already a JSONObject/JSONArray, we might need to look inside
-        val json = when (content) {
-            is String -> {
-                val trimmed = content.trim()
-                if (trimmed.startsWith("{")) JSONObject(trimmed)
-                else if (trimmed.startsWith("[")) org.json.JSONArray(trimmed)
-                else return content
-            }
-            else -> content
-        }
+    private fun resolveStructuredValue(holder: Any?, key: String): Any? {
+        val trimmedKey = key.trim()
+        if (trimmedKey.isEmpty()) return null
+        return resolveIndexed(holder, trimmedKey)
+    }
 
-        if (json is JSONObject) {
-            val keys = listOf("data", "result", "list", "items", "book", "chapters", "manga")
-            for (key in keys) {
-                if (json.has(key) && json.length() <= 10) { 
-                    val unwrapped = json.get(key)
-                    Log.d(TAG, "unwrapping JSON via key '$key', result type=${unwrapped?.javaClass?.simpleName}")
-                    return unwrapped
-                }
-            }
-        }
-        
-        return content
+    private fun isDirectStructuredAccessForString(result: Any?): Boolean {
+        return result is NativeObject
+    }
+
+    private fun isDirectStructuredAccessForStringList(result: Any?): Boolean {
+        return result is NativeObject
     }
 
     private fun resolveUrl(base: String?, relative: String): String {
         if (relative.isBlank()) return relative
         if (relative.startsWith("http")) return relative
+        redirectUrl?.let { redirect ->
+            return runCatching { URL(redirect, relative).toString() }.getOrElse { relative }
+        }
         return try {
             URL(URL(base ?: ""), relative).toString()
         } catch (_: Exception) {

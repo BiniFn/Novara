@@ -3,6 +3,8 @@ package org.skepsun.kototoro.core.parser.legado.book
 import android.util.Log
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
 import org.skepsun.kototoro.core.parser.legado.*
+import org.skepsun.kototoro.core.parser.legado.bridge.LegadoSandboxRuleRuntimeContext
+import org.skepsun.kototoro.core.parser.legado.runtime.LegadoRuleRuntimeContext
 import org.skepsun.kototoro.core.parser.legado.sandbox.LegadoSandbox
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentSource
@@ -15,17 +17,6 @@ import org.skepsun.kototoro.parsers.model.ContentSource
 object BookList {
 
     private const val TAG = "LegadoBookList"
-
-    private fun extractCoverUrlFallback(item: Any?, baseUrl: String): String {
-        val element = item as? org.jsoup.nodes.Element ?: return ""
-        val img = element.selectFirst("img") ?: return ""
-        val raw = img.attr("data-src").takeIf { it.isNotBlank() }
-            ?: img.attr("data-original").takeIf { it.isNotBlank() }
-            ?: img.attr("data-lazy-src").takeIf { it.isNotBlank() }
-            ?: img.attr("src").takeIf { it.isNotBlank() }
-            ?: return ""
-        return LegadoUrlSanitizer.sanitizeImageUrl(resolveUrl(baseUrl, raw.trim()))
-    }
 
     private fun previewForLog(value: String, limit: Int = 160): String {
         val normalized = value.replace("\r", "").replace("\n", "\\n").trim()
@@ -43,7 +34,43 @@ object BookList {
         isSearch: Boolean,
         sandbox: LegadoSandbox
     ): List<Content> {
-        // 优先使用搜索规则兜底，避免 explore 为空对象但缺少 bookList 时直接返回空
+        val runtimeContext = LegadoSandboxRuleRuntimeContext(sandbox)
+        return parseInternal(
+            content = content,
+            baseUrl = baseUrl,
+            source = source,
+            config = config,
+            isSearch = isSearch,
+            runtimeContext = runtimeContext,
+        )
+    }
+
+    fun parseWithRuntimeContext(
+        content: String,
+        baseUrl: String,
+        source: ContentSource,
+        config: LegadoBookSource,
+        isSearch: Boolean,
+        runtimeContext: LegadoRuleRuntimeContext
+    ): List<Content> {
+        return parseInternal(
+            content = content,
+            baseUrl = baseUrl,
+            source = source,
+            config = config,
+            isSearch = isSearch,
+            runtimeContext = runtimeContext,
+        )
+    }
+
+    private fun parseInternal(
+        content: String,
+        baseUrl: String,
+        source: ContentSource,
+        config: LegadoBookSource,
+        isSearch: Boolean,
+        runtimeContext: LegadoRuleRuntimeContext
+    ): List<Content> {
         val rule = if (isSearch) {
             config.ruleSearch
         } else {
@@ -54,7 +81,21 @@ object BookList {
             return emptyList()
         }
 
-        // 支持 Legado 的列表前缀：- 反转，+ 去标记
+        if (isSearch) {
+            val bookUrlPattern = config.bookUrlPattern
+            if (!bookUrlPattern.isNullOrBlank()) {
+                runCatching { Regex(bookUrlPattern) }
+                    .getOrNull()
+                    ?.takeIf { regex -> regex.matches(baseUrl) }
+                    ?.let {
+                        val detail = parseDetailAsSingleItem(content, baseUrl, source, config, runtimeContext)
+                        if (detail != null) {
+                            return listOf(detail)
+                        }
+                    }
+            }
+        }
+
         var reverse = false
         var listRule = rule.bookList
         if (listRule.startsWith("-")) {
@@ -64,17 +105,7 @@ object BookList {
             listRule = listRule.removePrefix("+")
         }
 
-        val analyzeRule = AnalyzeRule(content, sandbox, baseUrl)
-        
-        // Execute init if present (Legado init script can transform content)
-        var currentContent: Any = content
-        if (!rule.init.isNullOrBlank()) {
-            val initResult = analyzeRule.evalJS(rule.init, content)
-            if (initResult != null) {
-                currentContent = initResult
-                analyzeRule.setContent(currentContent)
-            }
-        }
+        val analyzeRule = AnalyzeRule(content, runtimeContext, baseUrl)
 
         val items = analyzeRule.getElements(listRule)
         Log.d(
@@ -82,32 +113,17 @@ object BookList {
             "bookList ruleLen=${listRule.length} rule=${previewForLog(listRule)} items=${items.size} isSearch=$isSearch"
         )
         if (items.isEmpty()) {
-            // Fallback: 尝试将含空格的 class 规则转为 CSS 连写
-            val fallbackRule = buildCssFallback(listRule)
-            if (fallbackRule != listRule) {
-                val fallbackItems = analyzeRule.getElements(fallbackRule)
-                Log.d(
-                    TAG,
-                    "bookList fallback ruleLen=${fallbackRule.length} rule=${previewForLog(fallbackRule)} items=${fallbackItems.size}"
-                )
-                if (fallbackItems.isNotEmpty()) {
-                    return parseItems(fallbackItems, rule, baseUrl, source, sandbox, reverse)
+            if (config.bookUrlPattern.isNullOrBlank()) {
+                val detail = parseDetailAsSingleItem(content, baseUrl, source, config, runtimeContext)
+                if (detail != null) {
+                    return listOf(detail)
                 }
-            }
-
-            // 第二层兜底：直接用 Jsoup 解析含 /books/ 的卡片（适配轻小说百科等）
-            val doc = org.jsoup.Jsoup.parse(content)
-            val anchors = doc.select("a[href*=/books/]")
-            if (anchors.isNotEmpty()) {
-                val fallbackItems = anchors.map { it as Any }
-                Log.d(TAG, "bookList generic anchor fallback items=${fallbackItems.size}")
-                return parseItems(fallbackItems, rule, baseUrl, source, sandbox, reverse)
             }
             Log.w(TAG, "bookList parse returned empty list for url=$baseUrl isSearch=$isSearch")
             return emptyList()
         }
-        
-        return parseItems(items, rule, baseUrl, source, sandbox, reverse)
+
+        return parseItems(items, rule, baseUrl, source, runtimeContext, reverse)
     }
 
     private fun parseItems(
@@ -115,13 +131,13 @@ object BookList {
         rule: org.skepsun.kototoro.core.model.jsonsource.SearchRule,
         baseUrl: String,
         source: ContentSource,
-        sandbox: LegadoSandbox,
+        runtimeContext: LegadoRuleRuntimeContext,
         reverse: Boolean
     ): List<Content> {
         val mangas = items.mapIndexedNotNull { index, item ->
             if (item == null) return@mapIndexedNotNull null
             // Create a new analyzer for the specific item
-            val itemAnalyzer = AnalyzeRule(item, sandbox, baseUrl)
+            val itemAnalyzer = AnalyzeRule(item, runtimeContext, baseUrl)
             
             val title = itemAnalyzer.getString(rule.name)
             val bookUrl = itemAnalyzer.getString(rule.bookUrl, isUrl = true)
@@ -139,11 +155,10 @@ object BookList {
             val absoluteUrl = resolveUrl(baseUrl, bookUrl)
             val author = itemAnalyzer.getString(rule.author)
             val ruleCover = itemAnalyzer.getString(rule.coverUrl, isUrl = true)
-            val coverUrl = if (ruleCover.isBlank()) {
-                extractCoverUrlFallback(item, baseUrl)
-            } else {
-                LegadoUrlSanitizer.sanitizeImageUrl(resolveUrl(baseUrl, ruleCover.trim()))
-            }.takeIf { it.isNotBlank() }
+            val coverUrl = ruleCover
+                .takeIf { it.isNotBlank() }
+                ?.let { LegadoUrlSanitizer.sanitizeImageUrl(resolveUrl(baseUrl, it.trim())) }
+                ?.takeIf { it.isNotBlank() }
             val intro = itemAnalyzer.getString(rule.intro)
             
             Content(
@@ -174,16 +189,38 @@ object BookList {
         return result
     }
 
-    private fun buildCssFallback(rule: String): String {
-        if (!rule.contains("class.") || !rule.contains(" ")) return rule
-        val parts = rule.split("@")
-        val selectorPart = parts.firstOrNull() ?: return rule
-        if (!selectorPart.startsWith("class.")) return rule
-        val classes = selectorPart.removePrefix("class.").trim().split("\\s+".toRegex()).filter { it.isNotBlank() }
-        if (classes.isEmpty()) return rule
-        val css = classes.joinToString(separator = "", prefix = ".")
-        val suffix = if (parts.size > 1) "@" + parts.drop(1).joinToString("@") else ""
-        return css + suffix
+    private fun parseDetailAsSingleItem(
+        content: String,
+        baseUrl: String,
+        source: ContentSource,
+        config: LegadoBookSource,
+        runtimeContext: LegadoRuleRuntimeContext,
+    ): Content? {
+        val seed = Content(
+            id = generateContentId(baseUrl),
+            title = "",
+            altTitles = emptySet(),
+            url = baseUrl,
+            publicUrl = baseUrl,
+            rating = -1f,
+            contentRating = null,
+            coverUrl = null,
+            tags = emptySet(),
+            state = null,
+            authors = emptySet(),
+            largeCoverUrl = null,
+            description = null,
+            chapters = null,
+            source = source,
+        )
+        val result = BookInfo.parseWithRuntimeContext(
+            manga = seed,
+            content = content,
+            baseUrl = baseUrl,
+            config = config,
+            runtimeContext = runtimeContext,
+        )
+        return result.manga.takeIf { it.title.isNotBlank() }
     }
 
     private fun resolveUrl(baseUrl: String, relativeUrl: String): String {

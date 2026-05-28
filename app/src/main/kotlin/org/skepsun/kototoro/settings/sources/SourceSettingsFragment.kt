@@ -157,6 +157,7 @@ class SourceSettingsFragment :
 		tryAddTvBoxPreferences()
 		tryAddLegadoVariablePreferences()
 		tryAddLegadoAuthPreferences()
+		tryAddLegadoRuntimePreference()
 	}
 
 	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -640,6 +641,38 @@ class SourceSettingsFragment :
 		}
 	}
 
+	private fun tryAddLegadoRuntimePreference() {
+		val repo = viewModel.repository as? org.skepsun.kototoro.core.parser.legado.LegadoRepository ?: return
+		val screen = preferenceScreen ?: return
+		val sourcePrefs = requireContext().getSharedPreferences(LEGADO_SOURCE_PREFS, Context.MODE_PRIVATE)
+
+		val category = findPreference<PreferenceCategory>(KEY_LEGADO_RUNTIME_CATEGORY)
+			?: PreferenceCategory(requireContext()).apply {
+				key = KEY_LEGADO_RUNTIME_CATEGORY
+				title = "运行时（Legado）"
+				order = 36
+				isIconSpaceReserved = false
+				screen.addPreference(this)
+			}
+
+		val runtimePref = findPreference<SwitchPreferenceCompat>(KEY_LEGADO_STANDALONE_RUNTIME)
+			?: SwitchPreferenceCompat(requireContext()).apply {
+				key = KEY_LEGADO_STANDALONE_RUNTIME
+				title = "使用 runtime 目录解析"
+				summary = "切换 Legado 目录/详情链路的 standalone runtime 调试开关。"
+				order = 37
+				isIconSpaceReserved = false
+				isPersistent = false
+				category.addPreference(this)
+			}
+		runtimePref.isChecked = sourcePrefs.getBoolean(KEY_LEGADO_STANDALONE_RUNTIME, false)
+		runtimePref.setOnPreferenceChangeListener { _, newValue ->
+			sourcePrefs.edit().putBoolean(KEY_LEGADO_STANDALONE_RUNTIME, newValue as? Boolean == true).apply()
+			repo.invalidateCache()
+			true
+		}
+	}
+
 	private data class LegadoLoginUiItem(
 		val name: String,
 		val type: String,
@@ -1014,10 +1047,12 @@ class SourceSettingsFragment :
 		private const val KEY_LEGADO_SOURCE_VARIABLE = "legado_source_variable"
 		private const val KEY_LEGADO_BOOK_DEFAULT_CUSTOM = "legado_book_default_custom"
 		private const val KEY_LEGADO_AUTH_CATEGORY = "legado_auth"
+		private const val KEY_LEGADO_RUNTIME_CATEGORY = "legado_runtime"
 		private const val KEY_LEGADO_LOGIN_FIELD_PREFIX = "legado_login_field_"
 		private const val KEY_LEGADO_LOGIN_BUTTON_PREFIX = "legado_login_btn_"
 		private const val KEY_LEGADO_LOGIN_CHECK = "legado_login_check"
 		private const val KEY_LEGADO_LOGIN_CLEAR = "legado_login_clear"
+		private const val KEY_LEGADO_STANDALONE_RUNTIME = "debug_standalone_legado_list_runtime"
 
 		private const val LEGADO_SOURCE_PREFS = "legado_source_store"
 		private const val LEGADO_BOOK_PREFS = "legado_book_store"

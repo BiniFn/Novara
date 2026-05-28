@@ -34,11 +34,9 @@ class SourceAuthActivity : BaseBrowserActivity(), BrowserCallback {
 	private var lastUsernameVerifyUptimeMs: Long = 0L
 
 	override fun onCreate2(savedInstanceState: Bundle?, source: ContentSource, repository: ParserContentRepository?) {
-		if (repository == null) {
-			finishAfterTransition()
-			return
-		}
-		authProvider = repository.getAuthProvider() ?: run {
+		val authCandidate = repository?.getAuthProvider()
+			?: (mangaRepositoryFactory.create(source) as? ContentParserAuthProvider)
+		if (authCandidate == null) {
 			Toast.makeText(
 				this,
 				getString(R.string.auth_not_supported_by, source.getTitle(this)),
@@ -47,6 +45,7 @@ class SourceAuthActivity : BaseBrowserActivity(), BrowserCallback {
 			finishAfterTransition()
 			return
 		}
+		authProvider = authCandidate
 		setDisplayHomeAsUp(isEnabled = true, showUpAsClose = true)
 		viewBinding.webView.webViewClient = BrowserClient(this, adBlock)
 		lifecycleScope.launch {

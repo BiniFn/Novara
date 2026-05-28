@@ -1,6 +1,8 @@
 package org.skepsun.kototoro.reader.novel
 
+import android.content.Context
 import android.util.Base64
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withContext
@@ -8,6 +10,8 @@ import okio.buffer
 import okio.source
 import org.skepsun.kototoro.core.db.MangaDatabase
 import org.skepsun.kototoro.core.parser.ContentRepository
+import org.skepsun.kototoro.core.replace.ReplaceRule
+import org.skepsun.kototoro.core.replace.ReplaceRuleRepository
 import org.skepsun.kototoro.local.data.LocalStorageCache
 import org.skepsun.kototoro.local.data.NovelCache
 import org.skepsun.kototoro.core.util.ext.toMimeType
@@ -35,7 +39,12 @@ class NovelContentLoader @Inject constructor(
     private val epubStorageManager: org.skepsun.kototoro.local.epub.EpubStorageManager,
     private val mangaDatabase: MangaDatabase,
     private val epubContentCache: org.skepsun.kototoro.local.epub.EpubContentCache,
+    @ApplicationContext private val appContext: Context,
 ) {
+
+    private val replaceRuleRepo: ReplaceRuleRepository by lazy {
+        ReplaceRuleRepository(appContext)
+    }
 
     /**
      * 加载章节内容（带缓存）
@@ -135,6 +144,14 @@ class NovelContentLoader @Inject constructor(
                     saveToCache(cacheKey, plainText)
                 }
             } else {
+                repository.getChapterContent(chapter, nextChapterUrl)?.let { chapterContent ->
+                    val plainText = htmlToPlainText(chapterContent.html)
+                    send(plainText)
+                    if (plainText.isNotBlank() && !isErrorContent(plainText)) {
+                        saveToCache(cacheKey, plainText)
+                    }
+                    return@withContext
+                }
                 var fullHtml = ""
                 repository.getPagesFlow(chapter, nextChapterUrl).collect { currentPages ->
                     val html = concatPagesHtml(currentPages)
@@ -240,6 +257,15 @@ class NovelContentLoader @Inject constructor(
             android.util.Log.d("NovelContentLoader", ">>> loadChapterContentInternal: Using prefetched pages (${prefetchedPages.size})")
             prefetchedPages
         } else {
+            repository.getChapterContent(chapter)?.let { chapterContent ->
+                val plainText = htmlToPlainText(chapterContent.html)
+                android.util.Log.d("NovelContentLoader", ">>> loadChapterContentInternal: Loaded via getChapterContent. Length=${plainText.length}")
+                if (plainText.isNotBlank() && !isErrorContent(plainText)) {
+                    saveToCache(cacheKey, plainText)
+                    android.util.Log.d("NovelContentLoader", ">>> loadChapterContentInternal: Saved to cache: $cacheKey")
+                }
+                return plainText
+            }
             android.util.Log.d("NovelContentLoader", ">>> loadChapterContentInternal: Fetching pages from repository...")
             repository.getPages(chapter)
         }
@@ -602,10 +628,10 @@ class NovelContentLoader @Inject constructor(
                 ?: throw IllegalStateException("Chapter index ${mapping.chapterIndex} not found in EPUB")
             
             val content = epubChapter.content
-            
+
             android.util.Log.d("NovelContentLoader", "Loaded EPUB chapter, content length: ${content.length}")
-            
-            content
+
+            applyReplaceRules(content)
         } catch (e: Exception) {
             android.util.Log.e("NovelContentLoader", "Failed to load EPUB chapter", e)
             throw e
@@ -717,8 +743,18 @@ class NovelContentLoader @Inject constructor(
             }
             .lines()
             .map { it.trimEnd() }
-            // 修正：不再过滤空行，因为图片占位需要依靠空行
             .joinToString("\n")
+            .let { applyReplaceRules(it) }
+    }
+
+    private fun applyReplaceRules(text: String): String {
+        val rules = kotlinx.coroutines.runBlocking { replaceRuleRepo.getContentRules() }
+        if (rules.isEmpty()) return text
+        var result = text
+        for (rule in rules) {
+            result = rule.apply(result)
+        }
+        return result
     }
 
     /**

@@ -60,6 +60,7 @@ export default defineConfig({
           { text: "Compose Migration Log", link: "/compose_migration/progress-log" },
           { text: "Mihon Integration", link: "/reference/mihon-integration" },
           { text: "TVBox Runtime Compatibility", link: "/reference/tvbox-runtime" },
+          { text: "Legado Adaptation Gap Analysis", link: "/reference/legado-adaptation-gap-analysis" },
           { text: "External Extension Integration Guide", link: "/architecture/external-extension-integration-guide" },
         ],
       },

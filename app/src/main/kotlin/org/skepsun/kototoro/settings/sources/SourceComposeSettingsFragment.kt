@@ -278,6 +278,14 @@ class SourceComposeSettingsFragment : Fragment() {
             )
         }
 
+        buildLegadoRuntimeRows(repository).takeIf { it.isNotEmpty() }?.let { rows ->
+            sections += SourceSettingsSectionUiState(
+                id = "legado_runtime",
+                title = "运行时（Legado）",
+                rows = rows,
+            )
+        }
+
         buildAuthRows(
             repository = repository,
             browserUrl = browserUrl,
@@ -1055,6 +1063,24 @@ class SourceComposeSettingsFragment : Fragment() {
         return rows
     }
 
+    private fun buildLegadoRuntimeRows(
+        repository: org.skepsun.kototoro.core.parser.ContentRepository,
+    ): List<SourceSettingsRowUiState> {
+        if (repository !is LegadoRepository) return emptyList()
+        return listOf(
+            SourceSettingsSwitchRowUiState(
+                id = KEY_LEGADO_STANDALONE_RUNTIME,
+                title = "使用 runtime 目录解析",
+                summary = "切换 Legado 目录/详情链路的 standalone runtime 调试开关。",
+                checked = legadoSourcePrefs.getBoolean(KEY_LEGADO_STANDALONE_RUNTIME, false),
+                onCheckedChange = { checked ->
+                    legadoSourcePrefs.edit { putBoolean(KEY_LEGADO_STANDALONE_RUNTIME, checked) }
+                    repository.invalidateCache()
+                },
+            ),
+        )
+    }
+
     private fun buildBrowserOnlyRows(browserUrl: String?): List<SourceSettingsRowUiState> {
         if (browserUrl == null) {
             return emptyList()
@@ -1287,6 +1313,7 @@ class SourceComposeSettingsFragment : Fragment() {
         private const val KEY_LEGADO_LOGIN_BUTTON_PREFIX = "legado_login_btn_"
         private const val KEY_LEGADO_LOGIN_CHECK = "legado_login_check"
         private const val KEY_LEGADO_LOGIN_CLEAR = "legado_login_clear"
+        private const val KEY_LEGADO_STANDALONE_RUNTIME = "debug_standalone_legado_list_runtime"
         private const val LEGADO_SOURCE_PREFS = "legado_source_store"
         private const val LEGADO_BOOK_PREFS = "legado_book_store"
         private val SIGNED_INT_PATTERN = Pattern.compile("^-?\\d+$")

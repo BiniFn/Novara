@@ -61,6 +61,7 @@ xsoup = "0.3.7"
 jsonpath = "2.8.0"
 commonsCompress = "1.28.0"
 rhino = "1.7.15"
+libarchive = "1.1.6"
 libmpv = "0.5.1"
 danmakuRenderEngine = "0.1.0"
 quickjsAndroid = "0.1.0"
@@ -177,6 +178,7 @@ xsoup = { module = "us.codecraft:xsoup", version.ref = "xsoup" }
 jsonpath = { module = "com.jayway.jsonpath:json-path", version.ref = "jsonpath" }
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
 rhino = { module = "org.mozilla:rhino", version.ref = "rhino" }
+libarchive = { module = "me.zhanghai.android.libarchive:library", version.ref = "libarchive" }
 quickjsAndroid = { module = "com.github.seven332:quickjs-android", version.ref = "quickjsAndroid" }
 quickjsKt = { module = "io.github.dokar3:quickjs-kt", version.ref = "quickjsKt" }
 epublib = { module = "com.github.ag2s20150909:EpubLib", version.ref = "epublib" }

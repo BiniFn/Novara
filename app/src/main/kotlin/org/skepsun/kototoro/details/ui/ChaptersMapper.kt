@@ -52,8 +52,16 @@ fun ContentDetails.mapChapters(
 	}
 	val remoteChapters = chapters[resolvedBranch].orEmpty()
 	val localChapters = local?.manga?.getChapters(resolvedBranch).orEmpty()
+	android.util.Log.d(
+		"ChaptersMapper",
+		"mapChapters: requestedBranch=$branch, resolvedBranch=$resolvedBranch, remoteCount=${remoteChapters.size}, localCount=${localChapters.size}, allBranches=${chapters.mapValues { it.value.size }}",
+	)
 	
 	if (remoteChapters.isEmpty() && localChapters.isEmpty()) {
+		android.util.Log.w(
+			"ChaptersMapper",
+			"mapChapters: returning empty for mangaId=$id, requestedBranch=$branch, resolvedBranch=$resolvedBranch",
+		)
 		return emptyList()
 	}
 	val bookmarked = bookmarks.mapToSet { it.chapterId }
@@ -117,6 +125,10 @@ fun ContentDetails.mapChapters(
 			)
 		}
 	}
+	android.util.Log.d(
+		"ChaptersMapper",
+		"mapChapters: resultCount=${result.size}, downloadedOnly=$isDownloadedOnly, first=${result.take(3).map { "${it.chapter.id}|${it.chapter.branch}|${it.chapter.title}" }}",
+	)
 	
 	return result
 }

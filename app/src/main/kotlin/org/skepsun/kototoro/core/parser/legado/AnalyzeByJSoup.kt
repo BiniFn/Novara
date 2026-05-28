@@ -2,10 +2,10 @@ package org.skepsun.kototoro.core.parser.legado
 
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
+import org.jsoup.parser.Parser
 import org.jsoup.select.Collector
 import org.jsoup.select.Elements
 import org.jsoup.select.Evaluator
-import org.skepsun.kototoro.core.util.splitNotBlank
 
 /**
  * JSoup 解析（对齐 legado-with-MD3 的核心选择能力，精简日志与依赖）
@@ -15,7 +15,20 @@ class AnalyzeByJSoup(private val element: Element) {
     constructor(content: Any) : this(
         when (content) {
             is Element -> content
-            is String -> Jsoup.parse(content)
+            is LegadoXPathNode -> {
+                if (content.isElement) {
+                    content.asElement()
+                } else {
+                    Jsoup.parse(content.toString())
+                }
+            }
+            is String -> {
+                if (content.startsWith("<?xml", true)) {
+                    Jsoup.parse(content, Parser.xmlParser())
+                } else {
+                    Jsoup.parse(content)
+                }
+            }
             else -> Jsoup.parse(content.toString())
         }
     )
@@ -25,6 +38,10 @@ class AnalyzeByJSoup(private val element: Element) {
     internal fun getString(rule: String): List<String> {
         val textS = arrayListOf<String>()
         val sourceRule = SourceRule(rule)
+        if (sourceRule.elementsRule.isEmpty()) {
+            textS.add(element.data().orEmpty())
+            return textS
+        }
         val ruleAnalyzes = RuleAnalyzer(sourceRule.elementsRule)
         val ruleStrS = ruleAnalyzes.splitRule("&&", "||", "%%")
         if (ruleStrS.isEmpty()) return textS
@@ -174,29 +191,20 @@ class AnalyzeByJSoup(private val element: Element) {
 
         elements.add(element)
 
-        // 预处理规则：将 "a.href" 或 "img.src" 等格式转换为 "a@href" 或 "img@src"
-        val processedRuleStr = preprocessRule(ruleStr)
-
-        val rule = RuleAnalyzer(processedRuleStr) //创建解析
+        val rule = RuleAnalyzer(ruleStr) //创建解析
 
         rule.trim() //修建前置赘余符号
 
         val rules = rule.splitRule("@") // 切割成列表
-        
-        android.util.Log.d("AnalyzeByJSoup", "[getResultList] ruleStr=$ruleStr, processedRuleStr=$processedRuleStr, rules=${rules.joinToString(", ")}")
 
         val last = rules.size - 1
         for (i in 0 until last) {
             val es = Elements()
             for (elt in elements) {
-                val found = ElementsSingle().getElementsSingle(elt, rules[i])
-                android.util.Log.v("AnalyzeByJSoup", "[getResultList] elt[${elt.tagName()}] sub-rule='${rules[i]}' found=${found.size}")
-                es.addAll(found)
+                es.addAll(ElementsSingle().getElementsSingle(elt, rules[i]))
             }
-            android.util.Log.d("AnalyzeByJSoup", "[getResultList] After rule[${i}]='${rules[i]}', found ${es.size} elements")
             elements = es
         }
-        android.util.Log.d("AnalyzeByJSoup", "[getResultList] Final elements count=${elements.size}, lastRule=${rules[last]}")
         return if (elements.isEmpty()) null else getResultLast(elements, rules[last])
     }
 
@@ -244,15 +252,6 @@ class AnalyzeByJSoup(private val element: Element) {
                 }
             }
 
-            "outerHtml" -> {
-                for (element in elements) {
-                    val html = element.outerHtml()
-                    if (html.isNotEmpty()) {
-                        textS.add(html)
-                    }
-                }
-            }
-            
             "all" -> {
                 val html = elements.outerHtml()
                 if (html.isNotEmpty()) {
@@ -262,6 +261,7 @@ class AnalyzeByJSoup(private val element: Element) {
 
             else -> if (lastRule.isNotEmpty()) for (element in elements) {
                 val text = element.attr(lastRule)
+                if (text.isBlank() || textS.contains(text)) continue
                 if (text.isNotEmpty()) {
                     textS.add(text)
                 }
@@ -288,7 +288,7 @@ class AnalyzeByJSoup(private val element: Element) {
      */
     internal inner class ElementsSingle {
         private var beforeRule: String = ""
-        private var split: Char = ' '
+        private var split: Char = '.'
         private val indexes = mutableListOf<Any>()
         private val indexDefault = mutableListOf<Int>()
 
@@ -298,39 +298,13 @@ class AnalyzeByJSoup(private val element: Element) {
             var elements = if (beforeRule.isEmpty()) {
                 temp.children()
             } else {
-                val splitIndex = beforeRule.indexOfFirst { it == '.' || it == ':' || it == ' ' }
-                val (cmd, arg) = if (splitIndex != -1) {
-                    beforeRule.substring(0, splitIndex) to beforeRule.substring(splitIndex + 1).trim()
-                } else {
-                    beforeRule to ""
-                }
-
-                when (cmd) {
+                val rules = beforeRule.split(".")
+                when (rules[0]) {
                     "children" -> temp.children()
-                    "class" -> {
-                        if (arg.isEmpty()) temp.children()
-                        else {
-                            val classNames = arg.splitNotBlank(" ")
-                            if (classNames.size > 1) {
-                                temp.select(classNames.joinToString(separator = ".", prefix = "."))
-                            } else {
-                                temp.getElementsByClass(arg)
-                            }
-                        }
-                    }
-                    "id" -> {
-                        if (arg.isEmpty()) temp.children()
-                        else {
-                            val idNames = arg.splitNotBlank(" ")
-                            if (idNames.size > 1) {
-                                temp.select(idNames.joinToString(separator = ", #", prefix = "#"))
-                            } else {
-                                Collector.collect(Evaluator.Id(arg), temp)
-                            }
-                        }
-                    }
-                    "tag" -> if (arg.isEmpty()) temp.children() else temp.getElementsByTag(arg)
-                    "text" -> if (arg.isEmpty()) temp.children() else temp.getElementsContainingOwnText(arg)
+                    "class" -> temp.getElementsByClass(rules[1])
+                    "tag" -> temp.getElementsByTag(rules[1])
+                    "id" -> Collector.collect(Evaluator.Id(rules[1]), temp)
+                    "text" -> temp.getElementsContainingOwnText(rules[1])
                     else -> temp.select(beforeRule)
                 }
             }
@@ -404,37 +378,91 @@ class AnalyzeByJSoup(private val element: Element) {
 
             indexes.clear()
             indexDefault.clear()
-            
-            if (rus.endsWith("]")) {
-                val openBracket = rus.lastIndexOf('[')
-                if (openBracket != -1) {
-                    val indexStr = rus.substring(openBracket + 1, rus.length - 1)
-                    val before = rus.substring(0, openBracket).trim()
-                    if (before.endsWith('!')) {
-                        beforeRule = before.dropLast(1).trim()
-                        split = '!'
-                    } else {
-                        beforeRule = before
-                        split = '.'
-                    }
-                    parseIndexString(indexStr, indexes)
-                    return
-                }
-            }
+            split = '.'
 
-            val lastDot = rus.lastIndexOf('.')
-            val lastExcl = rus.lastIndexOf('!')
-            val splitIdx = maxOf(lastDot, lastExcl)
-            
-            if (splitIdx != -1) {
-                val possibleIndex = rus.substring(splitIdx + 1).trim()
-                if (possibleIndex.isNotEmpty() && (possibleIndex[0].isDigit() || (possibleIndex[0] == '-' && possibleIndex.length > 1 && possibleIndex[1].isDigit()))) {
-                    val idx = possibleIndex.toIntOrNull()
-                    if (idx != null) {
-                        indexDefault.add(idx)
-                        split = rus[splitIdx]
-                        beforeRule = rus.substring(0, splitIdx).trim()
-                        return
+            var len = rus.length
+            var currentInt: Int?
+            var currentMinus = false
+            val currentRange = mutableListOf<Int?>()
+            var numberText = ""
+            val bracketStyle = rus.last() == ']'
+
+            if (bracketStyle) {
+                len--
+                while (len-- >= 0) {
+                    var ch = rus[len]
+                    if (ch == ' ') continue
+
+                    if (ch in '0'..'9') {
+                        numberText = ch + numberText
+                    } else if (ch == '-') {
+                        currentMinus = true
+                    } else {
+                        currentInt =
+                            if (numberText.isEmpty()) null
+                            else if (currentMinus) -numberText.toInt() else numberText.toInt()
+
+                        when (ch) {
+                            ':' -> currentRange.add(currentInt)
+                            else -> {
+                                if (currentRange.isEmpty()) {
+                                    if (currentInt == null) break
+                                    indexes.add(currentInt)
+                                } else {
+                                    indexes.add(
+                                        Triple(
+                                            currentInt,
+                                            currentRange.last(),
+                                            if (currentRange.size == 2) currentRange.first() ?: 1 else 1,
+                                        ),
+                                    )
+                                    currentRange.clear()
+                                }
+
+                                if (ch == '!') {
+                                    split = '!'
+                                    do {
+                                        ch = rus[--len]
+                                    } while (len > 0 && ch == ' ')
+                                }
+
+                                if (ch == '[') {
+                                    beforeRule = rus.substring(0, len)
+                                    return
+                                }
+
+                                if (ch != ',') break
+                            }
+                        }
+
+                        numberText = ""
+                        currentMinus = false
+                    }
+                }
+            } else {
+                while (len-- >= 0) {
+                    val ch = rus[len]
+                    if (ch == ' ') continue
+
+                    if (ch in '0'..'9') {
+                        numberText = ch + numberText
+                    } else if (ch == '-') {
+                        currentMinus = true
+                    } else {
+                        if (ch == '!' || ch == '.' || ch == ':') {
+                            if (numberText.isEmpty()) break
+                            indexDefault.add(if (currentMinus) -numberText.toInt() else numberText.toInt())
+                            if (ch != ':') {
+                                split = ch
+                                beforeRule = rus.substring(0, len)
+                                return
+                            }
+                        } else {
+                            break
+                        }
+
+                        numberText = ""
+                        currentMinus = false
                     }
                 }
             }
@@ -442,59 +470,5 @@ class AnalyzeByJSoup(private val element: Element) {
             split = ' '
             beforeRule = rus
         }
-
-        private fun parseIndexString(s: String, target: MutableList<Any>) {
-            s.split(',').forEach { part ->
-                val trimmed = part.trim()
-                if (trimmed.isEmpty()) return@forEach
-                if (trimmed.contains(':')) {
-                    val range = trimmed.split(':')
-                    val start = range.getOrNull(0)?.toIntOrNull()
-                    val end = range.getOrNull(1)?.toIntOrNull()
-                    val step = range.getOrNull(2)?.toIntOrNull() ?: 1
-                    target.add(Triple(start, end, step))
-                } else {
-                    trimmed.toIntOrNull()?.let { target.add(it) }
-                }
-            }
-        }
     }
-
-    companion object {
-        // 常见的 HTML 属性，用于判断 "a.href" 是否应该转换为 "a@href"
-        private val COMMON_ATTRS = setOf(
-            "href", "src", "data-src", "data-original", "data-lazy-src",
-            "alt", "title", "class", "id", "name", "value", "type",
-            "content", "rel", "target", "action", "method", "placeholder",
-            "style", "width", "height", "data-setbg", "data-bg", "poster"
-        )
-        
-        /**
-         * 预处理规则：将 "a.href" 格式转换为 "a@href"
-         * 仅当 "." 后面是已知的 HTML 属性时才转换
-         */
-        private fun preprocessRule(ruleStr: String): String {
-            // 如果已经包含 @，不需要转换
-            if (ruleStr.contains("@")) return ruleStr
-            
-            // 检查是否是 "tag.attr" 格式（不含空格，且 . 后面是常见属性）
-            val dotIndex = ruleStr.lastIndexOf('.')
-            if (dotIndex > 0 && dotIndex < ruleStr.length - 1) {
-                val beforeDot = ruleStr.substring(0, dotIndex)
-                val afterDot = ruleStr.substring(dotIndex + 1)
-                
-                // 确保 beforeDot 是简单标签名（不含特殊字符）
-                // 且 afterDot 是已知的 HTML 属性
-                if (beforeDot.isNotBlank() && 
-                    !beforeDot.contains(" ") && 
-                    !beforeDot.contains("[") &&
-                    COMMON_ATTRS.contains(afterDot.lowercase())) {
-                    return "$beforeDot@$afterDot"
-                }
-            }
-            
-            return ruleStr
-        }
-    }
-
 }
