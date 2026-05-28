@@ -300,6 +300,17 @@ fun AppSearchContentListRoute(
     val maxCollapsePx = topActionsHeightPx
     val isWideSplitLayout = isWideAdaptiveLayout && showFilterPanel
     val showSelectionTopBar = selectedItemsIds.isNotEmpty()
+
+    fun restoreFilterPane() {
+        previewContent = null
+        sidePaneMode = SearchSidePaneMode.Filter
+        showFilterPanel = true
+    }
+
+    BackHandler(enabled = isWideSplitLayout && sidePaneMode == SearchSidePaneMode.Preview) {
+        restoreFilterPane()
+    }
+
     val nestedScrollConnection = remember(maxCollapsePx) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -393,8 +404,7 @@ fun AppSearchContentListRoute(
                     if (isWideAdaptiveLayout) {
                         when {
                             sidePaneMode == SearchSidePaneMode.Preview -> {
-                                sidePaneMode = SearchSidePaneMode.Filter
-                                showFilterPanel = true
+                                restoreFilterPane()
                             }
                             else -> showFilterPanel = !showFilterPanel
                         }
@@ -513,7 +523,7 @@ fun AppSearchContentListRoute(
                     if (sidePaneMode == SearchSidePaneMode.Preview && previewContent != null) {
                         SearchPreviewPane(
                             content = requireNotNull(previewContent),
-                            onBackToFilters = { sidePaneMode = SearchSidePaneMode.Filter },
+                            onBackToFilters = ::restoreFilterPane,
                             onOpenDetails = {
                                 val content = requireNotNull(previewContent)
                                 val sharedElementKey =
