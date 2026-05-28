@@ -120,18 +120,7 @@ jobs:
             target="release/Kototoro-${{ steps.version.outputs.version_name }}-${abi}-release.apk"
           fi
           cp "$apk" "$target"
-          line="- \`$(basename "$target")\` - ${abi} 架构"
-          
-          if [ -z "$DOWNLOAD_NOTES" ]; then
-            DOWNLOAD_NOTES="$line"
-          else
-            DOWNLOAD_NOTES="${DOWNLOAD_NOTES}"$'\n'"$line"
-          fi
         done
-
-        echo "download_notes<<EOF" >> "$GITHUB_OUTPUT"
-        echo "$DOWNLOAD_NOTES" >> "$GITHUB_OUTPUT"
-        echo "EOF" >> "$GITHUB_OUTPUT"
     
     - name: Create Release
       uses: softprops/action-gh-release@v1
@@ -139,23 +128,7 @@ jobs:
         tag_name: ${{ env.TAG_NAME }}
         files: |
           release/*.apk
-        body: |
-          ## Kototoro ${{ steps.version.outputs.version_name }}
-          
-          ### 下载说明
-          ${{ steps.assets.outputs.download_notes }}
-          
-          ### 版本信息
-          - Version Name: ${{ steps.version.outputs.version_name }}
-          - Version Code: ${{ steps.version.outputs.version_code }}
-          
-          ### 安装说明
-          1. 下载APK文件
-          2. 在Android设备上安装
-          3. 如果是首次安装，需要允许安装未知来源应用
-          
-          ### Changelog
-          ${{ steps.changelog.outputs.changelog }}
+        body: ${{ steps.changelog.outputs.changelog }}
         draft: false
         prerelease: false
       env:
