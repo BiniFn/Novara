@@ -2,6 +2,7 @@ package org.skepsun.kototoro.browser
 
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
@@ -91,8 +92,15 @@ abstract class BaseBrowserActivity : BaseActivity<ActivityBrowserBinding>(), Bro
 	override fun onDestroy() {
 		super.onDestroy()
 		if (hasViewBinding()) {
-			viewBinding.webView.stopLoading()
-			viewBinding.webView.destroy()
+			with(viewBinding.webView) {
+				stopLoading()
+				loadUrl("about:blank")
+				onPause()
+				clearHistory()
+				removeAllViews()
+				(parent as? ViewGroup)?.removeView(this)
+				destroy()
+			}
 		}
 	}
 

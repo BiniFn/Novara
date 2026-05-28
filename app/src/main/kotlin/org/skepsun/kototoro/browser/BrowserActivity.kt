@@ -107,7 +107,7 @@ class BrowserActivity : BaseBrowserActivity() {
                 sawChallengePage = true
                 return@launch
             }
-            if (sawChallengePage || isSuccessCookieSatisfied()) {
+            if (shouldAutoCompleteVerification()) {
                 autoSavingVerificationResult = true
                 pendingResult = RESULT_OK
                 completeBrowserWait()
@@ -225,6 +225,7 @@ class BrowserActivity : BaseBrowserActivity() {
 
     private fun maybeCompleteAfterVerification() {
         if (browserWaitToken == null || browserWaitCompleted) return
+        if (!hasSuccessCookieTarget()) return
         val currentValue = getSuccessCookieValue()
         if (isSuccessCookieSatisfied(currentValue)) {
             logCookieState("auto_complete", currentValue)
@@ -236,6 +237,17 @@ class BrowserActivity : BaseBrowserActivity() {
                 superFinishAfterVerification()
             }
         }
+    }
+
+    private fun shouldAutoCompleteVerification(): Boolean {
+        if (browserWaitToken == null || !hasSuccessCookieTarget()) {
+            return false
+        }
+        return sawChallengePage || isSuccessCookieSatisfied()
+    }
+
+    private fun hasSuccessCookieTarget(): Boolean {
+        return !successCookieUrl.isNullOrBlank() && !successCookieName.isNullOrBlank()
     }
 
     private fun syncCookiesToPersistentJar() {
