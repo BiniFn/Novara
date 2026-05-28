@@ -310,7 +310,7 @@ internal class LegadoRequestPlanBuilder(
         } else if (charset == null) {
             append(escape(value))
         } else {
-            append(URLEncoder.encode(value, charset).replace("+", "%20"))
+            append(URLEncoder.encode(value, charset.name()).replace("+", "%20"))
         }
     }
 
