@@ -12,6 +12,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.skepsun.kototoro.core.exceptions.EmptyHistoryException
 import org.skepsun.kototoro.core.github.AppUpdateRepository
+import org.skepsun.kototoro.core.model.LocalVideoSource
+import org.skepsun.kototoro.core.model.getContentType
+import org.skepsun.kototoro.core.model.looksLikeLocalVideoContent
+import org.skepsun.kototoro.core.model.looksLikeVideoUrl
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsFlow
 import org.skepsun.kototoro.core.prefs.observeAsStateFlow
@@ -125,7 +129,24 @@ class MainViewModel @Inject constructor(
 
 	fun openLastReader() {
 		launchLoadingJob(Dispatchers.Default) {
-			val manga = historyRepository.getLastOrNull() ?: throw EmptyHistoryException()
+			val manga = historyRepository.getLastOrNull()?.let { content ->
+				if (content.looksLikeLocalVideoContent() && content.source.getContentType() != org.skepsun.kototoro.parsers.model.ContentType.VIDEO) {
+					content.copy(
+						source = LocalVideoSource,
+						chapters = content.chapters?.map { chapter ->
+							if (chapter.source.getContentType() == org.skepsun.kototoro.parsers.model.ContentType.MANGA &&
+								chapter.url.looksLikeVideoUrl()
+							) {
+								chapter.copy(source = LocalVideoSource)
+							} else {
+								chapter
+							}
+						},
+					)
+				} else {
+					content
+				}
+			} ?: throw EmptyHistoryException()
 			onOpenReader.call(manga)
 		}
 	}

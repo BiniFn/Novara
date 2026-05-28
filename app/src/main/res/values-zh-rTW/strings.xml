@@ -1000,6 +1000,8 @@
     <string name="details_reading_language">閱讀語言</string>
     <string name="details_reading_language_short">閱讀</string>
     <string name="details_reading_source">閱讀源</string>
+    <string name="details_source_search_no_results_group">無結果</string>
+    <string name="details_source_search_no_visible_results">沒有可顯示的結果。關閉「隱藏空來源」後可查看無結果或不可用的來源。</string>
     <string name="details_reading_source_unavailable">不可用</string>
     <string name="details_reading_status">閱讀狀態</string>
     <string name="details_recommendations">推薦</string>

@@ -50,6 +50,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.CloudFlareException
 import org.skepsun.kototoro.core.exceptions.resolve.CaptchaHandler
 import org.skepsun.kototoro.core.model.distinctById
+import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.nav.AppRouter
@@ -77,6 +78,7 @@ import org.skepsun.kototoro.parsers.model.ContentListFilter
 import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.SortOrder
+import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.util.almostEquals
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.parsers.util.sizeOrZero
@@ -214,7 +216,9 @@ class SuggestionsWorker @AssistedInject constructor(
 					relevance = computeRelevance(manga.tags, tags),
 				)
 			}.toList()
-			.sortedBy { it.relevance }
+			.sortedByDescending { it.relevance }
+			.distinctBy { it.manga.id }
+			.limitPerSource(MAX_RESULTS_PER_SOURCE)
 			.take(MAX_RESULTS)
 		suggestionRepository.replace(suggestions)
 		if (appSettings.isSuggestionsNotificationAvailable
@@ -275,11 +279,26 @@ class SuggestionsWorker @AssistedInject constructor(
 		val tag = tags.firstNotNullOfOrNull { title ->
 			availableTags.find { x -> x !in blacklist && x.title.almostEquals(title, TAG_EQ_THRESHOLD) }
 		}
+		val primaryFilter = ContentListFilter(tags = setOfNotNull(tag))
+		val fallbackFilter = when (source.getContentType()) {
+			ContentType.VIDEO, ContentType.HENTAI_VIDEO -> ContentListFilter.EMPTY
+			else -> ContentListFilter.EMPTY
+		}
 		val list = repository.getList(
 			offset = 0,
 			order = order,
-			filter = ContentListFilter(tags = setOfNotNull(tag)),
-		).asArrayList()
+			filter = primaryFilter,
+		).asArrayList().let { primaryResults ->
+			if (primaryResults.isNotEmpty() || primaryFilter == fallbackFilter) {
+				primaryResults
+			} else {
+				repository.getList(
+					offset = 0,
+					order = order,
+					filter = fallbackFilter,
+				).asArrayList()
+			}
+		}
 		if (appSettings.isSuggestionsExcludeNsfw) {
 			list.removeAll { it.isNsfw() }
 		}
@@ -472,6 +491,7 @@ class SuggestionsWorker @AssistedInject constructor(
 		const val MAX_PARALLELISM = 3
 		const val MAX_SOURCE_RESULTS = 20
 		const val MAX_RAW_RESULTS = 280
+		const val MAX_RESULTS_PER_SOURCE = 12
 		const val TAG_EQ_THRESHOLD = 0.4f
 		const val RATING_MIN = 0.5f
 		const val SETTINGS_ACTION_CODE = 4
@@ -486,4 +506,19 @@ class SuggestionsWorker @AssistedInject constructor(
 
 	@AssistedFactory
 	interface Factory : WorkerAssistedFactory<SuggestionsWorker>
+}
+
+private fun List<ContentSuggestion>.limitPerSource(limit: Int): List<ContentSuggestion> {
+	val perSourceCounts = HashMap<String, Int>()
+	val result = ArrayList<ContentSuggestion>(size)
+	for (item in this) {
+		val sourceName = item.manga.source.name
+		val count = perSourceCounts[sourceName] ?: 0
+		if (count >= limit) {
+			continue
+		}
+		perSourceCounts[sourceName] = count + 1
+		result += item
+	}
+	return result
 }

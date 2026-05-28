@@ -19,6 +19,9 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.plus
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.exceptions.EmptyHistoryException
+import org.skepsun.kototoro.core.model.LocalVideoSource
+import org.skepsun.kototoro.core.model.looksLikeLocalVideoContent
+import org.skepsun.kototoro.core.model.looksLikeVideoUrl
 import org.skepsun.kototoro.core.model.ContentHistory
 import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -225,7 +228,18 @@ class HistoryListViewModel @Inject constructor(
 
 	fun openLastReader() {
 		launchLoadingJob(Dispatchers.Default) {
-			val manga = repository.getLastOrNull() ?: throw EmptyHistoryException()
+			val manga = repository.getLastOrNull()?.let { content ->
+				if (content.looksLikeLocalVideoContent()) {
+					content.copy(
+						source = LocalVideoSource,
+						chapters = content.chapters?.map { chapter ->
+							if (chapter.url.looksLikeVideoUrl()) chapter.copy(source = LocalVideoSource) else chapter
+						},
+					)
+				} else {
+					content
+				}
+			} ?: throw EmptyHistoryException()
 			onOpenReader.call(manga)
 		}
 	}

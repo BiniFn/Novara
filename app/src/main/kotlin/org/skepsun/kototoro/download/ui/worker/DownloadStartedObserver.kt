@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.FlowCollector
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.util.ext.findActivity
+import org.skepsun.kototoro.core.util.ext.getThemeColor
 import org.skepsun.kototoro.main.ui.owners.BottomNavOwner
 
 class DownloadStartedObserver(
@@ -20,6 +21,9 @@ class DownloadStartedObserver(
 		val router = AppRouter.from(snackbarHost)
 		if (router != null) {
 			snackbar.setAction(R.string.details) { router.openDownloads() }
+			snackbar.setActionTextColor(
+				snackbarHost.context.getThemeColor(androidx.appcompat.R.attr.colorPrimary),
+			)
 		}
 		snackbar.show()
 	}

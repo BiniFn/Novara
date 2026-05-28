@@ -56,6 +56,7 @@ import org.skepsun.kototoro.parsers.model.ContentState
 import org.skepsun.kototoro.reader.ui.ReaderActivity
 import org.skepsun.kototoro.reader.ui.ReaderState
 import org.skepsun.kototoro.reader.ui.ReaderViewModel
+import org.skepsun.kototoro.video.domain.resolveVideoCandidates
 import org.skepsun.kototoro.video.ui.VideoPlayerActivity
 import org.skepsun.kototoro.video.ui.VideoChaptersViewModel
 
@@ -310,10 +311,13 @@ abstract class ChaptersPagesViewModel(
 
 			val chapterId = snapshot.firstOrNull() ?: return@launchJob
 			val chapter = chapters.value.find { it.chapter.id == chapterId }?.chapter ?: return@launchJob
-			val repo = mangaRepositoryFactory.create(manga.source) as? org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository ?: return@launchJob
+			val repo = mangaRepositoryFactory.create(manga.source)
 
 			val qualities = runCatchingCancellable {
-				repo.getVideoListForChapter(chapter).map { it.videoTitle }.distinct()
+				repo.resolveVideoCandidates(chapter)
+					.map { it.title.trim() }
+					.filter { it.isNotEmpty() }
+					.distinct()
 			}.getOrNull()
 
 			if (!qualities.isNullOrEmpty()) {

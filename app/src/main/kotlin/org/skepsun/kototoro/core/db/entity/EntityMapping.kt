@@ -1,6 +1,8 @@
 package org.skepsun.kototoro.core.db.entity
 
 import org.skepsun.kototoro.core.model.ContentSource
+import org.skepsun.kototoro.core.model.LocalVideoSource
+import org.skepsun.kototoro.core.model.looksLikeVideoUrl
 import org.skepsun.kototoro.parsers.model.ContentRating
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentChapter
@@ -27,23 +29,40 @@ fun Collection<TagEntity>.toContentTags() = mapToSet(TagEntity::toContentTag)
 
 fun Collection<TagEntity>.toContentTagsList() = map(TagEntity::toContentTag)
 
-fun MangaEntity.toContent(tags: Set<ContentTag>, chapters: List<ChapterEntity>?) = Content(
-	id = this.id,
-	title = this.title,
-	altTitles = this.altTitles?.split(VALUES_DIVIDER)?.toArraySet().orEmpty(),
-	state = this.state?.let { ContentState(it) },
-	rating = this.rating,
-	contentRating = ContentRating(this.contentRating)
-		?: if (isNsfw) ContentRating.ADULT else null,
-	url = this.url,
-	publicUrl = this.publicUrl,
-	coverUrl = this.coverUrl,
-	largeCoverUrl = this.largeCoverUrl,
-	authors = this.authors?.split(VALUES_DIVIDER)?.toArraySet().orEmpty(),
-	source = ContentSource(this.source),
-	tags = tags,
-	chapters = chapters?.toContentChapters(),
-)
+fun MangaEntity.toContent(tags: Set<ContentTag>, chapters: List<ChapterEntity>?): Content {
+    val persistedSource = ContentSource(this.source)
+    val persistedChapters = chapters?.toContentChapters()
+    val resolvedSource = if (persistedSource == ContentSource("LOCAL") &&
+        (url.looksLikeVideoUrl() || publicUrl.looksLikeVideoUrl() || persistedChapters?.any { it.url.looksLikeVideoUrl() } == true)
+    ) {
+        LocalVideoSource
+    } else {
+        persistedSource
+    }
+    return Content(
+        id = this.id,
+        title = this.title,
+        altTitles = this.altTitles?.split(VALUES_DIVIDER)?.toArraySet().orEmpty(),
+        state = this.state?.let { ContentState(it) },
+        rating = this.rating,
+        contentRating = ContentRating(this.contentRating)
+            ?: if (isNsfw) ContentRating.ADULT else null,
+        url = this.url,
+        publicUrl = this.publicUrl,
+        coverUrl = this.coverUrl,
+        largeCoverUrl = this.largeCoverUrl,
+        authors = this.authors?.split(VALUES_DIVIDER)?.toArraySet().orEmpty(),
+        source = resolvedSource,
+        tags = tags.mapToSet { it.copy(source = resolvedSource) },
+        chapters = persistedChapters?.map { chapter ->
+            if (resolvedSource == LocalVideoSource && chapter.source == ContentSource("LOCAL")) {
+                chapter.copy(source = resolvedSource)
+            } else {
+                chapter
+            }
+        },
+    )
+}
 
 fun MangaWithTags.toContent(chapters: List<ChapterEntity>? = null) = manga.toContent(tags.toContentTags(), chapters)
 

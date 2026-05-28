@@ -102,6 +102,7 @@ import org.skepsun.kototoro.local.data.output.LocalContentDirOutput
 import org.skepsun.kototoro.local.domain.ContentLock
 import org.skepsun.kototoro.local.domain.model.LocalContent
 import org.skepsun.kototoro.video.data.VideoDownloadIndex
+import org.skepsun.kototoro.video.domain.resolveVideoCandidates
 import org.skepsun.kototoro.parsers.exception.TooManyRequestExceptions
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentChapter
@@ -1560,37 +1561,20 @@ class DownloadWorker @AssistedInject constructor(
 		chapter: ContentChapter,
 		task: DownloadTask,
 	): VideoDownloadTarget? {
-		val aniyomiRepo = repo as? org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository
-		if (aniyomiRepo != null) {
-			val videos = aniyomiRepo.getVideoListForChapter(chapter)
-				.filter { it.videoUrl.isNotBlank() }
-			
-			var selected: eu.kanade.tachiyomi.animesource.model.Video? = null
-			
-			// 1. Try task's specific preferred quality (if interactive user choice)
-			if (task.preferredQuality != null) {
-				selected = videos.firstOrNull { it.quality.contains(task.preferredQuality, ignoreCase = true) }
-			}
-			
-			// 2. Try global settings fallback
+		val candidates = repo.resolveVideoCandidates(chapter)
+		if (candidates.isNotEmpty()) {
+			var selected = selectVideoCandidate(candidates, task.preferredQuality)
 			if (selected == null) {
 				val globalPrefs = settings.preferredVideoQuality.split(',').map { it.trim() }.filter { it.isNotEmpty() }
 				for (pref in globalPrefs) {
-					selected = videos.firstOrNull { it.quality.contains(pref, ignoreCase = true) }
+					selected = selectVideoCandidate(candidates, pref)
 					if (selected != null) break
 				}
 			}
-			
-			// 3. Fallback to extension default or first
-			selected = selected ?: videos.firstOrNull { it.preferred } ?: videos.firstOrNull() ?: return null
-			
-			val headerMap = selected.headers
-				?.toMultimap()
-				?.mapValues { it.value.firstOrNull().orEmpty() }
-				?.filterValues { it.isNotBlank() }
+			selected = selected ?: candidates.firstOrNull() ?: return null
 			return VideoDownloadTarget(
-				url = selected.videoUrl,
-				headers = headerMap,
+				url = selected.url,
+				headers = selected.headers,
 				subtitles = selected.subtitleTracks,
 				audios = selected.audioTracks,
 			)
@@ -1982,6 +1966,17 @@ class DownloadWorker @AssistedInject constructor(
 		private fun guessExt(u: String): String {
 			val ext = u.substringAfterLast('.', "").lowercase()
 			return if (ext.isNotBlank() && ext.length <= 5) ext else "mp4"
+		}
+	}
+
+	private fun selectVideoCandidate(
+		candidates: List<org.skepsun.kototoro.video.domain.VideoCandidate>,
+		preferredQuality: String?,
+	): org.skepsun.kototoro.video.domain.VideoCandidate? {
+		val preferred = preferredQuality?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+		return candidates.firstOrNull { candidate ->
+			candidate.title.contains(preferred, ignoreCase = true) ||
+				candidate.resolution?.let { "${it}p".contains(preferred, ignoreCase = true) } == true
 		}
 	}
 

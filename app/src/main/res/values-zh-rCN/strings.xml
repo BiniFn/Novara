@@ -2196,6 +2196,8 @@
     <string name="details_playback_source">播放源</string>
     <string name="details_reading_language">阅读语言</string>
     <string name="details_reading_source">阅读源</string>
+    <string name="details_source_search_no_results_group">无结果</string>
+    <string name="details_source_search_no_visible_results">没有可显示的结果。关闭“隐藏空源”后可查看无结果或不可用的来源。</string>
     <string name="details_reading_source_unavailable">不可用</string>
     <string name="details_reading_status">阅读状态</string>
     <string name="details_recommendations">推荐</string>

@@ -1573,14 +1573,46 @@ fun ReadingSourceSheet(
     val context = LocalContext.current
     var pendingMigrationTarget by remember { mutableStateOf<Content?>(null) }
     var showFilterSheet by rememberSaveable { mutableStateOf(false) }
-    val visibleSections = remember(searchSources, searchSections) {
-        if (searchSections.isNotEmpty()) {
-            searchSections
-        } else {
-            searchSources.map { source ->
+    val visibleSections = remember(searchSources, searchSections, hasSearched, isLoading) {
+        when {
+            searchSections.isNotEmpty() -> searchSections
+            hasSearched || isLoading -> emptyList()
+            else -> searchSources.map { source ->
                 org.skepsun.kototoro.details.ui.ReadingSearchSectionUiState(source = source)
             }
         }
+    }
+    val isInitialSearchState = remember(searchSections, hasSearched, isLoading) {
+        searchSections.isEmpty() && !hasSearched && !isLoading
+    }
+    val resultSections = remember(visibleSections, isInitialSearchState) {
+        if (isInitialSearchState) {
+            visibleSections
+        } else {
+            visibleSections.filter { section ->
+                section.items.isNotEmpty() || section.isLoading
+            }
+        }
+    }
+    val emptySections = remember(visibleSections, isInitialSearchState, scopeFilterUiState.hideEmpty) {
+        if (scopeFilterUiState.hideEmpty || isInitialSearchState) {
+            emptyList()
+        } else {
+            visibleSections.filter { !it.isLoading && it.errorMessage == null && it.items.isEmpty() }
+        }
+    }
+    val errorSections = remember(visibleSections, isInitialSearchState, scopeFilterUiState.hideEmpty) {
+        if (scopeFilterUiState.hideEmpty || isInitialSearchState) {
+            emptyList()
+        } else {
+            visibleSections.filter { !it.isLoading && it.errorMessage != null && it.items.isEmpty() }
+        }
+    }
+    var showEmptySources by rememberSaveable(emptySections.map { it.source.mangaSource.name }) {
+        mutableStateOf(false)
+    }
+    var showUnavailableSources by rememberSaveable(errorSections.map { it.source.mangaSource.name }) {
+        mutableStateOf(false)
     }
 	    DetailsSourceOverlayDialog(
 	        onDismissRequest = onDismissRequest,
@@ -1665,13 +1697,17 @@ fun ReadingSourceSheet(
                     .weight(1f, fill = true),
             ) {
                 when {
-                    visibleSections.isEmpty() -> {
+                    resultSections.isEmpty() && emptySections.isEmpty() && errorSections.isEmpty() -> {
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.CenterStart,
                         ) {
                             Text(
-                                text = stringResource(R.string.nothing_found),
+                                text = if (hasSearched) {
+                                    stringResource(R.string.details_source_search_no_visible_results)
+                                } else {
+                                    stringResource(R.string.nothing_found)
+                                },
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -1682,10 +1718,10 @@ fun ReadingSourceSheet(
                             modifier = Modifier.fillMaxSize(),
                             verticalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
-	                            itemsIndexed(
-	                                items = visibleSections,
-	                                key = { index, section -> "reading_section:${section.source.mangaSource.name}:$index" },
-	                            ) { _, section ->
+                            itemsIndexed(
+                                items = resultSections,
+                                key = { index, section -> "reading_section:${section.source.mangaSource.name}:$index" },
+                            ) { _, section ->
                                 ReadingSearchSection(
                                     section = section,
                                     hasSearched = hasSearched,
@@ -1696,6 +1732,90 @@ fun ReadingSourceSheet(
                                         pendingMigrationTarget = item
                                     },
                                 )
+                            }
+                            if (emptySections.isNotEmpty()) {
+                                item(key = "reading_section_empty_header") {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { showEmptySources = !showEmptySources },
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            text = stringResource(R.string.details_source_search_no_results_group),
+                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                        Icon(
+                                            imageVector = Icons.Filled.KeyboardArrowDown,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.graphicsLayer {
+                                                rotationZ = if (showEmptySources) 180f else 0f
+                                            },
+                                        )
+                                    }
+                                }
+                                if (showEmptySources) {
+                                    itemsIndexed(
+                                        items = emptySections,
+                                        key = { index, section -> "reading_section_empty:${section.source.mangaSource.name}:$index" },
+                                    ) { _, section ->
+                                        ReadingSearchSection(
+                                            section = section,
+                                            hasSearched = true,
+                                            onItemClick = { item ->
+                                                onTemporaryOpenResult(item)
+                                            },
+                                            onMigrateClick = { item ->
+                                                pendingMigrationTarget = item
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                            if (errorSections.isNotEmpty()) {
+                                item(key = "reading_section_errors_header") {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { showUnavailableSources = !showUnavailableSources },
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            text = stringResource(R.string.unavailable),
+                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                        Icon(
+                                            imageVector = Icons.Filled.KeyboardArrowDown,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.graphicsLayer {
+                                                rotationZ = if (showUnavailableSources) 180f else 0f
+                                            },
+                                        )
+                                    }
+                                }
+                                if (showUnavailableSources) {
+                                    itemsIndexed(
+                                        items = errorSections,
+                                        key = { index, section -> "reading_section_error:${section.source.mangaSource.name}:$index" },
+                                    ) { _, section ->
+                                        ReadingSearchSection(
+                                            section = section,
+                                            hasSearched = hasSearched,
+                                            onItemClick = { item ->
+                                                onTemporaryOpenResult(item)
+                                            },
+                                            onMigrateClick = { item ->
+                                                pendingMigrationTarget = item
+                                            },
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

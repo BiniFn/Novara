@@ -45,6 +45,7 @@ import org.skepsun.kototoro.core.model.appUrl
 import org.skepsun.kototoro.core.model.getTitle
 import org.skepsun.kototoro.core.model.isBroken
 import org.skepsun.kototoro.core.model.isLocal
+import org.skepsun.kototoro.core.model.looksLikeLocalVideoContent
 import org.skepsun.kototoro.core.model.parcelable.ParcelableContent
 import org.skepsun.kototoro.core.model.parcelable.ParcelableContentPage
 import org.skepsun.kototoro.core.model.parcelable.ParcelableContentListFilter
@@ -272,7 +273,11 @@ class AppRouter private constructor(
 
 	fun openReader(manga: Content, anchor: View? = null) {
 		val source = manga.source.unwrap()
-        val contentType = getContentType(source)
+        val contentType = if (manga.looksLikeLocalVideoContent()) {
+            ContentType.VIDEO
+        } else {
+            getContentType(source)
+        }
         if (contentType == ContentType.NOVEL || contentType == ContentType.HENTAI_NOVEL) {
             startActivity(
                 Intent(contextOrNull() ?: return, NovelReaderActivity::class.java)
@@ -378,7 +383,11 @@ class AppRouter private constructor(
                 val source = manga.source.unwrap()
                 val history = activityIntent.getParcelableExtraCompat<ReaderState>(ReaderIntent.EXTRA_STATE)
                 
-                val contentType = getContentType(source)
+                val contentType = if (manga.looksLikeLocalVideoContent()) {
+                    ContentType.VIDEO
+                } else {
+                    getContentType(source)
+                }
                 
                 if (contentType == ContentType.NOVEL || contentType == ContentType.HENTAI_NOVEL) {
                     val state = if (history != null) {

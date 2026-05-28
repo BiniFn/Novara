@@ -35,6 +35,7 @@ import org.skepsun.kototoro.parsers.util.runCatchingCancellable
 import org.skepsun.kototoro.parsers.util.sizeOrZero
 import org.skepsun.kototoro.parsers.util.suspendlazy.suspendLazy
 import org.skepsun.kototoro.settings.storage.DirectoryModel
+import org.skepsun.kototoro.video.domain.resolveVideoCandidates
 import javax.inject.Inject
 
 @HiltViewModel
@@ -307,11 +308,13 @@ class DownloadDialogViewModel @Inject constructor(
 	private suspend fun loadAvailableVideoQualities() {
 		val firstManga = mangaDetails.get().firstOrNull() ?: return
 		val firstChapter = firstManga.chapters?.firstOrNull() ?: return
-		val repo = mangaRepositoryFactory.create(firstManga.source) as? org.skepsun.kototoro.aniyomi.AniyomiAnimeRepository ?: return
+		val repo = mangaRepositoryFactory.create(firstManga.source)
 		
 		runCatchingCancellable {
-			val videos = repo.getVideoListForChapter(firstChapter)
-			val qualities = videos.map { it.videoTitle }.distinct()
+			val qualities = repo.resolveVideoCandidates(firstChapter)
+				.map { it.title.trim() }
+				.filter { it.isNotEmpty() }
+				.distinct()
 			if (qualities.isNotEmpty()) {
 				videoQualities.value = qualities
 			}

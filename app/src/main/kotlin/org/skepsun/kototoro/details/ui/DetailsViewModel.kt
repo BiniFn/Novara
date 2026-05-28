@@ -10,6 +10,8 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -144,6 +146,7 @@ private const val TRACKING_SUGGESTION_THRESHOLD = 0.9f
 private const val TRACKING_SUGGESTION_GAP_THRESHOLD = 0.03f
 private const val TRACKING_SUGGESTION_RESULT_LIMIT = 3
 private const val SOURCE_SEARCH_TIMEOUT_MS = 12_000L
+private const val READING_SEARCH_MAX_PARALLELISM = 4
 private val CHARACTER_VOICE_ACTOR_REGEX = Regex(
 	"""^\s*(.+?)\s*\((?:cv|cast|voice actor|voice|配音|声优)\s*[:：]?\s*(.+?)\)\s*$""",
 	RegexOption.IGNORE_CASE,
@@ -3431,28 +3434,26 @@ class DetailsViewModel @Inject constructor(
 			readingSearchLoading.value = true
 			readingSearchHasSearched.value = false
 			readingSearchState.value = LocalSearchState.Loading
-				readingSearchSections.value = sources.map { sourceInfo ->
-					ReadingSearchSectionUiState(source = sourceInfo, isLoading = true)
-				}
-				supervisorScope {
-					sources.mapIndexed { sourceIndex, sourceInfo ->
-						async {
+			readingSearchSections.value = sources.map { sourceInfo ->
+				ReadingSearchSectionUiState(source = sourceInfo, isLoading = true)
+			}
+			val semaphore = Semaphore(READING_SEARCH_MAX_PARALLELISM)
+			supervisorScope {
+				sources.mapIndexed { sourceIndex, sourceInfo ->
+					async {
+						semaphore.withPermit {
 							val section = runCatchingCancellable {
 								withTimeout(SOURCE_SEARCH_TIMEOUT_MS) {
-								val repository = mangaRepositoryFactory.create(sourceInfo.mangaSource)
-								if (!repository.filterCapabilities.isSearchSupported) {
-									return@withTimeout emptyList()
+									val repository = mangaRepositoryFactory.create(sourceInfo.mangaSource)
+									if (!repository.filterCapabilities.isSearchSupported) {
+										return@withTimeout emptyList()
+									}
+									repository.getList(
+										offset = 0,
+										order = repository.resolveReadingSearchSortOrder(),
+										filter = ContentListFilter(query = query),
+									).take(20)
 								}
-								repository.getList(
-									offset = 0,
-									order = repository.resolveReadingSearchSortOrder(),
-									filter = ContentListFilter(query = query),
-								).take(20).map { content ->
-									runCatchingCancellable {
-										repository.getDetails(content)
-									}.getOrDefault(content)
-								}
-							}
 							}.fold(
 								onSuccess = { items ->
 									ReadingSearchSectionUiState(
@@ -3461,13 +3462,13 @@ class DetailsViewModel @Inject constructor(
 										isLoading = false,
 									)
 								},
-							onFailure = { throwable ->
-								ReadingSearchSectionUiState(
-									source = sourceInfo,
-									isLoading = false,
-									errorMessage = throwable.localizedMessage ?: throwable.javaClass.simpleName,
-								)
-							},
+								onFailure = { throwable ->
+									ReadingSearchSectionUiState(
+										source = sourceInfo,
+										isLoading = false,
+										errorMessage = throwable.localizedMessage ?: throwable.javaClass.simpleName,
+									)
+								},
 							)
 							readingSearchSections.update { sections ->
 								sections.mapIndexed { index, existing ->
@@ -3479,12 +3480,13 @@ class DetailsViewModel @Inject constructor(
 								}
 							}
 						}
+					}
 				}.awaitAll()
 			}
 			readingSearchLoading.value = false
 			readingSearchHasSearched.value = true
 			val finalSections = if (scopeFilter.hideEmpty) {
-				readingSearchSections.value.filter { it.items.isNotEmpty() || !it.errorMessage.isNullOrBlank() }
+				readingSearchSections.value.filter { it.items.isNotEmpty() }
 			} else {
 				readingSearchSections.value
 			}
@@ -3637,6 +3639,8 @@ class DetailsViewModel @Inject constructor(
 				activeMangaIdFlow.value = targetContent.id
 				currentLoadIntentOverride = ContentIntent.of(targetContent.id)
 				refreshEntityBoundLocalSources(targetContent.id)
+				loadingJob.cancel()
+				loadingJob = doLoad(force = true)
 				if (selection != null) {
 					runCatchingCancellable {
 						trackingSiteMatcher.confirmMatch(selection.service, targetContent.id, selection.remoteId)
