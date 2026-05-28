@@ -2,6 +2,8 @@ package org.skepsun.kototoro.mihon.compat
 
 import eu.kanade.tachiyomi.network.NetworkHelper
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
@@ -108,21 +110,44 @@ class KotoNetworkHelper(
                         .firstOrNull { it.name == "cf_clearance" }
                         ?.value
 
-                    tryFetchWithWebView(request)?.let { browserResponse ->
-                        val browserProtection = CloudFlareHelper.checkResponseForProtection(browserResponse)
-                        if (browserProtection == CloudFlareHelper.PROTECTION_NOT_DETECTED) {
+                    when (val webViewResult = tryFetchWithWebView(request)) {
+                        is WebViewFallbackResult.BrowserResponse -> {
+                            val browserResponse = webViewResult.response
+                            val browserProtection = CloudFlareHelper.checkResponseForProtection(browserResponse)
+                            if (browserProtection == CloudFlareHelper.PROTECTION_NOT_DETECTED) {
+                                android.util.Log.i(
+                                    "MihonNetwork",
+                                    "WebView fallback succeeded for host=$host, status=${browserResponse.code}",
+                                )
+                                response.close()
+                                return@addInterceptor browserResponse
+                            }
+                            android.util.Log.w(
+                                "MihonNetwork",
+                                "WebView fallback still protected for host=$host, status=${browserResponse.code}",
+                            )
+                            browserResponse.close()
+                        }
+
+                        WebViewFallbackResult.RetryRequest -> {
                             android.util.Log.i(
                                 "MihonNetwork",
-                                "WebView fallback succeeded for host=$host, status=${browserResponse.code}",
+                                "Reusing recent WebView solve for host=$host, retrying request=${request.url}",
                             )
                             response.close()
-                            return@addInterceptor browserResponse
+                            val retriedResponse = chain.proceed(request)
+                            val retriedProtection = CloudFlareHelper.checkResponseForProtection(retriedResponse)
+                            if (retriedProtection == CloudFlareHelper.PROTECTION_NOT_DETECTED) {
+                                return@addInterceptor retriedResponse
+                            }
+                            android.util.Log.w(
+                                "MihonNetwork",
+                                "Retry after recent WebView solve still protected for host=$host, status=${retriedResponse.code}",
+                            )
+                            retriedResponse.close()
                         }
-                        android.util.Log.w(
-                            "MihonNetwork",
-                            "WebView fallback still protected for host=$host, status=${browserResponse.code}",
-                        )
-                        browserResponse.close()
+
+                        WebViewFallbackResult.NotAttempted -> Unit
                     }
 
                     if (shouldSkipInteractiveAction(host, clearance)) {
@@ -311,83 +336,99 @@ class KotoNetworkHelper(
         return if (value.length <= 8) "***" else "${value.take(4)}...${value.takeLast(4)}"
     }
 
-    private fun tryFetchWithWebView(request: Request): Response? {
+    private fun tryFetchWithWebView(request: Request): WebViewFallbackResult {
         if (request.method != "GET") {
             android.util.Log.d("MihonNetwork", "WebView fallback skipped: non-GET ${request.method}")
-            return null
+            return WebViewFallbackResult.NotAttempted
         }
         val executor = webViewExecutor
         if (executor == null) {
             android.util.Log.w("MihonNetwork", "WebView fallback skipped: WebViewExecutor is null")
-            return null
+            return WebViewFallbackResult.NotAttempted
         }
         val cookies = cookieJar.loadForRequest(request.url)
         val hasCfClearance = cookies.any { it.name == "cf_clearance" }
         if (!hasCfClearance) {
             android.util.Log.d("MihonNetwork", "WebView fallback skipped: no cf_clearance for host=${request.url.host}")
-            return null
+            return WebViewFallbackResult.NotAttempted
         }
-        android.util.Log.i("MihonNetwork", "WebView fallback start: ${request.url}")
+        val host = request.url.host.lowercase()
+        return runBlocking {
+            val mutex = webViewFallbackMutexes.computeIfAbsent(host) { Mutex() }
+            mutex.withLock {
+                if (shouldReuseRecentWebViewSolve(host)) {
+                    return@withLock WebViewFallbackResult.RetryRequest
+                }
+                android.util.Log.i("MihonNetwork", "WebView fallback start: ${request.url}")
 
-        val fetchHeaders = buildMap<String, String> {
-            request.header("Accept")?.let { put("Accept", it) }
-            request.header("Accept-Language")?.let { put("Accept-Language", it) }
-            request.header("Referer")?.let { put("Referer", it) }
-            request.header("Origin")?.let { put("Origin", it) }
-            request.header("X-Requested-With")?.let { put("X-Requested-With", it) }
-            request.header("X-XSRF-TOKEN")?.let { put("X-XSRF-TOKEN", it) }
-        }
+                val fetchHeaders = buildMap<String, String> {
+                    request.header("Accept")?.let { put("Accept", it) }
+                    request.header("Accept-Language")?.let { put("Accept-Language", it) }
+                    request.header("Referer")?.let { put("Referer", it) }
+                    request.header("Origin")?.let { put("Origin", it) }
+                    request.header("X-Requested-With")?.let { put("X-Requested-With", it) }
+                    request.header("X-XSRF-TOKEN")?.let { put("X-XSRF-TOKEN", it) }
+                }
 
-        val startMs = System.currentTimeMillis()
-        val result = runCatching {
-            runBlocking {
-                executor.fetchWithBrowserContext(
-                    url = request.url.toString(),
-                    userAgent = request.header("User-Agent"),
-                    headers = fetchHeaders,
+                val startMs = System.currentTimeMillis()
+                val result = runCatching {
+                    executor.fetchWithBrowserContext(
+                        url = request.url.toString(),
+                        userAgent = request.header("User-Agent"),
+                        headers = fetchHeaders,
+                    )
+                }.onFailure {
+                    android.util.Log.w("MihonNetwork", "WebView fallback failed: ${it.message}")
+                }.getOrNull()
+                if (result == null) {
+                    android.util.Log.w(
+                        "MihonNetwork",
+                        "WebView fallback returned null after ${System.currentTimeMillis() - startMs}ms for ${request.url}",
+                    )
+                    return@withLock WebViewFallbackResult.NotAttempted
+                }
+
+                if (result.status <= 0) {
+                    android.util.Log.w("MihonNetwork", "WebView fallback invalid status=${result.status}")
+                    return@withLock WebViewFallbackResult.NotAttempted
+                }
+
+                android.util.Log.i(
+                    "MihonNetwork",
+                    "WebView fallback response: status=${result.status}, url=${result.url}, contentType=${result.headers["content-type"] ?: result.headers["Content-Type"]}",
                 )
-            }
-        }.onFailure {
-            android.util.Log.w("MihonNetwork", "WebView fallback failed: ${it.message}")
-        }.getOrNull()
-        if (result == null) {
-            android.util.Log.w(
-                "MihonNetwork",
-                "WebView fallback returned null after ${System.currentTimeMillis() - startMs}ms for ${request.url}",
-            )
-            return null
-        }
+                val contentType = result.headers.entries
+                    .firstOrNull { it.key.equals("content-type", ignoreCase = true) }
+                    ?.value
+                val headersBuilder = Headers.Builder()
+                result.headers.forEach { (k, v) ->
+                    if (k.isNotBlank() && v.isNotBlank()) {
+                        runCatching { headersBuilder.add(k, v) }
+                    }
+                }
+                if (result.url.isNotBlank()) {
+                    headersBuilder.set(WEBVIEW_FINAL_URL_HEADER, result.url)
+                }
 
-        if (result.status <= 0) {
-            android.util.Log.w("MihonNetwork", "WebView fallback invalid status=${result.status}")
-            return null
-        }
-
-		android.util.Log.i(
-            "MihonNetwork",
-            "WebView fallback response: status=${result.status}, url=${result.url}, contentType=${result.headers["content-type"] ?: result.headers["Content-Type"]}",
-        )
-        val contentType = result.headers.entries
-            .firstOrNull { it.key.equals("content-type", ignoreCase = true) }
-            ?.value
-        val headersBuilder = Headers.Builder()
-        result.headers.forEach { (k, v) ->
-            if (k.isNotBlank() && v.isNotBlank()) {
-                runCatching { headersBuilder.add(k, v) }
+                val browserResponse = Response.Builder()
+                    .request(request)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(result.status)
+                    .message(result.statusText.ifBlank { "WebView fetch" })
+                    .headers(headersBuilder.build())
+                    .body(result.body.toResponseBody(contentType?.toMediaTypeOrNull()))
+                    .build()
+                if (CloudFlareHelper.checkResponseForProtection(browserResponse) == CloudFlareHelper.PROTECTION_NOT_DETECTED) {
+                    recentWebViewSolveSuccessAt[host] = System.currentTimeMillis()
+                }
+                WebViewFallbackResult.BrowserResponse(browserResponse)
             }
         }
-        if (result.url.isNotBlank()) {
-            headersBuilder.set(WEBVIEW_FINAL_URL_HEADER, result.url)
-        }
+    }
 
-        return Response.Builder()
-            .request(request)
-            .protocol(Protocol.HTTP_1_1)
-            .code(result.status)
-            .message(result.statusText.ifBlank { "WebView fetch" })
-            .headers(headersBuilder.build())
-            .body(result.body.toResponseBody(contentType?.toMediaTypeOrNull()))
-            .build()
+    private fun shouldReuseRecentWebViewSolve(host: String): Boolean {
+        val lastSuccessAt = recentWebViewSolveSuccessAt[host] ?: return false
+        return System.currentTimeMillis() - lastSuccessAt < WEBVIEW_SOLVE_REUSE_WINDOW_MS
     }
 
     private fun shouldSkipInteractiveAction(host: String, clearance: String?): Boolean {
@@ -416,9 +457,18 @@ class KotoNetworkHelper(
         val count: Int,
     )
 
+    private sealed interface WebViewFallbackResult {
+        data class BrowserResponse(val response: Response) : WebViewFallbackResult
+        data object RetryRequest : WebViewFallbackResult
+        data object NotAttempted : WebViewFallbackResult
+    }
+
     companion object {
         const val WEBVIEW_FINAL_URL_HEADER = "X-Kototoro-WebView-Final-Url"
         private const val INTERACTIVE_RETRY_WINDOW_MS = 10 * 60 * 1000L
+        private const val WEBVIEW_SOLVE_REUSE_WINDOW_MS = 10_000L
         private val recentChallengeAttempts = ConcurrentHashMap<String, ChallengeAttempt>()
+        private val recentWebViewSolveSuccessAt = ConcurrentHashMap<String, Long>()
+        private val webViewFallbackMutexes = ConcurrentHashMap<String, Mutex>()
     }
 }
