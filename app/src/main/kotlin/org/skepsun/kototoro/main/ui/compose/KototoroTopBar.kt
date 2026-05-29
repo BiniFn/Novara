@@ -36,6 +36,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -119,6 +120,13 @@ fun KototoroTopBar(
 ) {
     var isMoreMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var showDisplayOptionsSheet by rememberSaveable { mutableStateOf(false) }
+    var pendingListMode by remember(showDisplayOptionsSheet) { mutableStateOf(currentListMode) }
+    var pendingGridSize by remember(showDisplayOptionsSheet) { mutableIntStateOf(gridSize) }
+
+    if (!showDisplayOptionsSheet) {
+        pendingListMode = currentListMode
+        pendingGridSize = gridSize
+    }
 
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues()
     val collapsedAlpha by animateFloatAsState(
@@ -298,11 +306,17 @@ fun KototoroTopBar(
         if (showDisplayOptionsSheet && (supportsDisplayModeMenu || supportsGridSizeSlider || onBrowseTrackingRecommendationsChange != null)) {
             org.skepsun.kototoro.list.ui.compose.DisplayOptionsSheet(
                 supportsDisplayModeMenu = supportsDisplayModeMenu,
-                currentListMode = currentListMode,
-                onListModeSelected = onListModeSelected,
+                currentListMode = pendingListMode,
+                onListModeSelected = {
+                    pendingListMode = it
+                    onListModeSelected(it)
+                },
                 supportsGridSizeSlider = supportsGridSizeSlider,
-                gridSize = gridSize,
-                onGridSizeChange = onGridSizeChange,
+                gridSize = pendingGridSize,
+                onGridSizeChange = {
+                    pendingGridSize = it
+                    onGridSizeChange(it)
+                },
                 extraContent = if (onBrowseTrackingRecommendationsChange != null && isBrowseTrackingRecommendationsEnabled != null) {
                     {
                         Column {

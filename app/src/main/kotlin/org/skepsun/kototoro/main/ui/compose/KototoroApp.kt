@@ -405,6 +405,7 @@ fun KototoroApp(
     val showBrowseSourceSettingsEntry = currentDestination?.let {
         it.hasRoute<ExploreRoute>() || it.hasRoute<DiscoverRoute>()
     } == true
+    val isHomeRoute = currentDestination?.hasRoute<HomeRoute>() == true
     val supportsDisplayModeMenu = currentDestination?.let {
         it.hasRoute<ExploreRoute>() ||
             it.hasRoute<DiscoverRoute>() ||
@@ -645,10 +646,16 @@ fun KototoroApp(
                             onSourceTagFilterClick = onSourceTagFilterClick,
                             onSourceTagSelected = onSourceTagSelected,
                             supportsDisplayModeMenu = supportsDisplayModeMenu,
-                            currentListMode = if (showBrowseSourceSettingsEntry) browseListMode else listMode,
+                            currentListMode = when {
+                                showBrowseSourceSettingsEntry -> browseListMode
+                                isHomeRoute -> appSettings.homeListMode
+                                else -> listMode
+                            },
                             onListModeSelected = {
                                 if (showBrowseSourceSettingsEntry) {
                                     appSettings.browseListMode = it
+                                } else if (isHomeRoute) {
+                                    appSettings.homeListMode = it
                                 } else {
                                     appSettings.listMode = it
                                 }

@@ -2,15 +2,13 @@ package org.skepsun.kototoro.home.ui
 
 import android.content.Context
 import androidx.annotation.StringRes
+import androidx.collection.LongObjectMap
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
@@ -33,22 +31,24 @@ import org.skepsun.kototoro.core.jsonsource.OriginGroup
 import org.skepsun.kototoro.core.jsonsource.SourceGroup
 import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.isNsfw
+import org.skepsun.kototoro.core.model.withOverride
+import org.skepsun.kototoro.core.parser.ContentDataRepository
 import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.observeAsFlow
+import org.skepsun.kototoro.core.ui.model.ContentOverride
 import org.skepsun.kototoro.core.util.ext.call
 import org.skepsun.kototoro.core.util.ext.printStackTraceDebug
 import org.skepsun.kototoro.entitygraph.data.EntityGraphRepository
 import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.favourites.domain.FavouritesRepository
 import org.skepsun.kototoro.history.data.HistoryRepository
-import org.skepsun.kototoro.list.domain.ContentListMapper
-import org.skepsun.kototoro.list.ui.model.ContentGridModel
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.search.domain.ContentSearchRepository
 import org.skepsun.kototoro.suggestions.domain.SuggestionRepository
+import org.skepsun.kototoro.tracking.discovery.data.TrackingSiteCacheRepository
+import org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteItemDetails
 import org.skepsun.kototoro.tracker.domain.TrackingRepository
 import org.skepsun.kototoro.tracker.domain.model.ContentTracking
 import javax.inject.Inject
@@ -56,7 +56,6 @@ import javax.inject.Inject
 @Immutable
 data class HomeRecentItem(
     val content: Content,
-    val cardModel: ContentGridModel? = null,
     val groupKey: Long = content.id,
 ) {
     val title: String
@@ -71,7 +70,6 @@ data class HomeRecentItem(
 data class HomeUpdateItem(
     val content: Content,
     val newChapters: Int,
-    val cardModel: ContentGridModel? = null,
     val groupKey: Long = content.id,
 ) {
     val title: String
@@ -81,7 +79,6 @@ data class HomeUpdateItem(
 @Immutable
 data class HomeRecommendationItem(
     val content: Content,
-    val cardModel: ContentGridModel? = null,
     val groupKey: Long = content.id,
 ) {
     val title: String
@@ -172,7 +169,8 @@ class HomeViewModel @Inject constructor(
     private val globalFavoritesState: org.skepsun.kototoro.favourites.domain.GlobalFavoritesState,
     private val sourcePresetsRepository: org.skepsun.kototoro.explore.data.SourcePresetsRepository,
     private val contentSearchRepository: ContentSearchRepository,
-    private val contentListMapper: ContentListMapper,
+    private val contentDataRepository: ContentDataRepository,
+    private val trackingSiteCacheRepository: TrackingSiteCacheRepository,
     @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
@@ -225,12 +223,15 @@ class HomeViewModel @Inject constructor(
     private val favoriteCategoriesCountFlow = favouritesRepository.observeCategories().map { it.size }
     private val unreadUpdatesCountFlow = trackingRepository.observeUnreadUpdatesCount()
     private val recentUpdatesFlow = trackingRepository.observeUpdatedContent(
-        limit = HOME_COVER_PREVIEW_LIMIT * 12,
+        limit = Int.MAX_VALUE,
         filterOptions = emptySet(),
     )
     private val recommendationsFlow = suggestionRepository.observeAll()
     private val recentSearchesFlow = contentSearchRepository.observeRecentQueries(HOME_COVER_PREVIEW_LIMIT)
-    private val displayChangesFlow = contentListMapper.observeDisplayChanges().onStart { emit(Unit) }
+    private val displayChangesFlow = combine(
+        contentDataRepository.observeDisplayPreferencesChanges(),
+        trackingSiteCacheRepository.observeDetailsUpdates().onStart { emit(0L) },
+    ) { _, _ -> Unit }.onStart { emit(Unit) }
     private val isTrackerNsfwDisabledFlow = settings.observeAsFlow(AppSettings.KEY_TRACKER_NO_NSFW) { isTrackerNsfwDisabled }
     private val isSuggestionNsfwDisabledFlow = settings.observeAsFlow(AppSettings.KEY_SUGGESTIONS_EXCLUDE_NSFW) { isSuggestionsExcludeNsfw }
     private val enabledSourcesCountFlow = contentSourcesRepository.observeEnabledSourcesCount()
@@ -329,8 +330,17 @@ class HomeViewModel @Inject constructor(
         val recentSearches = extras.first
 
         val allRecommendations = if (isSuggestionNsfwDisabled) contentData.recommendations.filterNot { it.isNsfw() } else contentData.recommendations
+        val displayContentOverrides = buildDisplayContentOverrides(
+            resumeContent = contentData.resumeState.content,
+            history = contentData.history,
+            updates = contentData.updates,
+            recommendations = allRecommendations,
+            contentDataRepository = contentDataRepository,
+            trackingSiteCacheRepository = trackingSiteCacheRepository,
+        )
 
         val resumeState = contentData.resumeState
+            .withOverrides(displayContentOverrides)
             .filtered(
                 tab = selectedTab,
                 sourceTags = selectedSourceTags,
@@ -340,41 +350,32 @@ class HomeViewModel @Inject constructor(
             .filteredNsfw(false)
             .withGroupKey(entityIdsByMangaId)
         val recentHistory = contentData.history
+            .map { content -> content.withOverride(displayContentOverrides[content.id]) }
             .aggregateHomeContentByEntity(entityIdsByMangaId)
             .selectHomeHistoryByTab(selectedTab, selectedSourceTags, sourceGroupManager, preset)
         val recentUpdates = contentData.updates
+            .map { tracking ->
+                val override = displayContentOverrides[tracking.manga.id]
+                if (override == null) tracking else tracking.copy(manga = tracking.manga.withOverride(override))
+            }
             .aggregateHomeUpdatesByEntity(entityIdsByMangaId)
             .selectHomeUpdatesByTab(selectedTab, selectedSourceTags, sourceGroupManager, preset)
         val recommendations = allRecommendations
+            .map { content -> content.withOverride(displayContentOverrides[content.id]) }
             .aggregateHomeRecommendationsByEntity(entityIdsByMangaId)
             .selectHomeRecommendationsByTab(selectedTab, selectedSourceTags, sourceGroupManager, preset)
-
-        val historyPreviewSeed = recentHistory.take(HOME_COVER_PREVIEW_LIMIT)
-        val updatesPreviewSeed = recentUpdates.take(HOME_COVER_PREVIEW_LIMIT)
-        val recommendationsPreviewSeed = recommendations.take(HOME_COVER_PREVIEW_LIMIT)
-        val previewGridModelsById = buildHomeGridModelsById(
-            contents = buildList {
-                addAll(historyPreviewSeed.map { it.content })
-                addAll(updatesPreviewSeed.map { it.content })
-                addAll(recommendationsPreviewSeed.map { it.content })
-            },
-            contentListMapper = contentListMapper,
-        )
-        val historyPreview = historyPreviewSeed.withHomeRecentGridModels(previewGridModelsById)
-        val updatesPreview = updatesPreviewSeed.withHomeUpdateGridModels(previewGridModelsById)
-        val recommendationsPreview = recommendationsPreviewSeed.withHomeRecommendationGridModels(previewGridModelsById)
 
         HomeSummaryState(
             selectedTab = selectedTab,
             recentHistoryCount = recentHistory.size,
-            recentHistoryItems = historyPreview,
+            recentHistoryItems = recentHistory,
             resumeState = resumeState,
             favoritesCount = meta.favoritesCount,
             favoriteCategoriesCount = meta.favoriteCategoriesCount,
             unreadUpdatesCount = recentUpdates.size,
-            recentUpdates = updatesPreview,
+            recentUpdates = recentUpdates,
             recommendationsCount = recommendations.size,
-            recommendations = recommendationsPreview,
+            recommendations = recommendations,
             recentSearches = recentSearches.map { HomeRecentSearchItem(it) },
             enabledSourcesCount = meta.enabledSourcesCount,
             sourceBreakdown = meta.sourceBreakdown,
@@ -527,30 +528,14 @@ private fun List<HomeRecentItem>.selectHomeHistoryByTab(
     sourceGroupManager: org.skepsun.kototoro.core.jsonsource.SourceGroupManager,
     preset: org.skepsun.kototoro.explore.data.SourcePreset?,
 ): List<HomeRecentItem> {
-    val filtered = filter { item ->
+    return filter { item ->
         item.content.matchesHomeFilters(
-            tab = null,
+            tab = tab,
             sourceTags = sourceTags,
             sourceGroupManager = sourceGroupManager,
             preset = preset,
         )
     }
-
-    val limit = HOME_COVER_PREVIEW_LIMIT
-    if (tab != null) {
-        return filtered.filter { it.content.contentTab() == tab }.take(limit)
-    }
-    val taken = mutableSetOf<Long>()
-    val countPerTab = mutableMapOf<HomeContentTab?, Int>()
-    for (item in filtered) {
-        val itemTab = item.content.contentTab()
-        val current = countPerTab.getOrDefault(itemTab, 0)
-        if (current < limit) {
-            taken.add(item.groupKey)
-            countPerTab[itemTab] = current + 1
-        }
-    }
-    return filtered.filter { it.groupKey in taken }
 }
 
 private fun List<HomeUpdateItem>.selectHomeUpdatesByTab(
@@ -559,30 +544,14 @@ private fun List<HomeUpdateItem>.selectHomeUpdatesByTab(
     sourceGroupManager: org.skepsun.kototoro.core.jsonsource.SourceGroupManager,
     preset: org.skepsun.kototoro.explore.data.SourcePreset?,
 ): List<HomeUpdateItem> {
-    val filtered = filter { item ->
+    return filter { item ->
         item.content.matchesHomeFilters(
-            tab = null,
+            tab = tab,
             sourceTags = sourceTags,
             sourceGroupManager = sourceGroupManager,
             preset = preset,
         )
     }
-
-    val limit = HOME_COVER_PREVIEW_LIMIT
-    if (tab != null) {
-        return filtered.filter { it.content.contentTab() == tab }.take(limit)
-    }
-    val taken = mutableSetOf<Long>()
-    val countPerTab = mutableMapOf<HomeContentTab?, Int>()
-    for (item in filtered) {
-        val itemTab = item.content.contentTab()
-        val current = countPerTab.getOrDefault(itemTab, 0)
-        if (current < limit) {
-            taken.add(item.groupKey)
-            countPerTab[itemTab] = current + 1
-        }
-    }
-    return filtered.filter { it.groupKey in taken }
 }
 
 private fun List<HomeRecommendationItem>.selectHomeRecommendationsByTab(
@@ -591,30 +560,14 @@ private fun List<HomeRecommendationItem>.selectHomeRecommendationsByTab(
     sourceGroupManager: org.skepsun.kototoro.core.jsonsource.SourceGroupManager,
     preset: org.skepsun.kototoro.explore.data.SourcePreset?,
 ): List<HomeRecommendationItem> {
-    val filtered = filter { item ->
+    return filter { item ->
         item.content.matchesHomeFilters(
-            tab = null,
+            tab = tab,
             sourceTags = sourceTags,
             sourceGroupManager = sourceGroupManager,
             preset = preset,
         )
     }
-
-    val limit = HOME_COVER_PREVIEW_LIMIT
-    if (tab != null) {
-        return filtered.filter { it.content.contentTab() == tab }.take(limit)
-    }
-    val taken = mutableSetOf<Long>()
-    val countPerTab = mutableMapOf<HomeContentTab?, Int>()
-    for (item in filtered) {
-        val itemTab = item.content.contentTab()
-        val current = countPerTab.getOrDefault(itemTab, 0)
-        if (current < limit) {
-            taken.add(item.groupKey)
-            countPerTab[itemTab] = current + 1
-        }
-    }
-    return filtered.filter { it.groupKey in taken }
 }
 
 private fun HomeResumeState.filtered(
@@ -640,6 +593,11 @@ private fun HomeResumeState.filtered(
 
 private fun HomeResumeState.filteredNsfw(isNsfwDisabled: Boolean): HomeResumeState {
     return if (isNsfwDisabled && content?.isNsfw() == true) HomeResumeState() else this
+}
+
+private fun HomeResumeState.withOverrides(overrides: Map<Long, ContentOverride>): HomeResumeState {
+    val current = content ?: return this
+    return copy(content = current.withOverride(overrides[current.id]))
 }
 
 private fun HomeResumeState.withGroupKey(entityIdsByMangaId: Map<Long, Long>): HomeResumeState {
@@ -722,53 +680,78 @@ private fun List<Content>.aggregateHomeRecommendationsByEntity(entityIdsByMangaI
     return result
 }
 
-private suspend fun buildHomeGridModelsById(
-    contents: List<Content>,
-    contentListMapper: ContentListMapper,
-): Map<Long, ContentGridModel> {
+private suspend fun buildDisplayContentOverrides(
+    resumeContent: Content?,
+    history: List<Content>,
+    updates: List<ContentTracking>,
+    recommendations: List<Content>,
+    contentDataRepository: ContentDataRepository,
+    trackingSiteCacheRepository: TrackingSiteCacheRepository,
+): Map<Long, ContentOverride> {
+    val contents = buildList {
+        resumeContent?.let(::add)
+        addAll(history)
+        addAll(updates.map { it.manga })
+        addAll(recommendations)
+    }.distinctBy { it.id }
     if (contents.isEmpty()) return emptyMap()
-    return contentListMapper
-        .toListModelList(contents.distinctBy { it.id }, ListMode.GRID)
-        .filterIsInstance<ContentGridModel>()
-        .associateBy { it.manga.id }
-}
 
-private fun List<HomeRecentItem>.withHomeRecentGridModels(
-    modelsById: Map<Long, ContentGridModel>,
-): List<HomeRecentItem> {
-    if (isEmpty()) return this
-    return map { item ->
-        val model = modelsById[item.content.id]
-        item.copy(
-            content = model?.toContentWithOverride() ?: item.content,
-            cardModel = model,
-        )
+    val manualOverrides = contentDataRepository.getOverrides()
+    val metadataSelectionCache = HashMap<Long, ContentDataRepository.MetadataSourceSelection?>(contents.size)
+    val trackingDetailsCache = HashMap<Pair<Int, Long>, TrackingSiteItemDetails?>(contents.size)
+    return buildMap(contents.size) {
+        contents.forEach { content ->
+            val override = resolveDisplayOverride(
+                content = content,
+                manualOverride = manualOverrides[content.id],
+                metadataSelectionCache = metadataSelectionCache,
+                trackingDetailsCache = trackingDetailsCache,
+                contentDataRepository = contentDataRepository,
+                trackingSiteCacheRepository = trackingSiteCacheRepository,
+            ) ?: return@forEach
+            put(content.id, override)
+        }
     }
 }
 
-private fun List<HomeUpdateItem>.withHomeUpdateGridModels(
-    modelsById: Map<Long, ContentGridModel>,
-): List<HomeUpdateItem> {
-    if (isEmpty()) return this
-    return map { item ->
-        val model = modelsById[item.content.id]
-        item.copy(
-            content = model?.toContentWithOverride() ?: item.content,
-            cardModel = model,
-        )
+private suspend fun resolveDisplayOverride(
+    content: Content,
+    manualOverride: ContentOverride?,
+    metadataSelectionCache: MutableMap<Long, ContentDataRepository.MetadataSourceSelection?>,
+    trackingDetailsCache: MutableMap<Pair<Int, Long>, TrackingSiteItemDetails?>,
+    contentDataRepository: ContentDataRepository,
+    trackingSiteCacheRepository: TrackingSiteCacheRepository,
+): ContentOverride? {
+    val selection = metadataSelectionCache.getOrPut(content.id) {
+        contentDataRepository.getMetadataSourceSelection(content.id)
     }
-}
-
-private fun List<HomeRecommendationItem>.withHomeRecommendationGridModels(
-    modelsById: Map<Long, ContentGridModel>,
-): List<HomeRecommendationItem> {
-    if (isEmpty()) return this
-    return map { item ->
-        val model = modelsById[item.content.id]
-        item.copy(
-            content = model?.toContentWithOverride() ?: item.content,
-            cardModel = model,
-        )
+    val trackingOverride = (selection as? ContentDataRepository.MetadataSourceSelection.Tracking)
+        ?.let { trackingSelection ->
+            val service = ScrobblerService.entries.firstOrNull { it.id == trackingSelection.serviceId }
+                ?: return@let null
+            val cacheKey = trackingSelection.serviceId to trackingSelection.remoteId
+            val details = trackingDetailsCache.getOrPut(cacheKey) {
+                trackingSiteCacheRepository.readDetails(service, trackingSelection.remoteId)
+            }
+            ContentOverride(
+                coverUrl = details?.coverUrl?.takeIf { it.isNotBlank() },
+                title = details?.title?.takeIf { it.isNotBlank() },
+                contentRating = null,
+            )
+        }
+    val merged = ContentOverride(
+        coverUrl = manualOverride?.coverUrl ?: trackingOverride?.coverUrl,
+        title = manualOverride?.title ?: trackingOverride?.title,
+        contentRating = manualOverride?.contentRating,
+    )
+    return if (
+        merged.coverUrl == null &&
+        merged.title == null &&
+        merged.contentRating == null
+    ) {
+        null
+    } else {
+        merged
     }
 }
 

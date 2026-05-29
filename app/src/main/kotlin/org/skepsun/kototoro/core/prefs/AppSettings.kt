@@ -117,6 +117,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getEnumValue(KEY_LIST_MODE_BROWSE, ListMode.GRID)
 		set(value) = prefs.edit { putEnumValue(KEY_LIST_MODE_BROWSE, value) }
 
+	var homeListMode: ListMode
+		get() = prefs.getEnumValue(KEY_LIST_MODE_HOME, ListMode.DETAILED_LIST)
+		set(value) = prefs.edit { putEnumValue(KEY_LIST_MODE_HOME, value) }
+
 	var theme: Int
 		get() = prefs.getString(KEY_THEME, null)?.toIntOrNull()
 			?: AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
@@ -1812,6 +1816,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_ADBLOCK = "adblock"
 		const val KEY_LIST_MODE = "list_mode_2"
 		const val KEY_LIST_MODE_BROWSE = "list_mode_browse"
+		const val KEY_LIST_MODE_HOME = "list_mode_home"
 		const val KEY_LIST_MODE_HISTORY = "list_mode_history"
 		const val KEY_LIST_MODE_FAVORITES = "list_mode_favorites"
 		const val KEY_LIST_MODE_SUGGESTIONS = "list_mode_suggestions"

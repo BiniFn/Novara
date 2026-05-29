@@ -6,6 +6,9 @@ import kotlinx.parcelize.Parcelize
 sealed interface ListConfigSection : Parcelable {
 
 	@Parcelize
+	data object Home : ListConfigSection
+
+	@Parcelize
 	data object History : ListConfigSection
 
 	@Parcelize
