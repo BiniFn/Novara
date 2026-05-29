@@ -11,6 +11,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import org.skepsun.kototoro.parsers.exception.TooManyRequestExceptions
 import org.skepsun.kototoro.BuildConfig
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.network.BaseHttpClient
@@ -55,7 +56,19 @@ class AppUpdateRepository @Inject constructor(
 		val request = Request.Builder()
 			.get()
 			.url(releasesUrl)
-		val jsonArray = okHttp.newCall(request.build()).execute().use { it.parseJsonArray() }
+		val jsonArray = okHttp.newCall(request.build()).execute().use { response ->
+			if (response.code == 403) {
+				val body = response.body.string()
+				if (body.contains("API rate limit exceeded", ignoreCase = true)) {
+					throw TooManyRequestExceptions(releasesUrl, 0L)
+				}
+				throw IllegalStateException("HTTP error 403")
+			}
+			if (!response.isSuccessful) {
+				throw IllegalStateException("HTTP error ${response.code}")
+			}
+			response.parseJsonArray()
+		}
 		return jsonArray.mapJSONNotNull { json ->
 			val assets = json.optJSONArray("assets")
 				?.toAssetList()

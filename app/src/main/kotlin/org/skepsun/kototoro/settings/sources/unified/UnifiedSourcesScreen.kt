@@ -1564,16 +1564,17 @@ private fun UnifiedRepositoryList(
 	onRefreshRepository: (UnifiedSourceRepositoryItem) -> Unit,
 	onDeleteRepository: (UnifiedSourceRepositoryItem) -> Unit,
 ) {
-    val listState2 = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
+	val listState2 = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
 	LazyColumn(state = listState2,
 		modifier = modifier,
-		contentPadding = PaddingValues(vertical = 4.dp),
+		contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+		verticalArrangement = Arrangement.spacedBy(8.dp),
 	) {
 		item(key = "add_repository") {
 			Row(
 				modifier = Modifier
 					.fillMaxWidth()
-					.padding(horizontal = 16.dp, vertical = 8.dp),
+					.padding(vertical = 4.dp),
 			) {
 					AssistChip(
 						onClick = { onAddRepository(null) },

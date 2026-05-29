@@ -390,7 +390,6 @@ class SettingsActivity :
 		}
 		viewModel.onNavigateToPreference.observeEvent(this, ::navigateToPreference)
 		aboutSettingsViewModel.onUpdateAvailable.observeEvent(this, ::onAboutUpdateAvailable)
-		changelogViewModel.onError.observeEvent(this, SnackbarErrorObserver(viewBinding.root, null))
 		restoredDestination?.let { openComposeDestination(it, shouldRestoreFragment = savedInstanceState.getBoolean(STATE_COMPOSE_RESTORE_FRAGMENT)) }
 
 		observeFoldableState()

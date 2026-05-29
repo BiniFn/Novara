@@ -14,8 +14,11 @@ class ChangelogViewModel @Inject constructor(
 ) : BaseViewModel() {
 
 	val changelog = MutableStateFlow<String?>(null)
+	private var isLoaded = false
 
-	init {
+	fun loadIfNeeded() {
+		if (isLoaded) return
+		isLoaded = true
 		launchLoadingJob(Dispatchers.Default) {
 			val versions = appUpdateRepository.getAvailableVersions()
 			val stringJoiner = StringUtil.StringJoiner("\n\n\n")
