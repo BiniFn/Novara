@@ -458,9 +458,9 @@ private fun HomeHeroSection(
             ) { page ->
                 HomeHeroCard(
                     entry = entries[page],
-                    bottomInset = if (hasIndicator) 32.dp else 12.dp,
-                    posterWidth = 88.dp,
-                    posterHeight = 122.dp,
+                    bottomInset = if (hasIndicator) 28.dp else 10.dp,
+                    posterWidth = 82.dp,
+                    posterHeight = 114.dp,
                     panoramaPrefs = panoramaPrefs,
                     onClick = onClick,
                     modifier = Modifier
@@ -542,7 +542,7 @@ private fun HomeHeroCard(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .height(212.dp)
+            .height(192.dp)
             .clip(MaterialTheme.shapes.large)
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable { onClick(content, coverBounds, sharedElementKey) },
@@ -591,7 +591,7 @@ private fun HomeHeroCard(
                 .fillMaxSize()
                 .padding(
                     start = 14.dp,
-                    top = 14.dp,
+                    top = 12.dp,
                     end = 14.dp,
                     bottom = bottomInset,
                 ),
@@ -634,7 +634,7 @@ private fun HomeHeroCard(
             }
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 HomeBadge(
                     text = stringResource(entry.kind.labelRes),
@@ -642,7 +642,7 @@ private fun HomeHeroCard(
                 )
                 Text(
                     text = content.title,
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.titleLarge,
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
@@ -1505,9 +1505,7 @@ private val HomeHeroEntry.sharedElementKey: String
 
 @Composable
 private fun HomeHeroEntry.supportingText(): String? = when (kind) {
-    HomeHeroKind.RESUME -> progressPercent
-        ?.takeIf { it > 0 }
-        ?.let { value -> stringResource(R.string.home_resume_progress, value) }
+    HomeHeroKind.RESUME -> null
     HomeHeroKind.UPDATE -> newChapters
         .takeIf { it > 0 }
         ?.let { value ->

@@ -216,10 +216,10 @@ fun KototoroContentCardGrid(
     }
 
     val manga = item.manga
-    val coverRequest = remember(manga.coverUrl, manga.id, manga.source, sharedTransitionEnabled) {
+    val coverRequest = remember(item.coverUrl, manga.id, manga.source, sharedTransitionEnabled) {
         buildContentCoverRequest(
             context = context,
-            coverUrl = manga.coverUrl,
+            coverUrl = item.coverUrl,
             manga = manga,
             allowCrossfade = !sharedTransitionEnabled,
         )
