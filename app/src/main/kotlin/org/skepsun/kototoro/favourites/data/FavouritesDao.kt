@@ -97,7 +97,7 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 
 		@Language("RoomSql")
 		val query = SimpleSQLiteQuery(
-			"SELECT manga.cover_url AS url, manga.source AS source FROM favourites " +
+			"SELECT manga.manga_id AS mangaId, manga.cover_url AS url, manga.source AS source FROM favourites " +
 				"LEFT JOIN manga ON favourites.manga_id = manga.manga_id " +
 				"WHERE favourites.category_id = ? AND deleted_at = 0 ORDER BY $orderBy",
 			arrayOf<Any>(categoryId),
@@ -110,7 +110,7 @@ abstract class FavouritesDao : MangaQueryBuilder.ConditionCallback {
 
 		@Language("RoomSql")
 		val query = SimpleSQLiteQuery(
-			"SELECT manga.cover_url AS url, manga.source AS source FROM favourites " +
+			"SELECT manga.manga_id AS mangaId, manga.cover_url AS url, manga.source AS source FROM favourites " +
 				"LEFT JOIN manga ON favourites.manga_id = manga.manga_id " +
 				"WHERE deleted_at = 0 AND " +
 				"(SELECT show_in_lib FROM favourite_categories WHERE favourite_categories.category_id = favourites.category_id) = 1 " +
