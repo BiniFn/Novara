@@ -209,8 +209,6 @@ private class AppearanceSettingsCoordinator(
                 .value
                 .let(::parseHiddenSourceTagSelection)
         val isMainFabEnabled = settings.observeAsState(AppSettings.KEY_MAIN_FAB) { isMainFabEnabled }.value
-        val isNavLabelsVisible = settings.observeAsState(AppSettings.KEY_NAV_LABELS) { isNavLabelsVisible }.value
-        val isNavBarPinned = settings.observeAsState(AppSettings.KEY_NAV_PINNED) { isNavBarPinned }.value
         val isNavFloating = settings.observeAsState(AppSettings.KEY_NAV_FLOATING) { isNavFloating }.value
         val isNavFloatingAdaptiveWidth =
             settings.observeAsState(AppSettings.KEY_NAV_FLOATING_ADAPTIVE_WIDTH) { isNavFloatingAdaptiveWidth }.value
@@ -295,8 +293,6 @@ private class AppearanceSettingsCoordinator(
             isShowSourceTagFilter = isShowSourceTagFilter,
             hiddenSourceTag = hiddenSourceTag,
             isMainFabEnabled = isMainFabEnabled,
-            isNavLabelsVisible = isNavLabelsVisible,
-            isNavBarPinned = isNavBarPinned,
             isNavFloating = isNavFloating,
             isNavFloatingAdaptiveWidth = isNavFloatingAdaptiveWidth,
             navHeight = navHeight,
@@ -360,8 +356,6 @@ private class AppearanceSettingsCoordinator(
                     ?.joinToString(",")
             },
             onMainFabChange = { settings.isMainFabEnabled = it },
-            onNavLabelsVisibleChange = { settings.isNavLabelsVisible = it },
-            onNavBarPinnedChange = { settings.isNavBarPinned = it },
             onNavFloatingChange = { settings.isNavFloating = it },
             onNavFloatingAdaptiveWidthChange = { settings.isNavFloatingAdaptiveWidth = it },
             onNavHeightChange = { settings.navHeight = it },

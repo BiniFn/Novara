@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -30,6 +31,8 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.glass.GlassDefaults
+import org.skepsun.kototoro.core.ui.glass.GlassSurface
 import org.skepsun.kototoro.list.domain.ListSortOrder
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -63,119 +66,127 @@ fun DisplayOptionsSheet(
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        tonalElevation = 0.dp,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+        GlassSurface(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            shape = RoundedCornerShape(28.dp),
+            style = GlassDefaults.prominentStyle(),
         ) {
-            Text(
-                text = stringResource(R.string.display_options),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
-            if (supportsDisplayModeMenu) {
-                Text(
-                    text = stringResource(R.string.list_mode),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    DisplayModeChip(
-                        iconRes = R.drawable.ic_list,
-                        label = stringResource(R.string.list),
-                        selected = currentListMode == ListMode.LIST,
-                        onClick = { onListModeSelected(ListMode.LIST) },
-                        modifier = Modifier.weight(1f)
-                    )
-                    DisplayModeChip(
-                        iconRes = R.drawable.ic_list_detailed,
-                        label = stringResource(R.string.details),
-                        selected = currentListMode == ListMode.DETAILED_LIST,
-                        onClick = { onListModeSelected(ListMode.DETAILED_LIST) },
-                        modifier = Modifier.weight(1f)
-                    )
-                    DisplayModeChip(
-                        iconRes = R.drawable.ic_grid,
-                        label = stringResource(R.string.grid),
-                        selected = currentListMode == ListMode.GRID,
-                        onClick = { onListModeSelected(ListMode.GRID) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            if (supportsGridSizeSlider) {
-                if (supportsDisplayModeMenu) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                }
-                GridSizeSlider(
-                    title = stringResource(R.string.grid_size),
-                    value = gridSize,
-                    onValueChange = onGridSizeChange,
-                )
-            }
-
-            if (sortOrders.isNotEmpty()) {
-                if (supportsDisplayModeMenu || supportsGridSizeSlider) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                }
-                SortOrderSection(
-                    sortOrders = sortOrders,
-                    selectedSortOrder = selectedSortOrder,
-                    onSortOrderSelected = onSortOrderSelected,
-                )
-            }
-
-            if (supportsGrouping) {
-                if (supportsDisplayModeMenu || supportsGridSizeSlider || sortOrders.isNotEmpty()) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                }
-                GroupingSection(
-                    enabled = isGroupingEnabled,
-                    available = isGroupingAvailable,
-                    onEnabledChange = onGroupingEnabledChange,
-                )
-            }
-
-            if (supportsDisplayModeMenu || supportsGridSizeSlider || sortOrders.isNotEmpty() || supportsGrouping) {
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp, top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.display_options),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                if (supportsDisplayModeMenu) {
                     Text(
-                        text = stringResource(R.string.show_extra_info_on_cards),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = stringResource(R.string.show_extra_info_on_cards_summary),
-                        style = MaterialTheme.typography.bodySmall,
+                        text = stringResource(R.string.list_mode),
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        DisplayModeChip(
+                            iconRes = R.drawable.ic_list,
+                            label = stringResource(R.string.list),
+                            selected = currentListMode == ListMode.LIST,
+                            onClick = { onListModeSelected(ListMode.LIST) },
+                            modifier = Modifier.weight(1f)
+                        )
+                        DisplayModeChip(
+                            iconRes = R.drawable.ic_list_detailed,
+                            label = stringResource(R.string.details),
+                            selected = currentListMode == ListMode.DETAILED_LIST,
+                            onClick = { onListModeSelected(ListMode.DETAILED_LIST) },
+                            modifier = Modifier.weight(1f)
+                        )
+                        DisplayModeChip(
+                            iconRes = R.drawable.ic_grid,
+                            label = stringResource(R.string.grid),
+                            selected = currentListMode == ListMode.GRID,
+                            onClick = { onListModeSelected(ListMode.GRID) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
-                Switch(
-                    checked = showExtraInfo,
-                    onCheckedChange = { settings.showExtraInfoOnCards = it },
-                )
-            }
 
-            extraContent?.let {
+                if (supportsGridSizeSlider) {
+                    if (supportsDisplayModeMenu) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    }
+                    GridSizeSlider(
+                        title = stringResource(R.string.grid_size),
+                        value = gridSize,
+                        onValueChange = onGridSizeChange,
+                    )
+                }
+
+                if (sortOrders.isNotEmpty()) {
+                    if (supportsDisplayModeMenu || supportsGridSizeSlider) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    }
+                    SortOrderSection(
+                        sortOrders = sortOrders,
+                        selectedSortOrder = selectedSortOrder,
+                        onSortOrderSelected = onSortOrderSelected,
+                    )
+                }
+
+                if (supportsGrouping) {
+                    if (supportsDisplayModeMenu || supportsGridSizeSlider || sortOrders.isNotEmpty()) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    }
+                    GroupingSection(
+                        enabled = isGroupingEnabled,
+                        available = isGroupingAvailable,
+                        onEnabledChange = onGroupingEnabledChange,
+                    )
+                }
+
                 if (supportsDisplayModeMenu || supportsGridSizeSlider || sortOrders.isNotEmpty() || supportsGrouping) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                 }
-                it()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.show_extra_info_on_cards),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            text = stringResource(R.string.show_extra_info_on_cards_summary),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = showExtraInfo,
+                        onCheckedChange = { settings.showExtraInfoOnCards = it },
+                    )
+                }
+
+                extraContent?.let {
+                    if (supportsDisplayModeMenu || supportsGridSizeSlider || sortOrders.isNotEmpty() || supportsGrouping) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    }
+                    it()
+                }
             }
         }
     }

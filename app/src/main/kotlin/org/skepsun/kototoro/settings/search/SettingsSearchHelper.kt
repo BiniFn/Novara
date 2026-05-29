@@ -44,8 +44,6 @@ class SettingsSearchHelper @Inject constructor(
 			"nav_main" to R.string.main_screen_sections,
 			"shared_element_transitions" to R.string.shared_element_transitions,
 			"main_fab" to R.string.main_screen_fab,
-			"nav_labels" to R.string.show_labels_in_navbar,
-			"nav_pinned" to R.string.pin_navigation_ui,
 			"rail_animation_intensity" to R.string.pref_rail_animation_intensity,
 			"vertical_list_rail_animation" to R.string.pref_vertical_list_rail_animation,
 			"nav_floating" to R.string.pref_nav_floating,

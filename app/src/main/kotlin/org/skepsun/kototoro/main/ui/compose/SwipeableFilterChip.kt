@@ -39,8 +39,8 @@ import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.parsers.model.ContentType
 
-private val CompactFilterChipSize = 40.dp
-private val CompactFilterChipCellSize = 32.dp
+private val CompactFilterChipSize = 36.dp
+private val CompactFilterChipCellSize = 30.dp
 
 @Composable
 fun SwipeableFilterChip(

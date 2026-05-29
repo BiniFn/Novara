@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
@@ -55,6 +56,7 @@ import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
 import org.skepsun.kototoro.list.ui.model.ContentDetailedListModel
 import org.skepsun.kototoro.list.ui.model.ContentGridModel
+import org.skepsun.kototoro.list.ui.model.QuickFilter
 
 private const val PAGE_SIZE = 16
 
@@ -105,6 +107,11 @@ class FavouritesListViewModel @dagger.assisted.AssistedInject constructor(
 
 	override val listMode = settings.observeAsFlow(AppSettings.KEY_LIST_MODE) { this.listMode }
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, settings.listMode)
+
+	val topQuickFilter = quickFilter.appliedOptions
+		.combineWithSettings()
+		.mapLatest { filters -> quickFilter.filterItem(filters) }
+		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, null as QuickFilter?)
 
 	val sortOrder: StateFlow<ListSortOrder?> = if (categoryId == NO_ID) {
 		settings.observeAsFlow(AppSettings.KEY_FAVORITES_ORDER) {

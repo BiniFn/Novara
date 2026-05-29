@@ -1,6 +1,5 @@
 package org.skepsun.kototoro.core.ui.widgets
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.lazy.LazyColumn
@@ -38,7 +37,6 @@ import dagger.hilt.android.EntryPointAccessors
 private data class BottomNavPrefs(
     val isFloating: Boolean,
     val isFloatingAdaptiveWidth: Boolean,
-    val isLabelsVisible: Boolean,
     val navHeight: Int,
     val navFloatingHeight: Int,
 )
@@ -63,21 +61,18 @@ fun KototoroBottomNav(
     val prefs by appSettings.observeAsState(
         AppSettings.KEY_NAV_FLOATING,
         AppSettings.KEY_NAV_FLOATING_ADAPTIVE_WIDTH,
-        AppSettings.KEY_NAV_LABELS,
         AppSettings.KEY_NAV_HEIGHT,
         AppSettings.KEY_NAV_FLOATING_HEIGHT,
     ) {
         BottomNavPrefs(
             isFloating = isNavFloating,
             isFloatingAdaptiveWidth = isNavFloatingAdaptiveWidth,
-            isLabelsVisible = isNavLabelsVisible,
             navHeight = navHeight,
             navFloatingHeight = navFloatingHeight,
         )
     }
     val isFloating = prefs.isFloating
     val isFloatingAdaptiveWidth = prefs.isFloatingAdaptiveWidth
-    val isLabelsVisible = prefs.isLabelsVisible
     val navHeight = prefs.navHeight
     val navFloatingHeight = prefs.navFloatingHeight
     val tabletUiMode by appSettings.observeAsState(AppSettings.KEY_TABLET_UI_MODE) { tabletUiMode }
@@ -130,9 +125,11 @@ fun KototoroBottomNav(
         if (isFloating && !useNavigationRail) (navFloatingHeight + 4).dp else navHeight.dp
     )
     val nonFloatingContentHorizontalPadding = 6.dp
-    val floatingAdaptiveWidth = remember(activeItems.size, isLabelsVisible) {
-        val itemWidth = if (isLabelsVisible) 80 else 68
-        (activeItems.size * itemWidth + 28).dp.coerceIn(220.dp, 520.dp)
+    val nonFloatingTopPadding = 4.dp
+    val floatingNavHorizontalPadding = 0.dp
+    val floatingAdaptiveWidth = remember(activeItems.size) {
+        val itemWidth = 58
+        (activeItems.size * itemWidth).dp.coerceIn(168.dp, 520.dp)
     }
     val railWidth = if (isFloating) {
         (navFloatingHeight + 4).dp.coerceIn(60.dp, 160.dp)
@@ -206,37 +203,16 @@ fun KototoroBottomNav(
                                 }
                             },
                             icon = {
-                                val indicatorShape = RoundedCornerShape(16.dp)
-                                Box(
-                                    modifier = Modifier
-                                        .then(
-                                            if (isSelected) {
-                                                Modifier
-                                                    .background(
-                                                        MaterialTheme.colorScheme.secondaryContainer,
-                                                        indicatorShape,
-                                                    )
-                                                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                                            } else {
-                                                Modifier
-                                            }
-                                        ),
-                                ) {
-                                    PremiumNavigationIcon(
-                                        itemId = item.id,
-                                        isSelected = isSelected,
-                                        clickPulse = clickPulses[item.id] ?: 0,
-                                        badge = badge,
-                                        contentDescription = stringResource(item.title),
-                                    )
-                                }
+                                PremiumNavigationIcon(
+                                    itemId = item.id,
+                                    isSelected = isSelected,
+                                    clickPulse = clickPulses[item.id] ?: 0,
+                                    badge = badge,
+                                    contentDescription = stringResource(item.title),
+                                )
                             },
-                            label = if (isLabelsVisible) {
-                                { Text(stringResource(item.title)) }
-                            } else {
-                                null
-                            },
-                            alwaysShowLabel = isLabelsVisible,
+                            label = { Text(stringResource(item.title)) },
+                            alwaysShowLabel = false,
                             colors = NavigationRailItemDefaults.colors(
                                 indicatorColor = Color.Transparent,
                                 selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -266,14 +242,13 @@ fun KototoroBottomNav(
                     items = activeItems,
                     selectedItemId = navState.selectedItemId,
                     badges = navState.badges,
-                    isLabelsVisible = isLabelsVisible,
                     clickPulses = clickPulses,
                     onItemSelected = onItemSelected,
                     onItemReselected = onItemReselected,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(currentExplicitHeight)
-                        .padding(horizontal = 4.dp),
+                        .padding(horizontal = floatingNavHorizontalPadding),
                 )
             }
         }
@@ -290,7 +265,11 @@ fun KototoroBottomNav(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(currentExplicitHeight)
-                        .padding(horizontal = nonFloatingContentHorizontalPadding),
+                        .padding(
+                            start = nonFloatingContentHorizontalPadding,
+                            end = nonFloatingContentHorizontalPadding,
+                            top = nonFloatingTopPadding,
+                        ),
                     windowInsets = WindowInsets(0),
                 ) {
                     activeItems.forEach { item ->
@@ -316,12 +295,10 @@ fun KototoroBottomNav(
                                     contentDescription = stringResource(item.title),
                                 )
                             },
-                            label = if (isLabelsVisible) {
-                                { Text(stringResource(item.title)) }
-                            } else null,
-                            alwaysShowLabel = isLabelsVisible,
+                            label = { Text(stringResource(item.title)) },
+                            alwaysShowLabel = false,
                             colors = NavigationBarItemDefaults.colors(
-                                indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                                indicatorColor = Color.Transparent,
                                 selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
                                 selectedTextColor = MaterialTheme.colorScheme.onSurface,
                                 unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -370,7 +347,6 @@ private fun FloatingBottomNavRow(
     items: List<NavItem>,
     selectedItemId: Int,
     badges: Map<Int, BadgeInfo>,
-    isLabelsVisible: Boolean,
     clickPulses: MutableMap<Int, Int>,
     onItemSelected: (Int) -> Unit,
     onItemReselected: (Int) -> Unit,
@@ -378,12 +354,15 @@ private fun FloatingBottomNavRow(
 ) {
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.SpaceEvenly,
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         items.forEach { item ->
             val isSelected = selectedItemId == item.id
             val interactionSource = remember(item.id) { MutableInteractionSource() }
+            val iconOffsetY by androidx.compose.animation.core.animateDpAsState(
+                targetValue = if (isSelected) (-3).dp else 0.dp,
+            )
             val contentColor = if (isSelected) {
                 MaterialTheme.colorScheme.onSecondaryContainer
             } else {
@@ -392,7 +371,7 @@ private fun FloatingBottomNavRow(
             CompositionLocalProvider(LocalContentColor provides contentColor) {
                 Column(
                     modifier = Modifier
-                        .weight(1f)
+                        .widthIn(min = 48.dp)
                         .fillMaxHeight()
                         .clickable(
                             interactionSource = interactionSource,
@@ -406,23 +385,11 @@ private fun FloatingBottomNavRow(
                                 }
                             },
                         )
-                        .padding(horizontal = 2.dp, vertical = if (isLabelsVisible) 6.dp else 0.dp),
+                        .padding(horizontal = 1.dp, vertical = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(width = 64.dp, height = 32.dp)
-                            .background(
-                                color = if (isSelected) {
-                                    MaterialTheme.colorScheme.secondaryContainer
-                                } else {
-                                    Color.Transparent
-                                },
-                                shape = RoundedCornerShape(percent = 50),
-                            ),
-                        contentAlignment = Alignment.Center,
-                    ) {
+                    Box(modifier = Modifier.offset(y = iconOffsetY)) {
                         PremiumNavigationIcon(
                             itemId = item.id,
                             isSelected = isSelected,
@@ -431,8 +398,8 @@ private fun FloatingBottomNavRow(
                             contentDescription = stringResource(item.title),
                         )
                     }
-                    if (isLabelsVisible) {
-                        Spacer(modifier = Modifier.height(2.dp))
+                    if (isSelected) {
+                        Spacer(modifier = Modifier.height(0.dp))
                         Text(
                             text = stringResource(item.title),
                             style = MaterialTheme.typography.labelSmall,

@@ -3,9 +3,7 @@ package org.skepsun.kototoro.favourites.ui.compose
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -27,6 +25,10 @@ import org.skepsun.kototoro.favourites.ui.container.FavouritesContainerViewModel
 import org.skepsun.kototoro.favourites.domain.GlobalFavoritesState
 import org.skepsun.kototoro.main.ui.MainActivity
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
+import org.skepsun.kototoro.main.ui.compose.CompactFilterRailOverrideState
+import org.skepsun.kototoro.main.ui.compose.FavoritesTopBarOverrideState
+import org.skepsun.kototoro.main.ui.compose.CompactTabsTopBarOverrideState
+import org.skepsun.kototoro.main.ui.compose.CompactTopBarTabItem
 import org.skepsun.kototoro.main.ui.compose.TopBarOverrideState
 import org.skepsun.kototoro.parsers.model.Content
 
@@ -78,6 +80,82 @@ fun KototoroFavoritesHostRoute(
         mainActivity?.refreshFilters()
     }
 
+    val displayCategories = remember(uiState.categories, initialCategoryId, initialCategoryTitle) {
+        val categories = buildList {
+            add(FavouriteTabModel(id = NO_ID, title = null))
+            uiState.categories.filterTo(this) { it.id != NO_ID }
+        }
+        if (initialCategoryId == NO_ID || categories.any { it.id == initialCategoryId }) {
+            categories
+        } else {
+            categories + FavouriteTabModel(id = initialCategoryId, title = initialCategoryTitle)
+        }
+    }
+    val initialPage = remember(displayCategories, initialCategoryId) {
+        displayCategories.indexOfFirst { it.id == initialCategoryId }.takeIf { it >= 0 } ?: 0
+    }
+    val pagerState = rememberPagerState(
+        initialPage = initialPage,
+        pageCount = { displayCategories.size },
+    )
+    val coroutineScope = rememberCoroutineScope()
+    var initialSelectionApplied by rememberSaveable(initialCategoryId) { mutableStateOf(false) }
+    var childTopBarOverrideState by remember { mutableStateOf<TopBarOverrideState?>(null) }
+    var childFilterRailOverrideState by remember { mutableStateOf<CompactFilterRailOverrideState?>(null) }
+    val allFavouritesLabel = stringResource(R.string.all_favourites)
+
+    val innerPadding = PaddingValues(
+        start = contentPadding.calculateStartPadding(androidx.compose.ui.platform.LocalLayoutDirection.current),
+        end = contentPadding.calculateEndPadding(androidx.compose.ui.platform.LocalLayoutDirection.current),
+        top = contentPadding.calculateTopPadding(),
+        bottom = contentPadding.calculateBottomPadding(),
+    )
+
+    LaunchedEffect(displayCategories, initialCategoryId, initialSelectionApplied) {
+        if (initialSelectionApplied || displayCategories.isEmpty()) {
+            return@LaunchedEffect
+        }
+        val targetPage = displayCategories.indexOfFirst { it.id == initialCategoryId }.takeIf { it >= 0 } ?: 0
+        if (pagerState.currentPage != targetPage) {
+            pagerState.scrollToPage(targetPage)
+        }
+        initialSelectionApplied = true
+    }
+
+    val compactTabsState = remember(displayCategories, pagerState.currentPage) {
+        CompactTabsTopBarOverrideState(
+            items = displayCategories.map {
+                CompactTopBarTabItem(
+                    id = it.id,
+                    title = if (it.id == NO_ID) allFavouritesLabel else (it.title ?: ""),
+                )
+            },
+            selectedItemId = displayCategories.getOrNull(pagerState.currentPage)?.id ?: NO_ID,
+            onItemSelected = { categoryId ->
+                val targetPage = displayCategories.indexOfFirst { it.id == categoryId }
+                if (targetPage >= 0) {
+                    coroutineScope.launch { pagerState.animateScrollToPage(targetPage) }
+                }
+            },
+        )
+    }
+
+    val favoritesTopBarOverrideState = remember(compactTabsState, childFilterRailOverrideState, childTopBarOverrideState) {
+        FavoritesTopBarOverrideState(
+            tabsState = compactTabsState,
+            filterRailState = childFilterRailOverrideState,
+            contextualOverrideState = childTopBarOverrideState,
+        )
+    }
+
+    SideEffect {
+        onTopBarOverrideChanged(favoritesTopBarOverrideState)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { onTopBarOverrideChanged(null) }
+    }
+
     if (uiState.isLoading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
@@ -98,76 +176,20 @@ fun KototoroFavoritesHostRoute(
         return
     }
 
-    val displayCategories = remember(uiState.categories, initialCategoryId, initialCategoryTitle) {
-        val categories = uiState.categories
-        if (initialCategoryId == NO_ID || categories.any { it.id == initialCategoryId }) {
-            categories
-        } else {
-            categories + FavouriteTabModel(id = initialCategoryId, title = initialCategoryTitle)
-        }
-    }
-    val initialPage = remember(displayCategories, initialCategoryId) {
-        displayCategories.indexOfFirst { it.id == initialCategoryId }.takeIf { it >= 0 } ?: 0
-    }
-    val pagerState = rememberPagerState(
-        initialPage = initialPage,
-        pageCount = { displayCategories.size },
-    )
-    val coroutineScope = rememberCoroutineScope()
-    var initialSelectionApplied by rememberSaveable(initialCategoryId) { mutableStateOf(false) }
-
-    val innerPadding = PaddingValues(
-        start = contentPadding.calculateStartPadding(androidx.compose.ui.platform.LocalLayoutDirection.current),
-        end = contentPadding.calculateEndPadding(androidx.compose.ui.platform.LocalLayoutDirection.current),
-        top = 0.dp,
-        bottom = contentPadding.calculateBottomPadding(),
-    )
-
-    LaunchedEffect(displayCategories, initialCategoryId, initialSelectionApplied) {
-        if (initialSelectionApplied || displayCategories.isEmpty()) {
-            return@LaunchedEffect
-        }
-        val targetPage = displayCategories.indexOfFirst { it.id == initialCategoryId }.takeIf { it >= 0 } ?: 0
-        if (pagerState.currentPage != targetPage) {
-            pagerState.scrollToPage(targetPage)
-        }
-        initialSelectionApplied = true
-    }
-
-    Column(modifier = Modifier.fillMaxSize().padding(top = contentPadding.calculateTopPadding())) {
-        ScrollableTabRow(
-            selectedTabIndex = pagerState.currentPage,
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            edgePadding = 12.dp,
-            indicator = { tabPositions ->
-                TabRowDefaults.SecondaryIndicator(
-                    Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage]),
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-        ) {
-            displayCategories.forEachIndexed { index, tabModel ->
-                val title = if (tabModel.id == NO_ID) stringResource(R.string.all_favourites) else tabModel.title ?: ""
-                Tab(
-                    selected = pagerState.currentPage == index,
-                    onClick = { coroutineScope.launch { pagerState.animateScrollToPage(index) } },
-                    text = { Text(title) }
-                )
-            }
-        }
-
+    Column(modifier = Modifier.fillMaxSize()) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             val category = displayCategories.getOrNull(page)
             if (category != null) {
-                val enabled = page == pagerState.currentPage && !pagerState.isScrollInProgress
+                val enabled = page == pagerState.currentPage
                 KototoroFavoritesListScreen(
                     categoryId = category.id,
                     appRouter = appRouter,
                     contentPadding = innerPadding,
                     onNavigateToDetails = onNavigateToDetails,
                     sharedTransitionEnabled = enabled,
-                    onTopBarOverrideChanged = onTopBarOverrideChanged,
+                    isActivePage = enabled,
+                    onTopBarOverrideChanged = { childTopBarOverrideState = it },
+                    onFilterRailOverrideChanged = { childFilterRailOverrideState = it },
                 )
             }
         }

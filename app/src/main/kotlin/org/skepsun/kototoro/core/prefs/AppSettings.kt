@@ -174,11 +174,11 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putBoolean(KEY_NAV_PINNED, value) }
 
 	var isNavFloating: Boolean
-		get() = prefs.getBoolean(KEY_NAV_FLOATING, false)
+		get() = prefs.getBoolean(KEY_NAV_FLOATING, true)
 		set(value) = prefs.edit { putBoolean(KEY_NAV_FLOATING, value) }
 
 	var isNavFloatingAdaptiveWidth: Boolean
-		get() = prefs.getBoolean(KEY_NAV_FLOATING_ADAPTIVE_WIDTH, false)
+		get() = prefs.getBoolean(KEY_NAV_FLOATING_ADAPTIVE_WIDTH, true)
 		set(value) = prefs.edit { putBoolean(KEY_NAV_FLOATING_ADAPTIVE_WIDTH, value) }
 
 	var navHeight: Int

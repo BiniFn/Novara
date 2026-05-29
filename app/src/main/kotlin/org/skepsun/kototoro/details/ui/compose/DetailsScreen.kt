@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -56,6 +57,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -183,6 +185,7 @@ import org.skepsun.kototoro.readingrecord.data.ReadingRecordSnapshot
 import org.skepsun.kototoro.reader.ui.PageSaveHelper
 import org.skepsun.kototoro.reader.ui.ReaderState
 import org.skepsun.kototoro.favourites.ui.categories.select.compose.FavoriteCategoryDialog
+import org.skepsun.kototoro.main.ui.compose.GlassDropdownMenu
 import org.skepsun.kototoro.stats.ui.sheet.compose.ContentStatsDialog
 import org.skepsun.kototoro.stats.ui.sheet.ContentStatsViewModel
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
@@ -197,6 +200,11 @@ import java.util.Locale
 import java.text.DateFormat
 import java.util.Date
 import java.util.concurrent.TimeUnit
+
+private val DetailsTopBarHeight = 56.dp
+private val DetailsTopButtonContainerHeight = 44.dp
+private val DetailsTopActionButtonSize = 40.dp
+private val DetailsTopActionIconSize = 18.dp
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -676,106 +684,179 @@ fun DetailsScreen(
             }
 
             val commonTopBar: @Composable () -> Unit = {
-            val topBarContainerColor = MaterialTheme.colorScheme.surface
-            TopAppBar(
-                title = {
-                    Text(
-                        text = toolbarTitle,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.graphicsLayer {
-                            alpha = if (toolbarTitleProgressProvider() > 0.92f) 1f else 0f
-                        },
-                    )
-                },
-                    navigationIcon = {
-                    DetailsChromeButton(onClick = handleBackPress) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                        )
-                    }
-                },
-                actions = {
-                    DetailsChromeButton(
-                        onClick = {
-                            showShareOptions = true
-                        },
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Share,
-                            contentDescription = stringResource(R.string.share),
-                        )
-                    }
-                    DetailsChromeButton(onClick = {
-                        handleActionClick(DetailsAction.Download)
-                        showDownloadDialog = true
-                    }) {
-                        Icon(
-                            painter = rememberSafePainter(R.drawable.ic_download),
-                            contentDescription = stringResource(R.string.download),
-                        )
-                    }
-                    DetailsOverflowMenu(
-                        contentTitle = content?.title,
-                        showTranslateAction = showTranslateAction,
-                        hasTranslationCache = hasTranslationCache,
-                        isShowingTranslation = isShowingTranslation,
-                        isTranslating = isTranslating,
-                        isStatsAvailable = isStatsAvailable,
-                        hasMetadataBrowserTarget = metadataBrowserTarget != null,
-                        hasLocalBrowserTarget = localBrowserTarget != null,
-                        localBrowserTitleRes = when (contentType) {
-                            ContentType.VIDEO,
-                            ContentType.HENTAI_VIDEO -> R.string.open_playback_page_in_browser
-                            else -> R.string.open_reading_page_in_browser
-                        },
-                        hasOnlineVariant = remoteContent != null,
-                        isDeleteLocalAvailable = content?.source == LocalMangaSource,
-                        isEditOverrideAvailable = content != null,
-                        isShortcutSupported = isShortcutSupported && content != null,
-                        isNsfw = content?.isNsfw() == true,
-                        onDeleteLocalRequest = { handleActionClick(DetailsAction.DeleteLocal) },
-                        onActionClick = { action ->
-                            when (action) {
-                                is DetailsAction.OpenMetadataInBrowser -> {
-                                    metadataBrowserTarget?.let {
-                                        handleActionClick(DetailsAction.OpenBrowserPage(it.url, it.source, it.title))
-                                    }
-                                }
-                                is DetailsAction.OpenLocalSourceInBrowser -> {
-                                    localBrowserTarget?.let {
-                                        handleActionClick(DetailsAction.OpenBrowserPage(it.url, it.source, it.title))
-                                    }
-                                }
-                                DetailsAction.OpenStatistics -> {
-                                    showStatsDialog = true
-                                }
-                                else -> handleActionClick(action)
+                val titleAlpha = ((toolbarTitleProgressProvider() - 0.82f) / 0.18f).coerceIn(0f, 1f)
+                val immersiveTopColors = listOf(
+                    MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.28f),
+                    MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.16f),
+                    MaterialTheme.colorScheme.surface.copy(alpha = 0.07f),
+                    Color.Transparent,
+                )
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onGloballyPositioned { coordinates ->
+                            val bottom = coordinates.boundsInRoot().bottom
+                            toolbarBottomPx = bottom
+                            if (bottom.isFinite() && bottom > 0f) {
+                                lastToolbarBottomPx = bottom
                             }
                         },
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    scrolledContainerColor = Color.Transparent,
-                ),
-                modifier = Modifier
-                    .drawBehind {
-                        drawRect(
-                            color = topBarContainerColor.copy(
-                                alpha = 0.94f * compactCollapseProgressProvider(),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(statusBarTopPadding + 84.dp)
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    colors = immersiveTopColors,
+                                ),
                             ),
-                        )
-                    }
-                    .onGloballyPositioned { coordinates ->
-                        val bottom = coordinates.boundsInRoot().bottom
-                        toolbarBottomPx = bottom
-                        if (bottom.isFinite() && bottom > 0f) {
-                            lastToolbarBottomPx = bottom
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .height(DetailsTopBarHeight)
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        GlassSurface(
+                            shape = RoundedCornerShape(28.dp),
+                            style = GlassDefaults.subtleStyle(),
+                        ) {
+                            CompositionLocalProvider(
+                                LocalMinimumInteractiveComponentSize provides DetailsTopActionButtonSize,
+                            ) {
+                                DetailsChromeButton(
+                                    onClick = handleBackPress,
+                                    modifier = Modifier.size(DetailsTopActionButtonSize),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = stringResource(R.string.back),
+                                        modifier = Modifier.size(DetailsTopActionIconSize),
+                                    )
+                                }
+                            }
                         }
-                    },
-            )
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 4.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = toolbarTitle,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.graphicsLayer {
+                                    alpha = titleAlpha
+                                },
+                                color = MaterialTheme.colorScheme.onSurface,
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                        }
+
+                        GlassSurface(
+                            shape = RoundedCornerShape(28.dp),
+                            style = GlassDefaults.subtleStyle(),
+                        ) {
+                            CompositionLocalProvider(
+                                LocalMinimumInteractiveComponentSize provides DetailsTopActionButtonSize,
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .height(DetailsTopButtonContainerHeight)
+                                        .padding(horizontal = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    DetailsChromeButton(
+                                        onClick = {
+                                            showShareOptions = true
+                                        },
+                                        modifier = Modifier.size(DetailsTopActionButtonSize),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Share,
+                                            contentDescription = stringResource(R.string.share),
+                                            modifier = Modifier.size(DetailsTopActionIconSize),
+                                        )
+                                    }
+                                    DetailsChromeButton(
+                                        onClick = {
+                                            handleActionClick(DetailsAction.Download)
+                                            showDownloadDialog = true
+                                        },
+                                        modifier = Modifier.size(DetailsTopActionButtonSize),
+                                    ) {
+                                        Icon(
+                                            painter = rememberSafePainter(R.drawable.ic_download),
+                                            contentDescription = stringResource(R.string.download),
+                                            modifier = Modifier.size(DetailsTopActionIconSize),
+                                        )
+                                    }
+                                    DetailsOverflowMenu(
+                                        contentTitle = content?.title,
+                                        showTranslateAction = showTranslateAction,
+                                        hasTranslationCache = hasTranslationCache,
+                                        isShowingTranslation = isShowingTranslation,
+                                        isTranslating = isTranslating,
+                                        isStatsAvailable = isStatsAvailable,
+                                        hasMetadataBrowserTarget = metadataBrowserTarget != null,
+                                        hasLocalBrowserTarget = localBrowserTarget != null,
+                                        localBrowserTitleRes = when (contentType) {
+                                            ContentType.VIDEO,
+                                            ContentType.HENTAI_VIDEO -> R.string.open_playback_page_in_browser
+                                            else -> R.string.open_reading_page_in_browser
+                                        },
+                                        hasOnlineVariant = remoteContent != null,
+                                        isDeleteLocalAvailable = content?.source == LocalMangaSource,
+                                        isEditOverrideAvailable = content != null,
+                                        isShortcutSupported = isShortcutSupported && content != null,
+                                        isNsfw = content?.isNsfw() == true,
+                                        onDeleteLocalRequest = { handleActionClick(DetailsAction.DeleteLocal) },
+                                        onActionClick = { action ->
+                                            when (action) {
+                                                is DetailsAction.OpenMetadataInBrowser -> {
+                                                    metadataBrowserTarget?.let {
+                                                        handleActionClick(
+                                                            DetailsAction.OpenBrowserPage(
+                                                                it.url,
+                                                                it.source,
+                                                                it.title,
+                                                            ),
+                                                        )
+                                                    }
+                                                }
+
+                                                is DetailsAction.OpenLocalSourceInBrowser -> {
+                                                    localBrowserTarget?.let {
+                                                        handleActionClick(
+                                                            DetailsAction.OpenBrowserPage(
+                                                                it.url,
+                                                                it.source,
+                                                                it.title,
+                                                            ),
+                                                        )
+                                                    }
+                                                }
+
+                                                DetailsAction.OpenStatistics -> {
+                                                    showStatsDialog = true
+                                                }
+
+                                                else -> handleActionClick(action)
+                                            }
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             if (isWideAdaptiveLayout) {
@@ -3520,14 +3601,13 @@ private fun DetailsOverflowMenu(
             Icon(
                 imageVector = Icons.Default.MoreVert,
                 contentDescription = stringResource(R.string.more),
+                modifier = Modifier.size(DetailsTopActionIconSize),
             )
         }
-        DropdownMenu(
+        GlassDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            shape = MaterialTheme.shapes.extraSmall,
-        )
- {
+        ) {
             if (showTranslateAction) {
                 DropdownMenuItem(
                     text = {

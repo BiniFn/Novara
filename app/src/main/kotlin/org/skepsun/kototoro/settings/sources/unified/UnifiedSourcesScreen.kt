@@ -108,6 +108,9 @@ private const val UNIFIED_SOURCES_TAB_SOURCES = 0
 private const val UNIFIED_SOURCES_TAB_REPOSITORIES = 1
 private const val UNIFIED_SOURCES_TAB_PACKAGES = 2
 private const val UNIFIED_SOURCES_TAB_COUNT = 3
+private val unifiedCardListPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+private val unifiedCardContentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+private val unifiedCardSpacing = 8.dp
 
 private sealed interface UnifiedSourcesDialogState {
 	data object AddRepositoryKind : UnifiedSourcesDialogState
@@ -1490,10 +1493,10 @@ private fun UnifiedSourceRow(
 						tint = MaterialTheme.colorScheme.primary,
 					)
 				}
-					CompactTag(text = item.kind.displayLabel())
-					if (!item.isAvailable || item.isBroken) {
-						CompactTag(text = stringResource(R.string.unavailable), isWarning = true)
-					}
+				CompactTag(text = item.kind.displayLabel())
+				if (!item.isAvailable || item.isBroken) {
+					CompactTag(text = stringResource(R.string.unavailable), isWarning = true)
+				}
 			}
 			Text(
 				text = item.source.getSummary(context, item.contentType) ?: buildSourceSubtitle(item),
@@ -1502,18 +1505,6 @@ private fun UnifiedSourceRow(
 				maxLines = 1,
 				overflow = TextOverflow.Ellipsis,
 			)
-			Row(
-				horizontalArrangement = Arrangement.spacedBy(6.dp),
-				verticalAlignment = Alignment.CenterVertically,
-			) {
-				item.language.normalizedLanguageTag()?.let { CompactTag(it) }
-				CompactTag(item.contentType.name.lowercase().replaceFirstChar { it.titlecase() })
-				item.repositoryName?.takeIf { it.isNotBlank() }?.let { CompactTag(it) }
-					item.packageName?.takeIf { it.isNotBlank() }?.let { CompactTag(it) }
-					if (item.isNsfw) {
-						CompactTag(text = stringResource(R.string.nsfw), isWarning = true)
-					}
-			}
 		}
 		Box {
 			IconButton(onClick = { menuExpanded = true }) {
@@ -1567,8 +1558,8 @@ private fun UnifiedRepositoryList(
 	val listState2 = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
 	LazyColumn(state = listState2,
 		modifier = modifier,
-		contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-		verticalArrangement = Arrangement.spacedBy(8.dp),
+		contentPadding = unifiedCardListPadding,
+		verticalArrangement = Arrangement.spacedBy(unifiedCardSpacing),
 	) {
 		item(key = "add_repository") {
 			Row(
@@ -1585,7 +1576,7 @@ private fun UnifiedRepositoryList(
 		items(repositories, key = { it.id }) { item ->
 			ElevatedCard(modifier = Modifier.fillMaxWidth()) {
 				Column(
-					modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+					modifier = Modifier.padding(unifiedCardContentPadding),
 					verticalArrangement = Arrangement.spacedBy(4.dp),
 				) {
 					Row(
@@ -1654,11 +1645,11 @@ private fun UnifiedPackageList(
 	onPackageCancelInstall: (String) -> Unit,
 	onImportLocalJar: () -> Unit,
 ) {
-    val listState3 = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
+	val listState3 = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
 	LazyColumn(state = listState3,
 		modifier = modifier,
-		contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-		verticalArrangement = Arrangement.spacedBy(4.dp),
+		contentPadding = unifiedCardListPadding,
+		verticalArrangement = Arrangement.spacedBy(unifiedCardSpacing),
 	) {
 		item(key = "package_actions") {
 			LazyRow(
@@ -1715,7 +1706,7 @@ private fun UnifiedPackageRow(
 ) {
 	ElevatedCard(modifier = Modifier.fillMaxWidth()) {
 		Column(
-			modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+			modifier = Modifier.padding(unifiedCardContentPadding),
 			verticalArrangement = Arrangement.spacedBy(4.dp),
 		) {
 			Row(

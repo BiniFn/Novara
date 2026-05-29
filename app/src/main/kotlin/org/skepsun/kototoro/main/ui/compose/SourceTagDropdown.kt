@@ -3,7 +3,6 @@ package org.skepsun.kototoro.main.ui.compose
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -23,8 +22,8 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 
-private val CompactSourceTagButtonSize = 40.dp
-private val CompactSourceTagIconSize = 20.dp
+private val CompactSourceTagButtonSize = 36.dp
+private val CompactSourceTagIconSize = 18.dp
 
 /**
  * Icon button + dropdown menu for selecting a single [SourceTag].
@@ -70,17 +69,15 @@ fun SourceTagDropdown(
                 tint = tint,
             )
         }
-        DropdownMenu(
+        GlassDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            shape = MaterialTheme.shapes.extraSmall,
-            containerColor = MaterialTheme.colorScheme.surface,
-            tonalElevation = 0.dp,
             offset = DpOffset(x = 0.dp, y = 4.dp),
         ) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.all)) },
                 onClick = {
+                    expanded = false
                     onTagSelected(null)
                 },
                 leadingIcon = {
@@ -96,6 +93,7 @@ fun SourceTagDropdown(
                 DropdownMenuItem(
                     text = { Text(stringResource(tag.titleRes)) },
                     onClick = {
+                        expanded = false
                         onTagSelected(tag)
                     },
                     enabled = tag in enabledTags,

@@ -2,6 +2,11 @@ package org.skepsun.kototoro.main.ui.compose
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,8 +21,8 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,6 +39,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -47,12 +53,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
@@ -65,10 +72,11 @@ import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.search.ui.suggestion.model.SearchSuggestionItem
 
-private val CollapsedSearchBarHeight = 48.dp
-private val CompactTopBarActionSize = 40.dp
-private val CompactTopBarIconSize = 20.dp
-
+private val CollapsedSearchBarHeight = 44.dp
+private val CompactTopTabsRailHeight = 40.dp
+private val CompactTopFilterRailHeight = 36.dp
+private val CompactTopBarActionSize = 36.dp
+private val CompactTopBarIconSize = 18.dp
 data class KototoroTopBarMenuAction(
     val titleRes: Int,
     val onClick: () -> Unit,
@@ -91,6 +99,7 @@ fun KototoroTopBar(
     activeLanguagePresetId: Long = -1L,
     onLanguagePresetSelected: (Long) -> Unit = {},
     onManageLanguagePresets: () -> Unit = {},
+    compactTabsState: CompactTabsTopBarOverrideState? = null,
     selectedContentType: ContentType? = null,
     enabledContentTypes: Set<ContentType> = setOf(ContentType.MANGA, ContentType.NOVEL, ContentType.VIDEO),
     isContentTypeFilterVisible: Boolean = true,
@@ -119,6 +128,7 @@ fun KototoroTopBar(
     modifier: Modifier = Modifier,
 ) {
     var isMoreMenuExpanded by rememberSaveable { mutableStateOf(false) }
+    var isLanguagePresetMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var showDisplayOptionsSheet by rememberSaveable { mutableStateOf(false) }
     var pendingListMode by remember(showDisplayOptionsSheet) { mutableStateOf(currentListMode) }
     var pendingGridSize by remember(showDisplayOptionsSheet) { mutableIntStateOf(gridSize) }
@@ -140,169 +150,216 @@ fun KototoroTopBar(
             .fillMaxWidth()
             .padding(top = statusBarPadding.calculateTopPadding())
     ) {
-        GlassSurface(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp)
+                .padding(horizontal = 10.dp)
                 .graphicsLayer { alpha = collapsedAlpha },
-            shape = RoundedCornerShape(28.dp),
-            style = GlassDefaults.subtleStyle(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides CompactTopBarActionSize) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(CollapsedSearchBarHeight)
-                        .padding(start = 16.dp, end = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+            GlassSurface(
+                modifier = Modifier.wrapContentWidth(),
+                shape = RoundedCornerShape(28.dp),
+                style = GlassDefaults.subtleStyle(),
+            ) {
+                IconButton(
+                    onClick = onSearchClick,
+                    modifier = Modifier.size(CollapsedSearchBarHeight),
                 ) {
+                    Box(
+                        modifier = Modifier.size(CompactTopBarIconSize),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Filled.Search,
+                            contentDescription = stringResource(R.string.search),
+                            modifier = Modifier.size(CompactTopBarIconSize),
+                        )
+                    }
+                }
+            }
+            if (compactTabsState != null) {
+                InlineCompactTopBarTabsRail(
+                    state = compactTabsState,
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
+            }
+            GlassSurface(
+                modifier = Modifier.wrapContentWidth(),
+                shape = RoundedCornerShape(28.dp),
+                style = GlassDefaults.subtleStyle(),
+            ) {
+                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides CompactTopBarActionSize) {
                     Row(
                         modifier = Modifier
-                            .weight(1f)
+                            .widthIn(min = CompactTopBarActionSize)
                             .height(CollapsedSearchBarHeight)
-                            .clickable(onClick = onSearchClick),
+                            .padding(start = 2.dp, end = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(
-                            modifier = Modifier.size(CompactTopBarIconSize),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                Icons.Filled.Search,
-                                contentDescription = stringResource(R.string.search),
-                                modifier = Modifier.size(CompactTopBarIconSize),
+                        if (isContentTypeFilterVisible) {
+                            SwipeableFilterChip(
+                                selectedType = selectedContentType,
+                                enabledTypes = enabledContentTypes,
+                                onTypeSelected = onContentTypeSelected,
+                                modifier = Modifier.zIndex(1f),
                             )
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = query.ifBlank { stringResource(R.string.search_content) },
-                            color = if (query.isBlank()) {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            } else {
-                                MaterialTheme.colorScheme.onSurface
-                            },
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    if (isLanguagePresetFilterVisible) {
-                        LanguagePresetDropdownButton(
-                            presets = languagePresetEntries,
-                            activePresetId = activeLanguagePresetId,
-                            onPresetSelected = onLanguagePresetSelected,
-                            onManagePresets = onManageLanguagePresets,
-                        )
-                    }
-                    if (isContentTypeFilterVisible) {
-                        SwipeableFilterChip(
-                            selectedType = selectedContentType,
-                            enabledTypes = enabledContentTypes,
-                            onTypeSelected = onContentTypeSelected,
-                            modifier = Modifier.zIndex(1f),
-                        )
-                    }
-                    if (isSourceTagFilterVisible) {
-                        SourceTagDropdown(
-                            selectedTags = selectedSourceTags,
-                            entries = sourceTagEntries,
-                            enabledTags = enabledSourceTags,
-                            onButtonClickIntercept = onSourceTagFilterClick,
-                            onTagSelected = onSourceTagSelected,
-                        )
-                    }
-                    if (showMoreActions) {
-                        Box {
-                            IconButton(
-                                onClick = { isMoreMenuExpanded = true },
-                                modifier = Modifier.size(CompactTopBarActionSize),
-                            ) {
-                                Icon(
-                                    painterResource(R.drawable.ic_more_vert),
-                                    contentDescription = stringResource(R.string.more),
-                                    modifier = Modifier.size(CompactTopBarIconSize),
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = isMoreMenuExpanded,
-                                onDismissRequest = { isMoreMenuExpanded = false },
-                                shape = MaterialTheme.shapes.extraSmall,
-                                containerColor = MaterialTheme.colorScheme.surface,
-                                tonalElevation = 0.dp,
-                                offset = androidx.compose.ui.unit.DpOffset(x = 0.dp, y = 4.dp),
-                            ) {
-                                if (supportsDisplayModeMenu || supportsGridSizeSlider) {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.display_options)) },
-                                        onClick = {
-                                            isMoreMenuExpanded = false
-                                            showDisplayOptionsSheet = true
-                                        },
-                                    )
-
-                                    HorizontalDivider()
-                                }
-                                if (showSourceSettingsEntry) {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.extension_management)) },
-                                        onClick = {
-                                            isMoreMenuExpanded = false
-                                            onManageSourcesClick()
-                                        },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.manage_sources)) },
-                                        onClick = {
-                                            isMoreMenuExpanded = false
-                                            onSourceSettingsClick()
-                                        },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.tracking_accounts)) },
-                                        onClick = {
-                                            isMoreMenuExpanded = false
-                                            onTrackingAccountsClick()
-                                        },
-                                    )
-                                    HorizontalDivider()
-                                }
-                                contextualMenuActions.forEach { action ->
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(action.titleRes)) },
-                                        onClick = {
-                                            isMoreMenuExpanded = false
-                                            action.onClick()
-                                        },
+                        if (isSourceTagFilterVisible) {
+                            SourceTagDropdown(
+                                selectedTags = selectedSourceTags,
+                                entries = sourceTagEntries,
+                                enabledTags = enabledSourceTags,
+                                onButtonClickIntercept = onSourceTagFilterClick,
+                                onTagSelected = onSourceTagSelected,
+                            )
+                        }
+                        if (showMoreActions) {
+                            Box {
+                                IconButton(
+                                    onClick = { isMoreMenuExpanded = true },
+                                    modifier = Modifier.size(CompactTopBarActionSize),
+                                ) {
+                                    Icon(
+                                        painterResource(R.drawable.ic_more_vert),
+                                        contentDescription = stringResource(R.string.more),
+                                        modifier = Modifier.size(CompactTopBarIconSize),
                                     )
                                 }
-                                if (contextualMenuActions.isNotEmpty()) {
-                                    HorizontalDivider()
-                                }
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.settings)) },
-                                    onClick = {
-                                        isMoreMenuExpanded = false
-                                        onSettingsClick()
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.incognito_mode)) },
-                                    trailingIcon = {
-                                        Checkbox(
-                                            checked = isIncognitoModeEnabled,
-                                            onCheckedChange = null,
+                                GlassDropdownMenu(
+                                    expanded = isMoreMenuExpanded,
+                                    onDismissRequest = { isMoreMenuExpanded = false },
+                                    offset = androidx.compose.ui.unit.DpOffset(x = 0.dp, y = 4.dp),
+                                ) {
+                                    if (supportsDisplayModeMenu || supportsGridSizeSlider) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.display_options)) },
+                                            onClick = {
+                                                isMoreMenuExpanded = false
+                                                showDisplayOptionsSheet = true
+                                            },
                                         )
-                                    },
-                                    onClick = {
-                                        isMoreMenuExpanded = false
-                                        onIncognitoToggle()
-                                    },
-                                )
+
+                                        HorizontalDivider()
+                                    }
+                                    if (isLanguagePresetFilterVisible) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.show_language_preset_filter)) },
+                                            onClick = {
+                                                isMoreMenuExpanded = false
+                                                isLanguagePresetMenuExpanded = true
+                                            },
+                                        )
+                                        HorizontalDivider()
+                                    }
+                                    if (showSourceSettingsEntry) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.extension_management)) },
+                                            onClick = {
+                                                isMoreMenuExpanded = false
+                                                onManageSourcesClick()
+                                            },
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.manage_sources)) },
+                                            onClick = {
+                                                isMoreMenuExpanded = false
+                                                onSourceSettingsClick()
+                                            },
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.tracking_accounts)) },
+                                            onClick = {
+                                                isMoreMenuExpanded = false
+                                                onTrackingAccountsClick()
+                                            },
+                                        )
+                                        HorizontalDivider()
+                                    }
+                                    contextualMenuActions.forEach { action ->
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(action.titleRes)) },
+                                            onClick = {
+                                                isMoreMenuExpanded = false
+                                                action.onClick()
+                                            },
+                                        )
+                                    }
+                                    if (contextualMenuActions.isNotEmpty()) {
+                                        HorizontalDivider()
+                                    }
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.settings)) },
+                                        onClick = {
+                                            isMoreMenuExpanded = false
+                                            onSettingsClick()
+                                        },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.incognito_mode)) },
+                                        trailingIcon = {
+                                            Checkbox(
+                                                checked = isIncognitoModeEnabled,
+                                                onCheckedChange = null,
+                                            )
+                                        },
+                                        onClick = {
+                                            isMoreMenuExpanded = false
+                                            onIncognitoToggle()
+                                        },
+                                    )
+                                    }
+                                }
+                                GlassDropdownMenu(
+                                    expanded = isLanguagePresetMenuExpanded,
+                                    onDismissRequest = { isLanguagePresetMenuExpanded = false },
+                                    offset = DpOffset(x = 0.dp, y = 4.dp),
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.all)) },
+                                        onClick = {
+                                            onLanguagePresetSelected(-1L)
+                                            isLanguagePresetMenuExpanded = false
+                                        },
+                                        leadingIcon = {
+                                            Checkbox(
+                                                checked = activeLanguagePresetId <= 0L,
+                                                onCheckedChange = null,
+                                            )
+                                        },
+                                    )
+                                    languagePresetEntries.forEach { preset ->
+                                        DropdownMenuItem(
+                                            text = { Text(preset.title) },
+                                            onClick = {
+                                                onLanguagePresetSelected(preset.id)
+                                                isLanguagePresetMenuExpanded = false
+                                            },
+                                            leadingIcon = {
+                                                Checkbox(
+                                                    checked = activeLanguagePresetId == preset.id,
+                                                    onCheckedChange = null,
+                                                )
+                                            },
+                                        )
+                                    }
+                                    HorizontalDivider()
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.manage_language_presets)) },
+                                        onClick = {
+                                            isLanguagePresetMenuExpanded = false
+                                            onManageLanguagePresets()
+                                        },
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
-        }
         if (showDisplayOptionsSheet && (supportsDisplayModeMenu || supportsGridSizeSlider || onBrowseTrackingRecommendationsChange != null)) {
             org.skepsun.kototoro.list.ui.compose.DisplayOptionsSheet(
                 supportsDisplayModeMenu = supportsDisplayModeMenu,
@@ -351,6 +408,160 @@ fun KototoroTopBar(
 }
 
 @Composable
+fun CompactTopBarTabsRail(
+    state: CompactTabsTopBarOverrideState,
+    modifier: Modifier = Modifier,
+) {
+    val listState = rememberLazyListState()
+    EnsureItemFullyVisible(listState = listState, targetIndex = state.items.indexOfFirst { it.id == state.selectedItemId })
+    GlassSurface(
+        modifier = modifier,
+        shape = RoundedCornerShape(28.dp),
+        style = GlassDefaults.subtleStyle(),
+    ) {
+        LazyRow(
+            state = listState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(CompactTopTabsRailHeight)
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            contentPadding = PaddingValues(horizontal = 1.dp),
+        ) {
+            items(items = state.items, key = { it.id }) { item ->
+                val selected = item.id == state.selectedItemId
+                Text(
+                    text = item.title,
+                    modifier = Modifier
+                        .clickable { state.onItemSelected(item.id) }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (selected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    maxLines = 1,
+                    fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Normal,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun InlineCompactTopBarTabsRail(
+    state: CompactTabsTopBarOverrideState,
+    modifier: Modifier = Modifier,
+) {
+    val listState = rememberLazyListState()
+    EnsureItemFullyVisible(listState = listState, targetIndex = state.items.indexOfFirst { it.id == state.selectedItemId })
+    GlassSurface(
+        modifier = modifier,
+        shape = RoundedCornerShape(28.dp),
+        style = GlassDefaults.subtleStyle(),
+    ) {
+        LazyRow(
+            state = listState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(CollapsedSearchBarHeight)
+                .padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(1.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            contentPadding = PaddingValues(horizontal = 1.dp),
+        ) {
+            items(items = state.items, key = { it.id }) { item ->
+                val selected = item.id == state.selectedItemId
+                Text(
+                    text = item.title,
+                    modifier = Modifier
+                        .clickable { state.onItemSelected(item.id) }
+                        .padding(horizontal = 5.dp, vertical = 2.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Normal,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun CompactTopBarFilterRail(
+    state: CompactFilterRailOverrideState,
+    modifier: Modifier = Modifier,
+) {
+    val listState = rememberLazyListState()
+    EnsureItemFullyVisible(listState = listState, targetIndex = remember(state.items) { state.items.indexOfFirst { it.isSelected } })
+    LazyRow(
+        state = listState,
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        contentPadding = PaddingValues(horizontal = 12.dp),
+    ) {
+        items(items = state.items, key = { it.id }) { item ->
+            GlassSurface(
+                shape = RoundedCornerShape(22.dp),
+                style = GlassDefaults.subtleStyle(),
+            ) {
+                Text(
+                    text = item.title,
+                    modifier = Modifier
+                        .clickable { item.onClick() }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (item.isSelected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    fontWeight = if (item.isSelected) {
+                        androidx.compose.ui.text.font.FontWeight.SemiBold
+                    } else {
+                        androidx.compose.ui.text.font.FontWeight.Normal
+                    },
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EnsureItemFullyVisible(
+    listState: LazyListState,
+    targetIndex: Int,
+) {
+    val density = LocalDensity.current
+    val extraPaddingPx = with(density) { 8.dp.toPx() }
+    LaunchedEffect(listState, targetIndex) {
+        if (targetIndex < 0) return@LaunchedEffect
+        repeat(2) {
+            val layoutInfo = listState.layoutInfo
+            val itemInfo = layoutInfo.visibleItemsInfo.firstOrNull { it.index == targetIndex }
+            if (itemInfo == null) {
+                listState.scrollToItem(targetIndex)
+            } else {
+                val viewportStart = layoutInfo.viewportStartOffset
+                val viewportEnd = layoutInfo.viewportEndOffset
+                val itemStart = itemInfo.offset
+                val itemEnd = itemInfo.offset + itemInfo.size
+                when {
+                    itemStart < viewportStart -> listState.animateScrollBy(itemStart - viewportStart - extraPaddingPx)
+                    itemEnd > viewportEnd -> listState.animateScrollBy(itemEnd - viewportEnd + extraPaddingPx)
+                    else -> return@LaunchedEffect
+                }
+                return@LaunchedEffect
+            }
+        }
+    }
+}
+
+@Composable
 private fun DisplayOptionsSwitchRow(
     title: String,
     summary: String,
@@ -383,79 +594,5 @@ private fun DisplayOptionsSwitchRow(
             checked = checked,
             onCheckedChange = onCheckedChange,
         )
-    }
-}
-
-@Composable
-private fun LanguagePresetDropdownButton(
-    presets: List<SourcePreset>,
-    activePresetId: Long,
-    onPresetSelected: (Long) -> Unit,
-    onManagePresets: () -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    Box {
-        IconButton(
-            onClick = { expanded = true },
-            modifier = Modifier.size(CompactTopBarActionSize),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_language),
-                contentDescription = stringResource(R.string.show_language_preset_filter),
-                modifier = Modifier.size(CompactTopBarIconSize),
-                tint = if (activePresetId > 0L) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-            )
-        }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            offset = DpOffset(x = 0.dp, y = 4.dp),
-            shape = MaterialTheme.shapes.extraSmall,
-            containerColor = MaterialTheme.colorScheme.surface,
-            tonalElevation = 0.dp,
-        )
- {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.all)) },
-                onClick = {
-                    onPresetSelected(-1L)
-                    expanded = false
-                },
-                leadingIcon = {
-                    Checkbox(
-                        checked = activePresetId <= 0L,
-                        onCheckedChange = null,
-                    )
-                },
-            )
-            presets.forEach { preset ->
-                DropdownMenuItem(
-                    text = { Text(preset.title) },
-                    onClick = {
-                        onPresetSelected(preset.id)
-                        expanded = false
-                    },
-                    leadingIcon = {
-                        Checkbox(
-                            checked = activePresetId == preset.id,
-                            onCheckedChange = null,
-                        )
-                    },
-                )
-            }
-            HorizontalDivider()
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.manage_language_presets)) },
-                onClick = {
-                    expanded = false
-                    onManagePresets()
-                },
-            )
-        }
     }
 }

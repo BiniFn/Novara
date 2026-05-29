@@ -58,6 +58,7 @@ fun FeedScreen(
 	categories: List<FavouriteCategory>,
 	selectedCategoryId: Long,
 	onCategorySelected: (Long) -> Unit,
+	showCategoryFilterInline: Boolean = true,
 	modifier: Modifier = Modifier
 ) {
 	val listState = rememberLazyListState()
@@ -105,12 +106,14 @@ fun FeedScreen(
 			),
 			modifier = Modifier.fillMaxSize()
 		) {
-			item(key = "feed_filters") {
-				FeedFilterBar(
-					categories = categories,
-					selectedCategoryId = selectedCategoryId,
-					onCategorySelected = onCategorySelected,
-				)
+			if (showCategoryFilterInline) {
+				item(key = "feed_filters") {
+					FeedFilterBar(
+						categories = categories,
+						selectedCategoryId = selectedCategoryId,
+						onCategorySelected = onCategorySelected,
+					)
+				}
 			}
 			itemsIndexed(
 				items = items,

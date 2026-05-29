@@ -28,6 +28,9 @@ import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.ErrorState
 import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.model.QuickFilter
+import org.skepsun.kototoro.main.ui.compose.CompactFilterRailItem
+import org.skepsun.kototoro.main.ui.compose.CompactFilterRailOverrideState
 import org.skepsun.kototoro.main.ui.compose.ContentSelectionTopBarOverrideState
 import org.skepsun.kototoro.main.ui.compose.TopBarOverrideState
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
@@ -80,11 +83,13 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     removeSelectionActionIconRes: Int? = null,
     removeSelectionActionTitleRes: Int? = null,
     onEmptyActionClick: (() -> Unit)? = null,
+    onFilterRailOverrideChanged: (CompactFilterRailOverrideState?) -> Unit = {},
     pullRefreshEnabled: Boolean = true,
     onLoadMore: () -> Unit = {},
     onNavigateToDetails: ((org.skepsun.kototoro.parsers.model.Content, String?) -> Unit)? = null,
     onAddMenuProvider: ((androidx.activity.ComponentActivity, VM, androidx.lifecycle.LifecycleOwner) -> androidx.core.view.MenuProvider?)? = null,
     listHeader: (@Composable () -> Unit)? = null,
+    showQuickFilterInline: Boolean = true,
 ) {
     val items by viewModel.content.collectAsStateWithLifecycle()
     val listMode by viewModel.listMode.collectAsStateWithLifecycle(initialValue = org.skepsun.kototoro.core.prefs.ListMode.GRID)
@@ -108,6 +113,27 @@ fun <VM : ContentListViewModel> AppContentListRoute(
         prepareContentSelectionModels(items, composeSelectionIds)
     }
     val selectedModels = selectionModels.selectedModels
+    val quickFilter = remember(items) { items.firstOrNull { it is QuickFilter } as? QuickFilter }
+    val quickFilterRailOverride = remember(quickFilter, context) {
+        quickFilter?.let { filter ->
+            CompactFilterRailOverrideState(
+                items = filter.items.mapIndexedNotNull { index, chip ->
+                    val option = chip.data as? org.skepsun.kototoro.list.domain.ListFilterOption ?: return@mapIndexedNotNull null
+                    val title = when {
+                        chip.titleResId != 0 -> context.getString(chip.titleResId)
+                        !chip.title.isNullOrBlank() -> chip.title.toString()
+                        else -> return@mapIndexedNotNull null
+                    }
+                    CompactFilterRailItem(
+                        id = "${option::class.qualifiedName}:${option.hashCode()}:$index",
+                        title = title,
+                        isSelected = chip.isChecked,
+                        onClick = { (viewModel as? org.skepsun.kototoro.list.domain.QuickFilterListener)?.toggleFilterOption(option) },
+                    )
+                },
+            )
+        }
+    }
 
     BackHandler(enabled = composeSelectionIds.isNotEmpty()) {
         composeSelectionIds = emptySet()
@@ -200,6 +226,16 @@ fun <VM : ContentListViewModel> AppContentListRoute(
         }
     }
 
+    SideEffect {
+        onFilterRailOverrideChanged(
+            if (composeSelectionIds.isEmpty()) {
+                quickFilterRailOverride
+            } else {
+                null
+            },
+        )
+    }
+
     pendingFixIds?.let { ids ->
         AlertDialog(
             onDismissRequest = { pendingFixIds = null },
@@ -249,6 +285,7 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     DisposableEffect(Unit) {
         onDispose {
             onTopBarOverrideChanged(null)
+            onFilterRailOverrideChanged(null)
         }
     }
 
@@ -421,5 +458,6 @@ fun <VM : ContentListViewModel> AppContentListRoute(
         onRetry = ::resolveCloudflareAndRetry,
         showInlineSelectionTopBar = false,
         listHeader = listHeader,
+        showQuickFilterInline = showQuickFilterInline,
     )
 }

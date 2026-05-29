@@ -3,6 +3,7 @@ package org.skepsun.kototoro.main.ui
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -81,11 +82,7 @@ class MainViewModel @Inject constructor(
 		.withErrorHandling()
 		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Lazily, 0)
 
-	val isBottomNavPinned = settings.observeAsFlow(
-		AppSettings.KEY_NAV_PINNED,
-	) {
-		isNavBarPinned
-	}.flowOn(Dispatchers.Default)
+	val isBottomNavPinned = flowOf(true).flowOn(Dispatchers.Default)
 
 	val isNavFloating = settings.observeAsFlow(
 		AppSettings.KEY_NAV_FLOATING,
@@ -97,14 +94,10 @@ class MainViewModel @Inject constructor(
 		AppSettings.KEY_NAV_HEIGHT,
 		AppSettings.KEY_NAV_FLOATING_HEIGHT,
 		AppSettings.KEY_NAV_FLOATING,
-		AppSettings.KEY_NAV_LABELS,
 	).map {
 		val floating = settings.isNavFloating
-		val labeled = settings.isNavLabelsVisible
 		if (floating) {
 			settings.navFloatingHeight
-		} else if (!labeled) {
-			56
 		} else {
 			settings.navHeight
 		}

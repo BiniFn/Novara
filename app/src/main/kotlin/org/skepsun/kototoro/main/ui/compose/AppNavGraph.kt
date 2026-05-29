@@ -52,6 +52,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import org.skepsun.kototoro.core.nav.PendingDetailsNavigation
 import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
 import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
@@ -59,10 +60,18 @@ import org.skepsun.kototoro.details.ui.compose.DetailsScreen
 import org.skepsun.kototoro.details.ui.DetailsViewModel
 import org.skepsun.kototoro.details.ui.compose.handleDetailsAction
 import org.skepsun.kototoro.parsers.model.Content
-import org.skepsun.kototoro.local.ui.compose.LocalContentTagFilterBar
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import org.skepsun.kototoro.core.model.FavouriteCategory.Companion.NO_ID
+import org.skepsun.kototoro.list.domain.ListFilterOption
+import org.skepsun.kototoro.list.ui.model.ListModel
+import org.skepsun.kototoro.list.ui.model.QuickFilter
+import org.skepsun.kototoro.main.ui.compose.CompactFilterRailItem
+import org.skepsun.kototoro.main.ui.compose.CompactFilterRailOverrideState
+import org.skepsun.kototoro.main.ui.compose.CompactTabsTopBarOverrideState
+import org.skepsun.kototoro.main.ui.compose.CompactTopBarTabItem
+import org.skepsun.kototoro.main.ui.compose.LayeredTopBarOverrideState
 
 private fun <T> eventCollector(block: suspend (T) -> Unit): FlowCollector<T> = FlowCollector { value ->
     block(value)
@@ -85,6 +94,55 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.mainRouteFadeOut()
     } else {
         ExitTransition.None
     }
+
+private fun buildFavoriteCategoryTabsState(
+    items: List<ListModel>,
+    allTitle: String,
+    onClearSelection: () -> Unit,
+    onCategorySelected: (ListFilterOption.Favorite) -> Unit,
+): CompactTabsTopBarOverrideState? {
+    val quickFilter = items.firstOrNull { it is QuickFilter } as? QuickFilter ?: return null
+    val favoriteOptions = quickFilter.items.mapNotNull { chip ->
+        chip.data as? ListFilterOption.Favorite
+    }
+    if (favoriteOptions.isEmpty()) {
+        return null
+    }
+    val selectedCategoryId = favoriteOptions.firstOrNull { option ->
+        quickFilter.items.any { chip -> chip.data == option && chip.isChecked }
+    }?.category?.id ?: NO_ID
+    val optionsById = favoriteOptions.associateBy { it.category.id }
+    return CompactTabsTopBarOverrideState(
+        items = buildList {
+            add(CompactTopBarTabItem(id = NO_ID, title = allTitle))
+            favoriteOptions.forEach { option ->
+                add(
+                    CompactTopBarTabItem(
+                        id = option.category.id,
+                        title = option.category.title,
+                    ),
+                )
+            }
+        },
+        selectedItemId = selectedCategoryId,
+        onItemSelected = { categoryId ->
+            if (categoryId == NO_ID || categoryId == selectedCategoryId) {
+                onClearSelection()
+            } else {
+                optionsById[categoryId]?.let(onCategorySelected)
+            }
+        },
+    )
+}
+
+private const val TOP_BAR_OWNER_DISCOVER = "discover"
+private const val TOP_BAR_OWNER_HISTORY = "history"
+private const val TOP_BAR_OWNER_FAVORITES = "favorites"
+private const val TOP_BAR_OWNER_EXPLORE = "explore"
+private const val TOP_BAR_OWNER_FEED = "feed"
+private const val TOP_BAR_OWNER_LOCAL = "local"
+private const val TOP_BAR_OWNER_SUGGESTIONS = "suggestions"
+private const val TOP_BAR_OWNER_UPDATED = "updated"
 
 private fun NavDestination.isMainRoute(): Boolean =
     hasRoute<HomeRoute>() ||
@@ -366,7 +424,11 @@ fun AppNavGraph(
                     appRouter = appRouter,
                     contentPadding = contentPadding,
                     exploreViewModel = exploreViewModel,
-                    onSourceSelectionTopBarChanged = onExploreSourceSelectionTopBarChanged,
+                    onSourceSelectionTopBarChanged = {
+                        onExploreSourceSelectionTopBarChanged(
+                            RouteScopedTopBarOverrideState(TOP_BAR_OWNER_DISCOVER, it),
+                        )
+                    },
                     onNavigateToDetails = navigateToDetailsWithOrigin,
                 )
             }
@@ -410,7 +472,9 @@ fun AppNavGraph(
             SideEffect {
                 if (selectedItemsIds.isNotEmpty()) {
                     onExploreSourceSelectionTopBarChanged(
-                        ContentSelectionTopBarOverrideState(
+                        RouteScopedTopBarOverrideState(
+                            TOP_BAR_OWNER_HISTORY,
+                            ContentSelectionTopBarOverrideState(
                             selectedCount = selectedItemsIds.size,
                             isAllNonLocal = selectedModels.none { it.manga.isLocal },
                             isSingleSelection = selectedItemsIds.size == 1,
@@ -437,15 +501,16 @@ fun AppNavGraph(
                                 }
                             },
                         ),
+                        ),
                     )
                 } else {
-                    onExploreSourceSelectionTopBarChanged(null)
+                    onExploreSourceSelectionTopBarChanged(RouteScopedTopBarOverrideState(TOP_BAR_OWNER_HISTORY, null))
                 }
             }
 
             DisposableEffect(Unit) {
                 onDispose {
-                    onExploreSourceSelectionTopBarChanged(null)
+                    onExploreSourceSelectionTopBarChanged(RouteScopedTopBarOverrideState(TOP_BAR_OWNER_HISTORY, null))
                 }
             }
 
@@ -694,7 +759,11 @@ fun AppNavGraph(
                     contentPadding = contentPadding,
                     onNavigateToDetails = navigateToDetailsWithContent,
                     registerFilterCallback = false,
-                    onTopBarOverrideChanged = onExploreSourceSelectionTopBarChanged,
+                    onTopBarOverrideChanged = {
+                        onExploreSourceSelectionTopBarChanged(
+                            RouteScopedTopBarOverrideState(TOP_BAR_OWNER_FAVORITES, it),
+                        )
+                    },
                     viewModel = viewModel,
                 )
             }
@@ -737,7 +806,11 @@ fun AppNavGraph(
                     appRouter = appRouter,
                     contentPadding = contentPadding,
                     exploreViewModel = exploreViewModel,
-                    onSourceSelectionTopBarChanged = onExploreSourceSelectionTopBarChanged,
+                    onSourceSelectionTopBarChanged = {
+                        onExploreSourceSelectionTopBarChanged(
+                            RouteScopedTopBarOverrideState(TOP_BAR_OWNER_EXPLORE, it),
+                        )
+                    },
                     onNavigateToDetails = navigateToDetailsWithOrigin,
                 )
             }
@@ -746,6 +819,7 @@ fun AppNavGraph(
         composable<FeedRoute> {
             Box(modifier = Modifier.padding(start = landscapeStartPadding)) {
             val viewModel = hiltViewModel<org.skepsun.kototoro.tracker.ui.feed.FeedViewModel>()
+            val context = LocalContext.current
             val items by viewModel.content.collectAsStateWithLifecycle()
             val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
             val categories by viewModel.categories.collectAsStateWithLifecycle()
@@ -804,6 +878,42 @@ fun AppNavGraph(
                 }
             }
 
+            val feedCategoryTabsState = remember(categories, selectedCategoryId) {
+                CompactTabsTopBarOverrideState(
+                    items = categories.map { category ->
+                        CompactTopBarTabItem(
+                            id = category.id,
+                            title = if (category.id == NO_ID) {
+                                context.getString(org.skepsun.kototoro.R.string.all_favourites)
+                            } else {
+                                category.title
+                            },
+                        )
+                    },
+                    selectedItemId = selectedCategoryId,
+                    onItemSelected = { categoryId ->
+                        viewModel.selectCategory(if (selectedCategoryId == categoryId) NO_ID else categoryId)
+                    },
+                )
+            }
+
+            SideEffect {
+                onExploreSourceSelectionTopBarChanged(
+                    RouteScopedTopBarOverrideState(
+                        TOP_BAR_OWNER_FEED,
+                        LayeredTopBarOverrideState(
+                            tabsState = feedCategoryTabsState,
+                        ),
+                    ),
+                )
+            }
+
+            DisposableEffect(Unit) {
+                onDispose {
+                    onExploreSourceSelectionTopBarChanged(RouteScopedTopBarOverrideState(TOP_BAR_OWNER_FEED, null))
+                }
+            }
+
             CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                 org.skepsun.kototoro.tracker.ui.feed.compose.FeedScreen(
                     contentPadding = contentPadding,
@@ -844,6 +954,7 @@ fun AppNavGraph(
                     categories = categories,
                     selectedCategoryId = selectedCategoryId,
                     onCategorySelected = viewModel::selectCategory,
+                    showCategoryFilterInline = false,
                 )
             }
             }
@@ -852,6 +963,8 @@ fun AppNavGraph(
             Box(modifier = Modifier.padding(start = landscapeStartPadding)) {
             val viewModel = hiltViewModel<org.skepsun.kototoro.local.ui.LocalListViewModel>()
             val activity = androidx.compose.ui.platform.LocalContext.current as? androidx.activity.ComponentActivity
+            val availableTags by viewModel.filterAvailableTags.collectAsStateWithLifecycle(initialValue = emptySet())
+            val selectedTagKeys by viewModel.filterSelectedTagKeys.collectAsStateWithLifecycle(initialValue = emptySet())
             DisposableEffect(appRouter) {
                 onContextualMenuActionsChanged(
                     buildList {
@@ -878,13 +991,34 @@ fun AppNavGraph(
                     onContextualMenuActionsChanged(emptyList())
                 }
             }
+            val localFilterRailState = remember(availableTags, selectedTagKeys) {
+                val items = availableTags.map { tag ->
+                    CompactFilterRailItem(
+                        id = "local_tag_${tag.key}",
+                        title = tag.title,
+                        isSelected = tag.key in selectedTagKeys,
+                        onClick = { viewModel.toggleFilterTag(tag) },
+                    )
+                }
+                CompactFilterRailOverrideState(items = items)
+            }
             CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                 org.skepsun.kototoro.list.ui.compose.AppContentListRoute(
                     viewModel = viewModel,
                     contentPadding = contentPadding,
                     appRouter = appRouter,
                     pullRefreshEnabled = false,
-                    onTopBarOverrideChanged = onExploreSourceSelectionTopBarChanged,
+                    onTopBarOverrideChanged = {
+                        onExploreSourceSelectionTopBarChanged(
+                            RouteScopedTopBarOverrideState(
+                                TOP_BAR_OWNER_LOCAL,
+                                LayeredTopBarOverrideState(
+                                    filterRailState = localFilterRailState,
+                                    contextualOverrideState = it,
+                                ),
+                            ),
+                        )
+                    },
                     showRemoveOption = true,
                     isContentTypeFilterVisible = true,
                     onNavigateToDetails = navigateToDetailsWithContent,
@@ -906,15 +1040,7 @@ fun AppNavGraph(
                         }
                     },
                     onEmptyActionClick = { appRouter.showImportDialog() },
-                    listHeader = {
-                        val availableTags by viewModel.filterAvailableTags.collectAsStateWithLifecycle(initialValue = emptySet())
-                        val selectedTagKeys by viewModel.filterSelectedTagKeys.collectAsStateWithLifecycle(initialValue = emptySet())
-                        LocalContentTagFilterBar(
-                            availableTags = availableTags,
-                            selectedTagKeys = selectedTagKeys,
-                            onTagToggle = viewModel::toggleFilterTag,
-                        )
-                    },
+                    listHeader = null,
                 )
             }
             }
@@ -922,16 +1048,38 @@ fun AppNavGraph(
         composable<SuggestionsRoute> {
             Box(modifier = Modifier.padding(start = landscapeStartPadding)) {
             val viewModel = hiltViewModel<org.skepsun.kototoro.suggestions.ui.SuggestionsViewModel>()
+            var suggestionsContextualTopBarOverride by remember { mutableStateOf<TopBarOverrideState?>(null) }
+            var suggestionsFilterRailOverride by remember { mutableStateOf<CompactFilterRailOverrideState?>(null) }
+
+            SideEffect {
+                onExploreSourceSelectionTopBarChanged(
+                    RouteScopedTopBarOverrideState(
+                        TOP_BAR_OWNER_SUGGESTIONS,
+                        LayeredTopBarOverrideState(
+                            filterRailState = suggestionsFilterRailOverride,
+                            contextualOverrideState = suggestionsContextualTopBarOverride,
+                        ),
+                    ),
+                )
+            }
+
+            DisposableEffect(Unit) {
+                onDispose {
+                    onExploreSourceSelectionTopBarChanged(RouteScopedTopBarOverrideState(TOP_BAR_OWNER_SUGGESTIONS, null))
+                }
+            }
+
             CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                 org.skepsun.kototoro.list.ui.compose.AppContentListRoute(
                     viewModel = viewModel,
                     contentPadding = contentPadding,
                     appRouter = appRouter,
-                    onTopBarOverrideChanged = onExploreSourceSelectionTopBarChanged,
+                    onTopBarOverrideChanged = { suggestionsContextualTopBarOverride = it },
                     showRemoveOption = false,
                     isContentTypeFilterVisible = true,
                     isSourceTagFilterVisible = true,
                     onNavigateToDetails = navigateToDetailsWithContent,
+                    onFilterRailOverrideChanged = { suggestionsFilterRailOverride = it },
                     onAddMenuProvider = { act, _, _ ->
                         object : androidx.core.view.MenuProvider {
                             override fun onCreateMenu(menu: android.view.Menu, menuInflater: android.view.MenuInflater) {
@@ -1008,17 +1156,50 @@ fun AppNavGraph(
         composable<UpdatedRoute> {
             Box(modifier = Modifier.padding(start = landscapeStartPadding)) {
             val viewModel = hiltViewModel<org.skepsun.kototoro.tracker.ui.updates.UpdatesViewModel>()
+            val items by viewModel.content.collectAsStateWithLifecycle()
+            val updatedCategoryTabsState = remember(items, activity) {
+                buildFavoriteCategoryTabsState(
+                    items = items,
+                    allTitle = activity.getString(org.skepsun.kototoro.R.string.all_favourites),
+                    onClearSelection = { viewModel.clearFilter() },
+                    onCategorySelected = { option ->
+                        viewModel.clearFilter()
+                        viewModel.setFilterOption(option, true)
+                    },
+                )
+            }
+            var updatedContextualTopBarOverride by remember { mutableStateOf<TopBarOverrideState?>(null) }
+
+            SideEffect {
+                onExploreSourceSelectionTopBarChanged(
+                    RouteScopedTopBarOverrideState(
+                        TOP_BAR_OWNER_UPDATED,
+                        LayeredTopBarOverrideState(
+                            tabsState = updatedCategoryTabsState,
+                            contextualOverrideState = updatedContextualTopBarOverride,
+                        ),
+                    ),
+                )
+            }
+
+            DisposableEffect(Unit) {
+                onDispose {
+                    onExploreSourceSelectionTopBarChanged(RouteScopedTopBarOverrideState(TOP_BAR_OWNER_UPDATED, null))
+                }
+            }
+
             CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                 org.skepsun.kototoro.list.ui.compose.AppContentListRoute(
                     viewModel = viewModel,
                     contentPadding = contentPadding,
                     appRouter = appRouter,
-                    onTopBarOverrideChanged = onExploreSourceSelectionTopBarChanged,
+                    onTopBarOverrideChanged = { updatedContextualTopBarOverride = it },
                     showRemoveOption = true,
                     isContentTypeFilterVisible = true,
                     isSourceTagFilterVisible = true,
                     onRemoveSelection = { ids -> viewModel.remove(ids) },
                     onNavigateToDetails = navigateToDetailsWithContent,
+                    onFilterRailOverrideChanged = {},
                     onAddMenuProvider = { _, _, _ ->
                         object : androidx.core.view.MenuProvider {
                             override fun onCreateMenu(menu: android.view.Menu, menuInflater: android.view.MenuInflater) {
@@ -1036,7 +1217,8 @@ fun AppNavGraph(
                                 else -> false
                             }
                         }
-                    }
+                    },
+                    showQuickFilterInline = false,
                 )
             }
             }

@@ -7,11 +7,13 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
@@ -32,6 +34,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.unit.LayoutDirection
 
@@ -81,10 +87,15 @@ import org.skepsun.kototoro.core.ui.compose.LocalRailAnimationFactor
 import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
 import org.skepsun.kototoro.core.ui.compose.rememberRailAnimationFactor
 import kotlinx.coroutines.delay
+import org.skepsun.kototoro.main.ui.compose.CompactFilterRailOverrideState
+import org.skepsun.kototoro.main.ui.compose.CompactTabsTopBarOverrideState
+import org.skepsun.kototoro.main.ui.compose.CompactTopBarFilterRail
+import org.skepsun.kototoro.main.ui.compose.FavoritesTopBarOverrideState
+import org.skepsun.kototoro.main.ui.compose.LayeredTopBarOverrideState
+import org.skepsun.kototoro.main.ui.compose.RouteScopedTopBarOverrideState
 
 @Immutable
 private data class KototoroNavigationPrefs(
-    val isNavBarPinned: Boolean,
     val isFloating: Boolean,
 )
 
@@ -105,6 +116,45 @@ private data class KototoroFilterVisibilityPrefs(
     val isContentTypeFilterVisible: Boolean,
     val isSourceTagFilterVisible: Boolean,
 )
+
+private fun routeOwnerKeyForDestination(
+    destination: androidx.navigation.NavDestination?,
+): String? = when {
+    destination?.hasRoute<DiscoverRoute>() == true -> "discover"
+    destination?.hasRoute<HistoryRoute>() == true -> "history"
+    destination?.hasRoute<FavoritesRoute>() == true -> "favorites"
+    destination?.hasRoute<ExploreRoute>() == true -> "explore"
+    destination?.hasRoute<FeedRoute>() == true -> "feed"
+    destination?.hasRoute<LocalRoute>() == true -> "local"
+    destination?.hasRoute<SuggestionsRoute>() == true -> "suggestions"
+    destination?.hasRoute<UpdatedRoute>() == true -> "updated"
+    else -> null
+}
+
+@Composable
+private fun BoxScope.ImmersiveEdgeGradient(
+    height: androidx.compose.ui.unit.Dp,
+    colors: List<Color>,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .height(height)
+            .drawWithCache {
+                val brush = Brush.verticalGradient(
+                    colors = colors,
+                    startY = 0f,
+                    endY = size.height,
+                )
+                onDrawBehind {
+                    drawRect(
+                        brush = brush,
+                        topLeft = Offset.Zero,
+                    )
+                }
+            },
+    )
+}
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -172,11 +222,9 @@ fun KototoroApp(
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val navigationPrefs by appSettings.observeAsState(
-        AppSettings.KEY_NAV_PINNED,
         AppSettings.KEY_NAV_FLOATING,
     ) {
         KototoroNavigationPrefs(
-            isNavBarPinned = isNavBarPinned,
             isFloating = isNavFloating,
         )
     }
@@ -215,7 +263,7 @@ fun KototoroApp(
     ) {
         isSharedElementTransitionsEnabled
     }
-    val isNavBarPinned = navigationPrefs.isNavBarPinned
+    val isNavBarPinned = true
     val isFloating = navigationPrefs.isFloating
     val activeSourcePresetId = displayPrefs.activeSourcePresetId
     val listMode = displayPrefs.listMode
@@ -243,8 +291,10 @@ fun KototoroApp(
 
     var topBarHeightPx by remember { mutableIntStateOf(0) }
     var bottomNavHeightPx by remember { mutableIntStateOf(0) }
+    var topFilterRailHeightPx by remember { mutableIntStateOf(0) }
     var topBarOffset by remember { mutableFloatStateOf(0f) }
     var bottomNavOffset by remember { mutableFloatStateOf(0f) }
+    var topFilterRailOffset by remember { mutableFloatStateOf(0f) }
     var isLandscapeRailInteracting by remember { mutableStateOf(false) }
     var isSearchOverlayVisible by rememberSaveable { mutableStateOf(false) }
     var isSearchOverlayMounted by rememberSaveable { mutableStateOf(false) }
@@ -262,7 +312,6 @@ fun KototoroApp(
     val navigationBarHeightPx = with(density) {
         WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding().roundToPx()
     }
-
     val nestedScrollConnection = remember(
         isNavBarPinned,
         isLandscapeNavigation,
@@ -297,6 +346,7 @@ fun KototoroApp(
         if (isSearchOverlayMounted) {
             topBarOffset = 0f
             bottomNavOffset = 0f
+            topFilterRailOffset = 0f
         }
     }
 
@@ -351,6 +401,7 @@ fun KototoroApp(
         if (currentDestinationRoute != null && !isDetailsRoute && !isSearchRoute) {
             topBarOffset = 0f
             bottomNavOffset = 0f
+            topFilterRailOffset = 0f
             offsetDestinationRoute = currentDestinationRoute
         }
     }
@@ -405,6 +456,27 @@ fun KototoroApp(
     val showBrowseSourceSettingsEntry = currentDestination?.let {
         it.hasRoute<ExploreRoute>() || it.hasRoute<DiscoverRoute>()
     } == true
+    val currentTopBarOwnerKey = routeOwnerKeyForDestination(currentDestination)
+    val resolvedTopBarOverrideState = when (val overrideState = topBarOverrideState) {
+        is RouteScopedTopBarOverrideState -> if (overrideState.ownerRoute == currentTopBarOwnerKey) overrideState.state else null
+        else -> overrideState
+    }
+    val layeredTopBarOverrideState = when (resolvedTopBarOverrideState) {
+        is LayeredTopBarOverrideState -> resolvedTopBarOverrideState
+        is FavoritesTopBarOverrideState -> LayeredTopBarOverrideState(
+            tabsState = resolvedTopBarOverrideState.tabsState,
+            filterRailState = resolvedTopBarOverrideState.filterRailState,
+            contextualOverrideState = resolvedTopBarOverrideState.contextualOverrideState,
+        )
+        else -> null
+    }
+    val topTabsOverrideState = layeredTopBarOverrideState?.tabsState ?: (resolvedTopBarOverrideState as? CompactTabsTopBarOverrideState)
+    val topFilterRailOverrideState = layeredTopBarOverrideState?.filterRailState
+    val effectiveTopBarOverrideState = if (layeredTopBarOverrideState != null) {
+        layeredTopBarOverrideState.contextualOverrideState
+    } else {
+        resolvedTopBarOverrideState
+    }
     val isHomeRoute = currentDestination?.hasRoute<HomeRoute>() == true
     val supportsDisplayModeMenu = currentDestination?.let {
         it.hasRoute<ExploreRoute>() ||
@@ -448,8 +520,14 @@ fun KototoroApp(
     }
 
     val maxCollapsePx = (topBarHeightPx - statusBarHeightPx).coerceAtLeast(0)
+    val visibleTopFilterInsetPx = if (shouldShowChrome && topFilterRailOverrideState != null) {
+        val gapPx = with(density) { 8.dp.roundToPx() }
+        (topFilterRailHeightPx + gapPx).coerceAtLeast(gapPx)
+    } else {
+        0
+    }
     val contentTopInsetPx = if (shouldShowChrome) {
-        (topBarHeightPx + effectiveTopBarOffset).toInt().coerceIn(maxCollapsePx, topBarHeightPx)
+        (topBarHeightPx + effectiveTopBarOffset).toInt().coerceIn(maxCollapsePx, topBarHeightPx) + visibleTopFilterInsetPx
     } else {
         0
     }
@@ -470,6 +548,13 @@ fun KototoroApp(
             bottomNavHeightPx.toFloat().toDp()
         } else {
             0.dp
+        }
+    }
+
+    LaunchedEffect(topFilterRailOverrideState) {
+        if (topFilterRailOverrideState == null) {
+            topFilterRailOffset = 0f
+            topFilterRailHeightPx = 0
         }
     }
 
@@ -547,9 +632,46 @@ fun KototoroApp(
                     }
                 }
 
+                val immersiveTint = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.20f)
+                val immersiveTransparent = Color.Transparent
+                val topImmersiveHeight = with(density) {
+                    (statusBarHeightPx + (topBarHeightPx * 0.52f).toInt() + (topFilterRailHeightPx * 0.42f).toInt())
+                        .coerceAtLeast(statusBarHeightPx)
+                        .toDp()
+                }
+                val bottomImmersiveHeight = with(density) {
+                    (navigationBarHeightPx + (bottomNavHeightPx * 0.72f).toInt()).coerceAtLeast(navigationBarHeightPx).toDp()
+                }
+
+                ImmersiveEdgeGradient(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth(),
+                    height = topImmersiveHeight,
+                    colors = listOf(
+                        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.24f),
+                        MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.14f),
+                        MaterialTheme.colorScheme.surface.copy(alpha = 0.05f),
+                        immersiveTransparent,
+                    ),
+                )
+
+                ImmersiveEdgeGradient(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth(),
+                    height = bottomImmersiveHeight,
+                    colors = listOf(
+                        immersiveTransparent,
+                        MaterialTheme.colorScheme.surface.copy(alpha = 0.05f),
+                        MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.14f),
+                        immersiveTint,
+                    ),
+                )
+
                 if (isChromeVisible || chromeAlpha > 0f) {
-                    if (topBarOverrideState != null) {
-                        when (val overrideState = topBarOverrideState) {
+                    if (effectiveTopBarOverrideState != null && effectiveTopBarOverrideState !is CompactTabsTopBarOverrideState) {
+                        when (val overrideState = effectiveTopBarOverrideState) {
                             is ExploreSourceSelectionTopBarState -> {
                                 ExploreSelectionTopBar(
                                     selectedCount = overrideState.selectedCount,
@@ -610,7 +732,10 @@ fun KototoroApp(
                                 )
                             }
 
-                            null -> Unit
+                            null,
+                            is CompactTabsTopBarOverrideState -> Unit
+                            is FavoritesTopBarOverrideState -> Unit
+                            is LayeredTopBarOverrideState -> Unit
                         }
                     } else {
                         KototoroTopBar(
@@ -635,6 +760,7 @@ fun KototoroApp(
                             activeLanguagePresetId = activeSourcePresetId,
                             onLanguagePresetSelected = onLanguagePresetSelected,
                             onManageLanguagePresets = onManageLanguagePresets,
+                            compactTabsState = topTabsOverrideState,
                             selectedContentType = selectedContentType,
                             enabledContentTypes = enabledContentTypes,
                             isContentTypeFilterVisible = effectiveContentTypeFilterVisible,
@@ -699,6 +825,30 @@ fun KototoroApp(
                                     }
                                 },
                         )
+
+                        topFilterRailOverrideState?.let { filterState ->
+                            CompactTopBarFilterRail(
+                                state = filterState,
+                                modifier = Modifier
+                                    .align(if (isLandscapeNavigation) Alignment.TopStart else Alignment.TopCenter)
+                                    .fillMaxWidth()
+                                    .padding(start = visibleStartInsetDp)
+                                    .padding(horizontal = 12.dp)
+                                    .offset {
+                                        androidx.compose.ui.unit.IntOffset(
+                                            0,
+                                            effectiveTopBarOffset.toInt() + topBarHeightPx + with(density) { 8.dp.roundToPx() },
+                                        )
+                                    }
+                                    .graphicsLayer { alpha = chromeAlpha }
+                                    .onGloballyPositioned { coords ->
+                                        val newHeight = coords.size.height
+                                        if (topFilterRailHeightPx != newHeight) {
+                                            topFilterRailHeightPx = newHeight
+                                        }
+                                    },
+                            )
+                        }
                     }
 
                     Box(

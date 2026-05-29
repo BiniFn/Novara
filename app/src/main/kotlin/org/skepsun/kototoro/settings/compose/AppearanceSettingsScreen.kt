@@ -71,8 +71,6 @@ data class AppearanceSettingsUiState(
     val isShowSourceTagFilter: Boolean,
     val hiddenSourceTag: Set<String>,
     val isMainFabEnabled: Boolean,
-    val isNavLabelsVisible: Boolean,
-    val isNavBarPinned: Boolean,
     val isNavFloating: Boolean,
     val isNavFloatingAdaptiveWidth: Boolean,
     val navHeight: Int,
@@ -153,8 +151,6 @@ fun AppearanceSettingsScreen(
     onShowSourceTagFilterChange: (Boolean) -> Unit,
     onHiddenSourceTagChange: (Set<String>) -> Unit,
     onMainFabChange: (Boolean) -> Unit,
-    onNavLabelsVisibleChange: (Boolean) -> Unit,
-    onNavBarPinnedChange: (Boolean) -> Unit,
     onNavFloatingChange: (Boolean) -> Unit,
     onNavFloatingAdaptiveWidthChange: (Boolean) -> Unit,
     onNavHeightChange: (Int) -> Unit,
@@ -487,19 +483,6 @@ fun AppearanceSettingsScreen(
                     checked = state.isMainFabEnabled,
                     summary = stringResource(R.string.main_screen_fab_summary),
                     onCheckedChange = onMainFabChange,
-                )
-                SettingsSectionDivider()
-                SettingsSwitchPreference(
-                    title = stringResource(R.string.show_labels_in_navbar),
-                    checked = state.isNavLabelsVisible,
-                    onCheckedChange = onNavLabelsVisibleChange,
-                )
-                SettingsSectionDivider()
-                SettingsSwitchPreference(
-                    title = stringResource(R.string.pin_navigation_ui),
-                    checked = state.isNavBarPinned,
-                    summary = stringResource(R.string.pin_navigation_ui_summary),
-                    onCheckedChange = onNavBarPinnedChange,
                 )
                 SettingsSectionDivider()
                 SettingsSwitchPreference(

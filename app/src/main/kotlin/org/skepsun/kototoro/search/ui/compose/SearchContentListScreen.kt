@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -32,6 +33,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -77,6 +79,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -110,13 +113,17 @@ import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.util.FoldableUtils
 import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
 import org.skepsun.kototoro.core.ui.compose.clearFailedContentSourceIcon
+import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
+import org.skepsun.kototoro.core.ui.glass.GlassDefaults
+import org.skepsun.kototoro.core.ui.glass.GlassSurface
 import org.skepsun.kototoro.core.ui.model.titleRes
 import org.skepsun.kototoro.core.util.ShareHelper
 import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
 import org.skepsun.kototoro.core.parser.favicon.directFaviconUriOrNull
 import org.skepsun.kototoro.list.ui.compose.KototoroSelectionTopBar
 import org.skepsun.kototoro.list.ui.compose.SelectionAction
+import org.skepsun.kototoro.main.ui.compose.GlassDropdownMenu
 
 import org.skepsun.kototoro.filter.ui.model.UiTagGroup
 import org.skepsun.kototoro.list.domain.ListFilterOption
@@ -127,6 +134,7 @@ import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.QuickFilter
 import org.skepsun.kototoro.remotelist.ui.RemoteListViewModel
 import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.parsers.model.ContentSource
 import org.skepsun.kototoro.parsers.model.ContentState
 import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.ContentType
@@ -134,6 +142,9 @@ import org.skepsun.kototoro.parsers.model.SortOrder
 import java.util.Locale
 
 private val SearchTopActionsHeight = 56.dp
+private val SearchTopButtonContainerHeight = 44.dp
+private val SearchTopActionButtonSize = 40.dp
+private val SearchTopActionIconSize = 18.dp
 
 private enum class SearchSidePaneMode {
     Filter,
@@ -182,6 +193,7 @@ fun AppSearchContentListRoute(
         .collectAsStateWithLifecycle(viewModel.filterCoordinator.snapshot())
     val listMode by viewModel.listMode.collectAsStateWithLifecycle(ListMode.GRID)
     val resolvedSourceTitle = rememberResolvedSourceTitle(viewModel.source)
+    val source = viewModel.source
     val sortOrderProperty by viewModel.filterCoordinator.sortOrder.collectAsStateWithLifecycle()
     val tagsProperty by viewModel.filterCoordinator.tags.collectAsStateWithLifecycle()
     val tagsExcludedProperty by viewModel.filterCoordinator.tagsExcluded.collectAsStateWithLifecycle()
@@ -385,6 +397,7 @@ fun AppSearchContentListRoute(
                     searchMode = false
                 },
                 focusRequester = focusRequester,
+                source = source,
                 sourceTitle = resolvedSourceTitle,
                 activeQuery = filterSnapshot.listFilter.query,
                 currentSortLabel = stringResource(filterSnapshot.sortOrder.titleRes),
@@ -847,6 +860,7 @@ private fun SearchContentTopBar(
     onSearchClose: () -> Unit,
     onSearchSubmit: () -> Unit,
     focusRequester: FocusRequester,
+    source: ContentSource,
     sourceTitle: String,
     activeQuery: String?,
     currentSortLabel: String,
@@ -885,11 +899,27 @@ private fun SearchContentTopBar(
     val compactTopBarAlpha = if (topActionsHeightPx == 0f) 1f else {
         ((topActionsHeightPx - topActionsCollapsedPx) / topActionsHeightPx).coerceIn(0f, 1f)
     }
+    val immersiveTopColors = listOf(
+        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.24f),
+        MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.14f),
+        MaterialTheme.colorScheme.surface.copy(alpha = 0.05f),
+        Color.Transparent,
+    )
 
-    Surface(
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-        tonalElevation = 2.dp,
+    Box(
+        modifier = Modifier.fillMaxWidth(),
     ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .height(topActionsHeight + 54.dp)
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = immersiveTopColors,
+                    ),
+                ),
+        )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -914,8 +944,6 @@ private fun SearchContentTopBar(
                     var showDisplayOptionsSheet by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
 
                     SourceListTopActionsRow(
-                        title = sourceTitle,
-                        activeQuery = activeQuery,
                         currentSortLabel = currentSortLabel,
                         topBarAlpha = compactTopBarAlpha,
                         listMode = listMode,
@@ -950,6 +978,8 @@ private fun SearchContentTopBar(
             if (!searchMode) {
                 if (quickFilter != null) {
                     QuickFilterPinnedRow(
+                        source = source,
+                        sourceTitle = sourceTitle,
                         quickFilter = quickFilter,
                         activeQuery = activeQuery,
                         onClearActiveQuery = onClearActiveQuery,
@@ -957,6 +987,8 @@ private fun SearchContentTopBar(
                     )
                 } else {
                     SourceTagsPinnedRow(
+                        source = source,
+                        sourceTitle = sourceTitle,
                         tags = extractedTags,
                         selectedTags = selectedTags,
                         activeQuery = activeQuery,
@@ -1082,8 +1114,6 @@ private fun SearchInputRow(
 
 @Composable
 private fun SourceListTopActionsRow(
-    title: String,
-    activeQuery: String?,
     currentSortLabel: String,
     topBarAlpha: Float,
     listMode: ListMode,
@@ -1113,105 +1143,119 @@ private fun SourceListTopActionsRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(SearchTopActionsHeight)
-                .padding(start = 4.dp, end = 6.dp),
+                .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.back),
-                )
+            GlassSurface(
+                modifier = Modifier.wrapContentWidth(),
+                shape = RoundedCornerShape(28.dp),
+                style = GlassDefaults.subtleStyle(),
+            ) {
+                IconButton(
+                    onClick = onBackClick,
+                    modifier = Modifier.size(SearchTopButtonContainerHeight),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.back),
+                        modifier = Modifier.size(SearchTopActionIconSize),
+                    )
+                }
             }
 
-            Column(
+            GlassSurface(
                 modifier = Modifier
-                    .weight(1f)
-                    .alpha(topBarAlpha),
-                verticalArrangement = Arrangement.Center,
+                    .weight(1f),
+                shape = RoundedCornerShape(28.dp),
+                style = GlassDefaults.subtleStyle(),
             ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (!activeQuery.isNullOrBlank()) {
-                    Text(
-                        text = activeQuery,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
+                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides SearchTopActionButtonSize) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(SearchTopButtonContainerHeight)
+                            .padding(horizontal = 2.dp)
+                            .alpha(topBarAlpha),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        BadgedBox(
+                            badge = {
+                                if (isFilterApplied) {
+                                    Badge()
+                                }
+                            },
+                        ) {
+                            IconButton(onClick = onFilterClick, modifier = Modifier.size(SearchTopActionButtonSize)) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_filter_menu),
+                                    contentDescription = currentSortLabel,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(SearchTopActionIconSize),
+                                )
+                            }
+                        }
 
-            BadgedBox(
-                modifier = Modifier.padding(horizontal = 4.dp),
-                badge = {
-                    if (isFilterApplied) {
-                        Badge()
+                        IconButton(onClick = onSearchClick, modifier = Modifier.size(SearchTopActionButtonSize)) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = stringResource(R.string.search),
+                                modifier = Modifier.size(SearchTopActionIconSize),
+                            )
+                        }
+
+                        if (showRandomDirect) {
+                            IconButton(
+                                onClick = onRandomClick,
+                                enabled = !isRandomLoading,
+                                modifier = Modifier.size(SearchTopActionButtonSize),
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_dice),
+                                    contentDescription = stringResource(R.string.random),
+                                    modifier = Modifier.size(SearchTopActionIconSize),
+                                )
+                            }
+                        }
+
+                        if (showDisplayDirect) {
+                            IconButton(onClick = onShowDisplayOptionsSheet, modifier = Modifier.size(SearchTopActionButtonSize)) {
+                                Icon(
+                                    painter = painterResource(listMode.iconRes()),
+                                    contentDescription = stringResource(R.string.list_options),
+                                    modifier = Modifier.size(SearchTopActionIconSize),
+                                )
+                            }
+                        }
+
+                        if (showSettingsDirect) {
+                            IconButton(onClick = onSettingsClick, modifier = Modifier.size(SearchTopActionButtonSize)) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_settings),
+                                    contentDescription = stringResource(R.string.settings),
+                                    modifier = Modifier.size(SearchTopActionIconSize),
+                                )
+                            }
+                        }
+
+                        if (shouldShowOverflow) {
+                            MoreActionsButton(
+                                showRandomAction = !showRandomDirect,
+                                showDisplayActions = !showDisplayDirect,
+                                showSettingsAction = !showSettingsDirect,
+                                listMode = listMode,
+                                gridSize = gridSize,
+                                isFilterApplied = isFilterApplied,
+                                isRandomLoading = isRandomLoading,
+                                onRandomClick = onRandomClick,
+                                onResetFilterClick = onResetFilterClick,
+                                onSettingsClick = onSettingsClick,
+                                onShowDisplayOptionsSheet = onShowDisplayOptionsSheet,
+                            )
+                        }
                     }
-                },
-            ) {
-                IconButton(onClick = onFilterClick) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_filter_menu),
-                        contentDescription = currentSortLabel,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
-            }
-
-            IconButton(onClick = onSearchClick) {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = stringResource(R.string.search),
-                )
-            }
-
-            if (showRandomDirect) {
-                IconButton(onClick = onRandomClick, enabled = !isRandomLoading) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_dice),
-                        contentDescription = stringResource(R.string.random),
-                    )
-                }
-            }
-
-            if (showDisplayDirect) {
-                IconButton(onClick = onShowDisplayOptionsSheet) {
-                    Icon(
-                        painter = painterResource(listMode.iconRes()),
-                        contentDescription = stringResource(R.string.list_options),
-                    )
-                }
-            }
-
-            if (showSettingsDirect) {
-                IconButton(onClick = onSettingsClick) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_settings),
-                        contentDescription = stringResource(R.string.settings),
-                    )
-                }
-            }
-
-            if (shouldShowOverflow) {
-                MoreActionsButton(
-                    showRandomAction = !showRandomDirect,
-                    showDisplayActions = !showDisplayDirect,
-                    showSettingsAction = !showSettingsDirect,
-                    listMode = listMode,
-                    gridSize = gridSize,
-                    isFilterApplied = isFilterApplied,
-                    isRandomLoading = isRandomLoading,
-                    onRandomClick = onRandomClick,
-                    onResetFilterClick = onResetFilterClick,
-                    onSettingsClick = onSettingsClick,
-                    onShowDisplayOptionsSheet = onShowDisplayOptionsSheet,
-                )
             }
         }
     }
@@ -1235,19 +1279,18 @@ private fun MoreActionsButton(
     var expanded by rememberSaveable { mutableStateOf(false) }
 
     Box {
-        IconButton(onClick = { expanded = true }) {
+        IconButton(onClick = { expanded = true }, modifier = Modifier.size(SearchTopActionButtonSize)) {
             Icon(
                 imageVector = Icons.Default.MoreVert,
                 contentDescription = stringResource(R.string.more),
+                modifier = Modifier.size(SearchTopActionIconSize),
             )
         }
-        DropdownMenu(
+        GlassDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            shape = MaterialTheme.shapes.extraSmall,
             offset = androidx.compose.ui.unit.DpOffset(x = 0.dp, y = 4.dp),
-        )
- {
+        ) {
             if (showRandomAction) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.random)) },
@@ -1343,6 +1386,8 @@ private fun CollapsingBarSlot(
 
 @Composable
 private fun QuickFilterPinnedRow(
+    source: ContentSource,
+    sourceTitle: String,
     quickFilter: QuickFilter,
     activeQuery: String?,
     onClearActiveQuery: () -> Unit,
@@ -1358,46 +1403,61 @@ private fun QuickFilterPinnedRow(
                 ActiveQueryChip(query = query, onClear = onClearActiveQuery)
             }
         }
+        item(key = "source_identity") {
+            SourceIdentityChip(source = source, sourceTitle = sourceTitle)
+        }
         items(quickFilter.items) { chip ->
             val option = chip.data as? ListFilterOption
-            FilterChip(
-                selected = chip.isChecked,
-                onClick = {
-                    if (option != null) {
-                        onQuickFilterOptionClick(option)
-                    }
-                },
-                enabled = option != null,
-                leadingIcon = if (chip.icon != 0) {
-                    {
-                        Icon(
-                            painter = painterResource(chip.icon),
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
+            GlassSurface(
+                shape = RoundedCornerShape(22.dp),
+                style = GlassDefaults.subtleStyle(),
+            ) {
+                FilterChip(
+                    selected = chip.isChecked,
+                    onClick = {
+                        if (option != null) {
+                            onQuickFilterOptionClick(option)
+                        }
+                    },
+                    enabled = option != null,
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = Color.Transparent,
+                        selectedContainerColor = Color.Transparent,
+                    ),
+                    border = null,
+                    leadingIcon = if (chip.icon != 0) {
+                        {
+                            Icon(
+                                painter = painterResource(chip.icon),
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                    label = {
+                        Text(
+                            text = when {
+                                chip.titleResId != 0 -> stringResource(chip.titleResId)
+                                chip.title != null -> chip.title.toString()
+                                else -> ""
+                            }.let { title ->
+                                if (chip.counter > 0) "$title ${chip.counter}" else title
+                            },
+                            maxLines = 1,
                         )
-                    }
-                } else {
-                    null
-                },
-                label = {
-                    Text(
-                        text = when {
-                            chip.titleResId != 0 -> stringResource(chip.titleResId)
-                            chip.title != null -> chip.title.toString()
-                            else -> ""
-                        }.let { title ->
-                            if (chip.counter > 0) "$title ${chip.counter}" else title
-                        },
-                        maxLines = 1,
-                    )
-                },
-            )
+                    },
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun SourceTagsPinnedRow(
+    source: ContentSource,
+    sourceTitle: String,
     tags: List<ContentTag>,
     selectedTags: Set<ContentTag>,
     activeQuery: String?,
@@ -1415,21 +1475,104 @@ private fun SourceTagsPinnedRow(
                 ActiveQueryChip(query = query, onClear = onClearActiveQuery)
             }
         }
+        item(key = "source_identity") {
+            SourceIdentityChip(source = source, sourceTitle = sourceTitle)
+        }
         itemsIndexed(
             items = tags,
             key = { index, tag -> sourceTagChipKey(tag, index) },
         ) { _, tag ->
-            FilterChip(
-                selected = tag in selectedTags,
-                onClick = { onToggleTag(tag, tag !in selectedTags) },
-                label = {
-                    Text(
-                        text = tag.title,
-                        maxLines = 1,
-                    )
-                },
+            GlassSurface(
+                shape = RoundedCornerShape(22.dp),
+                style = GlassDefaults.subtleStyle(),
+            ) {
+                FilterChip(
+                    selected = tag in selectedTags,
+                    onClick = { onToggleTag(tag, tag !in selectedTags) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = Color.Transparent,
+                        selectedContainerColor = Color.Transparent,
+                    ),
+                    border = null,
+                    label = {
+                        Text(
+                            text = tag.title,
+                            maxLines = 1,
+                        )
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SourceIdentityChip(
+    source: ContentSource,
+    sourceTitle: String,
+) {
+    GlassSurface(
+        shape = RoundedCornerShape(22.dp),
+        style = GlassDefaults.subtleStyle(),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ContentSourceIcon(
+                source = source,
+                modifier = Modifier.size(16.dp),
+                contentDescription = null,
+            )
+            Text(
+                text = sourceTitle,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
             )
         }
+    }
+}
+
+@Composable
+private fun ActiveQueryChip(
+    query: String,
+    onClear: () -> Unit,
+) {
+    GlassSurface(
+        shape = RoundedCornerShape(22.dp),
+        style = GlassDefaults.subtleStyle(),
+    ) {
+        FilterChip(
+            selected = true,
+            onClick = onClear,
+            colors = FilterChipDefaults.filterChipColors(
+                containerColor = Color.Transparent,
+                selectedContainerColor = Color.Transparent,
+            ),
+            border = null,
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+            },
+            trailingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Clear,
+                    contentDescription = stringResource(R.string.clear),
+                    modifier = Modifier.size(16.dp),
+                )
+            },
+            label = {
+                Text(
+                    text = query,
+                    maxLines = 1,
+                )
+            },
+        )
     }
 }
 
@@ -1437,37 +1580,6 @@ private fun sourceTagChipKey(
     tag: ContentTag,
     index: Int,
 ): String = "${tag.source.name}:${tag.key}:${tag.title}:$index"
-
-@Composable
-private fun ActiveQueryChip(
-    query: String,
-    onClear: () -> Unit,
-) {
-    FilterChip(
-        selected = true,
-        onClick = onClear,
-        leadingIcon = {
-            Icon(
-                imageVector = Icons.Default.Search,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-            )
-        },
-        trailingIcon = {
-            Icon(
-                imageVector = Icons.Default.Clear,
-                contentDescription = stringResource(R.string.clear),
-                modifier = Modifier.size(16.dp),
-            )
-        },
-        label = {
-            Text(
-                text = query,
-                maxLines = 1,
-            )
-        },
-    )
-}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

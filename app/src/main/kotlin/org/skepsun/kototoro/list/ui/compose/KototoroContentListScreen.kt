@@ -95,6 +95,7 @@ fun KototoroContentListScreen(
     onEmptyActionClick: () -> Unit = {},
     onRetry: () -> Unit = {},
     showInlineSelectionTopBar: Boolean = true,
+    showQuickFilterInline: Boolean = true,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     listHeader: (@Composable () -> Unit)? = null,
@@ -133,13 +134,13 @@ fun KototoroContentListScreen(
     val topBarInset = contentPadding.calculateTopPadding()
     val innerPadding = remember(contentPadding, topBarInset) {
         PaddingValues(
-            top = 0.dp,
+            top = topBarInset,
             bottom = contentPadding.calculateBottomPadding(),
             start = contentPadding.calculateLeftPadding(LayoutDirection.Ltr),
             end = contentPadding.calculateRightPadding(LayoutDirection.Ltr),
         )
     }
-    Box(modifier = modifier.fillMaxSize().padding(top = topBarInset)) {
+    Box(modifier = modifier.fillMaxSize()) {
         KototoroPullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = onRefresh,
@@ -225,6 +226,7 @@ fun KototoroContentListScreen(
                                             listMode = listMode,
                                             gridScale = gridScale,
                                             onQuickFilterOptionClick = onQuickFilterOptionClick,
+                                            showQuickFilterInline = showQuickFilterInline,
                                             onEmptyActionClick = onEmptyActionClick,
                                             onRetry = onRetry,
                                         )
@@ -291,6 +293,7 @@ fun KototoroContentListScreen(
                                                 listMode = listMode,
                                                 gridScale = gridScale,
                                                 onQuickFilterOptionClick = onQuickFilterOptionClick,
+                                                showQuickFilterInline = showQuickFilterInline,
                                                 onEmptyActionClick = onEmptyActionClick,
                                                 onRetry = onRetry,
                                             )
@@ -357,6 +360,7 @@ fun KototoroContentListScreen(
                                                 listMode = listMode,
                                                 gridScale = gridScale,
                                                 onQuickFilterOptionClick = onQuickFilterOptionClick,
+                                                showQuickFilterInline = showQuickFilterInline,
                                                 onEmptyActionClick = onEmptyActionClick,
                                                 onRetry = onRetry,
                                             )
@@ -403,15 +407,18 @@ private fun SupplementaryListItem(
     listMode: ListMode,
     gridScale: Float,
     onQuickFilterOptionClick: (ListFilterOption) -> Unit,
+    showQuickFilterInline: Boolean,
     onEmptyActionClick: () -> Unit,
     onRetry: () -> Unit,
 ) {
     when (item) {
         is ListHeader -> ListHeaderItem(item)
-        is QuickFilter -> QuickFilterSection(
-            quickFilter = item,
-            onQuickFilterOptionClick = onQuickFilterOptionClick,
-        )
+        is QuickFilter -> if (showQuickFilterInline) {
+            QuickFilterSection(
+                quickFilter = item,
+                onQuickFilterOptionClick = onQuickFilterOptionClick,
+            )
+        }
         is InfoModel -> InfoCard(item)
         is EmptyState -> EmptyStateCard(item, onEmptyActionClick)
         is ErrorState -> ErrorStateCard(item, onRetry)
