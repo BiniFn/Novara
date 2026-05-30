@@ -62,6 +62,7 @@ import androidx.compose.ui.zIndex
 import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.ListMode
+import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
 import org.skepsun.kototoro.explore.data.SourcePreset
@@ -77,6 +78,7 @@ private val CompactTopTabsRailHeight = 40.dp
 private val CompactTopFilterRailHeight = 36.dp
 private val CompactTopBarActionSize = 36.dp
 private val CompactTopBarIconSize = 18.dp
+private val CompactFilterRailChipHeight = 34.dp
 data class KototoroTopBarMenuAction(
     val titleRes: Int,
     val onClick: () -> Unit,
@@ -496,6 +498,12 @@ fun CompactTopBarFilterRail(
 ) {
     val listState = rememberLazyListState()
     EnsureItemFullyVisible(listState = listState, targetIndex = remember(state.items) { state.items.indexOfFirst { it.isSelected } })
+    val visibleItemRange = remember(listState.layoutInfo) {
+        val visibleItems = listState.layoutInfo.visibleItemsInfo
+        val minVisible = visibleItems.minOfOrNull { it.index } ?: 0
+        val maxVisible = visibleItems.maxOfOrNull { it.index } ?: -1
+        (minVisible - 2).coerceAtLeast(0)..(maxVisible + 2).coerceAtLeast(-1)
+    }
     LazyRow(
         state = listState,
         modifier = modifier.fillMaxWidth(),
@@ -503,29 +511,51 @@ fun CompactTopBarFilterRail(
         verticalAlignment = Alignment.CenterVertically,
         contentPadding = PaddingValues(horizontal = 12.dp),
     ) {
-        items(items = state.items, key = { it.id }) { item ->
+        items(
+            items = state.items,
+            key = { it.id },
+        ) { item ->
+            val itemIndex = remember(state.items, item.id) {
+                state.items.indexOfFirst { it.id == item.id }
+            }
+            val shouldLoadIcon = itemIndex in visibleItemRange
             GlassSurface(
                 shape = RoundedCornerShape(22.dp),
                 style = GlassDefaults.subtleStyle(),
             ) {
-                Text(
-                    text = item.title,
+                Row(
                     modifier = Modifier
                         .clickable { item.onClick() }
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (item.isSelected) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    fontWeight = if (item.isSelected) {
-                        androidx.compose.ui.text.font.FontWeight.SemiBold
-                    } else {
-                        androidx.compose.ui.text.font.FontWeight.Normal
-                    },
-                    maxLines = 1,
-                )
+                        .height(CompactFilterRailChipHeight)
+                        .padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    item.source?.let { source ->
+                        ContentSourceIcon(
+                            source = source,
+                            loadEnabled = shouldLoadIcon,
+                            throttleNetworkLoad = shouldLoadIcon,
+                            modifier = Modifier.size(16.dp),
+                            contentDescription = null,
+                        )
+                    }
+                    Text(
+                        text = item.title,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (item.isSelected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        fontWeight = if (item.isSelected) {
+                            androidx.compose.ui.text.font.FontWeight.SemiBold
+                        } else {
+                            androidx.compose.ui.text.font.FontWeight.Normal
+                        },
+                        maxLines = 1,
+                    )
+                }
             }
         }
     }

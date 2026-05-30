@@ -20,6 +20,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.rememberCoroutineScope
+import dagger.hilt.android.EntryPointAccessors
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.compose.KototoroExploreHostRoute
@@ -56,6 +57,7 @@ import androidx.compose.runtime.mutableStateOf
 import org.skepsun.kototoro.core.nav.PendingDetailsNavigation
 import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
 import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
+import org.skepsun.kototoro.core.ui.compose.resolveSourceTitleForUi
 import org.skepsun.kototoro.details.ui.compose.DetailsScreen
 import org.skepsun.kototoro.details.ui.DetailsViewModel
 import org.skepsun.kototoro.details.ui.compose.handleDetailsAction
@@ -63,6 +65,7 @@ import org.skepsun.kototoro.parsers.model.Content
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import org.skepsun.kototoro.core.BaseApp
 import org.skepsun.kototoro.core.model.FavouriteCategory.Companion.NO_ID
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.list.ui.model.ListModel
@@ -437,6 +440,15 @@ fun AppNavGraph(
         composable<HistoryRoute> {
             Box(modifier = Modifier.padding(start = landscapeStartPadding)) {
             val viewModel = hiltViewModel<org.skepsun.kototoro.history.ui.HistoryListViewModel>()
+            val context = LocalContext.current
+            val entryPoint = remember(context.applicationContext) {
+                runCatching {
+                    EntryPointAccessors.fromApplication(
+                        context.applicationContext,
+                        BaseApp.BaseAppEntryPoint::class.java,
+                    )
+                }.getOrNull()
+            }
             val items by viewModel.content.collectAsStateWithLifecycle()
             val listMode by viewModel.listMode.collectAsStateWithLifecycle()
             val isStatsEnabled by viewModel.isStatsEnabled.collectAsStateWithLifecycle()
@@ -444,6 +456,34 @@ fun AppNavGraph(
             val gridScale by viewModel.gridScale.collectAsStateWithLifecycle()
             val selectedGroupTab by viewModel.currentGroupTab.collectAsStateWithLifecycle()
             val selectedSourceTags by viewModel.currentSourceTags.collectAsStateWithLifecycle()
+            val historyFilterRailState = remember(items, context, entryPoint, viewModel) {
+                val quickFilter = items.firstOrNull { it is org.skepsun.kototoro.list.ui.model.QuickFilter } as? org.skepsun.kototoro.list.ui.model.QuickFilter
+                quickFilter?.let { filter ->
+                    CompactFilterRailOverrideState(
+                        items = filter.items.mapIndexedNotNull { index, chip ->
+                            val option = chip.data as? ListFilterOption ?: return@mapIndexedNotNull null
+                            val sourceOption = option as? ListFilterOption.Source
+                            val title = when {
+                                sourceOption != null -> resolveSourceTitleForUi(
+                                    context = context,
+                                    source = sourceOption.mangaSource,
+                                    entryPoint = entryPoint,
+                                )
+                                chip.titleResId != 0 -> context.getString(chip.titleResId)
+                                !chip.title.isNullOrBlank() -> chip.title.toString()
+                                else -> return@mapIndexedNotNull null
+                            }
+                            CompactFilterRailItem(
+                                id = "${option::class.qualifiedName}:${option.hashCode()}:$index",
+                                title = title,
+                                isSelected = chip.isChecked,
+                                source = sourceOption?.mangaSource,
+                                onClick = { viewModel.toggleFilterOption(option) },
+                            )
+                        },
+                    )
+                }
+            }
             var selectedItemsIds by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(emptySet<Long>()) }
             var showClearDialog by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
             val selectedModels = remember(items, selectedItemsIds) {
@@ -474,37 +514,47 @@ fun AppNavGraph(
                     onExploreSourceSelectionTopBarChanged(
                         RouteScopedTopBarOverrideState(
                             TOP_BAR_OWNER_HISTORY,
-                            ContentSelectionTopBarOverrideState(
-                            selectedCount = selectedItemsIds.size,
-                            isAllNonLocal = selectedModels.none { it.manga.isLocal },
-                            isSingleSelection = selectedItemsIds.size == 1,
-                            showRemoveOption = true,
-                            supportedActions = setOf(
-                                org.skepsun.kototoro.list.ui.compose.SelectionAction.SELECT_ALL,
-                                org.skepsun.kototoro.list.ui.compose.SelectionAction.REMOVE,
+                            LayeredTopBarOverrideState(
+                                filterRailState = null,
+                                contextualOverrideState = ContentSelectionTopBarOverrideState(
+                                    selectedCount = selectedItemsIds.size,
+                                    isAllNonLocal = selectedModels.none { it.manga.isLocal },
+                                    isSingleSelection = selectedItemsIds.size == 1,
+                                    showRemoveOption = true,
+                                    supportedActions = setOf(
+                                        org.skepsun.kototoro.list.ui.compose.SelectionAction.SELECT_ALL,
+                                        org.skepsun.kototoro.list.ui.compose.SelectionAction.REMOVE,
+                                    ),
+                                    onClearSelection = { selectedItemsIds = emptySet() },
+                                    onActionClick = { action ->
+                                        when (action) {
+                                            org.skepsun.kototoro.list.ui.compose.SelectionAction.SELECT_ALL -> {
+                                                selectedItemsIds = items
+                                                    .filterIsInstance<org.skepsun.kototoro.list.ui.model.ContentListModel>()
+                                                    .mapTo(linkedSetOf()) { it.id }
+                                            }
+
+                                            org.skepsun.kototoro.list.ui.compose.SelectionAction.REMOVE -> {
+                                                viewModel.removeFromHistory(selectedItemsIds)
+                                                selectedItemsIds = emptySet()
+                                            }
+
+                                            else -> Unit
+                                        }
+                                    },
+                                ),
                             ),
-                            onClearSelection = { selectedItemsIds = emptySet() },
-                            onActionClick = { action ->
-                                when (action) {
-                                    org.skepsun.kototoro.list.ui.compose.SelectionAction.SELECT_ALL -> {
-                                        selectedItemsIds = items
-                                            .filterIsInstance<org.skepsun.kototoro.list.ui.model.ContentListModel>()
-                                            .mapTo(linkedSetOf()) { it.id }
-                                    }
-
-                                    org.skepsun.kototoro.list.ui.compose.SelectionAction.REMOVE -> {
-                                        viewModel.removeFromHistory(selectedItemsIds)
-                                        selectedItemsIds = emptySet()
-                                    }
-
-                                    else -> Unit
-                                }
-                            },
-                        ),
                         ),
                     )
                 } else {
-                    onExploreSourceSelectionTopBarChanged(RouteScopedTopBarOverrideState(TOP_BAR_OWNER_HISTORY, null))
+                    onExploreSourceSelectionTopBarChanged(
+                        RouteScopedTopBarOverrideState(
+                            TOP_BAR_OWNER_HISTORY,
+                            LayeredTopBarOverrideState(
+                                filterRailState = historyFilterRailState,
+                            ),
+                        ),
+                    )
                 }
             }
 
@@ -603,6 +653,7 @@ fun AppNavGraph(
                     onContinueReadingClick = { viewModel.openLastReader() },
                     onQuickFilterOptionClick = viewModel::toggleFilterOption,
                     showContinueReadingButton = isResumeEnabled && !isLandscapeNavigation,
+                    showQuickFilterInline = false,
                     bottomBarOffsetPx = bottomBarOffsetPx,
                     bottomBarHeightPx = bottomBarHeightPx,
                     showInlineSelectionTopBar = false,

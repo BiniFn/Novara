@@ -21,6 +21,7 @@ import org.skepsun.kototoro.core.ui.compose.PanoramaAnimationSpeedMaxPercent
 import org.skepsun.kototoro.core.ui.compose.PanoramaAnimationSpeedMinPercent
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ColorScheme
+import org.skepsun.kototoro.core.prefs.AppSettings.GlassMaterialPreset
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.ProgressIndicatorMode
 import org.skepsun.kototoro.core.prefs.ScreenshotsPolicy
@@ -33,7 +34,11 @@ data class AppearanceSettingsUiState(
     val theme: Int,
     val isAmoledTheme: Boolean,
     val isGlassEffectEnabled: Boolean,
+    val glassMaterialPreset: GlassMaterialPreset,
     val hazeOpacityPercent: Int,
+    val glassBlurStrengthPercent: Int,
+    val glassNoiseStrengthPercent: Int,
+    val glassImmersiveStrengthPercent: Int,
     val tabletUiMode: TabletUiMode,
     val appLocale: String,
     val loadingCircleStyle: AppSettings.LoadingCircleStyle,
@@ -71,6 +76,7 @@ data class AppearanceSettingsUiState(
     val isShowSourceTagFilter: Boolean,
     val hiddenSourceTag: Set<String>,
     val isMainFabEnabled: Boolean,
+    val isNavBarPinned: Boolean,
     val isNavFloating: Boolean,
     val isNavFloatingAdaptiveWidth: Boolean,
     val navHeight: Int,
@@ -86,6 +92,7 @@ data class AppearanceSettingsUiState(
 data class AppearanceSettingsOptions(
     val colorSchemes: List<SettingsChoiceOption<ColorScheme>>,
     val themes: List<SettingsChoiceOption<Int>>,
+    val glassMaterialPresets: List<SettingsChoiceOption<GlassMaterialPreset>>,
     val tabletUiModes: List<SettingsChoiceOption<TabletUiMode>>,
     val appLocales: List<SettingsChoiceOption<String>>,
     val loadingCircleStyles: List<SettingsChoiceOption<AppSettings.LoadingCircleStyle>>,
@@ -112,7 +119,11 @@ fun AppearanceSettingsScreen(
     onThemeChange: (Int) -> Unit,
     onAmoledThemeChange: (Boolean) -> Unit,
     onGlassEffectEnabledChange: (Boolean) -> Unit,
+    onGlassMaterialPresetChange: (GlassMaterialPreset) -> Unit,
     onHazeOpacityChange: (Int) -> Unit,
+    onGlassBlurStrengthChange: (Int) -> Unit,
+    onGlassNoiseStrengthChange: (Int) -> Unit,
+    onGlassImmersiveStrengthChange: (Int) -> Unit,
     onTabletUiModeChange: (TabletUiMode) -> Unit,
     onAppLocaleChange: (String) -> Unit,
     onLoadingCircleStyleChange: (AppSettings.LoadingCircleStyle) -> Unit,
@@ -151,6 +162,7 @@ fun AppearanceSettingsScreen(
     onShowSourceTagFilterChange: (Boolean) -> Unit,
     onHiddenSourceTagChange: (Set<String>) -> Unit,
     onMainFabChange: (Boolean) -> Unit,
+    onNavPinnedChange: (Boolean) -> Unit,
     onNavFloatingChange: (Boolean) -> Unit,
     onNavFloatingAdaptiveWidthChange: (Boolean) -> Unit,
     onNavHeightChange: (Int) -> Unit,
@@ -161,6 +173,7 @@ fun AppearanceSettingsScreen(
     onAppProtectionChange: (Boolean) -> Unit,
     onScreenshotsPolicyChange: (ScreenshotsPolicy) -> Unit,
 ) {
+    val isCustomGlassMaterial = state.glassMaterialPreset == GlassMaterialPreset.CUSTOM
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
@@ -206,16 +219,58 @@ fun AppearanceSettingsScreen(
                     onCheckedChange = onGlassEffectEnabledChange,
                 )
                 SettingsSectionDivider()
-                SettingsSliderPreference(
-                    title = stringResource(R.string.pref_haze_opacity),
-                    value = state.hazeOpacityPercent,
-                    valueRange = 0..100,
-                    step = 5,
-                    summary = stringResource(R.string.pref_haze_opacity_summary),
-                    valueText = { "$it%" },
-                    onValueChange = onHazeOpacityChange,
+                SettingsChoicePreference(
+                    title = stringResource(R.string.pref_blur_mode),
+                    value = state.glassMaterialPreset,
+                    options = options.glassMaterialPresets,
+                    summary = stringResource(R.string.pref_blur_mode_summary),
+                    onValueChange = onGlassMaterialPresetChange,
                 )
                 SettingsSectionDivider()
+                SettingsSliderPreference(
+                    title = stringResource(R.string.pref_glass_blur_strength),
+                    value = state.glassBlurStrengthPercent,
+                    valueRange = 0..80,
+                    step = 2,
+                    summary = stringResource(R.string.pref_glass_blur_strength_summary),
+                    valueText = { "${it}dp" },
+                    onValueChange = onGlassBlurStrengthChange,
+                )
+                SettingsSectionDivider()
+                SettingsSliderPreference(
+                    title = stringResource(R.string.pref_glass_noise_strength),
+                    value = state.glassNoiseStrengthPercent,
+                    valueRange = 0..100,
+                    step = 1,
+                    summary = stringResource(R.string.pref_glass_noise_strength_summary),
+                    valueText = { "%.2f".format(it / 100f) },
+                    onValueChange = onGlassNoiseStrengthChange,
+                )
+                if (isCustomGlassMaterial) {
+                    SettingsSectionDivider()
+                    SettingsSliderPreference(
+                        title = stringResource(R.string.pref_haze_opacity),
+                        value = state.hazeOpacityPercent,
+                        valueRange = 0..100,
+                        step = 5,
+                        summary = stringResource(R.string.pref_haze_opacity_summary),
+                        valueText = { "$it%" },
+                        onValueChange = onHazeOpacityChange,
+                    )
+                    SettingsSectionDivider()
+                    SettingsSliderPreference(
+                        title = stringResource(R.string.pref_glass_immersive_strength),
+                        value = state.glassImmersiveStrengthPercent,
+                        valueRange = 0..100,
+                        step = 5,
+                        summary = stringResource(R.string.pref_glass_immersive_strength_summary),
+                        valueText = { "$it%" },
+                        onValueChange = onGlassImmersiveStrengthChange,
+                    )
+                    SettingsSectionDivider()
+                } else {
+                    SettingsSectionDivider()
+                }
                 SettingsChoicePreference(
                     title = stringResource(R.string.tablet_ui_mode),
                     value = state.tabletUiMode,
@@ -483,6 +538,13 @@ fun AppearanceSettingsScreen(
                     checked = state.isMainFabEnabled,
                     summary = stringResource(R.string.main_screen_fab_summary),
                     onCheckedChange = onMainFabChange,
+                )
+                SettingsSectionDivider()
+                SettingsSwitchPreference(
+                    title = stringResource(R.string.pin_navigation_ui),
+                    checked = state.isNavBarPinned,
+                    summary = stringResource(R.string.pin_navigation_ui_summary),
+                    onCheckedChange = onNavPinnedChange,
                 )
                 SettingsSectionDivider()
                 SettingsSwitchPreference(

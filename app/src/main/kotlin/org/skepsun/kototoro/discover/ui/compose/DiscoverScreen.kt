@@ -43,6 +43,7 @@ import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
 import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
 import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
+import org.skepsun.kototoro.main.ui.compose.GlassDropdownMenu
 import org.skepsun.kototoro.discover.ui.model.DiscoverCarouselRow
 import org.skepsun.kototoro.list.ui.compose.ContentCardUiPrefs
 import org.skepsun.kototoro.list.ui.compose.KototoroContentCard
@@ -369,9 +370,10 @@ private fun DiscoverServiceSwitcherChip(
 			},
 			label = { androidx.compose.material3.Text(stringResource(activeService.titleResId)) },
 		)
-		androidx.compose.material3.DropdownMenu(
+		GlassDropdownMenu(
 			expanded = expanded,
 			onDismissRequest = { expanded = false },
+			offset = androidx.compose.ui.unit.DpOffset(x = 0.dp, y = 4.dp),
 		) {
 			availableServices.forEach { candidate ->
 				androidx.compose.material3.DropdownMenuItem(

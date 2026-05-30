@@ -11,11 +11,16 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Modifier
+import androidx.compose.material3.MaterialTheme
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.core.model.parcelable.ParcelableContentListFilter
 import org.skepsun.kototoro.core.nav.PendingDetailsNavigation
@@ -28,6 +33,8 @@ import org.skepsun.kototoro.core.ui.BaseComposeActivity
 import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
 import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
 import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
+import org.skepsun.kototoro.core.ui.glass.LocalHazeState
+import org.skepsun.kototoro.core.ui.glass.supportsRuntimeHaze
 import org.skepsun.kototoro.details.ui.DetailsViewModel
 import org.skepsun.kototoro.details.ui.compose.DetailsScreen
 import org.skepsun.kototoro.details.ui.compose.handleDetailsAction
@@ -46,6 +53,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.haze
 import kotlinx.serialization.Serializable
 import javax.inject.Inject
 
@@ -91,108 +100,119 @@ class ContentListActivity : BaseComposeActivity(), FilterCoordinator.Owner {
             settings.observeAsState(AppSettings.KEY_SHARED_ELEMENT_TRANSITIONS) {
                 isSharedElementTransitionsEnabled
             }.value
+        val hazeState = remember { HazeState() }
+        val useRuntimeHaze = remember { supportsRuntimeHaze() }
 
-        SharedTransitionLayout {
-            CompositionLocalProvider(
-                LocalSharedTransitionScope provides if (isSharedElementTransitionsEnabled) {
-                    this@SharedTransitionLayout
-                } else {
-                    null
-                },
+        CompositionLocalProvider(LocalHazeState provides hazeState) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .then(if (useRuntimeHaze) Modifier.haze(hazeState) else Modifier),
             ) {
-                NavHost(
-                    navController = navController,
-                    startDestination = ContentListRoute,
-                ) {
-                    composable<ContentListRoute> {
-                        CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
-                            AppSearchContentListRoute(
-                                appRouter = appRouter,
-                                onBackClick = { finishAfterTransition() },
-                                viewModel = viewModel,
-                                onOpenDetails = { content, sharedElementKey ->
-                                    PendingDetailsNavigation.set(
-                                        content = content,
-                                        sharedElementKey = sharedElementKey,
-                                    )
-                                    navController.navigate(ContentListDetailsRoute)
-                                },
-                            )
-                        }
-                    }
-
-                    composable<ContentListDetailsRoute>(
-                        enterTransition = {
-                            slideIntoContainer(
-                                towards = AnimatedContentTransitionScope.SlideDirection.Left,
-                                animationSpec = tween(320, easing = LinearEasing),
-                            ) + fadeIn(tween(220, easing = LinearEasing))
-                        },
-                        exitTransition = {
-                            slideOutOfContainer(
-                                towards = AnimatedContentTransitionScope.SlideDirection.Left,
-                                animationSpec = tween(320, easing = LinearEasing),
-                            ) + fadeOut(tween(180, easing = LinearEasing))
-                        },
-                        popEnterTransition = {
-                            slideIntoContainer(
-                                towards = AnimatedContentTransitionScope.SlideDirection.Right,
-                                animationSpec = tween(320, easing = LinearEasing),
-                            ) + fadeIn(tween(180, easing = LinearEasing))
-                        },
-                        popExitTransition = {
-                            slideOutOfContainer(
-                                towards = AnimatedContentTransitionScope.SlideDirection.Right,
-                                animationSpec = tween(320, easing = LinearEasing),
-                            ) + fadeOut(tween(160, easing = LinearEasing))
+                SharedTransitionLayout {
+                    CompositionLocalProvider(
+                        LocalSharedTransitionScope provides if (isSharedElementTransitionsEnabled) {
+                            this@SharedTransitionLayout
+                        } else {
+                            null
                         },
                     ) {
-                        val detailsViewModel = hiltViewModel<DetailsViewModel>()
-                        val pagesViewModel = hiltViewModel<PagesViewModel>()
-                        val bookmarksViewModel = hiltViewModel<BookmarksViewModel>()
-                        val detailsCoroutineScope = rememberCoroutineScope()
-                        val overrideEditLauncher = rememberLauncherForActivityResult(
-                            contract = ActivityResultContracts.StartActivityForResult(),
-                        ) { result ->
-                            if (result.resultCode == android.app.Activity.RESULT_OK) {
-                                detailsViewModel.reload()
-                            }
-                        }
-                        val pendingContent = remember { PendingDetailsNavigation.lastContent() }
-                        val pendingSharedKey = remember { PendingDetailsNavigation.lastSharedElementKey() }
-                        val mangaDetails by detailsViewModel.mangaDetails.collectAsStateWithLifecycle()
-                        val sharedKey = remember(pendingSharedKey, mangaDetails, pendingContent) {
-                            pendingSharedKey ?: run {
-                                val content: Content? = mangaDetails?.toContent() ?: pendingContent
-                                content?.let { c ->
-                                    contentCoverSharedKey(c.source.name, c.coverUrl.orEmpty())
+                        NavHost(
+                            navController = navController,
+                            startDestination = ContentListRoute,
+                        ) {
+                            composable<ContentListRoute> {
+                                CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
+                                    AppSearchContentListRoute(
+                                        appRouter = appRouter,
+                                        onBackClick = { finishAfterTransition() },
+                                        viewModel = viewModel,
+                                        onOpenDetails = { content, sharedElementKey ->
+                                            PendingDetailsNavigation.set(
+                                                content = content,
+                                                sharedElementKey = sharedElementKey,
+                                            )
+                                            navController.navigate(ContentListDetailsRoute)
+                                        },
+                                    )
                                 }
                             }
-                        }
 
-                        CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
-                            DetailsScreen(
-                                viewModel = detailsViewModel,
-                                pagesViewModel = pagesViewModel,
-                                bookmarksViewModel = bookmarksViewModel,
-                                settings = kototoroAppSettings,
-                                appRouter = appRouter,
-                                pageSaveHelper = pageSaveHelper,
-                                onBackClick = { navController.popBackStack() },
-                                sharedElementKey = sharedKey,
-                                onActionClick = { action ->
-                                    handleDetailsAction(
-                                        action = action,
-                                        appRouter = appRouter,
-                                        viewModel = detailsViewModel,
-                                        appShortcutManager = appShortcutManager,
-                                        coroutineScope = detailsCoroutineScope,
-                                        snackbarHost = window.decorView.rootView,
-                                        overrideEditLauncher = overrideEditLauncher,
-                                        onFinish = { navController.popBackStack() },
-                                    )
+                            composable<ContentListDetailsRoute>(
+                                enterTransition = {
+                                    slideIntoContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Left,
+                                        animationSpec = tween(320, easing = LinearEasing),
+                                    ) + fadeIn(tween(220, easing = LinearEasing))
                                 },
-                            )
+                                exitTransition = {
+                                    slideOutOfContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Left,
+                                        animationSpec = tween(320, easing = LinearEasing),
+                                    ) + fadeOut(tween(180, easing = LinearEasing))
+                                },
+                                popEnterTransition = {
+                                    slideIntoContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Right,
+                                        animationSpec = tween(320, easing = LinearEasing),
+                                    ) + fadeIn(tween(180, easing = LinearEasing))
+                                },
+                                popExitTransition = {
+                                    slideOutOfContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Right,
+                                        animationSpec = tween(320, easing = LinearEasing),
+                                    ) + fadeOut(tween(160, easing = LinearEasing))
+                                },
+                            ) {
+                                val detailsViewModel = hiltViewModel<DetailsViewModel>()
+                                val pagesViewModel = hiltViewModel<PagesViewModel>()
+                                val bookmarksViewModel = hiltViewModel<BookmarksViewModel>()
+                                val detailsCoroutineScope = rememberCoroutineScope()
+                                val overrideEditLauncher = rememberLauncherForActivityResult(
+                                    contract = ActivityResultContracts.StartActivityForResult(),
+                                ) { result ->
+                                    if (result.resultCode == android.app.Activity.RESULT_OK) {
+                                        detailsViewModel.reload()
+                                    }
+                                }
+                                val pendingContent = remember { PendingDetailsNavigation.lastContent() }
+                                val pendingSharedKey = remember { PendingDetailsNavigation.lastSharedElementKey() }
+                                val mangaDetails by detailsViewModel.mangaDetails.collectAsStateWithLifecycle()
+                                val sharedKey = remember(pendingSharedKey, mangaDetails, pendingContent) {
+                                    pendingSharedKey ?: run {
+                                        val content: Content? = mangaDetails?.toContent() ?: pendingContent
+                                        content?.let { c ->
+                                            contentCoverSharedKey(c.source.name, c.coverUrl.orEmpty())
+                                        }
+                                    }
+                                }
+
+                                CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
+                                    DetailsScreen(
+                                        viewModel = detailsViewModel,
+                                        pagesViewModel = pagesViewModel,
+                                        bookmarksViewModel = bookmarksViewModel,
+                                        settings = kototoroAppSettings,
+                                        appRouter = appRouter,
+                                        pageSaveHelper = pageSaveHelper,
+                                        onBackClick = { navController.popBackStack() },
+                                        sharedElementKey = sharedKey,
+                                        onActionClick = { action ->
+                                            handleDetailsAction(
+                                                action = action,
+                                                appRouter = appRouter,
+                                                viewModel = detailsViewModel,
+                                                appShortcutManager = appShortcutManager,
+                                                coroutineScope = detailsCoroutineScope,
+                                                snackbarHost = window.decorView.rootView,
+                                                overrideEditLauncher = overrideEditLauncher,
+                                                onFinish = { navController.popBackStack() },
+                                            )
+                                        },
+                                    )
+                                }
+                            }
                         }
                     }
                 }

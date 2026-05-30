@@ -52,6 +52,7 @@ fun HistoryScreen(
     onContinueReadingClick: () -> Unit,
     onQuickFilterOptionClick: (ListFilterOption) -> Unit,
     showContinueReadingButton: Boolean,
+    showQuickFilterInline: Boolean = true,
     bottomBarOffsetPx: Float = 0f,
     bottomBarHeightPx: Int = 0,
     showInlineSelectionTopBar: Boolean = true,
@@ -110,7 +111,7 @@ fun HistoryScreen(
             detailedListState = detailedListState,
             listHeader = {
                 HistoryHeader(
-                    quickFilter = quickFilter,
+                    quickFilter = quickFilter.takeIf { showQuickFilterInline },
                     isStatsEnabled = isStatsEnabled,
                     onStatsClick = onStatsClick,
                     onQuickFilterOptionClick = onQuickFilterOptionClick,

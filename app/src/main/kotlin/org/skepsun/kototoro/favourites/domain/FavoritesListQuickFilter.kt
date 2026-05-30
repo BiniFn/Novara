@@ -55,9 +55,9 @@ class FavoritesListQuickFilter @AssistedInject constructor(
 		try {
 			repository.findPopularTags(categoryId, 3)
 				.mapTo(this) { ListFilterOption.Tag(it) }
-			repository.findPopularSources(categoryId, 3)
-				.filterNot { hideNsfw && it.isNsfw() }
-				.mapTo(this) { ListFilterOption.Source(it) }
+            repository.findPopularSources(categoryId, Int.MAX_VALUE)
+                .filterNot { hideNsfw && it.isNsfw() }
+                .mapTo(this) { ListFilterOption.Source(it) }
 		} catch (e: CancellationException) {
 			throw e
 		} catch (_: Exception) {

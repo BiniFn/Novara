@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.main.ui.compose
 
 import org.skepsun.kototoro.list.ui.compose.SelectionAction
+import org.skepsun.kototoro.parsers.model.ContentSource
 
 interface TopBarOverrideState
 
@@ -19,6 +20,7 @@ data class CompactFilterRailItem(
     val id: String,
     val title: String,
     val isSelected: Boolean,
+    val source: ContentSource? = null,
     val onClick: () -> Unit,
 )
 

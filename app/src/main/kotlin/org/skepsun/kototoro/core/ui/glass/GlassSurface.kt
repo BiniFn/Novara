@@ -13,13 +13,22 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.materials.CupertinoMaterials
+import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
+import dev.chrisbanes.haze.materials.FluentMaterials
+import dev.chrisbanes.haze.materials.HazeMaterials
 import dagger.hilt.android.EntryPointAccessors
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
@@ -27,15 +36,32 @@ import org.skepsun.kototoro.core.ui.BaseActivityEntryPoint
 import dev.chrisbanes.haze.HazeDefaults as HazeBlurDefaults
 import dev.chrisbanes.haze.hazeChild
 
+@Immutable
+data class GlassSurfaceColors(
+    val containerColor: Color,
+    val baseTintColor: Color,
+    val blurRadius: Dp,
+    val noiseFactor: Float,
+    val border: BorderStroke,
+)
+
 @Composable
 fun rememberGlassPrefs(settings: AppSettings): GlassPrefs {
     val prefs by settings.observeAsState(
         AppSettings.KEY_GLASS_EFFECT_ENABLED,
+        AppSettings.KEY_GLASS_MATERIAL_PRESET,
         AppSettings.KEY_HAZE_OPACITY,
+        AppSettings.KEY_GLASS_BLUR_STRENGTH,
+        AppSettings.KEY_GLASS_NOISE_STRENGTH,
+        AppSettings.KEY_GLASS_IMMERSIVE_STRENGTH,
     ) {
         GlassPrefs(
             isGlassEffectEnabled = isGlassEffectEnabled,
+            materialPreset = glassMaterialPreset,
             hazeOpacityPercent = hazeOpacityPercent,
+            blurStrengthPercent = glassBlurStrengthPercent,
+            noiseStrengthPercent = glassNoiseStrengthPercent,
+            immersiveStrengthPercent = glassImmersiveStrengthPercent,
         )
     }
     return prefs
@@ -103,37 +129,39 @@ fun GlassSurface(
     allowRuntimeHaze: Boolean = true,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    val glassPrefs = LocalGlassPrefs.current ?: rememberFallbackGlassPrefs()
+    val glassPrefs = rememberGlassPrefsOrFallback()
     val hazeState = LocalHazeState.current
     val colorScheme = MaterialTheme.colorScheme
-    val isDarkTheme = colorScheme.background.luminance() < 0.5f
-
-    val glassColors = remember(glassPrefs, isDarkTheme, style, colorScheme) {
-        computeGlassColors(
-            glassPrefs.hazeOpacityPercent,
-            isDarkTheme,
-            style,
-            colorScheme,
-        )
-    }
+    val glassColors = rememberGlassSurfaceColors(style = style, glassPrefs = glassPrefs)
 
     val useRuntimeHaze = glassPrefs.isGlassEffectEnabled && allowRuntimeHaze && supportsRuntimeHaze()
-    val hazeStyle = HazeBlurDefaults.style(
-        Color.Transparent,
-        HazeBlurDefaults.tint(glassColors.baseTintColor),
-        glassColors.blurRadius,
-        0.12f,
+    val hazeStyle = rememberGlassHazeStyle(
+        glassPrefs = glassPrefs,
+        glassColors = glassColors,
+    )
+    val hazeBackgroundColor = rememberGlassHazeBackgroundColor(
+        glassPrefs = glassPrefs,
+        glassColors = glassColors,
+        hazeStyle = hazeStyle,
     )
 
     CompositionLocalProvider(LocalAbsoluteTonalElevation provides 0.dp) {
         Surface(
             modifier = if (useRuntimeHaze) {
-                modifier.hazeChild(hazeState, shape, hazeStyle)
+                modifier
+                    .clip(shape)
+                    .hazeChild(hazeState, hazeStyle) {
+                        backgroundColor = hazeBackgroundColor
+                        blurredEdgeTreatment = BlurredEdgeTreatment(shape)
+                        clipToAreasBounds = true
+                        expandLayerBounds = true
+                        forceInvalidateOnPreDraw = true
+                    }
             } else {
                 modifier
             },
             shape = shape,
-            color = glassColors.containerColor,
+            color = if (useRuntimeHaze) Color.Transparent else glassColors.containerColor,
             contentColor = colorScheme.onSurface,
             tonalElevation = style.tonalElevation,
             shadowElevation = style.shadowElevation,
@@ -145,12 +173,31 @@ fun GlassSurface(
 }
 
 @Composable
-private fun rememberFallbackGlassPrefs(): GlassPrefs {
+fun rememberGlassPrefsOrFallback(): GlassPrefs {
     val context = LocalContext.current
     val settings = remember(context.applicationContext) {
         EntryPointAccessors.fromApplication<BaseActivityEntryPoint>(context.applicationContext).settings
     }
     return rememberGlassPrefs(settings)
+}
+
+@Composable
+fun rememberGlassSurfaceColors(
+    style: GlassStyle = GlassDefaults.regularStyle(),
+    glassPrefs: GlassPrefs = rememberGlassPrefsOrFallback(),
+): GlassSurfaceColors {
+    val colorScheme = MaterialTheme.colorScheme
+    val isDarkTheme = colorScheme.background.luminance() < 0.5f
+    return remember(glassPrefs, isDarkTheme, style, colorScheme) {
+        computeGlassColors(
+            hazeOpacityPercent = glassPrefs.hazeOpacityPercent,
+            blurStrengthPercent = glassPrefs.blurStrengthPercent,
+            noiseStrengthPercent = glassPrefs.noiseStrengthPercent,
+            isDarkTheme = isDarkTheme,
+            style = style,
+            colorScheme = colorScheme,
+        )
+    }
 }
 
 @Composable
@@ -181,21 +228,16 @@ fun GlassBottomBarContainer(
     )
 }
 
-@Immutable
-private data class GlassColors(
-    val containerColor: Color,
-    val baseTintColor: Color,
-    val blurRadius: Dp,
-    val border: BorderStroke,
-)
-
 private fun computeGlassColors(
     hazeOpacityPercent: Int,
+    blurStrengthPercent: Int,
+    noiseStrengthPercent: Int,
     isDarkTheme: Boolean,
     style: GlassStyle,
     colorScheme: androidx.compose.material3.ColorScheme,
-): GlassColors {
-    val effectiveContainerAlpha = (hazeOpacityPercent.coerceIn(0, 100)) / 100f
+): GlassSurfaceColors {
+    val preferenceAlpha = (hazeOpacityPercent.coerceIn(0, 100)) / 100f
+    val effectiveContainerAlpha = (preferenceAlpha * style.containerAlpha).coerceIn(0f, 1f)
     val baseColor = when {
         effectiveContainerAlpha >= 0.86f -> colorScheme.surfaceContainerHigh
         effectiveContainerAlpha >= 0.80f -> colorScheme.surfaceContainer
@@ -208,8 +250,11 @@ private fun computeGlassColors(
         style.shadowElevation >= 6.dp -> 24.dp
         else -> 18.dp
     }
-    val blurRadius = baseBlurRadius
-    val tintAlpha = (effectiveContainerAlpha * 0.32f).coerceIn(0.18f, 0.34f)
+    val blurRadius = blurStrengthPercent.coerceIn(0, 80).dp
+        .takeIf { it > 0.dp }
+        ?: baseBlurRadius
+    val noiseFactor = (noiseStrengthPercent.coerceIn(0, 100)) / 100f
+    val tintAlpha = ((preferenceAlpha * 0.22f) + (style.containerAlpha * 0.14f)).coerceIn(0.18f, 0.38f)
         .let { alpha ->
             if (isDarkTheme) (alpha + 0.10f).coerceAtMost(0.50f) else alpha
         }
@@ -219,10 +264,84 @@ private fun computeGlassColors(
             alpha = if (isDarkTheme) style.borderAlpha.coerceIn(0.16f, 0.28f) else style.borderAlpha.coerceAtMost(0.18f),
         ),
     )
-    return GlassColors(
+    return GlassSurfaceColors(
         containerColor = baseColor.copy(alpha = effectiveContainerAlpha),
         baseTintColor = baseColor.copy(alpha = tintAlpha),
         blurRadius = blurRadius,
+        noiseFactor = noiseFactor,
         border = border,
     )
+}
+
+@OptIn(ExperimentalHazeMaterialsApi::class)
+@Composable
+fun rememberGlassHazeStyle(
+    glassPrefs: GlassPrefs,
+    glassColors: GlassSurfaceColors,
+): HazeStyle {
+    val baseStyle = when (glassPrefs.materialPreset) {
+        AppSettings.GlassMaterialPreset.KOTOTORO,
+        AppSettings.GlassMaterialPreset.CUSTOM -> HazeBlurDefaults.style(
+            Color.Transparent,
+            HazeBlurDefaults.tint(glassColors.baseTintColor),
+            glassColors.blurRadius,
+            glassColors.noiseFactor,
+        )
+        AppSettings.GlassMaterialPreset.HAZE_REGULAR -> HazeMaterials.regular(
+            containerColor = glassColors.containerColor,
+        )
+        AppSettings.GlassMaterialPreset.CUPERTINO_REGULAR -> CupertinoMaterials.regular(
+            containerColor = glassColors.containerColor,
+        )
+        AppSettings.GlassMaterialPreset.FLUENT_ACRYLIC -> FluentMaterials.acrylicDefault()
+    }
+    return remember(baseStyle, glassColors, glassPrefs.materialPreset) {
+        val isCustomKototoroStyle = glassPrefs.materialPreset == AppSettings.GlassMaterialPreset.KOTOTORO ||
+            glassPrefs.materialPreset == AppSettings.GlassMaterialPreset.CUSTOM
+        baseStyle.copy(
+            backgroundColor = if (isCustomKototoroStyle) {
+                glassColors.containerColor
+            } else {
+                baseStyle.backgroundColor.takeOrElse { glassColors.containerColor }
+            },
+            blurRadius = if (isCustomKototoroStyle) {
+                glassColors.blurRadius
+            } else {
+                if (baseStyle.blurRadius != Dp.Unspecified) baseStyle.blurRadius else glassColors.blurRadius
+            },
+            noiseFactor = if (isCustomKototoroStyle) {
+                glassColors.noiseFactor
+            } else {
+                if (baseStyle.noiseFactor >= 0f) baseStyle.noiseFactor else glassColors.noiseFactor
+            },
+            fallbackTint = if (isCustomKototoroStyle) {
+                HazeTint(glassColors.baseTintColor)
+            } else {
+                baseStyle.fallbackTint.takeIf { it.isSpecified } ?: HazeTint(glassColors.baseTintColor)
+            },
+        )
+    }
+}
+
+@Composable
+fun rememberGlassHazeBackgroundColor(
+    glassPrefs: GlassPrefs,
+    glassColors: GlassSurfaceColors,
+    hazeStyle: HazeStyle,
+): Color {
+    val colorScheme = MaterialTheme.colorScheme
+    val isDarkTheme = colorScheme.background.luminance() < 0.5f
+    return remember(glassPrefs.materialPreset, glassColors, hazeStyle, isDarkTheme, colorScheme) {
+        when (glassPrefs.materialPreset) {
+            AppSettings.GlassMaterialPreset.KOTOTORO,
+            AppSettings.GlassMaterialPreset.CUSTOM -> glassColors.containerColor
+            AppSettings.GlassMaterialPreset.HAZE_REGULAR,
+            AppSettings.GlassMaterialPreset.CUPERTINO_REGULAR,
+            AppSettings.GlassMaterialPreset.FLUENT_ACRYLIC -> if (isDarkTheme) {
+                colorScheme.surfaceContainerHigh.copy(alpha = 0.94f)
+            } else {
+                colorScheme.surface.copy(alpha = 0.96f)
+            }
+        }
+    }
 }

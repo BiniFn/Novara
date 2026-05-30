@@ -92,6 +92,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.drawBehind
@@ -150,6 +151,9 @@ import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.core.ui.glass.GlassStyle
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
 import org.skepsun.kototoro.core.ui.glass.LocalHazeState
+import org.skepsun.kototoro.core.ui.glass.rememberGlassPrefsOrFallback
+import org.skepsun.kototoro.core.ui.glass.rememberGlassSurfaceColors
+import org.skepsun.kototoro.core.ui.glass.supportsRuntimeHaze
 import org.skepsun.kototoro.core.exceptions.resolve.SnackbarErrorObserver
 import org.skepsun.kototoro.core.util.ext.isHttpUrl
 import org.skepsun.kototoro.core.util.ext.mangaExtra
@@ -191,7 +195,9 @@ import org.skepsun.kototoro.stats.ui.sheet.ContentStatsViewModel
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblingStatus
 import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeDefaults as HazeBlurDefaults
 import dev.chrisbanes.haze.haze
+import dev.chrisbanes.haze.hazeChild
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -683,14 +689,15 @@ fun DetailsScreen(
                 }
             }
 
+            val immersiveTopColors = listOf(
+                MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.28f),
+                MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.16f),
+                MaterialTheme.colorScheme.surface.copy(alpha = 0.07f),
+                Color.Transparent,
+            )
+
             val commonTopBar: @Composable () -> Unit = {
                 val titleAlpha = ((toolbarTitleProgressProvider() - 0.82f) / 0.18f).coerceIn(0f, 1f)
-                val immersiveTopColors = listOf(
-                    MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.28f),
-                    MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.16f),
-                    MaterialTheme.colorScheme.surface.copy(alpha = 0.07f),
-                    Color.Transparent,
-                )
 
                 Box(
                     modifier = Modifier
@@ -703,16 +710,18 @@ fun DetailsScreen(
                             }
                         },
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(statusBarTopPadding + 84.dp)
-                            .background(
-                                brush = Brush.verticalGradient(
-                                    colors = immersiveTopColors,
+                    if (!isWideAdaptiveLayout) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(statusBarTopPadding + 84.dp)
+                                .background(
+                                    brush = Brush.verticalGradient(
+                                        colors = immersiveTopColors,
+                                    ),
                                 ),
-                            ),
-                    )
+                        )
+                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -860,172 +869,186 @@ fun DetailsScreen(
             }
 
             if (isWideAdaptiveLayout) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Scaffold(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
-                    containerColor = Color.Transparent,
-                    snackbarHost = { SnackbarHost(snackbarHostState) },
-                    topBar = commonTopBar,
-                ) { paddingValues ->
-                    KototoroPullToRefreshBox(
-                        isRefreshing = isLoading,
-                        onRefresh = { viewModel.reload() },
-                        modifier = Modifier.fillMaxSize(),
-                        indicatorTopInset = paddingValues,
-                    ) {
-                        DetailsScrollableContent(
-                            modifier = Modifier.fillMaxSize(),
-                            scrollState = landscapeLeftScrollState,
-                            contentPadding = paddingValues,
-                            headerTopSpacing = if (panoramaPrefs.isEnabled) panoramaExtraHeightDp else 0.dp,
-                            bottomSpacerHeight = 40.dp,
-                            mangaDetails = mangaDetails,
-                            favouriteCategories = favouriteCategories,
-                            historyInfo = historyInfo,
-                            linkedTrackingItems = linkedTrackingItems,
-                            readingStatus = readingStatus,
-                            unifiedRating = unifiedRating,
-                            canEditUnifiedRating = canEditUnifiedRating,
-                            trackingSuggestion = trackingSuggestion,
-                            metadataSourceOptions = metadataSourceOptions,
-                            readingSourceOptions = readingSourceOptions,
-                            activeLocalSourceOptions = activeLocalSourceOptions,
-                            entityChapterSourceInfo = entityChapterSourceInfo,
-                            supplementalMetadataProperties = supplementalMetadataProperties,
-                            supplementalSections = supplementalSections,
-                            supplementalActions = supplementalActions,
-                            resolvedContentType = contentType,
-                            resolvedMetadataLanguage = resolvedMetadataLanguage,
-                            resolvedReadingLanguage = resolvedReadingLanguage,
-                            entityRelationSections = entityRelationSections,
-                            translatedTitle = translatedTitle,
-                            translatedDescription = translatedDescription,
-                            isShowingTranslation = isShowingTranslation,
-                            hasTranslationCache = hasTranslationCache,
-                            isTranslating = isTranslating,
-                            showTranslateAction = showTranslateAction,
-                            settings = settings,
-                            collapseProgressProvider = remember { { 0f } },
-                            coverVisualAlpha = 1f,
-                            coverUrl = mangaDetails?.coverUrl?.takeIf { it.isNotBlank() } ?: content?.coverUrl,
-                            fallbackCoverUrl = content?.coverUrl,
-                            showCommentsAction = supplementalCommentThreads.isNotEmpty(),
-                            showReviewsAction = supplementalReviews.isNotEmpty(),
-                            content = content,
-                            isTemporaryReadOnly = isTemporaryReadOnly,
-                            sharedElementKey = sharedElementKey,
-                            pendingTagSearch = { pendingTagSearch = it },
-                            pendingAuthorSearch = { author, source ->
-                                pendingAuthorSearch = PendingAuthorSearch(author = author, source = source)
-                            },
-							onInfoCardTopSync = syncInfoCardTop,
-							onFavoriteClick = { showFavoriteDialog = true },
-							onCommentsClick = { showCommentsDialog = true },
-							onReviewsClick = { showReviewsDialog = true },
-                            onSupplementalRelationClick = { item ->
-                                when {
-                                    shouldOpenTrackingRelationSheet(item) -> {
-                                        selectedSupplementalRelationItem = item
-                                    }
-                                    !item.url.isNullOrBlank() -> {
-                                        handleActionClick(DetailsAction.OpenWebUrl(item.url))
-                                    }
-                                }
-                            },
-							onSelectActiveLocalSource = viewModel::selectActiveLocalSource,
-                            onSelectMetadataSource = viewModel::selectMetadataSource,
-                            onOpenMetadataSourceSheet = {
-                                if (!isTemporaryReadOnly) showMetadataSourceDialog = true
-                            },
-                            onOpenReadingSourceSheet = {
-                                if (!isTemporaryReadOnly) showReadingSourceDialog = true
-                            },
-                            onUpdateLinkedTrackingStatus = { linked, status ->
-                                viewModel.updateScrobbling(
-                                    scrobblerServiceId = linked.service.id,
-                                    rating = linked.rating ?: 0f,
-                                    status = status,
-                                )
-                            },
-                            onUpdateReadingStatus = viewModel::updateUnifiedReadingStatus,
-                            onUpdateUnifiedRating = viewModel::updateUnifiedRating,
-                            onEntityClick = { item ->
-                                val entityId = item.entityId
-                                if (entityId != null) {
-                                    appRouter.openEntityDetails(
-                                        entityId = entityId,
-                                        service = item.trackingService,
-                                        remoteId = item.remoteId,
-                                        url = item.url,
-                                    )
-                                }
-                            },
-							onActionClick = handleActionClick,
-						)
-                    }
-
-                }
-                Surface(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .weight(1f)
-                        .padding(top = statusBarTopPadding),
-                    color = Color.Transparent,
-                    shape = RoundedCornerShape(28.dp),
-                    tonalElevation = 0.dp,
+                Box(
+                    modifier = Modifier.fillMaxSize(),
                 ) {
-                    DetailsPaneContent(
-                        detailsPaneState = detailsPaneState,
-                        contentType = contentType,
-                        historyInfo = historyInfo,
-                        branches = branches,
-                        isLoading = isLoading,
-                        viewModel = viewModel,
-                        pagesViewModel = pagesViewModel,
-                        bookmarksViewModel = bookmarksViewModel,
-                        settings = settings,
-                        appRouter = appRouter,
-                        pageSaveHelper = pageSaveHelper,
-                        metadataChapterTabs = metadataChapterTabs,
-                        readingChapterTabs = readingChapterTabs,
-                        onSelectMetadataChapterTab = { tab ->
-                            val matchingOption = metadataSourceOptions.firstOrNull { option -> option.key == tab.key } ?: return@DetailsPaneContent
-                            viewModel.selectMetadataSource(matchingOption)
-                        },
-                        onSelectReadingChapterTab = { tab ->
-                            tab.targetMangaId?.let(viewModel::selectActiveLocalSource)
-                        },
-                        selectedTabId = sheetTabSelection,
-                        availableTabIds = availableTabIds,
-                        isSheetFullyExpanded = false,
-                        sheetExpansionProgress = 0f,
-                        isChapterSearchAvailable = chapterEmptyReason == null,
-                        isChaptersReversed = isChaptersReversed,
-                        isChaptersInGridView = isChaptersInGridView,
-                        isHideReadChapters = isHideReadChapters,
-                        isDownloadedOnly = isDownloadedOnly,
-                        isDownloadedFilterVisible = mangaDetails?.local != null,
-                        pageGridSizeValue = pageGridSizeValue,
-                        onChapterQueryChange = updateChapterQuery,
-                        onChapterSearchToggle = toggleChapterSearch,
-                        onToggleChaptersReversed = { viewModel.setChaptersReversed(!isChaptersReversed) },
-                        onToggleChaptersGrid = { viewModel.setChaptersInGridView(!isChaptersInGridView) },
-                        onToggleHideReadChapters = { viewModel.setHideReadChapters(!isHideReadChapters) },
-                        onToggleDownloadedOnly = { viewModel.isDownloadedOnly.value = !isDownloadedOnly },
-                        onPageGridSizeChange = updatePageGridSize,
-                        showCollapsedHandle = false,
-                        onSelectedTabIdChange = persistSelectedPaneTab,
-                        onActionClick = handleActionClick,
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(statusBarTopPadding + 84.dp)
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    colors = immersiveTopColors,
+                                ),
+                            ),
                     )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        Scaffold(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
+                            containerColor = Color.Transparent,
+                            snackbarHost = { SnackbarHost(snackbarHostState) },
+                            topBar = commonTopBar,
+                        ) { paddingValues ->
+                            KototoroPullToRefreshBox(
+                                isRefreshing = isLoading,
+                                onRefresh = { viewModel.reload() },
+                                modifier = Modifier.fillMaxSize(),
+                                indicatorTopInset = paddingValues,
+                            ) {
+                                DetailsScrollableContent(
+                                    modifier = Modifier.fillMaxSize(),
+                                    scrollState = landscapeLeftScrollState,
+                                    contentPadding = paddingValues,
+                                    headerTopSpacing = if (panoramaPrefs.isEnabled) panoramaExtraHeightDp else 0.dp,
+                                    bottomSpacerHeight = 40.dp,
+                                    mangaDetails = mangaDetails,
+                                    favouriteCategories = favouriteCategories,
+                                    historyInfo = historyInfo,
+                                    linkedTrackingItems = linkedTrackingItems,
+                                    readingStatus = readingStatus,
+                                    unifiedRating = unifiedRating,
+                                    canEditUnifiedRating = canEditUnifiedRating,
+                                    trackingSuggestion = trackingSuggestion,
+                                    metadataSourceOptions = metadataSourceOptions,
+                                    readingSourceOptions = readingSourceOptions,
+                                    activeLocalSourceOptions = activeLocalSourceOptions,
+                                    entityChapterSourceInfo = entityChapterSourceInfo,
+                                    supplementalMetadataProperties = supplementalMetadataProperties,
+                                    supplementalSections = supplementalSections,
+                                    supplementalActions = supplementalActions,
+                                    resolvedContentType = contentType,
+                                    resolvedMetadataLanguage = resolvedMetadataLanguage,
+                                    resolvedReadingLanguage = resolvedReadingLanguage,
+                                    entityRelationSections = entityRelationSections,
+                                    translatedTitle = translatedTitle,
+                                    translatedDescription = translatedDescription,
+                                    isShowingTranslation = isShowingTranslation,
+                                    hasTranslationCache = hasTranslationCache,
+                                    isTranslating = isTranslating,
+                                    showTranslateAction = showTranslateAction,
+                                    settings = settings,
+                                    collapseProgressProvider = remember { { 0f } },
+                                    coverVisualAlpha = 1f,
+                                    coverUrl = mangaDetails?.coverUrl?.takeIf { it.isNotBlank() } ?: content?.coverUrl,
+                                    fallbackCoverUrl = content?.coverUrl,
+                                    showCommentsAction = supplementalCommentThreads.isNotEmpty(),
+                                    showReviewsAction = supplementalReviews.isNotEmpty(),
+                                    content = content,
+                                    isTemporaryReadOnly = isTemporaryReadOnly,
+                                    sharedElementKey = sharedElementKey,
+                                    pendingTagSearch = { pendingTagSearch = it },
+                                    pendingAuthorSearch = { author, source ->
+                                        pendingAuthorSearch = PendingAuthorSearch(author = author, source = source)
+                                    },
+                                    onInfoCardTopSync = syncInfoCardTop,
+                                    onFavoriteClick = { showFavoriteDialog = true },
+                                    onCommentsClick = { showCommentsDialog = true },
+                                    onReviewsClick = { showReviewsDialog = true },
+                                    onSupplementalRelationClick = { item ->
+                                        when {
+                                            shouldOpenTrackingRelationSheet(item) -> {
+                                                selectedSupplementalRelationItem = item
+                                            }
+                                            !item.url.isNullOrBlank() -> {
+                                                handleActionClick(DetailsAction.OpenWebUrl(item.url))
+                                            }
+                                        }
+                                    },
+                                    onSelectActiveLocalSource = viewModel::selectActiveLocalSource,
+                                    onSelectMetadataSource = viewModel::selectMetadataSource,
+                                    onOpenMetadataSourceSheet = {
+                                        if (!isTemporaryReadOnly) showMetadataSourceDialog = true
+                                    },
+                                    onOpenReadingSourceSheet = {
+                                        if (!isTemporaryReadOnly) showReadingSourceDialog = true
+                                    },
+                                    onUpdateLinkedTrackingStatus = { linked, status ->
+                                        viewModel.updateScrobbling(
+                                            scrobblerServiceId = linked.service.id,
+                                            rating = linked.rating ?: 0f,
+                                            status = status,
+                                        )
+                                    },
+                                    onUpdateReadingStatus = viewModel::updateUnifiedReadingStatus,
+                                    onUpdateUnifiedRating = viewModel::updateUnifiedRating,
+                                    onEntityClick = { item ->
+                                        val entityId = item.entityId
+                                        if (entityId != null) {
+                                            appRouter.openEntityDetails(
+                                                entityId = entityId,
+                                                service = item.trackingService,
+                                                remoteId = item.remoteId,
+                                                url = item.url,
+                                            )
+                                        }
+                                    },
+                                    onActionClick = handleActionClick,
+                                )
+                            }
+                        }
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .weight(1f)
+                                .padding(top = statusBarTopPadding),
+                            color = Color.Transparent,
+                            shape = RoundedCornerShape(28.dp),
+                            tonalElevation = 0.dp,
+                        ) {
+                            DetailsPaneContent(
+                                detailsPaneState = detailsPaneState,
+                                contentType = contentType,
+                                historyInfo = historyInfo,
+                                branches = branches,
+                                isLoading = isLoading,
+                                viewModel = viewModel,
+                                pagesViewModel = pagesViewModel,
+                                bookmarksViewModel = bookmarksViewModel,
+                                settings = settings,
+                                appRouter = appRouter,
+                                pageSaveHelper = pageSaveHelper,
+                                metadataChapterTabs = metadataChapterTabs,
+                                readingChapterTabs = readingChapterTabs,
+                                onSelectMetadataChapterTab = { tab ->
+                                    val matchingOption = metadataSourceOptions.firstOrNull { option -> option.key == tab.key }
+                                        ?: return@DetailsPaneContent
+                                    viewModel.selectMetadataSource(matchingOption)
+                                },
+                                onSelectReadingChapterTab = { tab ->
+                                    tab.targetMangaId?.let(viewModel::selectActiveLocalSource)
+                                },
+                                selectedTabId = sheetTabSelection,
+                                availableTabIds = availableTabIds,
+                                isSheetFullyExpanded = false,
+                                sheetExpansionProgress = 0f,
+                                isChapterSearchAvailable = chapterEmptyReason == null,
+                                isChaptersReversed = isChaptersReversed,
+                                isChaptersInGridView = isChaptersInGridView,
+                                isHideReadChapters = isHideReadChapters,
+                                isDownloadedOnly = isDownloadedOnly,
+                                isDownloadedFilterVisible = mangaDetails?.local != null,
+                                pageGridSizeValue = pageGridSizeValue,
+                                onChapterQueryChange = updateChapterQuery,
+                                onChapterSearchToggle = toggleChapterSearch,
+                                onToggleChaptersReversed = { viewModel.setChaptersReversed(!isChaptersReversed) },
+                                onToggleChaptersGrid = { viewModel.setChaptersInGridView(!isChaptersInGridView) },
+                                onToggleHideReadChapters = { viewModel.setHideReadChapters(!isHideReadChapters) },
+                                onToggleDownloadedOnly = { viewModel.isDownloadedOnly.value = !isDownloadedOnly },
+                                onPageGridSizeChange = updatePageGridSize,
+                                showCollapsedHandle = false,
+                                onSelectedTabIdChange = persistSelectedPaneTab,
+                                onActionClick = handleActionClick,
+                            )
+                        }
+                    }
                 }
-            }
             } else {
             Box(
                 modifier = Modifier
@@ -2231,7 +2254,8 @@ private fun DetailsPaneContent(
             lerpFloat(0.08f, 0.16f, paneOpacityProgress)
         }
     }
-    val paneTopGradientColor = paneTopBaseColor.copy(alpha = paneTopAlpha)
+    val paneOverlayAlphaScale = if (showCollapsedHandle) 0.34f else 0.42f
+    val paneTopGradientColor = paneTopBaseColor.copy(alpha = paneTopAlpha * paneOverlayAlphaScale)
     val paneMiddleGradientColor = paneTopBaseColor.copy(
         alpha = paneTopAlpha * if (useCompactPaneSurfaceTint) {
             if (isDarkTheme) 0.97f else 0.95f
@@ -2239,7 +2263,7 @@ private fun DetailsPaneContent(
             0.92f
         } else {
             0.82f
-        },
+        } * paneOverlayAlphaScale,
     )
     val paneBottomGradientColor = paneBottomBaseColor.copy(
         alpha = paneTopAlpha * if (useCompactPaneSurfaceTint) {
@@ -2248,13 +2272,34 @@ private fun DetailsPaneContent(
             0.80f
         } else {
             0.58f
-        },
+        } * paneOverlayAlphaScale,
     )
     val paneShape = if (showCollapsedHandle && isSheetFullyExpanded && paneOpacityProgress >= 0.96f) {
         RoundedCornerShape(0.dp)
     } else {
         RoundedCornerShape(28.dp)
     }
+    val paneGlassStyle = if (useCompactPaneSurfaceTint || !showCollapsedHandle) {
+        GlassDefaults.prominentStyle()
+    } else {
+        GlassDefaults.regularStyle()
+    }
+    val glassPrefs = rememberGlassPrefsOrFallback()
+    val paneGlassColors = rememberGlassSurfaceColors(style = paneGlassStyle, glassPrefs = glassPrefs)
+    val hazeState = LocalHazeState.current
+    val usePaneRuntimeHaze = glassPrefs.isGlassEffectEnabled && supportsRuntimeHaze()
+    val immersiveStrength = (glassPrefs.immersiveStrengthPercent.coerceIn(0, 100)) / 100f
+    val paneHazeBackgroundColor = if (isDarkTheme) {
+        colorScheme.surfaceContainerHigh.copy(alpha = lerpFloat(0.84f, 0.92f, immersiveStrength))
+    } else {
+        colorScheme.surfaceContainerHigh.copy(alpha = lerpFloat(0.86f, 0.94f, immersiveStrength))
+    }
+    val paneHazeStyle = HazeBlurDefaults.style(
+        Color.Transparent,
+        HazeBlurDefaults.tint(paneGlassColors.baseTintColor),
+        paneGlassColors.blurRadius,
+        paneGlassColors.noiseFactor,
+    )
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.TopCenter,
@@ -2262,6 +2307,21 @@ private fun DetailsPaneContent(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
+                .then(
+                    if (usePaneRuntimeHaze) {
+                        Modifier
+                            .clip(paneShape)
+                            .hazeChild(hazeState, paneHazeStyle) {
+                                backgroundColor = paneHazeBackgroundColor
+                                blurredEdgeTreatment = BlurredEdgeTreatment(paneShape)
+                                clipToAreasBounds = true
+                                expandLayerBounds = true
+                                forceInvalidateOnPreDraw = true
+                            }
+                    } else {
+                        Modifier
+                    },
+                )
                 .then(modifier),
             shape = paneShape,
             color = Color.Transparent,
@@ -2779,12 +2839,11 @@ private fun ExpandedPaneUtilityDock(
                         tint = MaterialTheme.colorScheme.onSurface,
                     )
                 }
-                DropdownMenu(
+                GlassDropdownMenu(
                     expanded = expanded,
                     onDismissRequest = { expanded = false },
-                    shape = MaterialTheme.shapes.extraSmall,
-                )
- {
+                    offset = androidx.compose.ui.unit.DpOffset(x = 0.dp, y = 4.dp),
+                ) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.reverse)) },
                         leadingIcon = {
@@ -3014,125 +3073,153 @@ private fun ReadDock(
 
     val shapeRadiusPercent by androidx.compose.animation.core.animateIntAsState(targetValue = if (expanded) 50 else 0)
     val optionGap by androidx.compose.animation.core.animateDpAsState(targetValue = if (expanded) 8.dp else 2.dp)
+    val dockShape = RoundedCornerShape(22.dp)
+    val readButtonShape = androidx.compose.foundation.shape.RoundedCornerShape(
+        topStartPercent = 50,
+        bottomStartPercent = 50,
+        topEndPercent = shapeRadiusPercent,
+        bottomEndPercent = shapeRadiusPercent,
+    )
+    val trailingButtonShape = androidx.compose.foundation.shape.RoundedCornerShape(
+        topEndPercent = 50,
+        bottomEndPercent = 50,
+        topStartPercent = shapeRadiusPercent,
+        bottomStartPercent = shapeRadiusPercent,
+    )
 
-    Row(
+    GlassSurface(
         modifier = modifier.height(50.dp),
-        horizontalArrangement = Arrangement.spacedBy(optionGap)
+        style = GlassDefaults.prominentStyle().copy(
+            containerAlpha = lerpFloat(0.78f, 0.86f, sheetExpansionProgress),
+            borderAlpha = 0.22f,
+            shadowElevation = 0.dp,
+        ),
+        shape = dockShape,
     ) {
-        androidx.compose.material3.Button(
-            onClick = onReadClick,
-            enabled = isEnabled,
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(
-                topStartPercent = 50,
-                bottomStartPercent = 50,
-                topEndPercent = shapeRadiusPercent,
-                bottomEndPercent = shapeRadiusPercent
-            ),
+        Row(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight(),
-            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = lerpFloat(0.9f, 1f, sheetExpansionProgress)),
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ),
-            contentPadding = PaddingValues(horizontal = 14.dp)
+                .fillMaxSize()
+                .padding(horizontal = 4.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(optionGap),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = readLabel,
-                style = MaterialTheme.typography.labelLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                shape = readButtonShape,
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.96f),
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                tonalElevation = 0.dp,
+                shadowElevation = 0.dp,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(readButtonShape)
+                        .clickable(enabled = isEnabled, onClick = onReadClick)
+                        .padding(horizontal = 14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = readLabel,
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
 
-        Box {
-            androidx.compose.material3.Button(
-                onClick = { expanded = true },
-                enabled = hasMenuActions,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(
-                    topEndPercent = 50,
-                    bottomEndPercent = 50,
-                    topStartPercent = shapeRadiusPercent,
-                    bottomStartPercent = shapeRadiusPercent
-                ),
+            Box(
                 modifier = Modifier
                     .width(50.dp)
                     .fillMaxHeight(),
-                contentPadding = PaddingValues(0.dp),
-                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = lerpFloat(0.9f, 1f, sheetExpansionProgress)),
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
             ) {
-                Icon(
-                    imageVector = Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (hasBranchOptions) {
-                        stringResource(R.string.system_default)
-                    } else {
-                        stringResource(R.string.options)
-                    },
-                )
-            }
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-                shape = MaterialTheme.shapes.extraSmall,
-            )
- {
-                if (canOpenIncognito) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.incognito_mode)) },
-                        onClick = {
-                            expanded = false
-                            onIncognitoClick()
-                        },
-                    )
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    shape = trailingButtonShape,
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.96f),
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(trailingButtonShape)
+                            .clickable(enabled = hasMenuActions, onClick = { expanded = true }),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = if (hasBranchOptions) {
+                                stringResource(R.string.system_default)
+                            } else {
+                                stringResource(R.string.options)
+                            },
+                        )
+                    }
                 }
-                if (canForgetHistory) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.remove_from_history)) },
-                        onClick = {
-                            expanded = false
-                            onForgetClick()
-                        },
-                    )
-                }
-                if (isDownloadAvailable) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.download)) },
-                        onClick = {
-                            expanded = false
-                            onDownloadClick()
-                        },
-                    )
-                }
-                if (hasQuickActions && hasBranchOptions) {
-                    HorizontalDivider()
-                }
-                branches.forEach { branch ->
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = buildString {
-                                    append(branch.name ?: stringResource(R.string.system_default))
-                                    append(" / ")
-                                    append(branch.count)
-                                },
-                            )
-                        },
-                        leadingIcon = {
-                            if (branch.isSelected) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
+                GlassDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                    offset = androidx.compose.ui.unit.DpOffset(x = 0.dp, y = 4.dp),
+                ) {
+                    if (canOpenIncognito) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.incognito_mode)) },
+                            onClick = {
+                                expanded = false
+                                onIncognitoClick()
+                            },
+                        )
+                    }
+                    if (canForgetHistory) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.remove_from_history)) },
+                            onClick = {
+                                expanded = false
+                                onForgetClick()
+                            },
+                        )
+                    }
+                    if (isDownloadAvailable) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.download)) },
+                            onClick = {
+                                expanded = false
+                                onDownloadClick()
+                            },
+                        )
+                    }
+                    if (hasQuickActions && hasBranchOptions) {
+                        HorizontalDivider()
+                    }
+                    branches.forEach { branch ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = buildString {
+                                        append(branch.name ?: stringResource(R.string.system_default))
+                                        append(" / ")
+                                        append(branch.count)
+                                    },
                                 )
-                            }
-                        },
-                        onClick = {
-                            expanded = false
-                            onBranchSelected(branch.name)
-                        },
-                    )
+                            },
+                            leadingIcon = {
+                                if (branch.isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                    )
+                                }
+                            },
+                            onClick = {
+                                expanded = false
+                                onBranchSelected(branch.name)
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -4211,15 +4298,12 @@ private fun DetailsRelationItemCard(
     footer: (@Composable () -> Unit)? = null,
     cover: @Composable () -> Unit,
 ) {
-    Surface(
+    GlassSurface(
         modifier = modifier
             .width(width)
             .clickable(onClick = onClick),
+        style = GlassDefaults.subtleStyle(),
         shape = RoundedCornerShape(22.dp),
-        color = GlassDefaults.nestedCardColor(),
-        border = BorderStroke(1.dp, GlassDefaults.nestedCardBorderColor()),
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
     ) {
         Column(
             modifier = Modifier

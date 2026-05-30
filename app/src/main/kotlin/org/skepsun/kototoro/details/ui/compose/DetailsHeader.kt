@@ -119,6 +119,7 @@ import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.ui.model.titleRes
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
+import org.skepsun.kototoro.main.ui.compose.GlassDropdownMenu
 import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
 import org.skepsun.kototoro.core.util.ext.computeSize
@@ -498,13 +499,16 @@ fun DetailsHeader(
 
         val showInfoCard = metadataSourceOptions.isNotEmpty() || readingSourceOptions.isNotEmpty() || infoItems.isNotEmpty()
         if (showInfoCard) {
-            Surface(
+            GlassSurface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .onGloballyPositioned { coordinates ->
                         onInfoCardTopSync(coordinates.boundsInRoot().top)
                     },
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.12f),
+                style = GlassDefaults.subtleStyle().copy(
+                    containerAlpha = 0.76f,
+                    borderAlpha = 0.20f,
+                ),
                 shape = RoundedCornerShape(24.dp),
             ) {
                 Column(
@@ -889,7 +893,7 @@ private fun UnifiedTrackingRow(
                         iconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     ),
                 )
-                DropdownMenu(
+                GlassDropdownMenu(
                     expanded = expanded,
                     onDismissRequest = { expanded = false },
                 ) {
@@ -1293,7 +1297,7 @@ private fun SourceOptionCard(
                             iconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         ),
                     )
-                    DropdownMenu(
+                    GlassDropdownMenu(
                         expanded = statusMenuExpanded,
                         onDismissRequest = { statusMenuExpanded = false },
                     ) {

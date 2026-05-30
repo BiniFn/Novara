@@ -167,6 +167,9 @@ fun KototoroPullToRefreshBox(
             override val distanceFraction: Float
                 get() = latestIndicatorProgress
 
+            override val isAnimating: Boolean
+                get() = false
+
             override suspend fun animateToThreshold() = Unit
 
             override suspend fun animateToHidden() = Unit

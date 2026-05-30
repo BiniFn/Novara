@@ -25,6 +25,7 @@ import org.skepsun.kototoro.alternatives.ui.AutoFixService
 import org.skepsun.kototoro.core.util.ShareHelper
 import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
+import org.skepsun.kototoro.core.ui.compose.resolveSourceTitleForUi
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.ErrorState
 import org.skepsun.kototoro.list.ui.model.ListModel
@@ -34,6 +35,8 @@ import org.skepsun.kototoro.main.ui.compose.CompactFilterRailOverrideState
 import org.skepsun.kototoro.main.ui.compose.ContentSelectionTopBarOverrideState
 import org.skepsun.kototoro.main.ui.compose.TopBarOverrideState
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
+import dagger.hilt.android.EntryPointAccessors
+import org.skepsun.kototoro.core.BaseApp
 
 private fun <T> eventCollector(block: suspend (T) -> Unit): FlowCollector<T> = FlowCollector { value ->
     block(value)
@@ -103,6 +106,14 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     val activity = LocalContext.current as? androidx.activity.ComponentActivity
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val entryPoint = remember(context.applicationContext) {
+        runCatching {
+            EntryPointAccessors.fromApplication(
+                context.applicationContext,
+                BaseApp.BaseAppEntryPoint::class.java,
+            )
+        }.getOrNull()
+    }
     val coroutineScope = rememberCoroutineScope()
     val exceptionResolver = when (activity) {
         is BaseActivity<*> -> activity.exceptionResolver
@@ -119,7 +130,13 @@ fun <VM : ContentListViewModel> AppContentListRoute(
             CompactFilterRailOverrideState(
                 items = filter.items.mapIndexedNotNull { index, chip ->
                     val option = chip.data as? org.skepsun.kototoro.list.domain.ListFilterOption ?: return@mapIndexedNotNull null
+                    val sourceOption = option as? org.skepsun.kototoro.list.domain.ListFilterOption.Source
                     val title = when {
+                        sourceOption != null -> resolveSourceTitleForUi(
+                            context = context,
+                            source = sourceOption.mangaSource,
+                            entryPoint = entryPoint,
+                        )
                         chip.titleResId != 0 -> context.getString(chip.titleResId)
                         !chip.title.isNullOrBlank() -> chip.title.toString()
                         else -> return@mapIndexedNotNull null
@@ -128,6 +145,7 @@ fun <VM : ContentListViewModel> AppContentListRoute(
                         id = "${option::class.qualifiedName}:${option.hashCode()}:$index",
                         title = title,
                         isSelected = chip.isChecked,
+                        source = sourceOption?.mangaSource,
                         onClick = { (viewModel as? org.skepsun.kototoro.list.domain.QuickFilterListener)?.toggleFilterOption(option) },
                     )
                 },

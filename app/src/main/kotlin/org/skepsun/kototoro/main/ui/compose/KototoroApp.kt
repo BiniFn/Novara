@@ -131,21 +131,36 @@ private fun routeOwnerKeyForDestination(
     else -> null
 }
 
+private fun lerpFloat(
+    start: Float,
+    endInclusive: Float,
+    fraction: Float,
+): Float = start + (endInclusive - start) * fraction.coerceIn(0f, 1f)
+
 @Composable
 private fun BoxScope.ImmersiveEdgeGradient(
     height: androidx.compose.ui.unit.Dp,
     colors: List<Color>,
+    stops: List<Float>? = null,
     modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier
             .height(height)
             .drawWithCache {
-                val brush = Brush.verticalGradient(
-                    colors = colors,
-                    startY = 0f,
-                    endY = size.height,
-                )
+                val brush = if (stops != null && stops.size == colors.size) {
+                    Brush.verticalGradient(
+                        colorStops = Array(colors.size) { index -> stops[index] to colors[index] },
+                        startY = 0f,
+                        endY = size.height,
+                    )
+                } else {
+                    Brush.verticalGradient(
+                        colors = colors,
+                        startY = 0f,
+                        endY = size.height,
+                    )
+                }
                 onDrawBehind {
                     drawRect(
                         brush = brush,
@@ -263,7 +278,7 @@ fun KototoroApp(
     ) {
         isSharedElementTransitionsEnabled
     }
-    val isNavBarPinned = true
+    val isNavBarPinned by appSettings.observeAsState(AppSettings.KEY_NAV_PINNED) { isNavBarPinned }
     val isFloating = navigationPrefs.isFloating
     val activeSourcePresetId = displayPrefs.activeSourcePresetId
     val listMode = displayPrefs.listMode
@@ -632,15 +647,18 @@ fun KototoroApp(
                     }
                 }
 
-                val immersiveTint = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.20f)
+                val immersiveStrength = ((LocalGlassPrefs.current?.immersiveStrengthPercent ?: 65).coerceIn(0, 100)) / 100f
+                val immersiveTint = MaterialTheme.colorScheme.surfaceContainerHigh.copy(
+                    alpha = lerpFloat(0.24f, 0.52f, immersiveStrength),
+                )
                 val immersiveTransparent = Color.Transparent
                 val topImmersiveHeight = with(density) {
-                    (statusBarHeightPx + (topBarHeightPx * 0.52f).toInt() + (topFilterRailHeightPx * 0.42f).toInt())
+                    (statusBarHeightPx + (topBarHeightPx * 0.34f).toInt() + (topFilterRailHeightPx * 0.20f).toInt())
                         .coerceAtLeast(statusBarHeightPx)
                         .toDp()
                 }
                 val bottomImmersiveHeight = with(density) {
-                    (navigationBarHeightPx + (bottomNavHeightPx * 0.72f).toInt()).coerceAtLeast(navigationBarHeightPx).toDp()
+                    (navigationBarHeightPx + (bottomNavHeightPx * 0.90f).toInt()).coerceAtLeast(navigationBarHeightPx).toDp()
                 }
 
                 ImmersiveEdgeGradient(
@@ -649,11 +667,12 @@ fun KototoroApp(
                         .fillMaxWidth(),
                     height = topImmersiveHeight,
                     colors = listOf(
-                        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.24f),
-                        MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.14f),
-                        MaterialTheme.colorScheme.surface.copy(alpha = 0.05f),
+                        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = lerpFloat(0.34f, 0.68f, immersiveStrength)),
+                        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = lerpFloat(0.18f, 0.48f, immersiveStrength)),
+                        MaterialTheme.colorScheme.surface.copy(alpha = lerpFloat(0.04f, 0.14f, immersiveStrength)),
                         immersiveTransparent,
                     ),
+                    stops = listOf(0f, 0.14f, 0.46f, 1f),
                 )
 
                 ImmersiveEdgeGradient(
@@ -663,10 +682,11 @@ fun KototoroApp(
                     height = bottomImmersiveHeight,
                     colors = listOf(
                         immersiveTransparent,
-                        MaterialTheme.colorScheme.surface.copy(alpha = 0.05f),
-                        MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.14f),
+                        MaterialTheme.colorScheme.surface.copy(alpha = lerpFloat(0.06f, 0.20f, immersiveStrength)),
+                        MaterialTheme.colorScheme.surfaceContainer.copy(alpha = lerpFloat(0.16f, 0.38f, immersiveStrength)),
                         immersiveTint,
                     ),
+                    stops = listOf(0f, 0.38f, 0.76f, 1f),
                 )
 
                 if (isChromeVisible || chromeAlpha > 0f) {

@@ -28,6 +28,7 @@ import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ColorScheme
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.NavItem
+import org.skepsun.kototoro.core.prefs.AppSettings.GlassMaterialPreset
 import org.skepsun.kototoro.core.prefs.ProgressIndicatorMode
 import org.skepsun.kototoro.core.prefs.ScreenshotsPolicy
 import org.skepsun.kototoro.core.prefs.SearchSuggestionType
@@ -151,7 +152,30 @@ private class AppearanceSettingsCoordinator(
         val isAmoledTheme = settings.observeAsState(AppSettings.KEY_THEME_AMOLED) { isAmoledTheme }.value
         val isGlassEffectEnabled =
             settings.observeAsState(AppSettings.KEY_GLASS_EFFECT_ENABLED) { isGlassEffectEnabled }.value
+        val persistedGlassMaterialPreset =
+            settings.observeAsState(AppSettings.KEY_GLASS_MATERIAL_PRESET) { glassMaterialPreset }.value
         val hazeOpacityPercent = settings.observeAsState(AppSettings.KEY_HAZE_OPACITY) { hazeOpacityPercent }.value
+        val glassBlurStrengthPercent =
+            settings.observeAsState(AppSettings.KEY_GLASS_BLUR_STRENGTH) { glassBlurStrengthPercent }.value
+        val glassNoiseStrengthPercent =
+            settings.observeAsState(AppSettings.KEY_GLASS_NOISE_STRENGTH) { glassNoiseStrengthPercent }.value
+        val glassImmersiveStrengthPercent =
+            settings.observeAsState(AppSettings.KEY_GLASS_IMMERSIVE_STRENGTH) { glassImmersiveStrengthPercent }.value
+        val glassMaterialPreset = remember(
+            persistedGlassMaterialPreset,
+            hazeOpacityPercent,
+            glassBlurStrengthPercent,
+            glassNoiseStrengthPercent,
+            glassImmersiveStrengthPercent,
+        ) {
+            GlassMaterialPreset.resolve(
+                preset = persistedGlassMaterialPreset,
+                opacityPercent = hazeOpacityPercent,
+                blurStrengthPercent = glassBlurStrengthPercent,
+                noiseStrengthPercent = glassNoiseStrengthPercent,
+                immersiveStrengthPercent = glassImmersiveStrengthPercent,
+            )
+        }
         val tabletUiMode = settings.observeAsState(AppSettings.KEY_TABLET_UI_MODE) { tabletUiMode }.value
         val appLocale = settings.observeAsState(AppSettings.KEY_APP_LOCALE) { appLocales.toLanguageTags() }.value
         val loadingCircleStyle = settings.observeAsState(AppSettings.KEY_LOADING_CIRCLE_STYLE) { loadingCircleStyle }.value
@@ -209,6 +233,7 @@ private class AppearanceSettingsCoordinator(
                 .value
                 .let(::parseHiddenSourceTagSelection)
         val isMainFabEnabled = settings.observeAsState(AppSettings.KEY_MAIN_FAB) { isMainFabEnabled }.value
+        val isNavBarPinned = settings.observeAsState(AppSettings.KEY_NAV_PINNED) { isNavBarPinned }.value
         val isNavFloating = settings.observeAsState(AppSettings.KEY_NAV_FLOATING) { isNavFloating }.value
         val isNavFloatingAdaptiveWidth =
             settings.observeAsState(AppSettings.KEY_NAV_FLOATING_ADAPTIVE_WIDTH) { isNavFloatingAdaptiveWidth }.value
@@ -232,6 +257,7 @@ private class AppearanceSettingsCoordinator(
         val options = AppearanceSettingsOptions(
             colorSchemes = buildColorSchemeOptions(),
             themes = buildThemeOptions(),
+            glassMaterialPresets = buildGlassMaterialPresetOptions(),
             tabletUiModes = buildTabletUiModeOptions(),
             appLocales = buildLocaleOptions(),
             loadingCircleStyles = buildLoadingCircleStyleOptions(),
@@ -255,7 +281,11 @@ private class AppearanceSettingsCoordinator(
             theme = theme,
             isAmoledTheme = isAmoledTheme,
             isGlassEffectEnabled = isGlassEffectEnabled,
+            glassMaterialPreset = glassMaterialPreset,
             hazeOpacityPercent = hazeOpacityPercent,
+            glassBlurStrengthPercent = glassBlurStrengthPercent,
+            glassNoiseStrengthPercent = glassNoiseStrengthPercent,
+            glassImmersiveStrengthPercent = glassImmersiveStrengthPercent,
             tabletUiMode = tabletUiMode,
             appLocale = appLocale,
             loadingCircleStyle = loadingCircleStyle,
@@ -293,6 +323,7 @@ private class AppearanceSettingsCoordinator(
             isShowSourceTagFilter = isShowSourceTagFilter,
             hiddenSourceTag = hiddenSourceTag,
             isMainFabEnabled = isMainFabEnabled,
+            isNavBarPinned = isNavBarPinned,
             isNavFloating = isNavFloating,
             isNavFloatingAdaptiveWidth = isNavFloatingAdaptiveWidth,
             navHeight = navHeight,
@@ -313,7 +344,11 @@ private class AppearanceSettingsCoordinator(
             onThemeChange = ::updateTheme,
             onAmoledThemeChange = { updateAndRestart(coroutineScope) { settings.isAmoledTheme = it } },
             onGlassEffectEnabledChange = { settings.isGlassEffectEnabled = it },
-            onHazeOpacityChange = { settings.hazeOpacityPercent = it },
+            onGlassMaterialPresetChange = { preset -> applyGlassMaterialPreset(preset) },
+            onHazeOpacityChange = { updateGlassCustomSetting { settings.hazeOpacityPercent = it } },
+            onGlassBlurStrengthChange = { updateGlassCustomSetting { settings.glassBlurStrengthPercent = it } },
+            onGlassNoiseStrengthChange = { updateGlassCustomSetting { settings.glassNoiseStrengthPercent = it } },
+            onGlassImmersiveStrengthChange = { updateGlassCustomSetting { settings.glassImmersiveStrengthPercent = it } },
             onTabletUiModeChange = { settings.tabletUiMode = it },
             onAppLocaleChange = ::updateAppLocale,
             onLoadingCircleStyleChange = { updateAndRestart(coroutineScope) { settings.loadingCircleStyle = it } },
@@ -356,6 +391,7 @@ private class AppearanceSettingsCoordinator(
                     ?.joinToString(",")
             },
             onMainFabChange = { settings.isMainFabEnabled = it },
+            onNavPinnedChange = { settings.isNavBarPinned = it },
             onNavFloatingChange = { settings.isNavFloating = it },
             onNavFloatingAdaptiveWidthChange = { settings.isNavFloatingAdaptiveWidth = it },
             onNavHeightChange = { settings.navHeight = it },
@@ -387,6 +423,22 @@ private class AppearanceSettingsCoordinator(
         }
     }
 
+    private fun applyGlassMaterialPreset(preset: GlassMaterialPreset) {
+        settings.glassMaterialPreset = preset
+        if (preset == GlassMaterialPreset.CUSTOM) return
+        settings.hazeOpacityPercent = preset.defaultOpacityPercent
+        settings.glassBlurStrengthPercent = preset.defaultBlurStrengthPercent
+        settings.glassNoiseStrengthPercent = preset.defaultNoiseStrengthPercent
+        settings.glassImmersiveStrengthPercent = preset.defaultImmersiveStrengthPercent
+    }
+
+    private inline fun updateGlassCustomSetting(block: () -> Unit) {
+        if (settings.glassMaterialPreset != GlassMaterialPreset.CUSTOM) {
+            settings.glassMaterialPreset = GlassMaterialPreset.CUSTOM
+        }
+        block()
+    }
+
     private fun updateAndRestart(scope: CoroutineScope, block: () -> Unit) {
         block()
         scope.launch {
@@ -412,6 +464,16 @@ private class AppearanceSettingsCoordinator(
         val labels = context.resources.getStringArray(R.array.themes)
         val values = context.resources.getStringArray(R.array.values_theme).map { it.toInt() }
         return labels.zip(values).map { (label, value) -> SettingsChoiceOption(value, label) }
+    }
+
+    private fun buildGlassMaterialPresetOptions(): List<SettingsChoiceOption<GlassMaterialPreset>> {
+        return listOf(
+            SettingsChoiceOption(GlassMaterialPreset.KOTOTORO, context.getString(R.string.glass_material_kototoro)),
+            SettingsChoiceOption(GlassMaterialPreset.HAZE_REGULAR, context.getString(R.string.glass_material_haze_regular)),
+            SettingsChoiceOption(GlassMaterialPreset.CUPERTINO_REGULAR, context.getString(R.string.glass_material_cupertino_regular)),
+            SettingsChoiceOption(GlassMaterialPreset.FLUENT_ACRYLIC, context.getString(R.string.glass_material_fluent_acrylic)),
+            SettingsChoiceOption(GlassMaterialPreset.CUSTOM, context.getString(R.string.custom)),
+        )
     }
 
     private fun buildTabletUiModeOptions(): List<SettingsChoiceOption<TabletUiMode>> {

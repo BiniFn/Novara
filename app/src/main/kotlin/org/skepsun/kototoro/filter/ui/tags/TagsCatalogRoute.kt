@@ -21,7 +21,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -87,30 +87,25 @@ private fun TagsCatalogContent(
     val query by viewModel.searchQuery.collectAsStateWithLifecycle()
 
     Column(modifier = modifier) {
-        Surface(
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp,
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = title ?: LocalContext.current.getString(R.string.genres),
-                    style = MaterialTheme.typography.titleLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
+            Text(
+                text = title ?: LocalContext.current.getString(R.string.genres),
+                style = MaterialTheme.typography.titleLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = onDismiss) {
+                Icon(
+                    imageVector = Icons.Outlined.Close,
+                    contentDescription = null,
                 )
-                IconButton(onClick = onDismiss) {
-                    Icon(
-                        imageVector = Icons.Outlined.Close,
-                        contentDescription = null,
-                    )
-                }
             }
         }
 
@@ -119,6 +114,11 @@ private fun TagsCatalogContent(
             onValueChange = { viewModel.searchQuery.value = it },
             label = { Text(LocalContext.current.getString(R.string.search)) },
             singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                disabledContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+            ),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 12.dp),

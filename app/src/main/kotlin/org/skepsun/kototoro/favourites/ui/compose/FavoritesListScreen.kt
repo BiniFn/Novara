@@ -21,6 +21,7 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.main.ui.compose.CompactFilterRailOverrideState
 import org.skepsun.kototoro.main.ui.compose.TopBarOverrideState
 import org.skepsun.kototoro.parsers.model.Content
+import org.skepsun.kototoro.core.ui.compose.resolveSourceTitleForUi
 
 @Composable
 fun KototoroFavoritesListScreen(
@@ -49,28 +50,27 @@ fun KototoroFavoritesListScreen(
         factory.create(categoryId)
     }
     val topQuickFilter = viewModel.topQuickFilter.collectAsStateWithLifecycle().value
-    val filterRailOverride = remember(topQuickFilter, context, viewModel) {
+    val filterRailOverride = remember(topQuickFilter, context, viewModel, entryPoint) {
         topQuickFilter?.let { quickFilter ->
             CompactFilterRailOverrideState(
                 items = quickFilter.items.mapIndexedNotNull { index, chip ->
                     val option = chip.data as? ListFilterOption ?: return@mapIndexedNotNull null
+                    val sourceOption = option as? ListFilterOption.Source
                     val title = when {
+                        sourceOption != null -> resolveSourceTitleForUi(
+                            context = context,
+                            source = sourceOption.mangaSource,
+                            entryPoint = entryPoint,
+                        )
                         chip.titleResId != 0 -> context.getString(chip.titleResId)
-                        option is ListFilterOption.Source && option.mangaSource.name.startsWith("MIHON_") -> {
-                            entryPoint
-                                ?.mihonExtensionManager()
-                                ?.getMihonMangaSourceByName(option.mangaSource.name)
-                                ?.displayName
-                                ?.takeIf { it.isNotBlank() }
-                                ?: chip.title?.toString()
-                        }
                         !chip.title.isNullOrBlank() -> chip.title.toString()
                         else -> return@mapIndexedNotNull null
                     }
                     org.skepsun.kototoro.main.ui.compose.CompactFilterRailItem(
                         id = "${option::class.qualifiedName}:${option.hashCode()}:$index",
-                        title = title ?: return@mapIndexedNotNull null,
+                        title = title,
                         isSelected = chip.isChecked,
+                        source = sourceOption?.mangaSource,
                         onClick = { viewModel.toggleFilterOption(option) },
                     )
                 },

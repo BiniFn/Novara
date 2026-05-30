@@ -5,6 +5,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -15,20 +16,25 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.BasicTextField
@@ -44,7 +50,6 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -58,6 +63,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -74,13 +80,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -95,6 +104,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.SingletonImageLoader
@@ -117,6 +128,10 @@ import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
+import org.skepsun.kototoro.core.ui.glass.LocalHazeState
+import org.skepsun.kototoro.core.ui.glass.rememberGlassPrefsOrFallback
+import org.skepsun.kototoro.core.ui.glass.rememberGlassSurfaceColors
+import org.skepsun.kototoro.core.ui.glass.supportsRuntimeHaze
 import org.skepsun.kototoro.core.ui.model.titleRes
 import org.skepsun.kototoro.core.util.ShareHelper
 import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
@@ -139,12 +154,22 @@ import org.skepsun.kototoro.parsers.model.ContentState
 import org.skepsun.kototoro.parsers.model.ContentTag
 import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.parsers.model.SortOrder
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeDefaults as HazeBlurDefaults
+import dev.chrisbanes.haze.haze
+import dev.chrisbanes.haze.hazeChild
 import java.util.Locale
 
 private val SearchTopActionsHeight = 56.dp
 private val SearchTopButtonContainerHeight = 44.dp
 private val SearchTopActionButtonSize = 40.dp
 private val SearchTopActionIconSize = 18.dp
+private val SearchPinnedChipHeight = 34.dp
+private val SearchPinnedRowVisualHeight = SearchPinnedChipHeight + 8.dp
+private val SearchFilterSheetLightMinAlpha = 0.88f
+private val SearchFilterSheetLightMaxAlpha = 0.92f
+private val SearchFilterSheetDarkMinAlpha = 0.82f
+private val SearchFilterSheetDarkMaxAlpha = 0.88f
 
 private enum class SearchSidePaneMode {
     Filter,
@@ -176,6 +201,134 @@ private fun prepareSearchContentItems(items: List<ListModel>): SearchContentPrep
         contentItems = contentItems,
         contentListItems = contentListItems,
     )
+}
+
+private fun lerpFloat(
+    start: Float,
+    endInclusive: Float,
+    fraction: Float,
+): Float = start + (endInclusive - start) * fraction.coerceIn(0f, 1f)
+
+@Composable
+private fun SearchFilterSheetSurface(
+    modifier: Modifier = Modifier,
+    shape: RoundedCornerShape = RoundedCornerShape(28.dp),
+    allowRuntimeHaze: Boolean = true,
+    content: @Composable () -> Unit,
+) {
+    val style = GlassDefaults.prominentStyle()
+    val glassPrefs = rememberGlassPrefsOrFallback()
+    val glassColors = rememberGlassSurfaceColors(style = style, glassPrefs = glassPrefs)
+    val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val hazeState = LocalHazeState.current
+    val useRuntimeHaze = allowRuntimeHaze && glassPrefs.isGlassEffectEnabled && supportsRuntimeHaze()
+    val immersiveStrength = (glassPrefs.immersiveStrengthPercent.coerceIn(0, 100)) / 100f
+    val runtimeContainerColor = if (isDarkTheme) {
+        MaterialTheme.colorScheme.surfaceContainerHigh.copy(
+            alpha = glassColors.containerColor.alpha.coerceIn(
+                lerpFloat(SearchFilterSheetDarkMinAlpha - 0.08f, SearchFilterSheetDarkMinAlpha, immersiveStrength),
+                lerpFloat(SearchFilterSheetDarkMaxAlpha - 0.04f, SearchFilterSheetDarkMaxAlpha, immersiveStrength),
+            ),
+        )
+    } else {
+        MaterialTheme.colorScheme.surface.copy(
+            alpha = glassColors.containerColor.alpha.coerceIn(
+                lerpFloat(SearchFilterSheetLightMinAlpha - 0.08f, SearchFilterSheetLightMinAlpha, immersiveStrength),
+                lerpFloat(SearchFilterSheetLightMaxAlpha - 0.04f, SearchFilterSheetLightMaxAlpha, immersiveStrength),
+            ),
+        )
+    }
+    val hazeStyle = HazeBlurDefaults.style(
+        Color.Transparent,
+        HazeBlurDefaults.tint(Color.Transparent),
+        glassColors.blurRadius,
+        glassColors.noiseFactor,
+    )
+    Surface(
+        modifier = modifier.clip(shape),
+        shape = shape,
+        color = runtimeContainerColor,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = 0.dp,
+        shadowElevation = if (isDarkTheme) style.shadowElevation else 2.dp,
+        border = glassColors.border,
+    ) {
+        Box(
+            modifier = if (useRuntimeHaze) {
+                Modifier
+                    .fillMaxSize()
+                    .hazeChild(hazeState, hazeStyle) {
+                        backgroundColor = Color.Transparent
+                        blurredEdgeTreatment = BlurredEdgeTreatment(shape)
+                        clipToAreasBounds = true
+                        expandLayerBounds = false
+                        forceInvalidateOnPreDraw = true
+                    }
+            } else {
+                Modifier.fillMaxSize()
+            },
+        ) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun SearchInputDialogSurface(
+    onDismissRequest: () -> Unit,
+    title: String,
+    content: @Composable () -> Unit,
+    actions: @Composable () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.16f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismissRequest,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            SearchFilterSheetSurface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {},
+                    ),
+                shape = RoundedCornerShape(24.dp),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    content()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        actions()
+                    }
+                }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -309,9 +462,24 @@ fun AppSearchContentListRoute(
     val topActionsHeightPx = with(androidx.compose.ui.platform.LocalDensity.current) {
         SearchTopActionsHeight.toPx()
     }
+    val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val maxCollapsePx = topActionsHeightPx
     val isWideSplitLayout = isWideAdaptiveLayout && showFilterPanel
     val showSelectionTopBar = selectedItemsIds.isNotEmpty()
+    val extractedPinnedTags = remember(contentListItems, filterSnapshot.listFilter.tags, tagsProperty.availableItems) {
+        buildSourcePinnedTags(
+            contentItems = contentListItems,
+            selectedTags = filterSnapshot.listFilter.tags,
+            availableTags = tagsProperty.availableItems.flatMap { it.tags },
+        )
+    }
+    val showPinnedRow = !searchMode && (quickFilter != null || extractedPinnedTags.isNotEmpty() || !filterSnapshot.listFilter.query.isNullOrBlank())
+    val wideTopOverlayHeight = statusBarTopPadding + SearchTopActionsHeight + if (showPinnedRow) SearchPinnedRowVisualHeight else 0.dp
+    val wideGridState = remember { LazyGridState() }
+    val wideListState = remember { LazyListState() }
+    val wideDetailedListState = remember { LazyListState() }
+    val hazeState = remember { HazeState() }
+    val useRuntimeHaze = remember { supportsRuntimeHaze() }
 
     fun restoreFilterPane() {
         previewContent = null
@@ -323,16 +491,16 @@ fun AppSearchContentListRoute(
         restoreFilterPane()
     }
 
-    val nestedScrollConnection = remember(maxCollapsePx) {
+    val nestedScrollConnection = remember(maxCollapsePx, searchMode) {
         object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
                 if (searchMode) return Offset.Zero
-                val delta = -available.y
-                if (delta == 0f) return Offset.Zero
+                val totalY = consumed.y
+                if (totalY == 0f) return Offset.Zero
+                val delta = -totalY
                 val newOffset = (collapseOffsetPx + delta).coerceIn(0f, maxCollapsePx)
-                val consumed = newOffset - collapseOffsetPx
                 collapseOffsetPx = newOffset
-                return Offset(x = 0f, y = -consumed)
+                return Offset.Zero
             }
         }
     }
@@ -443,43 +611,195 @@ fun AppSearchContentListRoute(
         }
     }
 
-    Scaffold(
-        contentWindowInsets = WindowInsets.navigationBars,
-        topBar = {
-            if (!isWideSplitLayout) {
-                topBarContent()
-            }
-        },
-    ) { paddingValues ->
-        if (isWideSplitLayout) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-            ) {
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
-                ) {
+    CompositionLocalProvider(LocalHazeState provides hazeState) {
+        Scaffold(
+            contentWindowInsets = WindowInsets.navigationBars,
+            topBar = {
+                if (!isWideSplitLayout) {
                     topBarContent()
+                }
+            },
+        ) { paddingValues ->
+            if (isWideSplitLayout) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .then(if (useRuntimeHaze) Modifier.haze(hazeState) else Modifier),
+                        ) {
+                            KototoroContentListScreen(
+                                items = contentItems,
+                                gridScale = gridScale,
+                                listMode = listMode,
+                                isRefreshing = false,
+                                contentPadding = PaddingValues(0.dp, wideTopOverlayHeight, 0.dp, 0.dp),
+                                sharedTransitionEnabled = sharedTransitionEnabled,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .nestedScroll(nestedScrollConnection),
+                                onPrepareItemTransition = { _, _ -> },
+                                onItemClick = { item ->
+                                    if (selectedItemsIds.isNotEmpty()) {
+                                        selectedItemsIds = if (item.id in selectedItemsIds) selectedItemsIds - item.id else selectedItemsIds + item.id
+                                    } else {
+                                        previewContent = item.toContentWithOverride()
+                                        sidePaneMode = SearchSidePaneMode.Preview
+                                    }
+                                },
+                                onItemLongClick = { item ->
+                                    selectedItemsIds = if (item.id in selectedItemsIds) selectedItemsIds - item.id else selectedItemsIds + item.id
+                                },
+                                onLoadMore = { viewModel.loadNextPage() },
+                                onRefresh = { viewModel.onRefresh() },
+                                onClearSelection = { selectedItemsIds = emptySet() },
+                                onSelectionAction = { action ->
+                                    when (action) {
+                                        SelectionAction.SHARE -> {
+                                            ShareHelper(context).shareContentLinks(selectedItems)
+                                            selectedItemsIds = emptySet()
+                                            true
+                                        }
+
+                                        SelectionAction.FAVOURITE -> {
+                                            appRouter.showFavoriteDialog(selectedItems)
+                                            selectedItemsIds = emptySet()
+                                            true
+                                        }
+
+                                        SelectionAction.SAVE -> {
+                                            if (isAllNonLocal) {
+                                                appRouter.showDownloadDialog(selectedItems)
+                                                selectedItemsIds = emptySet()
+                                                true
+                                            } else {
+                                                false
+                                            }
+                                        }
+
+                                        else -> false
+                                    }
+                                },
+                                selectedItemsIds = selectedItemsIds,
+                                showInlineSelectionTopBar = false,
+                                onRetry = ::resolveErrorAndRetry,
+                                gridState = if (listMode == ListMode.GRID) wideGridState else null,
+                                listState = if (listMode == ListMode.LIST) wideListState else null,
+                                detailedListState = if (listMode == ListMode.DETAILED_LIST) wideDetailedListState else null,
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .align(Alignment.TopStart),
+                        ) {
+                            topBarContent()
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(1.dp)
+                            .padding(vertical = 12.dp)
+                            .alpha(0.7f)
+                            .background(MaterialTheme.colorScheme.outlineVariant),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .then(if (useRuntimeHaze) Modifier.haze(hazeState) else Modifier),
+                    ) {
+                        if (sidePaneMode == SearchSidePaneMode.Preview && previewContent != null) {
+                            SearchPreviewPane(
+                                content = requireNotNull(previewContent),
+                                onBackToFilters = ::restoreFilterPane,
+                                onOpenDetails = {
+                                    val content = requireNotNull(previewContent)
+                                    val sharedElementKey =
+                                        contentCoverSharedKey(content.source.name, content.coverUrl.orEmpty())
+                                    onOpenDetails(
+                                        content,
+                                        sharedElementKey,
+                                    )
+                                },
+                            )
+                        } else {
+                            SearchFilterPanel(
+                                sourceName = viewModel.source.name,
+                                sortOrders = sortOrderProperty.availableItems,
+                                selectedSortOrder = sortOrderProperty.selectedItems.firstOrNull(),
+                                tagGroups = tagsProperty.availableItems,
+                                excludedTagGroups = tagsExcludedProperty.availableItems,
+                                contentTypes = contentTypesProperty.availableItems,
+                                selectedContentTypes = contentTypesProperty.selectedItems,
+                                states = statesProperty.availableItems,
+                                selectedStates = statesProperty.selectedItems,
+                                locales = localeProperty.availableItems,
+                                selectedLocale = localeProperty.selectedItems.firstOrNull(),
+                                authors = authorsProperty.availableItems,
+                                selectedAuthor = authorsProperty.selectedItems.firstOrNull(),
+                                onSortOrderChange = viewModel.filterCoordinator::setSortOrder,
+                                onToggleTag = { tag, selected, excludeMode ->
+                                    if (excludeMode) {
+                                        viewModel.filterCoordinator.toggleTagExclude(tag, selected)
+                                    } else {
+                                        viewModel.filterCoordinator.toggleTag(tag, selected)
+                                    }
+                                },
+                                onToggleContentType = { type, selected -> viewModel.filterCoordinator.toggleContentType(type, selected) },
+                                onToggleState = { state, selected -> viewModel.filterCoordinator.toggleState(state, selected) },
+                                onLocaleChange = viewModel.filterCoordinator::setLocale,
+                                onAuthorChange = viewModel.filterCoordinator::setAuthor,
+                                onReset = viewModel.filterCoordinator::reset,
+                                isTextInputTag = viewModel.filterCoordinator::isTextInputTag,
+                                textInputValue = viewModel.filterCoordinator::getTextInputValue,
+                                textInputLabel = viewModel.filterCoordinator::getTextInputLabel,
+                                onSetTextInputValue = viewModel.filterCoordinator::setTextInputValue,
+                                onOpenTagCatalog = { groupTitle, excludeMode ->
+                                    appRouter.showTagsCatalogSheet(
+                                        excludeMode = excludeMode,
+                                        groupTitle = groupTitle,
+                                    )
+                                },
+                                modifier = Modifier.fillMaxHeight(),
+                            )
+                        }
+                    }
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(if (useRuntimeHaze) Modifier.haze(hazeState) else Modifier),
+                ) {
                     KototoroContentListScreen(
                         items = contentItems,
                         gridScale = gridScale,
                         listMode = listMode,
                         isRefreshing = false,
-                        contentPadding = PaddingValues(0.dp),
+                        contentPadding = paddingValues,
                         sharedTransitionEnabled = sharedTransitionEnabled,
-                        modifier = Modifier
-                            .weight(1f)
-                            .nestedScroll(nestedScrollConnection),
+                        modifier = Modifier.nestedScroll(nestedScrollConnection),
                         onPrepareItemTransition = { _, _ -> },
                         onItemClick = { item ->
                             if (selectedItemsIds.isNotEmpty()) {
                                 selectedItemsIds = if (item.id in selectedItemsIds) selectedItemsIds - item.id else selectedItemsIds + item.id
                             } else {
-                                previewContent = item.toContentWithOverride()
-                                sidePaneMode = SearchSidePaneMode.Preview
+                                val content = item.toContentWithOverride()
+                                val sharedElementKey = contentCoverSharedKey(item.source.name, item.coverUrl.orEmpty())
+                                onOpenDetails(
+                                    content,
+                                    sharedElementKey,
+                                )
                             }
                         },
                         onItemLongClick = { item ->
@@ -519,35 +839,21 @@ fun AppSearchContentListRoute(
                         showInlineSelectionTopBar = false,
                         onRetry = ::resolveErrorAndRetry,
                     )
+
                 }
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .width(1.dp)
-                        .padding(vertical = 12.dp)
-                        .alpha(0.7f)
-                        .background(MaterialTheme.colorScheme.outlineVariant),
-                )
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
+            }
+
+            if (!isWideAdaptiveLayout && showFilterPanel) {
+                ModalBottomSheet(
+                    onDismissRequest = { showFilterPanel = false },
+                    containerColor = Color.Transparent,
+                    tonalElevation = 0.dp,
+                    dragHandle = null,
                 ) {
-                    if (sidePaneMode == SearchSidePaneMode.Preview && previewContent != null) {
-                        SearchPreviewPane(
-                            content = requireNotNull(previewContent),
-                            onBackToFilters = ::restoreFilterPane,
-                            onOpenDetails = {
-                                val content = requireNotNull(previewContent)
-                                val sharedElementKey =
-                                    contentCoverSharedKey(content.source.name, content.coverUrl.orEmpty())
-                                onOpenDetails(
-                                    content,
-                                    sharedElementKey,
-                                )
-                            },
-                        )
-                    } else {
+                    SearchFilterSheetSurface(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        allowRuntimeHaze = false,
+                    ) {
                         SearchFilterPanel(
                             sourceName = viewModel.source.name,
                             sortOrders = sortOrderProperty.availableItems,
@@ -585,116 +891,11 @@ fun AppSearchContentListRoute(
                                     groupTitle = groupTitle,
                                 )
                             },
-                            modifier = Modifier.fillMaxHeight(),
+                            modifier = Modifier.fillMaxWidth(),
+                            fillAvailableHeight = false,
                         )
                     }
                 }
-            }
-        } else {
-            KototoroContentListScreen(
-                items = contentItems,
-                gridScale = gridScale,
-                listMode = listMode,
-                isRefreshing = false,
-                contentPadding = paddingValues,
-                sharedTransitionEnabled = sharedTransitionEnabled,
-                modifier = Modifier.nestedScroll(nestedScrollConnection),
-                onPrepareItemTransition = { _, _ -> },
-                onItemClick = { item ->
-                    if (selectedItemsIds.isNotEmpty()) {
-                        selectedItemsIds = if (item.id in selectedItemsIds) selectedItemsIds - item.id else selectedItemsIds + item.id
-                    } else {
-                        val content = item.toContentWithOverride()
-                        val sharedElementKey = contentCoverSharedKey(item.source.name, item.coverUrl.orEmpty())
-                        onOpenDetails(
-                            content,
-                            sharedElementKey,
-                        )
-                    }
-                },
-                onItemLongClick = { item ->
-                    selectedItemsIds = if (item.id in selectedItemsIds) selectedItemsIds - item.id else selectedItemsIds + item.id
-                },
-                onLoadMore = { viewModel.loadNextPage() },
-                onRefresh = { viewModel.onRefresh() },
-                onClearSelection = { selectedItemsIds = emptySet() },
-                onSelectionAction = { action ->
-                    when (action) {
-                        SelectionAction.SHARE -> {
-                            ShareHelper(context).shareContentLinks(selectedItems)
-                            selectedItemsIds = emptySet()
-                            true
-                        }
-
-                        SelectionAction.FAVOURITE -> {
-                            appRouter.showFavoriteDialog(selectedItems)
-                            selectedItemsIds = emptySet()
-                            true
-                        }
-
-                        SelectionAction.SAVE -> {
-                            if (isAllNonLocal) {
-                                appRouter.showDownloadDialog(selectedItems)
-                                selectedItemsIds = emptySet()
-                                true
-                            } else {
-                                false
-                            }
-                        }
-
-                        else -> false
-                    }
-                },
-                selectedItemsIds = selectedItemsIds,
-                showInlineSelectionTopBar = false,
-                onRetry = ::resolveErrorAndRetry,
-            )
-        }
-
-        if (!isWideAdaptiveLayout && showFilterPanel) {
-            ModalBottomSheet(
-                onDismissRequest = { showFilterPanel = false },
-                containerColor = MaterialTheme.colorScheme.surface,
-            ) {
-                SearchFilterPanel(
-                    sourceName = viewModel.source.name,
-                    sortOrders = sortOrderProperty.availableItems,
-                    selectedSortOrder = sortOrderProperty.selectedItems.firstOrNull(),
-                    tagGroups = tagsProperty.availableItems,
-                    excludedTagGroups = tagsExcludedProperty.availableItems,
-                    contentTypes = contentTypesProperty.availableItems,
-                    selectedContentTypes = contentTypesProperty.selectedItems,
-                    states = statesProperty.availableItems,
-                    selectedStates = statesProperty.selectedItems,
-                    locales = localeProperty.availableItems,
-                    selectedLocale = localeProperty.selectedItems.firstOrNull(),
-                    authors = authorsProperty.availableItems,
-                    selectedAuthor = authorsProperty.selectedItems.firstOrNull(),
-                    onSortOrderChange = viewModel.filterCoordinator::setSortOrder,
-                    onToggleTag = { tag, selected, excludeMode ->
-                        if (excludeMode) {
-                            viewModel.filterCoordinator.toggleTagExclude(tag, selected)
-                        } else {
-                            viewModel.filterCoordinator.toggleTag(tag, selected)
-                        }
-                    },
-                    onToggleContentType = { type, selected -> viewModel.filterCoordinator.toggleContentType(type, selected) },
-                    onToggleState = { state, selected -> viewModel.filterCoordinator.toggleState(state, selected) },
-                    onLocaleChange = viewModel.filterCoordinator::setLocale,
-                    onAuthorChange = viewModel.filterCoordinator::setAuthor,
-                    onReset = viewModel.filterCoordinator::reset,
-                    isTextInputTag = viewModel.filterCoordinator::isTextInputTag,
-                    textInputValue = viewModel.filterCoordinator::getTextInputValue,
-                    textInputLabel = viewModel.filterCoordinator::getTextInputLabel,
-                    onSetTextInputValue = viewModel.filterCoordinator::setTextInputValue,
-                    onOpenTagCatalog = { groupTitle, excludeMode ->
-                        appRouter.showTagsCatalogSheet(
-                            excludeMode = excludeMode,
-                            groupTitle = groupTitle,
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
             }
         }
     }
@@ -899,10 +1100,14 @@ private fun SearchContentTopBar(
     val compactTopBarAlpha = if (topActionsHeightPx == 0f) 1f else {
         ((topActionsHeightPx - topActionsCollapsedPx) / topActionsHeightPx).coerceIn(0f, 1f)
     }
+    val statusBarPadding = WindowInsets.statusBars.asPaddingValues()
+    val statusBarTopPadding = statusBarPadding.calculateTopPadding()
+    val glassPrefs = rememberGlassPrefsOrFallback()
+    val immersiveStrength = (glassPrefs.immersiveStrengthPercent.coerceIn(0, 100)) / 100f
     val immersiveTopColors = listOf(
-        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.24f),
-        MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.14f),
-        MaterialTheme.colorScheme.surface.copy(alpha = 0.05f),
+        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = lerpFloat(0.28f, 0.58f, immersiveStrength)),
+        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = lerpFloat(0.14f, 0.34f, immersiveStrength)),
+        MaterialTheme.colorScheme.surface.copy(alpha = lerpFloat(0.03f, 0.10f, immersiveStrength)),
         Color.Transparent,
     )
 
@@ -912,20 +1117,23 @@ private fun SearchContentTopBar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .statusBarsPadding()
-                .height(topActionsHeight + 54.dp)
+                .height(statusBarTopPadding + topActionsHeight + 12.dp)
                 .background(
                     brush = Brush.verticalGradient(
-                        colors = immersiveTopColors,
+                        colorStops = arrayOf(
+                            0f to immersiveTopColors[0],
+                            0.16f to immersiveTopColors[1],
+                            0.44f to immersiveTopColors[2],
+                            1f to immersiveTopColors[3],
+                        ),
                     ),
                 ),
         )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .statusBarsPadding()
                 .clipToBounds()
-                .padding(top = 4.dp)
+                .padding(top = statusBarTopPadding + 4.dp)
                 .alpha(0.998f),
         ) {
             if (searchMode) {
@@ -1164,21 +1372,20 @@ private fun SourceListTopActionsRow(
                 }
             }
 
+            Spacer(modifier = Modifier.weight(1f))
+
             GlassSurface(
-                modifier = Modifier
-                    .weight(1f),
+                modifier = Modifier.wrapContentWidth(),
                 shape = RoundedCornerShape(28.dp),
                 style = GlassDefaults.subtleStyle(),
             ) {
                 CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides SearchTopActionButtonSize) {
                     Row(
                         modifier = Modifier
-                            .fillMaxWidth()
                             .height(SearchTopButtonContainerHeight)
                             .padding(horizontal = 2.dp)
                             .alpha(topBarAlpha),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.End,
                     ) {
                         BadgedBox(
                             badge = {
@@ -1419,6 +1626,7 @@ private fun QuickFilterPinnedRow(
                             onQuickFilterOptionClick(option)
                         }
                     },
+                    modifier = Modifier.height(SearchPinnedChipHeight),
                     enabled = option != null,
                     colors = FilterChipDefaults.filterChipColors(
                         containerColor = Color.Transparent,
@@ -1489,6 +1697,7 @@ private fun SourceTagsPinnedRow(
                 FilterChip(
                     selected = tag in selectedTags,
                     onClick = { onToggleTag(tag, tag !in selectedTags) },
+                    modifier = Modifier.height(SearchPinnedChipHeight),
                     colors = FilterChipDefaults.filterChipColors(
                         containerColor = Color.Transparent,
                         selectedContainerColor = Color.Transparent,
@@ -1516,7 +1725,9 @@ private fun SourceIdentityChip(
         style = GlassDefaults.subtleStyle(),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier
+                .height(SearchPinnedChipHeight)
+                .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -1547,6 +1758,7 @@ private fun ActiveQueryChip(
         FilterChip(
             selected = true,
             onClick = onClear,
+            modifier = Modifier.height(SearchPinnedChipHeight),
             colors = FilterChipDefaults.filterChipColors(
                 containerColor = Color.Transparent,
                 selectedContainerColor = Color.Transparent,
@@ -1610,6 +1822,7 @@ private fun SearchFilterPanel(
     onSetTextInputValue: (ContentTag, String) -> Unit,
     onOpenTagCatalog: (String?, Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    fillAvailableHeight: Boolean = true,
 ) {
     val scrollState = rememberScrollState()
     var sortExpanded by rememberSaveable { mutableStateOf(false) }
@@ -1617,7 +1830,7 @@ private fun SearchFilterPanel(
 
     Column(
         modifier = modifier
-            .fillMaxHeight()
+            .then(if (fillAvailableHeight) Modifier.fillMaxHeight() else Modifier)
             .verticalScroll(scrollState)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -1709,6 +1922,11 @@ private fun SearchFilterPanel(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     label = { Text(stringResource(R.string.author)) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        disabledContainerColor = Color.Transparent,
+                    ),
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 FilterChipFlow {
@@ -1778,31 +1996,32 @@ private fun TextInputTagDialog(
 ) {
     var value by remember(initialValue) { mutableStateOf(initialValue) }
 
-    AlertDialog(
+    SearchInputDialogSurface(
         onDismissRequest = onDismissRequest,
-        title = { Text(text = title) },
-        text = {
+        title = title,
+        content = {
             OutlinedTextField(
                 value = value,
                 onValueChange = { value = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text(text = title) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    disabledContainerColor = Color.Transparent,
+                ),
             )
         },
-        confirmButton = {
+        actions = {
+            TextButton(onClick = onClear) {
+                Text(text = stringResource(R.string.clear))
+            }
+            TextButton(onClick = onDismissRequest) {
+                Text(text = stringResource(android.R.string.cancel))
+            }
             TextButton(onClick = { onConfirm(value) }) {
                 Text(text = stringResource(android.R.string.ok))
-            }
-        },
-        dismissButton = {
-            Row {
-                TextButton(onClick = onClear) {
-                    Text(text = stringResource(R.string.clear))
-                }
-                TextButton(onClick = onDismissRequest) {
-                    Text(text = stringResource(android.R.string.cancel))
-                }
             }
         },
     )
@@ -1821,76 +2040,65 @@ private fun SortOrderFilterSection(
     Column(
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onExpandedChange(!expanded) }
+                .padding(vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onExpandedChange(!expanded) }
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = selectedLabel,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Icon(
-                    painter = painterResource(R.drawable.ic_expand_more),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
+            Text(
+                text = selectedLabel,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Icon(
+                painter = painterResource(R.drawable.ic_expand_more),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
         }
 
         if (expanded) {
-            Surface(
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-            ) {
-                Column {
-                    sortOrders.forEachIndexed { index, item ->
-                        val selected = item == selectedSortOrder
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    onSortOrderChange(item)
-                                    onExpandedChange(false)
-                                }
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = resolveSortOrderLabel(sourceName, item),
-                                color = if (selected) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                },
-                            )
-                            if (selected) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_check),
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(14.dp),
-                                )
+            Column {
+                sortOrders.forEachIndexed { index, item ->
+                    val selected = item == selectedSortOrder
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onSortOrderChange(item)
+                                onExpandedChange(false)
                             }
+                            .padding(vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = resolveSortOrderLabel(sourceName, item),
+                            color = if (selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                        )
+                        if (selected) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_check),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(14.dp),
+                            )
                         }
-                        if (index != sortOrders.lastIndex) {
-                            HorizontalDivider()
-                        }
+                    }
+                    if (index != sortOrders.lastIndex) {
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f),
+                        )
                     }
                 }
             }
@@ -2039,25 +2247,17 @@ private fun FilterSection(
     title: String,
     content: @Composable () -> Unit,
 ) {
-    Surface(
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        tonalElevation = 2.dp,
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            content()
-        }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        content()
     }
 }
 
@@ -2103,9 +2303,10 @@ private fun SearchPanelChip(
                 null
             },
             colors = FilterChipDefaults.filterChipColors(
-                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                selectedLeadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                containerColor = Color.Transparent,
+                selectedContainerColor = Color.Transparent,
+                selectedLabelColor = MaterialTheme.colorScheme.primary,
+                selectedLeadingIconColor = MaterialTheme.colorScheme.primary,
             ),
             border = FilterChipDefaults.filterChipBorder(
                 enabled = true,

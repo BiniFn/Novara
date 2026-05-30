@@ -89,6 +89,7 @@ import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
 import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
 import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
+import org.skepsun.kototoro.main.ui.compose.GlassDropdownMenu
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.secondaryTitleText
 import org.skepsun.kototoro.list.ui.model.supportingText
@@ -497,9 +498,10 @@ fun DiscoverHeroCarousel(
                                     trailingIconContentColor = heroContentColor,
                                 ),
                             )
-                            DropdownMenu(
+                            GlassDropdownMenu(
                                 expanded = isServiceMenuExpanded,
                                 onDismissRequest = { isServiceMenuExpanded = false },
+                                offset = androidx.compose.ui.unit.DpOffset(x = 0.dp, y = 4.dp),
                             ) {
                                 availableServices.forEach { candidate ->
                                     DropdownMenuItem(

@@ -170,7 +170,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putBoolean(KEY_ENTITY_GRAPH_MIGRATED, value) }
 
 	var isNavBarPinned: Boolean
-		get() = prefs.getBoolean(KEY_NAV_PINNED, false)
+		get() = prefs.getBoolean(KEY_NAV_PINNED, true)
 		set(value) = prefs.edit { putBoolean(KEY_NAV_PINNED, value) }
 
 	var isNavFloating: Boolean
@@ -275,7 +275,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putInt(KEY_PANORAMA_EXTRA_HEIGHT, value.coerceIn(0, 100)) }
 
 	var panoramaBottomGradientAlpha: Int
-		get() = prefs.getSafeInt(KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA, 100).coerceIn(0, 100)
+		get() = prefs.getSafeInt(KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA, 10).coerceIn(0, 100)
 		set(value) = prefs.edit { putInt(KEY_PANORAMA_BOTTOM_GRADIENT_ALPHA, value.coerceIn(0, 100)) }
 
 	var browsePanoramaBottomGradientAlpha: Int
@@ -796,6 +796,41 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 	var hazeOpacityPercent: Int
 		get() = prefs.getSafeInt(KEY_HAZE_OPACITY, 82).coerceIn(0, 100)
 		set(value) = prefs.edit { putInt(KEY_HAZE_OPACITY, value.coerceIn(0, 100)) }
+
+	var glassMaterialPreset: GlassMaterialPreset
+		get() = prefs.getString(KEY_GLASS_MATERIAL_PRESET, null)
+			?.let { raw ->
+				GlassMaterialPreset.entries.firstOrNull { preset -> preset.name == raw }
+			}
+			?: GlassMaterialPreset.migrateLegacy(
+				raw = prefs.getString(KEY_GLASS_MATERIAL_PRESET, null),
+				opacityPercent = hazeOpacityPercent,
+				blurStrengthPercent = glassBlurStrengthPercent,
+				noiseStrengthPercent = glassNoiseStrengthPercent,
+				immersiveStrengthPercent = glassImmersiveStrengthPercent,
+			)
+		set(value) = prefs.edit { putString(KEY_GLASS_MATERIAL_PRESET, value.name) }
+
+	var glassBlurStrengthPercent: Int
+		get() = prefs.getSafeInt(
+			KEY_GLASS_BLUR_STRENGTH,
+			GlassMaterialPreset.KOTOTORO.defaultBlurStrengthPercent,
+		).coerceIn(0, 100)
+		set(value) = prefs.edit { putInt(KEY_GLASS_BLUR_STRENGTH, value.coerceIn(0, 100)) }
+
+	var glassNoiseStrengthPercent: Int
+		get() = prefs.getSafeInt(
+			KEY_GLASS_NOISE_STRENGTH,
+			GlassMaterialPreset.KOTOTORO.defaultNoiseStrengthPercent,
+		).coerceIn(0, 100)
+		set(value) = prefs.edit { putInt(KEY_GLASS_NOISE_STRENGTH, value.coerceIn(0, 100)) }
+
+	var glassImmersiveStrengthPercent: Int
+		get() = prefs.getSafeInt(
+			KEY_GLASS_IMMERSIVE_STRENGTH,
+			GlassMaterialPreset.KOTOTORO.defaultImmersiveStrengthPercent,
+		).coerceIn(0, 100)
+		set(value) = prefs.edit { putInt(KEY_GLASS_IMMERSIVE_STRENGTH, value.coerceIn(0, 100)) }
 
 	var isGlassEffectEnabled: Boolean
 		get() = prefs.getBoolean(KEY_GLASS_EFFECT_ENABLED, true)
@@ -1669,6 +1704,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 			putInt(KEY_BROWSE_PANORAMA_BLEND_HEIGHT, browsePanoramaBlendHeight)
 			putString(KEY_POPUP_RADIUS, popupRadius.toString())
 			putInt(KEY_HAZE_OPACITY, hazeOpacityPercent)
+			putString(KEY_GLASS_MATERIAL_PRESET, glassMaterialPreset.name)
+			putInt(KEY_GLASS_BLUR_STRENGTH, glassBlurStrengthPercent)
+			putInt(KEY_GLASS_NOISE_STRENGTH, glassNoiseStrengthPercent)
+			putInt(KEY_GLASS_IMMERSIVE_STRENGTH, glassImmersiveStrengthPercent)
 			putBoolean(KEY_GLASS_EFFECT_ENABLED, isGlassEffectEnabled)
 			putStringSet(KEY_SEARCH_SUGGESTION_TYPES, sanitizedSearchSuggestionTypes.mapToSet { it.name })
 			putStringSet(KEY_MANGA_LIST_BADGES, sanitizedBadges)
@@ -2112,6 +2151,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_LOADING_CIRCLE_STYLE = "loading_circle_style"
 		const val KEY_POPUP_RADIUS = "popup_radius"
 		const val KEY_HAZE_OPACITY = "haze_opacity"
+		const val KEY_GLASS_MATERIAL_PRESET = "glass_material_preset"
+		const val KEY_GLASS_BLUR_STRENGTH = "glass_blur_strength"
+		const val KEY_GLASS_NOISE_STRENGTH = "glass_noise_strength"
+		const val KEY_GLASS_IMMERSIVE_STRENGTH = "glass_immersive_strength"
 		const val KEY_GLASS_EFFECT_ENABLED = "glass_effect_enabled"
 		const val KEY_MAIN_FAB = "main_fab"
 		const val KEY_32BIT_COLOR = "enhanced_colors"
@@ -2274,4 +2317,82 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 			return try { enumValueOf(name) } catch (e: Exception) { org.skepsun.kototoro.parsers.model.ContentType.NOVEL }
 		}
 		set(value) = prefs.edit { putString(KEY_FILTER_PILL_RIGHT, value.name) }
+
+	enum class GlassMaterialPreset(
+		val defaultOpacityPercent: Int,
+		val defaultBlurStrengthPercent: Int,
+		val defaultNoiseStrengthPercent: Int,
+		val defaultImmersiveStrengthPercent: Int,
+	) {
+		KOTOTORO(
+			defaultOpacityPercent = 82,
+			defaultBlurStrengthPercent = 24,
+			defaultNoiseStrengthPercent = 12,
+			defaultImmersiveStrengthPercent = 65,
+		),
+		HAZE_REGULAR(
+			defaultOpacityPercent = 100,
+			defaultBlurStrengthPercent = 24,
+			defaultNoiseStrengthPercent = 0,
+			defaultImmersiveStrengthPercent = 50,
+		),
+		CUPERTINO_REGULAR(
+			defaultOpacityPercent = 100,
+			defaultBlurStrengthPercent = 24,
+			defaultNoiseStrengthPercent = 0,
+			defaultImmersiveStrengthPercent = 50,
+		),
+		FLUENT_ACRYLIC(
+			defaultOpacityPercent = 100,
+			defaultBlurStrengthPercent = 60,
+			defaultNoiseStrengthPercent = 2,
+			defaultImmersiveStrengthPercent = 50,
+		),
+		CUSTOM(
+			defaultOpacityPercent = -1,
+			defaultBlurStrengthPercent = -1,
+			defaultNoiseStrengthPercent = -1,
+			defaultImmersiveStrengthPercent = -1,
+		);
+
+		companion object {
+			fun resolve(
+				preset: GlassMaterialPreset,
+				opacityPercent: Int,
+				blurStrengthPercent: Int,
+				noiseStrengthPercent: Int,
+				immersiveStrengthPercent: Int,
+			): GlassMaterialPreset {
+				return preset.takeIf { candidate ->
+					candidate != CUSTOM &&
+						candidate.defaultOpacityPercent == opacityPercent &&
+						candidate.defaultBlurStrengthPercent == blurStrengthPercent &&
+						candidate.defaultNoiseStrengthPercent == noiseStrengthPercent &&
+						candidate.defaultImmersiveStrengthPercent == immersiveStrengthPercent
+				} ?: CUSTOM
+			}
+
+			fun migrateLegacy(
+				raw: String?,
+				opacityPercent: Int,
+				blurStrengthPercent: Int,
+				noiseStrengthPercent: Int,
+				immersiveStrengthPercent: Int,
+			): GlassMaterialPreset {
+				return when (raw) {
+					"SUBTLE" -> HAZE_REGULAR
+					"BALANCED" -> KOTOTORO
+					"STRONG" -> FLUENT_ACRYLIC
+					"CUSTOM" -> CUSTOM
+					else -> entries.firstOrNull { preset ->
+						preset != CUSTOM &&
+							preset.defaultOpacityPercent == opacityPercent &&
+							preset.defaultBlurStrengthPercent == blurStrengthPercent &&
+							preset.defaultNoiseStrengthPercent == noiseStrengthPercent &&
+							preset.defaultImmersiveStrengthPercent == immersiveStrengthPercent
+					} ?: KOTOTORO
+				}
+			}
+		}
+	}
 }

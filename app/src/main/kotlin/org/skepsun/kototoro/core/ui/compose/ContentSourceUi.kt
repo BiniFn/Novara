@@ -35,6 +35,7 @@ import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
 import org.skepsun.kototoro.parsers.model.ContentSource
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.sync.Semaphore
 
 data class ContentSourceChipMeta(
     val iconRes: Int,
@@ -85,12 +86,18 @@ fun rememberResolvedContentSource(source: ContentSource): ContentSource {
 @Composable
 fun rememberResolvedSourceTitle(source: ContentSource): String {
     val context = LocalContext.current
+    val entryPoint = remember(context) {
+        EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            BaseApp.BaseAppEntryPoint::class.java,
+        )
+    }
     val resolvedSource = rememberResolvedContentSource(source)
     return remember(source.name, resolvedSource.javaClass.name) {
-        resolveReadableSourceTitle(
+        resolveSourceTitleForUi(
             context = context,
-            originalSource = source,
-            resolvedSource = resolvedSource,
+            source = source,
+            entryPoint = entryPoint,
         )
     }
 }
@@ -128,6 +135,8 @@ fun ContentSourceIcon(
     modifier: Modifier = Modifier,
     styleResId: Int = R.style.FaviconDrawable_Small,
     animated: Boolean = false,
+    loadEnabled: Boolean = true,
+    throttleNetworkLoad: Boolean = false,
     contentDescription: String? = null,
 ) {
     val resolvedSource = rememberResolvedContentSource(source)
@@ -136,6 +145,8 @@ fun ContentSourceIcon(
         modifier = modifier,
         styleResId = styleResId,
         animated = animated,
+        loadEnabled = loadEnabled,
+        throttleNetworkLoad = throttleNetworkLoad,
         contentDescription = contentDescription,
     )
 }
@@ -146,6 +157,8 @@ fun ContentSourceResolvedIcon(
     modifier: Modifier = Modifier,
     styleResId: Int = R.style.FaviconDrawable_Small,
     animated: Boolean = false,
+    loadEnabled: Boolean = true,
+    throttleNetworkLoad: Boolean = false,
     contentDescription: String? = null,
 ) {
     val context = LocalContext.current
@@ -166,6 +179,35 @@ fun ContentSourceResolvedIcon(
 
     var hasError by remember(sourceFailureKey) {
         androidx.compose.runtime.mutableStateOf(useNegativeCache && failedSourceIcons.contains(sourceFailureKey))
+    }
+    var isLoadGateOpen by remember(sourceFailureKey, throttleNetworkLoad, loadEnabled) {
+        androidx.compose.runtime.mutableStateOf(loadEnabled && !throttleNetworkLoad)
+    }
+    var isLoadPermitHeld by remember(sourceFailureKey, throttleNetworkLoad, loadEnabled) {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
+
+    fun releaseLoadPermit() {
+        if (isLoadPermitHeld) {
+            sourceIconLoadSemaphore.release()
+            isLoadPermitHeld = false
+        }
+    }
+
+    androidx.compose.runtime.LaunchedEffect(sourceFailureKey, throttleNetworkLoad, loadEnabled, hasError, useFallbackOnly) {
+        if (!loadEnabled || !throttleNetworkLoad || hasError || useFallbackOnly || isLoadGateOpen) return@LaunchedEffect
+        sourceIconLoadSemaphore.acquire()
+        isLoadPermitHeld = true
+        isLoadGateOpen = true
+    }
+
+    androidx.compose.runtime.DisposableEffect(sourceFailureKey, throttleNetworkLoad, loadEnabled) {
+        onDispose {
+            if (isLoadPermitHeld) {
+                sourceIconLoadSemaphore.release()
+                isLoadPermitHeld = false
+            }
+        }
     }
 
     val request: Any = remember(
@@ -205,7 +247,7 @@ fun ContentSourceResolvedIcon(
         }
     }
 
-    if (hasError || useFallbackOnly) {
+    if (hasError || useFallbackOnly || !loadEnabled || !isLoadGateOpen) {
         val fallbackPainter = rememberDrawablePainter(fallbackDrawable?.asDrawable(context.resources))
         androidx.compose.foundation.Image(
             painter = fallbackPainter,
@@ -219,7 +261,11 @@ fun ContentSourceResolvedIcon(
             contentDescription = contentDescription,
             contentScale = ContentScale.Fit,
             modifier = modifier.clip(RoundedCornerShape(4.dp)),
+            onSuccess = {
+                releaseLoadPermit()
+            },
             onError = {
+                releaseLoadPermit()
                 logSourceIconError(resolvedSource, it.result.throwable)
                 if (useNegativeCache) {
                     failedSourceIcons[sourceFailureKey] = true
@@ -233,6 +279,7 @@ fun ContentSourceResolvedIcon(
 private val failedSourceIcons = ConcurrentHashMap<String, Boolean>()
 private const val SOURCE_ICON_CACHE_VERSION = "v2"
 private const val SOURCE_ICON_LOG_TAG = "SourceIcon"
+private val sourceIconLoadSemaphore = Semaphore(permits = 4)
 
 private fun logSourceIconRequest(
     source: ContentSource,
@@ -264,6 +311,19 @@ fun clearFailedContentSourceIcon(sourceName: String) {
     failedSourceIcons.keys.removeAll { it.startsWith("$sourceName#") }
 }
 
+fun resolveSourceTitleForUi(
+    context: Context,
+    source: ContentSource,
+    entryPoint: BaseApp.BaseAppEntryPoint? = null,
+): String {
+    val resolvedSource = entryPoint?.let { resolveDynamicContentSource(source, it) } ?: source
+    return resolveReadableSourceTitleInternal(
+        context = context,
+        originalSource = source,
+        resolvedSource = resolvedSource,
+    )
+}
+
 private fun resolveFallbackTitle(
     context: Context,
     source: ContentSource,
@@ -285,7 +345,7 @@ private fun resolveDynamicContentSource(
     else -> null
 }
 
-private fun resolveReadableSourceTitle(
+private fun resolveReadableSourceTitleInternal(
     context: Context,
     originalSource: ContentSource,
     resolvedSource: ContentSource,

@@ -28,10 +28,10 @@ class HistoryListQuickFilter @Inject constructor(
 		if (!settings.isHistoryExcludeNsfw) {
 			add(ListFilterOption.Macro.NSFW)
 		}
-		repository.getPopularTags(3).mapTo(this) {
+		repository.getPopularTags(Int.MAX_VALUE).mapTo(this) {
 			ListFilterOption.Tag(it)
 		}
-		repository.getPopularSources(3).mapTo(this) {
+		repository.getPopularSources(Int.MAX_VALUE).mapTo(this) {
 			ListFilterOption.Source(it)
 		}
 	}
