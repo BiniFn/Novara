@@ -102,7 +102,11 @@ fun KototoroFavoritesHostRoute(
     var initialSelectionApplied by rememberSaveable(initialCategoryId) { mutableStateOf(false) }
     var childTopBarOverrideState by remember { mutableStateOf<TopBarOverrideState?>(null) }
     var childFilterRailOverrideState by remember { mutableStateOf<CompactFilterRailOverrideState?>(null) }
+    var childTopBarOverrideGeneration by remember { mutableIntStateOf(-1) }
+    var childFilterRailOverrideGeneration by remember { mutableIntStateOf(-1) }
+    var activeChildOverrideGeneration by remember { mutableIntStateOf(0) }
     val allFavouritesLabel = stringResource(R.string.all_favourites)
+    val activeCategoryId = displayCategories.getOrNull(pagerState.currentPage)?.id
 
     val innerPadding = PaddingValues(
         start = contentPadding.calculateStartPadding(androidx.compose.ui.platform.LocalLayoutDirection.current),
@@ -120,6 +124,12 @@ fun KototoroFavoritesHostRoute(
             pagerState.scrollToPage(targetPage)
         }
         initialSelectionApplied = true
+    }
+
+    LaunchedEffect(activeCategoryId, uiState.isLoading, uiState.isEmpty) {
+        activeChildOverrideGeneration += 1
+        childTopBarOverrideState = null
+        childFilterRailOverrideState = null
     }
 
     val compactTabsState = remember(displayCategories, pagerState.currentPage) {
@@ -140,11 +150,26 @@ fun KototoroFavoritesHostRoute(
         )
     }
 
-    val favoritesTopBarOverrideState = remember(compactTabsState, childFilterRailOverrideState, childTopBarOverrideState) {
+    val effectiveChildTopBarOverrideState = childTopBarOverrideState.takeIf {
+        !uiState.isLoading &&
+            !uiState.isEmpty &&
+            childTopBarOverrideGeneration == activeChildOverrideGeneration
+    }
+    val effectiveChildFilterRailOverrideState = childFilterRailOverrideState.takeIf {
+        !uiState.isLoading &&
+            !uiState.isEmpty &&
+            childFilterRailOverrideGeneration == activeChildOverrideGeneration
+    }
+
+    val favoritesTopBarOverrideState = remember(
+        compactTabsState,
+        effectiveChildFilterRailOverrideState,
+        effectiveChildTopBarOverrideState,
+    ) {
         FavoritesTopBarOverrideState(
             tabsState = compactTabsState,
-            filterRailState = childFilterRailOverrideState,
-            contextualOverrideState = childTopBarOverrideState,
+            filterRailState = effectiveChildFilterRailOverrideState,
+            contextualOverrideState = effectiveChildTopBarOverrideState,
         )
     }
 
@@ -188,8 +213,18 @@ fun KototoroFavoritesHostRoute(
                     onNavigateToDetails = onNavigateToDetails,
                     sharedTransitionEnabled = enabled,
                     isActivePage = enabled,
-                    onTopBarOverrideChanged = { childTopBarOverrideState = it },
-                    onFilterRailOverrideChanged = { childFilterRailOverrideState = it },
+                    onTopBarOverrideChanged = { overrideState ->
+                        if (enabled && category.id == activeCategoryId) {
+                            childTopBarOverrideState = overrideState
+                            childTopBarOverrideGeneration = activeChildOverrideGeneration
+                        }
+                    },
+                    onFilterRailOverrideChanged = { overrideState ->
+                        if (enabled && category.id == activeCategoryId) {
+                            childFilterRailOverrideState = overrideState
+                            childFilterRailOverrideGeneration = activeChildOverrideGeneration
+                        }
+                    },
                 )
             }
         }
