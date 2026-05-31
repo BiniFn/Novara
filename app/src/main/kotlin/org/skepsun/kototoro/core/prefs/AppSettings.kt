@@ -186,7 +186,7 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		set(value) = prefs.edit { putInt(KEY_NAV_HEIGHT, value.coerceIn(48, 88)) }
 
 	var navFloatingHeight: Int
-		get() = prefs.getSafeInt(KEY_NAV_FLOATING_HEIGHT, 64).coerceIn(48, 84)
+		get() = prefs.getSafeInt(KEY_NAV_FLOATING_HEIGHT, 52).coerceIn(48, 84)
 		set(value) = prefs.edit { putInt(KEY_NAV_FLOATING_HEIGHT, value.coerceIn(48, 84)) }
 
 	var isMainFabEnabled: Boolean

@@ -128,8 +128,8 @@ fun KototoroBottomNav(
     val nonFloatingContentHorizontalPadding = 6.dp
     val nonFloatingTopPadding = 4.dp
     val floatingNavItemMinWidth = 48.dp
-    val floatingNavItemSpacing = 8.dp
-    val floatingNavHorizontalPadding = floatingNavItemSpacing / 2
+    val floatingNavItemSpacing = 6.8.dp
+    val floatingNavHorizontalPadding = 4.6.dp
     val floatingAdaptiveWidth = remember(activeItems.size) {
         val itemCount = activeItems.size.coerceAtLeast(1)
         (

@@ -28,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -317,6 +318,7 @@ fun KototoroApp(
     var isSearchOverlayQueryCommitted by rememberSaveable { mutableStateOf(false) }
     var isDetailsChromeTransitionPending by rememberSaveable { mutableStateOf(false) }
     var topBarOverrideState by remember { mutableStateOf<TopBarOverrideState?>(null) }
+    val routeScopedTopBarOverrideStates = remember { mutableStateMapOf<String, TopBarOverrideState?>() }
     var contextualMenuActions by remember { mutableStateOf<List<KototoroTopBarMenuAction>>(emptyList()) }
     var offsetDestinationRoute by remember { mutableStateOf<String?>(null) }
 
@@ -472,9 +474,9 @@ fun KototoroApp(
         it.hasRoute<ExploreRoute>() || it.hasRoute<DiscoverRoute>()
     } == true
     val currentTopBarOwnerKey = routeOwnerKeyForDestination(currentDestination)
-    val resolvedTopBarOverrideState = when (val overrideState = topBarOverrideState) {
-        is RouteScopedTopBarOverrideState -> if (overrideState.ownerRoute == currentTopBarOwnerKey) overrideState.state else null
-        else -> overrideState
+    val resolvedTopBarOverrideState = when (currentTopBarOwnerKey) {
+        null -> topBarOverrideState
+        else -> routeScopedTopBarOverrideStates[currentTopBarOwnerKey]
     }
     val layeredTopBarOverrideState = when (resolvedTopBarOverrideState) {
         is LayeredTopBarOverrideState -> resolvedTopBarOverrideState
@@ -625,7 +627,20 @@ fun KototoroApp(
                             onDetailsTransitionRequested = {
                                 isDetailsChromeTransitionPending = true
                             },
-                            onExploreSourceSelectionTopBarChanged = { topBarOverrideState = it },
+                            onExploreSourceSelectionTopBarChanged = { overrideState ->
+                                when (overrideState) {
+                                    is RouteScopedTopBarOverrideState -> {
+                                        if (overrideState.state == null) {
+                                            routeScopedTopBarOverrideStates.remove(overrideState.ownerRoute)
+                                        } else {
+                                            routeScopedTopBarOverrideStates[overrideState.ownerRoute] = overrideState.state
+                                        }
+                                    }
+                                    else -> {
+                                        topBarOverrideState = overrideState
+                                    }
+                                }
+                            },
                             onContextualMenuActionsChanged = { contextualMenuActions = it },
                             onOpenSearch = { request ->
                                 val route = SearchNavigation.createRoute(request)
