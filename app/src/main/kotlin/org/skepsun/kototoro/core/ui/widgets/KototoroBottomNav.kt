@@ -37,7 +37,6 @@ import dagger.hilt.android.EntryPointAccessors
 @Immutable
 private data class BottomNavPrefs(
     val isFloating: Boolean,
-    val isFloatingAdaptiveWidth: Boolean,
     val navHeight: Int,
     val navFloatingHeight: Int,
 )
@@ -61,19 +60,16 @@ fun KototoroBottomNav(
 
     val prefs by appSettings.observeAsState(
         AppSettings.KEY_NAV_FLOATING,
-        AppSettings.KEY_NAV_FLOATING_ADAPTIVE_WIDTH,
         AppSettings.KEY_NAV_HEIGHT,
         AppSettings.KEY_NAV_FLOATING_HEIGHT,
     ) {
         BottomNavPrefs(
             isFloating = isNavFloating,
-            isFloatingAdaptiveWidth = isNavFloatingAdaptiveWidth,
             navHeight = navHeight,
             navFloatingHeight = navFloatingHeight,
         )
     }
     val isFloating = prefs.isFloating
-    val isFloatingAdaptiveWidth = prefs.isFloatingAdaptiveWidth
     val navHeight = prefs.navHeight
     val navFloatingHeight = prefs.navFloatingHeight
     val tabletUiMode by appSettings.observeAsState(AppSettings.KEY_TABLET_UI_MODE) { tabletUiMode }
@@ -128,8 +124,8 @@ fun KototoroBottomNav(
     val nonFloatingContentHorizontalPadding = 6.dp
     val nonFloatingTopPadding = 4.dp
     val floatingNavItemMinWidth = 48.dp
-    val floatingNavItemSpacing = 6.8.dp
-    val floatingNavHorizontalPadding = 4.6.dp
+    val floatingNavItemSpacing = 5.8.dp
+    val floatingNavHorizontalPadding = 6.2.dp
     val floatingAdaptiveWidth = remember(activeItems.size) {
         val itemCount = activeItems.size.coerceAtLeast(1)
         (
@@ -238,11 +234,7 @@ fun KototoroBottomNav(
             contentAlignment = Alignment.Center,
         ) {
             GlassBottomBarContainer(
-                modifier = if (isFloatingAdaptiveWidth) {
-                    Modifier.width(floatingAdaptiveWidth)
-                } else {
-                    Modifier.fillMaxWidth()
-                },
+                modifier = Modifier.width(floatingAdaptiveWidth),
                 style = navContainerStyle,
             ) {
                 FloatingBottomNavRow(

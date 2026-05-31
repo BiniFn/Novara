@@ -235,8 +235,6 @@ private class AppearanceSettingsCoordinator(
         val isMainFabEnabled = settings.observeAsState(AppSettings.KEY_MAIN_FAB) { isMainFabEnabled }.value
         val isNavBarPinned = settings.observeAsState(AppSettings.KEY_NAV_PINNED) { isNavBarPinned }.value
         val isNavFloating = settings.observeAsState(AppSettings.KEY_NAV_FLOATING) { isNavFloating }.value
-        val isNavFloatingAdaptiveWidth =
-            settings.observeAsState(AppSettings.KEY_NAV_FLOATING_ADAPTIVE_WIDTH) { isNavFloatingAdaptiveWidth }.value
         val navHeight = settings.observeAsState(AppSettings.KEY_NAV_HEIGHT) { navHeight }.value
         val navFloatingHeight = settings.observeAsState(AppSettings.KEY_NAV_FLOATING_HEIGHT) { navFloatingHeight }.value
         val isReaderToolbarFloating =
@@ -325,7 +323,6 @@ private class AppearanceSettingsCoordinator(
             isMainFabEnabled = isMainFabEnabled,
             isNavBarPinned = isNavBarPinned,
             isNavFloating = isNavFloating,
-            isNavFloatingAdaptiveWidth = isNavFloatingAdaptiveWidth,
             navHeight = navHeight,
             navFloatingHeight = navFloatingHeight,
             isReaderToolbarFloating = isReaderToolbarFloating,
@@ -393,7 +390,6 @@ private class AppearanceSettingsCoordinator(
             onMainFabChange = { settings.isMainFabEnabled = it },
             onNavPinnedChange = { settings.isNavBarPinned = it },
             onNavFloatingChange = { settings.isNavFloating = it },
-            onNavFloatingAdaptiveWidthChange = { settings.isNavFloatingAdaptiveWidth = it },
             onNavHeightChange = { settings.navHeight = it },
             onNavFloatingHeightChange = { settings.navFloatingHeight = it },
             onReaderToolbarFloatingChange = { settings.isReaderToolbarFloating = it },
