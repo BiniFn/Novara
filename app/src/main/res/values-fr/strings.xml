@@ -1321,7 +1321,6 @@
     <string name="frequency_every_6_hours">Toutes les 6 heures</string>
     <string name="group_by">Grouper par</string>
     <string name="group_by_origin">Grouper par origine</string>
-    <string name="group_by_tvbox_repository">Grouper par dépôt TVBox</string>
     <string name="group_by_type">Grouper par type</string>
     <string name="group_sources_by_language">Grouper les sources par langue</string>
     <string name="group_sources_by_language_summary">Afficher les sources de contenu groupées par langue locale plutôt que sous forme de liste plate.</string>
@@ -2092,7 +2091,6 @@
     <string name="source_group_other">Autres sources</string>
     <string name="source_group_other_json">Autres sources JSON</string>
     <string name="source_group_tvbox">Sources TVBox</string>
-    <string name="source_group_tvbox_repository">Dépôt TVBox</string>
     <string name="source_group_video">Sources vidéo</string>
     <string name="source_name">Nom de la source</string>
     <string name="source_tag_json">Legado</string>
@@ -2220,14 +2218,6 @@
     <string name="tts_test_summary">Lire une courte phrase de test avec le moteur et la voix actuels</string>
     <string name="tv_count_short">TV %1$d</string>
     <string name="tv_episodes_watched_short">Épisodes TV %1$d</string>
-    <string name="tvbox_repository_active_short">Actif</string>
-    <string name="tvbox_repository_current_label">Dépôt TVBox actuel : %1$s</string>
-    <string name="tvbox_repository_filter">Filtre du dépôt TVBox</string>
-    <string name="tvbox_repository_inactive_short">Inactif</string>
-    <string name="tvbox_repository_switch">Changer de dépôt TVBox</string>
-    <string name="tvbox_repository_switch_empty">Aucun dépôt TVBox disponible pour changer</string>
-    <string name="tvbox_repository_switch_with_current">Changer de dépôt TVBox (actuel : %1$s)</string>
-    <string name="tvbox_repository_switched">Dépôt changé pour : %1$s</string>
     <string name="tvbox_root_spider_title">Spider racine</string>
     <string name="tvbox_runtime_candidates_title">Candidates d\'exécution</string>
     <string name="tvbox_runtime_strategy_none">Aucun environnement d\'exécution de spider TVBox local disponible. Seuls les médias directs, les listes de lecture ou le repli CMS peuvent être utilisés.</string>

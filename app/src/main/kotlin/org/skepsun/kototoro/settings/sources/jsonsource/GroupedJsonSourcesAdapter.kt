@@ -31,7 +31,6 @@ class GroupedJsonSourcesAdapter(
 	
 	// Validation state map: sourceId -> true/false
 	var validationStates: Map<String, Boolean?> = emptyMap()
-	var activeTvBoxRepositoryLocator: String? = null
 	// Selection state
 	var selectedIds: Set<String> = emptySet()
 	
@@ -76,7 +75,6 @@ class GroupedJsonSourcesAdapter(
 				item,
 				validationStates,
 				selectedIds,
-				activeTvBoxRepositoryLocator,
 			)
 		}
 	}
@@ -121,7 +119,6 @@ class GroupedJsonSourcesAdapter(
 			item: GroupedSourceItem.Source,
 			validationStates: Map<String, Boolean?>,
 			selectedIds: Set<String>,
-			activeTvBoxRepositoryLocator: String?,
 		) {
 			val sourceInfo = item.sourceInfo
 			val mangaSource = sourceInfo.mangaSource
@@ -146,16 +143,7 @@ class GroupedJsonSourcesAdapter(
 				
 				// Set URL with content type and groups
 				val groupsDisplay = if (meta.groups.isNotBlank()) " [${meta.groups}]" else ""
-				val tvBoxRepoDisplay = if (!meta.tvBoxRepositoryTitle.isNullOrBlank()) {
-					val repoState = if (meta.tvBoxRepositoryLocator == activeTvBoxRepositoryLocator) {
-						binding.root.context.getString(R.string.tvbox_repository_active_short)
-					} else {
-						binding.root.context.getString(R.string.tvbox_repository_inactive_short)
-					}
-					"${meta.tvBoxRepositoryTitle} · $repoState"
-				} else {
-					null
-				}
+				val tvBoxRepoDisplay = meta.tvBoxRepositoryTitle
 				binding.textViewUrl.text = listOfNotNull(
 					tvBoxRepoDisplay,
 					"${meta.reference} · ${meta.contentTypeLabel}$groupsDisplay".takeIf { it.isNotBlank() },

@@ -967,7 +967,6 @@
     <string name="grid">网格</string>
     <string name="grid_size">网格大小</string>
     <string name="group">分组</string>
-    <string name="group_by_tvbox_repository">按 TVBox 仓库分组</string>
     <string name="group_sources_by_language">按语言分组来源</string>
     <string name="group_sources_by_language_summary">将内容源按其语言区域进行分组显示，而不是平铺展示。</string>
     <string name="handle_links">处理链接</string>
@@ -2033,7 +2032,6 @@
     <string name="source_group_other">其他源</string>
     <string name="source_group_other_json">其他 JSON 源</string>
     <string name="source_group_tvbox">TVBox 源</string>
-    <string name="source_group_tvbox_repository">TVBox 仓库</string>
     <string name="source_group_video">视频源</string>
     <string name="source_pinned">图源已置顶</string>
     <string name="source_summary_pattern">%1$s，%2$s</string>
@@ -2265,14 +2263,6 @@ SHA-256 指纹:
     <string name="tts_test_summary">使用当前引擎和音色播放一段测试语音</string>
     <string name="tv_count_short">剧集 %1$d</string>
     <string name="tv_episodes_watched_short">剧集 %1$d 集</string>
-    <string name="tvbox_repository_active_short">当前仓库</string>
-    <string name="tvbox_repository_current_label">当前 TVBox 仓库：%1$s</string>
-    <string name="tvbox_repository_filter">TVBox 仓库筛选</string>
-    <string name="tvbox_repository_inactive_short">未激活</string>
-    <string name="tvbox_repository_switch">切换 TVBox 仓库</string>
-    <string name="tvbox_repository_switch_empty">当前没有可切换的 TVBox 仓库</string>
-    <string name="tvbox_repository_switch_with_current">切换 TVBox 仓库（当前：%1$s）</string>
-    <string name="tvbox_repository_switched">已切换到仓库：%1$s</string>
     <string name="tvbox_root_spider_title">根 Spider</string>
     <string name="tvbox_runtime_candidates_title">运行时候选</string>
     <string name="tvbox_runtime_strategy_none">当前没有可用的本地 TVBox spider 运行时；仅能依赖直链、播放列表或 CMS fallback。</string>

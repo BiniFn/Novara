@@ -16,7 +16,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.launch
 import com.google.android.material.snackbar.Snackbar
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import dagger.hilt.android.AndroidEntryPoint
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.db.entity.JsonSourceType
@@ -59,7 +58,6 @@ class JsonSourcesFragment :
 	private val importViewModel by viewModels<ImportJsonViewModel>()
 	private var adapter: GroupedJsonSourcesAdapter? = null
 	private val selectedIds = mutableSetOf<String>()
-	private val tvBoxRepositoryMenuIds = linkedMapOf<Int, String>()
 	
 	// Current sort and filter state
 	private var currentSort: SortOption = SortOption.NAME
@@ -68,7 +66,6 @@ class JsonSourcesFragment :
 	private var redirected = false
 
 	companion object {
-		private const val TVBOX_REPOSITORY_MENU_BASE_ID = 50_000
 		const val ARG_SOURCE_TYPE = "json_source_type"
 	}
 	
@@ -97,7 +94,6 @@ class JsonSourcesFragment :
 			val flatList = groupedList.toFlatList()
 			adapter?.submitList(flatList)
 			adapter?.selectedIds = selectedIds
-			adapter?.activeTvBoxRepositoryLocator = viewModel.activeTvBoxRepositoryLocator.value
 			updateCountView()
 		}
 		
@@ -159,11 +155,6 @@ class JsonSourcesFragment :
 		
 		// Observe available groups to refresh menu if needed
 		viewModel.availableGroups.observe(viewLifecycleOwner) {
-			invalidateSupportMenu()
-		}
-		viewModel.tvBoxRepositories.observe(viewLifecycleOwner) {
-			adapter?.activeTvBoxRepositoryLocator = viewModel.activeTvBoxRepositoryLocator.value
-			adapter?.notifyDataSetChanged()
 			invalidateSupportMenu()
 		}
 		
@@ -355,29 +346,6 @@ class JsonSourcesFragment :
 		ImportJsonDialogFragment().show(childFragmentManager, "import_json")
 	}
 
-	private fun showTvBoxRepositorySwitchDialog() {
-		val repositories = viewModel.tvBoxRepositories.value
-		if (repositories.isEmpty()) {
-			showSnackbar(getString(R.string.tvbox_repository_switch_empty))
-			return
-		}
-		val currentLocator = viewModel.activeTvBoxRepositoryLocator.value
-		val labels = repositories.map { repository ->
-			"${repository.title} (${repository.enabledCount}/${repository.sourceCount})"
-		}.toTypedArray()
-		val checkedItem = repositories.indexOfFirst { it.locator == currentLocator }
-		MaterialAlertDialogBuilder(requireContext())
-			.setTitle(R.string.tvbox_repository_switch)
-			.setSingleChoiceItems(labels, checkedItem) { dialog, which ->
-				val repository = repositories.getOrNull(which) ?: return@setSingleChoiceItems
-				viewModel.activateTvBoxRepository(repository.locator)
-				showSnackbar(getString(R.string.tvbox_repository_switched, repository.title))
-				dialog.dismiss()
-			}
-			.setNegativeButton(android.R.string.cancel, null)
-			.show()
-	}
-	
 	private fun exportSources() {
 		viewLifecycleOwner.lifecycleScope.launch {
 			val (json, count) = viewModel.exportSources(selectedIds.toList())
@@ -466,39 +434,12 @@ class JsonSourcesFragment :
 				item?.isChecked = currentFilter is FilterOption.GROUP && (currentFilter as FilterOption.GROUP).name == groupName
 			}
 
-			val repositoriesSubMenu = filterSubMenu?.findItem(R.id.menu_tvbox_repositories)?.subMenu
-			repositoriesSubMenu?.clear()
-			tvBoxRepositoryMenuIds.clear()
-			val tvBoxRepositories = viewModel.tvBoxRepositories.value
-			val isTvBoxPage = viewModel.sourceTypeFilter == JsonSourceType.TVBOX
-			filterSubMenu?.findItem(R.id.menu_tvbox_repositories)?.isVisible = isTvBoxPage && tvBoxRepositories.isNotEmpty()
-			tvBoxRepositories.forEachIndexed { index, repository ->
-				val itemId = TVBOX_REPOSITORY_MENU_BASE_ID + index
-				tvBoxRepositoryMenuIds[itemId] = repository.locator
-				repositoriesSubMenu?.add(Menu.NONE, itemId, Menu.NONE, "${repository.title} (${repository.enabledCount}/${repository.sourceCount})")
-					?.apply {
-						isCheckable = true
-						isChecked = currentFilter is FilterOption.TVBOX_REPOSITORY &&
-							(currentFilter as FilterOption.TVBOX_REPOSITORY).locator == repository.locator
-					}
-			}
-			
 			// Update grouping checkmarks
 			val groupBySubMenu = filterSubMenu?.findItem(R.id.action_group_by)?.subMenu
 			groupBySubMenu?.findItem(R.id.menu_group_by_origin)?.isChecked = 
 				currentGrouping == org.skepsun.kototoro.core.jsonsource.GroupingStrategy.BY_ORIGIN
 			groupBySubMenu?.findItem(R.id.menu_group_by_type)?.isChecked = 
 				currentGrouping == org.skepsun.kototoro.core.jsonsource.GroupingStrategy.BY_CONTENT
-			groupBySubMenu?.findItem(R.id.menu_group_by_tvbox_repository)?.apply {
-				isVisible = isTvBoxPage && viewModel.tvBoxRepositories.value.isNotEmpty()
-				isChecked = currentGrouping == org.skepsun.kototoro.core.jsonsource.GroupingStrategy.BY_TVBOX_REPOSITORY
-			}
-			menu.findItem(R.id.action_switch_tvbox_repository)?.let { item ->
-				item.isVisible = isTvBoxPage && viewModel.tvBoxRepositories.value.isNotEmpty()
-				item.title = viewModel.getActiveTvBoxRepositoryTitle()?.let { activeTitle ->
-					getString(R.string.tvbox_repository_switch_with_current, activeTitle)
-				} ?: getString(R.string.tvbox_repository_switch)
-			}
 		}
 		
 		override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
@@ -514,20 +455,9 @@ class JsonSourcesFragment :
 				return true
 			}
 
-			tvBoxRepositoryMenuIds[menuItem.itemId]?.let { locator ->
-				currentFilter = FilterOption.TVBOX_REPOSITORY(locator)
-				viewModel.setFilterOption(currentFilter)
-				invalidateSupportMenu()
-				return true
-			}
-			
 			return when (itemId) {
 				R.id.action_import -> {
 					showImportDialog()
-					true
-				}
-				R.id.action_switch_tvbox_repository -> {
-					showTvBoxRepositorySwitchDialog()
 					true
 				}
 				R.id.menu_manage_groups -> {
@@ -602,12 +532,6 @@ class JsonSourcesFragment :
 				}
 				R.id.menu_group_by_type -> {
 					currentGrouping = org.skepsun.kototoro.core.jsonsource.GroupingStrategy.BY_CONTENT
-					viewModel.setGroupingStrategy(currentGrouping)
-					invalidateSupportMenu()
-					true
-				}
-				R.id.menu_group_by_tvbox_repository -> {
-					currentGrouping = org.skepsun.kototoro.core.jsonsource.GroupingStrategy.BY_TVBOX_REPOSITORY
 					viewModel.setGroupingStrategy(currentGrouping)
 					invalidateSupportMenu()
 					true

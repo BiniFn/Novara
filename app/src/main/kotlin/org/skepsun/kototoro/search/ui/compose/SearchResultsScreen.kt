@@ -163,8 +163,6 @@ fun SearchResultsRoute(
     isPickMode: Boolean,
 ) {
     val listModels by viewModel.list.collectAsStateWithLifecycle()
-    val activeTvBoxRepositoryTitle by viewModel.activeTvBoxRepositoryTitle.collectAsStateWithLifecycle()
-    val isTvBoxSourceTypeActive by viewModel.isTvBoxSourceTypeActive.collectAsStateWithLifecycle()
     val languagePresets by viewModel.languagePresets.collectAsStateWithLifecycle()
     val activeLanguagePresetId by viewModel.activeLanguagePresetId.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -216,8 +214,6 @@ fun SearchResultsRoute(
         viewModel.getItems(selectedItemsIds)
     }
     val isAllNonLocal = selectedItems.none { it.isLocal }
-    val shouldShowTvBoxLabel = isTvBoxSourceTypeActive && !activeTvBoxRepositoryTitle.isNullOrBlank()
-
     fun submitSearch() {
         val advancedQuery = AdvancedSearchParams(
             query = query.trim(),
@@ -263,8 +259,6 @@ fun SearchResultsRoute(
                     onAdvancedTagsChange = { advancedTags = it },
                     advancedAuthor = advancedAuthor,
                     onAdvancedAuthorChange = { advancedAuthor = it },
-                    shouldShowTvBoxLabel = shouldShowTvBoxLabel,
-                    activeTvBoxRepositoryTitle = activeTvBoxRepositoryTitle,
                     onSourceTypesClick = { showOptionsSheet = true },
                     onContentKindsClick = { showOptionsSheet = true },
                 )
@@ -411,8 +405,6 @@ private fun SearchResultsTopBar(
     onAdvancedTagsChange: (String) -> Unit,
     advancedAuthor: String,
     onAdvancedAuthorChange: (String) -> Unit,
-    shouldShowTvBoxLabel: Boolean,
-    activeTvBoxRepositoryTitle: String?,
     onSourceTypesClick: () -> Unit,
     onContentKindsClick: () -> Unit,
 ) {
@@ -503,17 +495,6 @@ private fun SearchResultsTopBar(
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { onSearchClick() }),
             )
-
-            if (shouldShowTvBoxLabel) {
-                Text(
-                    text = stringResource(
-                        R.string.tvbox_repository_current_label,
-                        activeTvBoxRepositoryTitle.orEmpty(),
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
 
             if (isAdvancedExpanded) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -103,16 +103,6 @@ class SearchViewModel @Inject constructor(
 		searchContentKindsFromNames(savedStateHandle.getStringList(AppRouter.KEY_CONTENT_KINDS))
 			?: ALL_SEARCH_CONTENT_KINDS,
 	)
-	val activeTvBoxRepositoryTitle: StateFlow<String?> = appSettings.observeAsStateFlow(
-		scope = viewModelScope + Dispatchers.IO,
-		key = AppSettings.KEY_TVBOX_ACTIVE_REPOSITORY_TITLE,
-		valueProducer = {
-			appSettings.activeTvBoxRepositoryTitle
-		},
-	)
-	val isTvBoxSourceTypeActive: StateFlow<Boolean> = sourceTypes
-		.map { SourceType.JSON_TVBOX in it }
-		.stateIn(viewModelScope + Dispatchers.Default, SharingStarted.Eagerly, SourceType.JSON_TVBOX in sourceTypes.value)
 	val languagePresets: StateFlow<List<SourcePreset>> = sourcePresetsRepository.observeAll()
 		.stateIn(viewModelScope + Dispatchers.IO, SharingStarted.Eagerly, emptyList())
 	val activeLanguagePresetId: StateFlow<Long> = appSettings.observeAsStateFlow(

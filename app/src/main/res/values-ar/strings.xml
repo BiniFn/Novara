@@ -1287,7 +1287,6 @@
     <string name="frequency_every_6_hours">كل 6 ساعات</string>
     <string name="group_by">تجميع حسب</string>
     <string name="group_by_origin">تجميع حسب المصدر</string>
-    <string name="group_by_tvbox_repository">تجميع حسب مستودع TVBox</string>
     <string name="group_by_type">تجميع حسب النوع</string>
     <string name="group_sources_by_language">تجميع المصادر حسب اللغة</string>
     <string name="group_sources_by_language_summary">عرض مصادر المحتوى مجمعة حسب لغتها بدلاً من قائمة مسطحة.</string>
@@ -2086,7 +2085,6 @@
     <string name="source_group_other">مصادر أخرى</string>
     <string name="source_group_other_json">مصادر JSON أخرى</string>
     <string name="source_group_tvbox">مصادر TVBox</string>
-    <string name="source_group_tvbox_repository">مستودع TVBox</string>
     <string name="source_group_video">مصادر الفيديو</string>
     <string name="source_name">اسم المصدر</string>
     <string name="source_summary_pattern">%1$s، %2$s</string>
@@ -2220,14 +2218,6 @@
     <string name="tts_test_summary">تشغيل جملة اختبار قصيرة باستخدام المحرك والصوت الحاليين</string>
     <string name="tv_count_short">تلفزيون %1$d</string>
     <string name="tv_episodes_watched_short">حلقات تلفزيون %1$d</string>
-    <string name="tvbox_repository_active_short">نشط</string>
-    <string name="tvbox_repository_current_label">مستودع TVBox الحالي: %1$s</string>
-    <string name="tvbox_repository_filter">فلتر مستودع TVBox</string>
-    <string name="tvbox_repository_inactive_short">غير نشط</string>
-    <string name="tvbox_repository_switch">تبديل مستودع TVBox</string>
-    <string name="tvbox_repository_switch_empty">لا توجد مستودعات TVBox متاحة للتبديل</string>
-    <string name="tvbox_repository_switch_with_current">تبديل مستودع TVBox (الحالي: %1$s)</string>
-    <string name="tvbox_repository_switched">تم التبديل إلى المستودع: %1$s</string>
     <string name="tvbox_root_spider_title">العنكبوت الجذري</string>
     <string name="tvbox_runtime_candidates_title">المرشحون في وقت التشغيل</string>
     <string name="tvbox_runtime_strategy_none">لا توجد بيئة تشغيل عنكبوت TVBox محلية متاحة بعد. يمكن استخدام الوسائط المباشرة أو قوائم التشغيل أو CMS كبديل فقط.</string>

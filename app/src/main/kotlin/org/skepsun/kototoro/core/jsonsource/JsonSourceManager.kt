@@ -231,25 +231,6 @@ class JsonSourceManager @Inject constructor(
 		}
 	}
 
-	suspend fun activateTvBoxRepository(sourceLocator: String): Int {
-		val tvBoxSources = jsonSourceDao.observeByType(JsonSourceType.TVBOX).first()
-		if (tvBoxSources.isEmpty()) {
-			return 0
-		}
-		val normalizedTarget = sourceLocator.trim()
-		val matchingSources = tvBoxSources.filter { entity ->
-			extractTvBoxSourceLocator(entity.config) == normalizedTarget
-		}
-		appSettings.activeTvBoxRepositoryLocator = normalizedTarget
-		appSettings.activeTvBoxRepositoryTitle = tvBoxSources.firstNotNullOfOrNull { entity ->
-			extractTvBoxSourceLocator(entity.config)
-				?.takeIf { it == normalizedTarget }
-				?.let { extractTvBoxSourceTitle(entity.config) ?: buildTvBoxRepositoryTitle(it, null) }
-		}
-		JsonSourceLogger.logInfo("Activated TVBox repository $normalizedTarget with ${matchingSources.size} source(s)")
-		return matchingSources.size
-	}
-	
 	/**
 	 * Deletes a JSON source from the database.
 	 * 
@@ -662,7 +643,6 @@ class JsonSourceManager @Inject constructor(
 		JsonSourceLogger.logImportStart("TVBOX", jsonContent.length)
 
 		return try {
-			val currentActiveLocator = resolveActiveTvBoxRepositoryLocator()
 			val entities = mutableListOf<JsonSourceEntity>()
 			val visitedUrls = linkedSetOf<String>()
 			val errors = mutableListOf<String>()
@@ -702,15 +682,6 @@ class JsonSourceManager @Inject constructor(
 			}
 
 			jsonSourceDao.insertAll(entities)
-			if (currentActiveLocator.isNullOrBlank()) {
-				entities.firstOrNull()?.let { entity ->
-					extractTvBoxSourceLocator(entity.config)?.let { locator ->
-						appSettings.activeTvBoxRepositoryLocator = locator
-						appSettings.activeTvBoxRepositoryTitle =
-							extractTvBoxSourceTitle(entity.config) ?: buildTvBoxRepositoryTitle(locator, null)
-					}
-				}
-			}
 			val duration = System.currentTimeMillis() - startTime
 			JsonSourceLogger.logImportSuccess("TVBOX", entities.size, duration)
 			if (errors.isNotEmpty()) {
@@ -1240,16 +1211,6 @@ class JsonSourceManager @Inject constructor(
 			append(site.opt("ext")?.toString()?.trim().orEmpty())
 		}
 		return generateSourceId(fingerprint, JsonSourceType.TVBOX)
-	}
-
-	private suspend fun resolveActiveTvBoxRepositoryLocator(): String? {
-		appSettings.activeTvBoxRepositoryLocator?.let { return it }
-		val existingTvBoxSources = jsonSourceDao.observeByType(JsonSourceType.TVBOX).first()
-		val locators = existingTvBoxSources.asSequence()
-			.mapNotNull { extractTvBoxSourceLocator(it.config) }
-			.distinct()
-			.toList()
-		return if (locators.size == 1) locators.first() else null
 	}
 
 	private suspend fun fetchTvBoxChildRepository(url: String): String? {

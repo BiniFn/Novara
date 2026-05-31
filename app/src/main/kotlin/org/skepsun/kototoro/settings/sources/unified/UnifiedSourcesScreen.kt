@@ -1454,7 +1454,7 @@ private fun UnifiedSourceRow(
 				},
 				onLongClick = onSelectionToggle,
 			)
-			.padding(start = 16.dp, top = 8.dp, end = 8.dp, bottom = 8.dp),
+			.padding(start = 16.dp, top = 5.dp, end = 4.dp, bottom = 5.dp),
 		verticalAlignment = Alignment.CenterVertically,
 	) {
 		if (isSelectionMode) {
@@ -1469,10 +1469,10 @@ private fun UnifiedSourceRow(
 				modifier = Modifier.size(32.dp),
 			)
 		}
-		Spacer(modifier = Modifier.width(16.dp))
+		Spacer(modifier = Modifier.width(12.dp))
 		Column(
 			modifier = Modifier.weight(1f),
-			verticalArrangement = Arrangement.spacedBy(3.dp),
+			verticalArrangement = Arrangement.spacedBy(2.dp),
 		) {
 			Row(
 				verticalAlignment = Alignment.CenterVertically,
@@ -1507,10 +1507,14 @@ private fun UnifiedSourceRow(
 			)
 		}
 		Box {
-			IconButton(onClick = { menuExpanded = true }) {
+			IconButton(
+				onClick = { menuExpanded = true },
+				modifier = Modifier.size(40.dp),
+			) {
 					Icon(
 						painter = painterResource(R.drawable.ic_more_vert),
 						contentDescription = stringResource(R.string.more_filters),
+						modifier = Modifier.size(18.dp),
 					)
 				}
 			DropdownMenu(

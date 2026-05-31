@@ -1245,7 +1245,6 @@
     <string name="frequency_every_6_hours">每 6 小時</string>
     <string name="genre">類別</string>
     <string name="global_search">全局搜索</string>
-    <string name="group_by_tvbox_repository">按 TVBox 倉庫分組</string>
     <string name="group_sources_by_language">按語言分組來源</string>
     <string name="group_sources_by_language_summary">將內容源按其語言區域進行分組顯示，而不是平鋪展示。</string>
     <string name="handle_links">處理鏈接</string>
@@ -2078,7 +2077,6 @@
     <string name="source_group_other">其他源</string>
     <string name="source_group_other_json">其他 JSON 源</string>
     <string name="source_group_tvbox">TVBox 源</string>
-    <string name="source_group_tvbox_repository">TVBox 倉庫</string>
     <string name="source_group_video">視頻源</string>
     <string name="source_pinned">圖源已置頂</string>
     <string name="source_tag_json">Legado</string>
@@ -2222,14 +2220,6 @@ SHA-256 指紋:
     <string name="tts_test_summary">使用當前引擎和音色播放一段測試語音</string>
     <string name="tv_count_short">劇集 %1$d</string>
     <string name="tv_episodes_watched_short">劇集 %1$d 集</string>
-    <string name="tvbox_repository_active_short">當前倉庫</string>
-    <string name="tvbox_repository_current_label">當前 TVBox 倉庫：%1$s</string>
-    <string name="tvbox_repository_filter">TVBox 倉庫篩選</string>
-    <string name="tvbox_repository_inactive_short">未激活</string>
-    <string name="tvbox_repository_switch">切換 TVBox 倉庫</string>
-    <string name="tvbox_repository_switch_empty">當前沒有可切換的 TVBox 倉庫</string>
-    <string name="tvbox_repository_switch_with_current">切換 TVBox 倉庫（當前：%1$s）</string>
-    <string name="tvbox_repository_switched">已切換到倉庫：%1$s</string>
     <string name="tvbox_root_spider_title">根 Spider</string>
     <string name="tvbox_runtime_candidates_title">運行時候選</string>
     <string name="tvbox_runtime_strategy_none">當前沒有可用的本地 TVBox spider 運行時；僅能依賴直鏈、播放列表或 CMS fallback。</string>

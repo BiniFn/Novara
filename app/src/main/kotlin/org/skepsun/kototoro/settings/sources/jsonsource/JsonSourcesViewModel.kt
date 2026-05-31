@@ -34,8 +34,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.first
 import android.net.Uri
-import org.skepsun.kototoro.core.prefs.AppSettings
-import org.skepsun.kototoro.core.prefs.observeAsFlow
 
 /**
  * ViewModel for managing JSON sources with grouping support.
@@ -106,41 +104,6 @@ class JsonSourcesViewModel @Inject constructor(
 		initialValue = emptyList()
 	)
 
-	val tvBoxRepositories: StateFlow<List<TvBoxRepositoryItem>> = jsonSources.map { sources ->
-		sources.asSequence()
-			.filter { it.type == JsonSourceType.TVBOX }
-			.mapNotNull { entity ->
-				val locator = extractTvBoxSourceLocator(entity.config) ?: return@mapNotNull null
-				Triple(locator, extractTvBoxSourceTitle(entity.config) ?: buildTvBoxRepositoryTitle(locator), entity.enabled)
-			}
-			.groupBy(keySelector = { it.first })
-			.map { (locator, triples) ->
-				TvBoxRepositoryItem(
-					locator = locator,
-					title = triples.firstNotNullOfOrNull { it.second.takeIf(String::isNotBlank) } ?: buildTvBoxRepositoryTitle(locator),
-					sourceCount = triples.size,
-					enabledCount = triples.count { it.third },
-				)
-			}
-			.sortedBy { it.title.lowercase() }
-	}.stateIn(
-		scope = viewModelScope,
-		started = SharingStarted.WhileSubscribed(5000),
-		initialValue = emptyList(),
-	)
-
-	val activeTvBoxRepositoryLocator: StateFlow<String?> = combine(
-		appSettings.observeAsFlow(AppSettings.KEY_TVBOX_ACTIVE_REPOSITORY) { activeTvBoxRepositoryLocator },
-		tvBoxRepositories,
-	) { configuredLocator, repositories ->
-		configuredLocator?.takeIf { it.isNotBlank() }
-			?: repositories.singleOrNull { it.enabledCount > 0 }?.locator
-	}.stateIn(
-		scope = viewModelScope,
-		started = SharingStarted.WhileSubscribed(5000),
-		initialValue = appSettings.activeTvBoxRepositoryLocator,
-	)
-	
 	/**
 	 * Current grouping strategy (by content or by origin).
 	 */
@@ -225,12 +188,6 @@ class JsonSourcesViewModel @Inject constructor(
 					parsedSources.value[entity.id]?.groups?.contains(filter.name) == true
 				}
 			}
-			is FilterOption.TVBOX_REPOSITORY -> {
-				searchedEntities.filter { entity ->
-					entity.type == JsonSourceType.TVBOX &&
-						extractTvBoxSourceLocator(entity.config) == filter.locator
-				}
-			}
 		}
 		
 		// Sort sources
@@ -288,15 +245,7 @@ class JsonSourcesViewModel @Inject constructor(
 	 */
 	fun toggleSource(sourceId: String, enabled: Boolean) {
 		launchJob(Dispatchers.Default) {
-			val entity = jsonSources.value.firstOrNull { it.id == sourceId }
-			val locator = entity
-				?.takeIf { it.type == JsonSourceType.TVBOX && enabled }
-				?.let { extractTvBoxSourceLocator(it.config) }
-			if (!locator.isNullOrBlank()) {
-				jsonSourceManager.activateTvBoxRepository(locator)
-			} else {
-				jsonSourceManager.toggleSource(sourceId, enabled)
-			}
+			jsonSourceManager.toggleSource(sourceId, enabled)
 		}
 	}
 	
@@ -531,17 +480,6 @@ class JsonSourcesViewModel @Inject constructor(
 		_searchQuery.value = query
 	}
 
-	fun activateTvBoxRepository(sourceLocator: String) {
-		launchJob(Dispatchers.Default) {
-			jsonSourceManager.activateTvBoxRepository(sourceLocator)
-		}
-	}
-
-	fun getActiveTvBoxRepositoryTitle(): String? {
-		val locator = activeTvBoxRepositoryLocator.value ?: return null
-		return tvBoxRepositories.value.firstOrNull { it.locator == locator }?.title
-	}
-
 	private fun parseSourceMeta(entity: JsonSourceEntity): JsonSourceMeta = when (entity.type) {
 		JsonSourceType.LEGADO -> {
 			val source = json.decodeFromString<LegadoBookSource>(entity.config)
@@ -645,13 +583,6 @@ private data class JsonSourceMeta(
 	val hasExplore: Boolean?,
 )
 
-data class TvBoxRepositoryItem(
-	val locator: String,
-	val title: String,
-	val sourceCount: Int,
-	val enabledCount: Int,
-)
-
 enum class SortOption {
 	NAME, ENABLED
 }
@@ -666,5 +597,4 @@ sealed class FilterOption {
 	object EXPLORE_ENABLED : FilterOption()
 	object EXPLORE_DISABLED : FilterOption()
 	data class GROUP(val name: String) : FilterOption()
-	data class TVBOX_REPOSITORY(val locator: String) : FilterOption()
 }

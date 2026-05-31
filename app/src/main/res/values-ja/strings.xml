@@ -1293,7 +1293,6 @@
     <string name="fraction_pattern">%1$d/%2$d</string>
     <string name="group_by">グループ化</string>
     <string name="group_by_origin">オリジンでグループ化</string>
-    <string name="group_by_tvbox_repository">TVBoxリポジトリでグループ化</string>
     <string name="group_by_type">タイプでグループ化</string>
     <string name="group_sources_by_language">ソースを言語でグループ化</string>
     <string name="group_sources_by_language_summary">コンテンツソースをフラットリストではなく、ロケール言語ごとにグループ化して表示します。</string>
@@ -2084,7 +2083,6 @@
     <string name="source_group_other">その他のソース</string>
     <string name="source_group_other_json">その他のJSONソース</string>
     <string name="source_group_tvbox">TVBoxソース</string>
-    <string name="source_group_tvbox_repository">TVBoxリポジトリ</string>
     <string name="source_group_video">動画ソース</string>
     <string name="source_name">ソース名</string>
     <string name="source_summary_pattern">%1$s、%2$s</string>
@@ -2218,14 +2216,6 @@
     <string name="tts_test_summary">現在のエンジンと音声で短いテストフレーズを再生</string>
     <string name="tv_count_short">TV %1$d</string>
     <string name="tv_episodes_watched_short">TVエピソード %1$d</string>
-    <string name="tvbox_repository_active_short">有効</string>
-    <string name="tvbox_repository_current_label">現在のTVBoxリポジトリ：%1$s</string>
-    <string name="tvbox_repository_filter">TVBoxリポジトリフィルター</string>
-    <string name="tvbox_repository_inactive_short">無効</string>
-    <string name="tvbox_repository_switch">TVBoxリポジトリを切り替え</string>
-    <string name="tvbox_repository_switch_empty">切り替え可能なTVBoxリポジトリがありません</string>
-    <string name="tvbox_repository_switch_with_current">TVBoxリポジトリを切り替え（現在：%1$s）</string>
-    <string name="tvbox_repository_switched">リポジトリを切り替えました：%1$s</string>
     <string name="tvbox_root_spider_title">ルートスパイダー</string>
     <string name="tvbox_runtime_candidates_title">実行時候補</string>
     <string name="tvbox_runtime_strategy_none">ローカルのTVBoxスパイダーランタイムがまだ利用できません。直接メディア、プレイリスト、またはCMSフォールバックのみ使用可能です。</string>

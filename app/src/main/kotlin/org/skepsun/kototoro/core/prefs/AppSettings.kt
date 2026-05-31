@@ -371,26 +371,6 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		get() = prefs.getBoolean(KEY_LOCAL_APK_HOT_RELOAD, false)
 		set(value) = prefs.edit { putBoolean(KEY_LOCAL_APK_HOT_RELOAD, value) }
 
-	var activeTvBoxRepositoryLocator: String?
-		get() = prefs.getString(KEY_TVBOX_ACTIVE_REPOSITORY, null)?.takeIf { it.isNotBlank() }
-		set(value) = prefs.edit {
-			if (value.isNullOrBlank()) {
-				remove(KEY_TVBOX_ACTIVE_REPOSITORY)
-			} else {
-				putString(KEY_TVBOX_ACTIVE_REPOSITORY, value)
-			}
-		}
-
-	var activeTvBoxRepositoryTitle: String?
-		get() = prefs.getString(KEY_TVBOX_ACTIVE_REPOSITORY_TITLE, null)?.takeIf { it.isNotBlank() }
-		set(value) = prefs.edit {
-			if (value.isNullOrBlank()) {
-				remove(KEY_TVBOX_ACTIVE_REPOSITORY_TITLE)
-			} else {
-				putString(KEY_TVBOX_ACTIVE_REPOSITORY_TITLE, value)
-			}
-		}
-
 	var lnReaderRepoUrls: Set<String>
 		get() = prefs.getStringSet(KEY_LNREADER_REPOS, null)
 			?: setOf(org.skepsun.kototoro.core.lnreader.LNReaderRepository.OFFICIAL_REPO_URL)
@@ -2114,8 +2094,6 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 		const val KEY_GITHUB_MIRROR = "github_mirror"
 		const val KEY_SHOW_EXTRA_INFO_ON_CARDS = "show_extra_info_on_cards"
 		const val KEY_HUGGINGFACE_MIRROR = "huggingface_mirror"
-		const val KEY_TVBOX_ACTIVE_REPOSITORY = "tvbox_active_repository"
-		const val KEY_TVBOX_ACTIVE_REPOSITORY_TITLE = "tvbox_active_repository_title"
 		const val KEY_LNREADER_REPOS = "lnreader_repository_urls"
 		const val KEY_SOURCES_GRID = "sources_grid"
 		const val KEY_SHOW_SOURCE_ON_CARDS = "show_source_on_cards"

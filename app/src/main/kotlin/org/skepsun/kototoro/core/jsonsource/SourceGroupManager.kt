@@ -183,14 +183,6 @@ class SourceGroupManager @Inject constructor(
 		return when (group) {
 			is SourceGroup.Content -> sources.filter { getContentGroup(it) == group.type }
 			is SourceGroup.Origin -> sources.filter { getOriginGroup(it) == group.type }
-			is SourceGroup.TvBoxRepository -> sources.filter { source ->
-				val jsonSource = source as? org.skepsun.kototoro.core.jsonsource.JsonContentSource
-					?: return@filter false
-				if (jsonSource.entity.type != org.skepsun.kototoro.core.db.entity.JsonSourceType.TVBOX) {
-					return@filter group.locator == null
-				}
-				extractTvBoxSourceLocator(jsonSource.entity.config) == group.locator
-			}
 		}
 	}
 	
@@ -327,20 +319,4 @@ sealed class SourceGroup {
 	 * Group by origin type (native, JSON Legado, JSON TVBox)
 	 */
 	data class Origin(val type: OriginGroup) : SourceGroup()
-
-	/**
-	 * Group by imported TVBox repository locator.
-	 * When locator is null, this group represents non-TVBox JSON sources.
-	 */
-	data class TvBoxRepository(val locator: String?, val title: String) : SourceGroup()
-}
-
-private fun extractTvBoxSourceLocator(rawConfig: String): String? {
-	return runCatching {
-		org.skepsun.kototoro.core.model.jsonsource.TVBoxStoredConfig.parse(rawConfig)
-			.meta
-			.sourceLocator
-			?.trim()
-			?.ifBlank { null }
-	}.getOrNull()
 }

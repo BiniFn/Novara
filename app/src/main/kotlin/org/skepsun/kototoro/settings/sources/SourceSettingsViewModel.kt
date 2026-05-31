@@ -19,7 +19,6 @@ import org.skepsun.kototoro.core.parser.ContentRepository
 import org.skepsun.kototoro.core.parser.ParserContentRepository
 import org.skepsun.kototoro.core.parser.kotatsu.KotatsuParserRepository
 import org.skepsun.kototoro.core.parser.tvbox.TVBoxRepository
-import org.skepsun.kototoro.core.jsonsource.JsonContentSource
 import org.skepsun.kototoro.core.prefs.SourceSettings
 import org.skepsun.kototoro.core.js.JSSourceParser
 import org.skepsun.kototoro.core.ui.BaseViewModel
@@ -32,7 +31,6 @@ import org.skepsun.kototoro.parsers.ContentParserCredentialsAuthProvider
 import org.skepsun.kototoro.parsers.exception.AuthRequiredException
 import org.skepsun.kototoro.parsers.exception.ParseException
 import org.skepsun.kototoro.core.model.jsonsource.LegadoBookSource
-import org.skepsun.kototoro.core.model.jsonsource.TVBoxStoredConfig
 import org.skepsun.kototoro.core.parser.legado.LegadoRepository
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
@@ -252,15 +250,7 @@ class SourceSettingsViewModel @Inject constructor(
 
 	fun setEnabled(value: Boolean) {
 		launchJob(Dispatchers.Default) {
-			val tvBoxLocator = (source as? JsonContentSource)
-				?.takeIf { it.entity.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.TVBOX && value }
-				?.let { TVBoxStoredConfig.parse(it.entity.config).meta.sourceLocator }
-				?.takeIf { !it.isNullOrBlank() }
-			if (!tvBoxLocator.isNullOrBlank()) {
-				jsonSourceManager.activateTvBoxRepository(tvBoxLocator)
-			} else {
-				mangaSourcesRepository.setSourcesEnabled(setOf(source), value)
-			}
+			mangaSourcesRepository.setSourcesEnabled(setOf(source), value)
 		}
 	}
 

@@ -246,14 +246,7 @@ class ContentSourcesRepository @Inject constructor(
 	 */
 	private suspend fun getEnabledJsonSources(): List<org.skepsun.kototoro.core.jsonsource.JsonContentSource> {
 		val jsonSources = jsonSourceManager.observeEnabledJsonSources()
-			.map { entities ->
-				val filteredEntities = filterActiveTvBoxEntities(entities, settings.activeTvBoxRepositoryLocator)
-				android.util.Log.d(
-					"ContentSourcesRepository",
-					"getEnabledJsonSources: count=${filteredEntities.size} after TVBox repository filter",
-				)
-				filteredEntities.map(::JsonContentSource)
-			}
+			.map { entities -> entities.map(::JsonContentSource) }
 			.first()
 		return jsonSources
 	}
@@ -731,53 +724,11 @@ class ContentSourcesRepository @Inject constructor(
 		return combine(
 			jsonDao.observeEnabledSummaries(),
 			observeIsNsfwDisabled(),
-			settings.observeAsFlow(AppSettings.KEY_TVBOX_ACTIVE_REPOSITORY) { activeTvBoxRepositoryLocator }
-		) { entities, skipNsfw, activeTvBoxRepositoryLocator ->
-			filterActiveTvBoxSummaries(entities, activeTvBoxRepositoryLocator)
+		) { entities, skipNsfw ->
+			entities
 				.map(::JsonSourceListSource)
 				.filter { source -> !skipNsfw || !source.isNsfw() }
 		}
-	}
-
-	private fun filterActiveTvBoxEntities(
-		entities: List<JsonSourceEntity>,
-		activeLocator: String?,
-	): List<JsonSourceEntity> {
-		val normalizedActiveLocator = activeLocator?.trim().orEmpty()
-		val effectiveLocator = if (normalizedActiveLocator.isNotBlank()) {
-			normalizedActiveLocator
-		} else {
-			entities.asSequence()
-				.filter { it.type == org.skepsun.kototoro.core.db.entity.JsonSourceType.TVBOX }
-				.mapNotNull { extractTvBoxSourceLocator(it.config) }
-				.distinct()
-				.singleOrNull()
-				.orEmpty()
-		}
-		if (effectiveLocator.isBlank()) {
-			return entities
-		}
-		return entities.filter { entity ->
-			entity.type != org.skepsun.kototoro.core.db.entity.JsonSourceType.TVBOX ||
-				extractTvBoxSourceLocator(entity.config) == effectiveLocator
-		}
-	}
-
-	private fun filterActiveTvBoxSummaries(
-		summaries: List<JsonSourceSummary>,
-		@Suppress("UNUSED_PARAMETER") activeLocator: String?,
-	): List<JsonSourceSummary> {
-		return summaries
-	}
-
-	private fun extractTvBoxSourceLocator(rawConfig: String): String? {
-		return runCatching {
-			org.json.JSONObject(rawConfig)
-				.optJSONObject("meta")
-				?.optString("sourceLocator")
-				?.trim()
-				?.ifBlank { null }
-		}.getOrNull()
 	}
 	
 	/**
