@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -126,10 +127,16 @@ fun KototoroBottomNav(
     )
     val nonFloatingContentHorizontalPadding = 6.dp
     val nonFloatingTopPadding = 4.dp
-    val floatingNavHorizontalPadding = 0.dp
+    val floatingNavItemMinWidth = 48.dp
+    val floatingNavItemSpacing = 8.dp
+    val floatingNavHorizontalPadding = floatingNavItemSpacing / 2
     val floatingAdaptiveWidth = remember(activeItems.size) {
-        val itemWidth = 58
-        (activeItems.size * itemWidth).dp.coerceIn(168.dp, 520.dp)
+        val itemCount = activeItems.size.coerceAtLeast(1)
+        (
+            (floatingNavItemMinWidth * itemCount) +
+                (floatingNavItemSpacing * (itemCount - 1)) +
+                (floatingNavHorizontalPadding * 2)
+            ).coerceIn(168.dp, 520.dp)
     }
     val railWidth = if (isFloating) {
         (navFloatingHeight + 4).dp.coerceIn(60.dp, 160.dp)
@@ -243,6 +250,7 @@ fun KototoroBottomNav(
                     selectedItemId = navState.selectedItemId,
                     badges = navState.badges,
                     clickPulses = clickPulses,
+                    itemSpacing = floatingNavItemSpacing,
                     onItemSelected = onItemSelected,
                     onItemReselected = onItemReselected,
                     modifier = Modifier
@@ -348,13 +356,14 @@ private fun FloatingBottomNavRow(
     selectedItemId: Int,
     badges: Map<Int, BadgeInfo>,
     clickPulses: MutableMap<Int, Int>,
+    itemSpacing: Dp,
     onItemSelected: (Int) -> Unit,
     onItemReselected: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.Center,
+        horizontalArrangement = Arrangement.spacedBy(itemSpacing, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         items.forEach { item ->
