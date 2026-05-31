@@ -41,6 +41,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.skepsun.kototoro.core.network.webview.WebViewExecutor
 import kotlinx.coroutines.withContext
 import org.skepsun.kototoro.core.jsonsource.JsonSourceManager
+import org.skepsun.kototoro.core.jsonsource.JsonContentSource
+import org.skepsun.kototoro.core.model.jsonsource.TVBoxStoredConfig
 
 @HiltViewModel
 class SourceSettingsViewModel @Inject constructor(
