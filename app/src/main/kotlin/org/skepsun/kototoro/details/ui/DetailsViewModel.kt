@@ -3452,7 +3452,11 @@ class DetailsViewModel @Inject constructor(
 										offset = 0,
 										order = repository.resolveReadingSearchSortOrder(),
 										filter = ContentListFilter(query = query),
-									).take(20)
+									).take(20).map { content ->
+										runCatchingCancellable {
+											repository.getDetails(content)
+										}.getOrDefault(content)
+									}
 								}
 							}.fold(
 								onSuccess = { items ->
