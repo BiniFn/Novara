@@ -106,6 +106,11 @@ class FavouritesContainerViewModel @Inject constructor(
 	val onActionDone = MutableEventFlow<ReversibleAction>()
 	val importMessages = MutableEventFlow<String>()
 	val syncMessages = MutableEventFlow<String>()
+	private val _showMigrationPanel = MutableStateFlow(false)
+	val showMigrationPanel: StateFlow<Boolean> = _showMigrationPanel.asStateFlow()
+
+	fun showMigrationPanel() { _showMigrationPanel.value = true }
+	fun hideMigrationPanel() { _showMigrationPanel.value = false }
 	private fun logImport(msg: String) = Unit
 	private fun logSync(msg: String) = Unit
 

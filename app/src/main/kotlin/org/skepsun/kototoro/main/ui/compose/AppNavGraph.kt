@@ -76,6 +76,7 @@ import org.skepsun.kototoro.main.ui.compose.CompactFilterRailOverrideState
 import org.skepsun.kototoro.main.ui.compose.CompactTabsTopBarOverrideState
 import org.skepsun.kototoro.main.ui.compose.CompactTopBarTabItem
 import org.skepsun.kototoro.main.ui.compose.LayeredTopBarOverrideState
+import org.skepsun.kototoro.main.ui.compose.selectedFirst
 
 private fun <T> eventCollector(block: suspend (T) -> Unit): FlowCollector<T> = FlowCollector { value ->
     block(value)
@@ -474,7 +475,7 @@ fun AppNavGraph(
                                 source = sourceOption?.mangaSource,
                                 onClick = { viewModel.toggleFilterOption(option) },
                             )
-                        },
+                        }.selectedFirst(),
                     )
                 }
             }
@@ -742,6 +743,9 @@ fun AppNavGraph(
                     listOf(
                         KototoroTopBarMenuAction(org.skepsun.kototoro.R.string.favourites_categories) {
                             appRouter.openFavoriteCategories()
+                        },
+                        KototoroTopBarMenuAction(org.skepsun.kototoro.R.string.batch_source_migration) {
+                            viewModel.showMigrationPanel()
                         },
                         KototoroTopBarMenuAction(org.skepsun.kototoro.R.string.import_favourites) {
                             showImportDialog(coroutineScope)
@@ -1062,7 +1066,7 @@ fun AppNavGraph(
                         isSelected = tag.key in selectedTagKeys,
                         onClick = { viewModel.toggleFilterTag(tag) },
                     )
-                }
+                }.selectedFirst()
                 CompactFilterRailOverrideState(items = items)
             }
             CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {

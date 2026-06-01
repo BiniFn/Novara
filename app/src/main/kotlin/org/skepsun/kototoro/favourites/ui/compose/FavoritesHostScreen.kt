@@ -1,6 +1,10 @@
 package org.skepsun.kototoro.favourites.ui.compose
 
+import android.os.Build
 import android.util.Log
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -15,15 +19,19 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.haze
 import kotlinx.coroutines.launch
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.model.FavouriteCategory.Companion.NO_ID
 import org.skepsun.kototoro.core.nav.AppRouter
+import org.skepsun.kototoro.core.ui.glass.LocalHazeState
 import org.skepsun.kototoro.explore.ui.model.BrowseGroupTab
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 import org.skepsun.kototoro.favourites.ui.container.FavouriteTabModel
 import org.skepsun.kototoro.favourites.ui.container.FavouritesContainerViewModel
 import org.skepsun.kototoro.favourites.domain.GlobalFavoritesState
+import org.skepsun.kototoro.favourites.ui.migration.compose.SourceMigrationPanel
 import org.skepsun.kototoro.main.ui.MainActivity
 import org.skepsun.kototoro.main.ui.SearchBarFilterViewController
 import org.skepsun.kototoro.main.ui.compose.CompactFilterRailOverrideState
@@ -49,6 +57,7 @@ fun KototoroFavoritesHostRoute(
     viewModel: FavouritesContainerViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val showMigrationPanel by viewModel.showMigrationPanel.collectAsStateWithLifecycle()
 
     val mainActivity = LocalContext.current as? MainActivity
     val globalState = viewModel.globalFavoritesState
@@ -278,6 +287,9 @@ fun KototoroFavoritesHostRoute(
         }
     }
 
+    val hazeState = remember { HazeState() }
+    val useBackgroundHaze = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+
     if (uiState.isLoading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
@@ -298,39 +310,57 @@ fun KototoroFavoritesHostRoute(
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-            val category = displayCategories.getOrNull(page)
-            if (category != null) {
-                val enabled = page == activePage
-                KototoroFavoritesListScreen(
-                    categoryId = category.id,
-                    appRouter = appRouter,
-                    contentPadding = innerPadding,
-                    onNavigateToDetails = onNavigateToDetails,
-                    sharedTransitionEnabled = enabled,
-                    isActivePage = enabled,
-                    onTopBarOverrideChanged = { overrideState ->
-                        val accepted = enabled && category.id == activeCategoryId
-                        Log.d(
-                            FavoritesAutofilterLogTag,
-                            "host childTopBar category=${category.id} active=$activeCategoryId enabled=$enabled " +
-                                "accepted=$accepted state=${overrideState?.javaClass?.simpleName} " +
-                                "generation=$activeChildOverrideGeneration",
+    CompositionLocalProvider(LocalHazeState provides hazeState) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(if (useBackgroundHaze) Modifier.haze(hazeState) else Modifier),
+            ) {
+                HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+                    val category = displayCategories.getOrNull(page)
+                    if (category != null) {
+                        val enabled = page == activePage
+                        KototoroFavoritesListScreen(
+                            categoryId = category.id,
+                            appRouter = appRouter,
+                            contentPadding = innerPadding,
+                            onNavigateToDetails = onNavigateToDetails,
+                            sharedTransitionEnabled = enabled,
+                            isActivePage = enabled,
+                            onTopBarOverrideChanged = { overrideState ->
+                                val accepted = enabled && category.id == activeCategoryId
+                                Log.d(
+                                    FavoritesAutofilterLogTag,
+                                    "host childTopBar category=${category.id} active=$activeCategoryId enabled=$enabled " +
+                                        "accepted=$accepted state=${overrideState?.javaClass?.simpleName} " +
+                                        "generation=$activeChildOverrideGeneration",
+                                )
+                                if (accepted) {
+                                    childTopBarOverrideState = overrideState
+                                    childTopBarOverrideGeneration = activeChildOverrideGeneration
+                                }
+                            },
+                            onFilterRailOverrideChanged = { overrideState ->
+                                Log.d(
+                                    FavoritesAutofilterLogTag,
+                                    "host childRail category=${category.id} active=$activeCategoryId enabled=$enabled " +
+                                        "accepted=false inline=true railItems=${overrideState?.items?.size ?: -1} " +
+                                        "generation=$activeChildOverrideGeneration",
+                                )
+                            },
                         )
-                        if (accepted) {
-                            childTopBarOverrideState = overrideState
-                            childTopBarOverrideGeneration = activeChildOverrideGeneration
-                        }
-                    },
-                    onFilterRailOverrideChanged = { overrideState ->
-                        Log.d(
-                            FavoritesAutofilterLogTag,
-                            "host childRail category=${category.id} active=$activeCategoryId enabled=$enabled " +
-                                "accepted=false inline=true railItems=${overrideState?.items?.size ?: -1} " +
-                                "generation=$activeChildOverrideGeneration",
-                        )
-                    },
+                    }
+                }
+            }
+
+            AnimatedVisibility(
+                visible = showMigrationPanel,
+                enter = fadeIn(),
+                exit = fadeOut(),
+            ) {
+                SourceMigrationPanel(
+                    onDismiss = { viewModel.hideMigrationPanel() },
                 )
             }
         }
