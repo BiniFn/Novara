@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -61,8 +63,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -131,7 +135,8 @@ private const val ExploreHeroScrollLogTag = "ExploreHeroScroll"
 private val BrowseHeroContentOverlap = 56.dp
 
 private data class SourceQuickAccessMetrics(
-    val columns: Int,
+    val preferredColumns: Int,
+    val minCardWidth: androidx.compose.ui.unit.Dp,
     val cardHeight: androidx.compose.ui.unit.Dp,
     val gridSpacing: androidx.compose.ui.unit.Dp,
     val iconContainerSize: androidx.compose.ui.unit.Dp,
@@ -244,12 +249,28 @@ private fun sourceQuickAccessMetrics(gridScale: Float): SourceQuickAccessMetrics
     val normalized = ((gridScale.coerceIn(0.75f, 1.4f) - 0.75f) / (1.4f - 0.75f)).coerceIn(0f, 1f)
     val interpolatedColumns = 5f + ((3f - 5f) * normalized)
     return SourceQuickAccessMetrics(
-        columns = interpolatedColumns.toInt().coerceIn(3, 5),
+        preferredColumns = interpolatedColumns.toInt().coerceIn(3, 5),
+        minCardWidth = lerp(108.dp, 176.dp, normalized),
         cardHeight = lerp(92.dp, 134.dp, normalized),
         gridSpacing = lerp(2.dp, 0.dp, normalized),
         iconContainerSize = lerp(56.dp, 88.dp, normalized),
         iconSize = lerp(46.dp, 72.dp, normalized),
     )
+}
+
+private fun calculateSourceGridColumns(
+    availableWidth: androidx.compose.ui.unit.Dp,
+    metrics: SourceQuickAccessMetrics,
+    browseListMode: ListMode,
+): Int {
+    if (browseListMode != ListMode.GRID) {
+        return 1
+    }
+    val spacing = metrics.gridSpacing
+    val rawColumns = ((availableWidth + spacing) / (metrics.minCardWidth + spacing))
+        .toInt()
+        .coerceAtLeast(1)
+    return rawColumns.coerceAtLeast(metrics.preferredColumns)
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
@@ -262,9 +283,9 @@ fun KototoroExploreHostRoute(
     onSourceSelectionTopBarChanged: (ExploreSourceSelectionTopBarState?) -> Unit = {},
     onNavigateToDetails: ((DetailsOrigin, String?) -> Unit)? = null,
 ) {
-    val sourceItems by exploreViewModel.content.collectAsStateWithLifecycle(emptyList())
-    val discoverItems by discoverViewModel.content.collectAsStateWithLifecycle(emptyList())
-    val isDiscoverLoading by discoverViewModel.isLoading.collectAsStateWithLifecycle(initialValue = false)
+    val sourceItems by exploreViewModel.content.collectAsStateWithLifecycle()
+    val discoverItems by discoverViewModel.content.collectAsStateWithLifecycle()
+    val isDiscoverLoading by discoverViewModel.isLoading.collectAsStateWithLifecycle()
     val availableServices by discoverViewModel.availableServices.collectAsStateWithLifecycle()
     val activeService by discoverViewModel.activeService.collectAsStateWithLifecycle()
     val query by discoverViewModel.query.collectAsStateWithLifecycle()
@@ -280,6 +301,8 @@ fun KototoroExploreHostRoute(
     var heroPx by rememberSaveable { mutableIntStateOf(0) }
     val density = LocalDensity.current
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val layoutDirection = LocalLayoutDirection.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val activity = context as? androidx.activity.ComponentActivity
     val settings = remember(context.applicationContext) { AppSettings(context.applicationContext) }
@@ -356,8 +379,18 @@ fun KototoroExploreHostRoute(
     var isSourcesExpanded by rememberSaveable(sources.size, browseListMode, isSourcesGroupedByLanguage) {
         mutableStateOf(false)
     }
-    val sourceColumns = remember(sourceMetrics, browseListMode) {
-        if (browseListMode == ListMode.GRID) sourceMetrics.columns else 1
+    val sourceContentWidth = remember(configuration.screenWidthDp, contentPadding, layoutDirection) {
+        configuration.screenWidthDp.dp -
+            contentPadding.calculateStartPadding(layoutDirection) -
+            contentPadding.calculateEndPadding(layoutDirection) -
+            32.dp
+    }
+    val sourceColumns = remember(sourceContentWidth, sourceMetrics, browseListMode) {
+        calculateSourceGridColumns(
+            availableWidth = sourceContentWidth,
+            metrics = sourceMetrics,
+            browseListMode = browseListMode,
+        )
     }
     val sourceCollapsedVisibleCount = remember(sourceColumns) { sourceColumns * 5 }
     val sourceGroups = remember(sources, isSourcesGroupedByLanguage, context) {
@@ -712,7 +745,6 @@ fun KototoroExploreHostRoute(
                     sourceQuickAccessItems(
                         metrics = sourceMetrics,
                         browseListMode = browseListMode,
-                        columns = sourceColumns,
                         visibleGroups = visibleSourceGroups,
                         selectedSourceIds = selectedSourceIds,
                         hasMoreSources = hasMoreSources,
@@ -1103,8 +1135,12 @@ private fun SourcesQuickAccessSection(
         }
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             var isExpanded by rememberSaveable(sources.size) { mutableStateOf(false) }
-            val columns = remember(metrics, browseListMode) {
-                if (browseListMode == ListMode.GRID) metrics.columns else 1
+            val columns = remember(maxWidth, metrics, browseListMode) {
+                calculateSourceGridColumns(
+                    availableWidth = maxWidth,
+                    metrics = metrics,
+                    browseListMode = browseListMode,
+                )
             }
             val collapsedRowCount = if (maxWidth < 520.dp) 5 else 4
             val collapsedVisibleCount = columns * collapsedRowCount
@@ -1207,7 +1243,6 @@ private fun SourceQuickAccessGrid(
 private fun LazyListScope.sourceQuickAccessItems(
     metrics: SourceQuickAccessMetrics,
     browseListMode: ListMode,
-    columns: Int,
     visibleGroups: List<SourceQuickAccessGroup>,
     selectedSourceIds: Set<Long>,
     hasMoreSources: Boolean,
@@ -1249,28 +1284,39 @@ private fun LazyListScope.sourceQuickAccessItems(
                 )
             }
         }
-        val rows = group.sources.chunked(columns)
-        itemsIndexed(
-            items = rows,
-            key = { rowIndex, rowSources ->
-                val firstId = rowSources.firstOrNull()?.id ?: rowIndex.toLong()
-                "source_row_${groupIndex}_${rowIndex}_$firstId"
-            },
-            contentType = { _, _ -> "source_row" },
-        ) { _, rowSources ->
-            SourceQuickAccessRow(
-                metrics = metrics,
-                browseListMode = browseListMode,
-                columns = columns,
-                sources = rowSources,
-                selectedSourceIds = selectedSourceIds,
-                onSourceClick = onSourceClick,
-                onSourceLongClick = onSourceLongClick,
+        item(
+            key = "source_group_rows_${groupIndex}_${group.title.orEmpty()}",
+            contentType = "source_group_rows",
+        ) {
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.background)
                     .padding(horizontal = 16.dp),
-            )
+            ) {
+                val columns = remember(maxWidth, metrics, browseListMode) {
+                    calculateSourceGridColumns(
+                        availableWidth = maxWidth,
+                        metrics = metrics,
+                        browseListMode = browseListMode,
+                    )
+                }
+                val rows = remember(group.sources, columns) { group.sources.chunked(columns) }
+                Column(verticalArrangement = Arrangement.spacedBy(metrics.gridSpacing)) {
+                    rows.forEach { rowSources ->
+                        SourceQuickAccessRow(
+                            metrics = metrics,
+                            browseListMode = browseListMode,
+                            columns = columns,
+                            sources = rowSources,
+                            selectedSourceIds = selectedSourceIds,
+                            onSourceClick = onSourceClick,
+                            onSourceLongClick = onSourceLongClick,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
         }
     }
     if (hasMoreSources) {
@@ -2003,7 +2049,7 @@ private fun BrowseSourcesSkeleton(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(metrics.gridSpacing),
             ) {
-                repeat(metrics.columns.coerceAtMost(4)) {
+                repeat(metrics.preferredColumns.coerceAtMost(4)) {
                     Column(
                         modifier = Modifier.weight(1f),
                         horizontalAlignment = Alignment.CenterHorizontally,

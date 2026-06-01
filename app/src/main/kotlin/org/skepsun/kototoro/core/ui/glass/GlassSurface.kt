@@ -142,6 +142,7 @@ fun GlassSurface(
     val glassPrefs = rememberGlassPrefsOrFallback()
     val hazeState = LocalHazeState.current
     val colorScheme = MaterialTheme.colorScheme
+    val usesOfficialHazeMaterial = glassPrefs.materialPreset.usesOfficialHazeMaterial()
     val effectiveStyle = if (dialogSurface) {
         style.copy(
             tonalElevation = 0.dp,
@@ -164,7 +165,12 @@ fun GlassSurface(
         hazeStyle = hazeStyle,
         dialogSurface = dialogSurface,
     )
-    val surfaceColor = if (useRuntimeHaze && !dialogSurface) Color.Transparent else glassColors.containerColor
+    val surfaceColor = when {
+        useRuntimeHaze && !dialogSurface -> Color.Transparent
+        useRuntimeHaze && dialogSurface && usesOfficialHazeMaterial -> Color.Transparent
+        !useRuntimeHaze && usesOfficialHazeMaterial -> hazeStyle.backgroundColor.takeOrElse { glassColors.containerColor }
+        else -> glassColors.containerColor
+    }
     var lastDebugBounds by remember(debugLabel) { mutableStateOf<String?>(null) }
     var lastDebugConfig by remember(debugLabel) { mutableStateOf<String?>(null) }
     if (BuildConfig.DEBUG && debugLabel != null) {
@@ -336,6 +342,11 @@ fun rememberGlassHazeStyle(
     glassColors: GlassSurfaceColors,
     dialogSurface: Boolean = false,
 ): HazeStyle {
+    val usesOfficialHazeMaterial = glassPrefs.materialPreset.usesOfficialHazeMaterial()
+    val officialContainerColor = rememberOfficialMaterialContainerColor(
+        preset = glassPrefs.materialPreset,
+        fallbackColor = glassColors.containerColor,
+    )
     val baseStyle = when (glassPrefs.materialPreset) {
         AppSettings.GlassMaterialPreset.KOTOTORO,
         AppSettings.GlassMaterialPreset.CUSTOM -> if (dialogSurface) {
@@ -353,39 +364,87 @@ fun rememberGlassHazeStyle(
                 glassColors.noiseFactor,
             )
         }
+        AppSettings.GlassMaterialPreset.HAZE_ULTRA_THIN -> HazeMaterials.ultraThin(
+            containerColor = officialContainerColor,
+        )
+        AppSettings.GlassMaterialPreset.HAZE_THIN -> HazeMaterials.thin(
+            containerColor = officialContainerColor,
+        )
         AppSettings.GlassMaterialPreset.HAZE_REGULAR -> HazeMaterials.regular(
-            containerColor = glassColors.containerColor,
+            containerColor = officialContainerColor,
+        )
+        AppSettings.GlassMaterialPreset.HAZE_THICK -> HazeMaterials.thick(
+            containerColor = officialContainerColor,
+        )
+        AppSettings.GlassMaterialPreset.HAZE_ULTRA_THICK -> HazeMaterials.ultraThick(
+            containerColor = officialContainerColor,
+        )
+        AppSettings.GlassMaterialPreset.CUPERTINO_ULTRA_THIN -> CupertinoMaterials.ultraThin(
+            containerColor = officialContainerColor,
+        )
+        AppSettings.GlassMaterialPreset.CUPERTINO_THIN -> CupertinoMaterials.thin(
+            containerColor = officialContainerColor,
         )
         AppSettings.GlassMaterialPreset.CUPERTINO_REGULAR -> CupertinoMaterials.regular(
-            containerColor = glassColors.containerColor,
+            containerColor = officialContainerColor,
         )
-        AppSettings.GlassMaterialPreset.FLUENT_ACRYLIC -> FluentMaterials.acrylicDefault()
+        AppSettings.GlassMaterialPreset.CUPERTINO_THICK -> CupertinoMaterials.thick(
+            containerColor = officialContainerColor,
+        )
+        AppSettings.GlassMaterialPreset.FLUENT_THIN_ACRYLIC -> FluentMaterials.thinAcrylic()
+        AppSettings.GlassMaterialPreset.FLUENT_ACCENT_ACRYLIC_BASE -> FluentMaterials.accentAcrylicBase()
+        AppSettings.GlassMaterialPreset.FLUENT_ACCENT_ACRYLIC_DEFAULT -> FluentMaterials.accentAcrylicDefault()
+        AppSettings.GlassMaterialPreset.FLUENT_ACRYLIC_BASE -> FluentMaterials.acrylicBase()
+        AppSettings.GlassMaterialPreset.FLUENT_ACRYLIC_DEFAULT -> FluentMaterials.acrylicDefault()
+        AppSettings.GlassMaterialPreset.FLUENT_MICA -> FluentMaterials.mica()
+        AppSettings.GlassMaterialPreset.FLUENT_MICA_ALT -> FluentMaterials.micaAlt()
     }
-    return remember(baseStyle, glassColors, glassPrefs.materialPreset, dialogSurface) {
-        val isCustomKototoroStyle = glassPrefs.materialPreset == AppSettings.GlassMaterialPreset.KOTOTORO ||
-            glassPrefs.materialPreset == AppSettings.GlassMaterialPreset.CUSTOM
-        baseStyle.copy(
-            backgroundColor = if (isCustomKototoroStyle) {
-                if (dialogSurface) Color.Transparent else glassColors.containerColor
-            } else {
-                baseStyle.backgroundColor.takeOrElse { glassColors.containerColor }
-            },
-            blurRadius = if (isCustomKototoroStyle) {
-                glassColors.blurRadius
-            } else {
-                if (baseStyle.blurRadius != Dp.Unspecified) baseStyle.blurRadius else glassColors.blurRadius
-            },
-            noiseFactor = if (isCustomKototoroStyle) {
-                glassColors.noiseFactor
-            } else {
-                if (baseStyle.noiseFactor >= 0f) baseStyle.noiseFactor else glassColors.noiseFactor
-            },
-            fallbackTint = if (isCustomKototoroStyle) {
-                HazeTint(if (dialogSurface) Color.Transparent else glassColors.baseTintColor)
-            } else {
-                baseStyle.fallbackTint.takeIf { it.isSpecified } ?: HazeTint(glassColors.baseTintColor)
-            },
-        )
+    return remember(baseStyle, glassColors, glassPrefs.materialPreset, dialogSurface, usesOfficialHazeMaterial) {
+        if (usesOfficialHazeMaterial) {
+            baseStyle
+        } else {
+            baseStyle.copy(
+                backgroundColor = if (dialogSurface) Color.Transparent else glassColors.containerColor,
+                blurRadius = glassColors.blurRadius,
+                noiseFactor = glassColors.noiseFactor,
+                fallbackTint = HazeTint(if (dialogSurface) Color.Transparent else glassColors.baseTintColor),
+            )
+        }
+    }
+}
+
+@Composable
+private fun rememberOfficialMaterialContainerColor(
+    preset: AppSettings.GlassMaterialPreset,
+    fallbackColor: Color,
+): Color {
+    val colorScheme = MaterialTheme.colorScheme
+    val isDarkTheme = colorScheme.background.luminance() < 0.5f
+    return remember(preset, fallbackColor, colorScheme, isDarkTheme) {
+        when {
+            preset.isCupertinoMaterial() -> {
+                if (isDarkTheme) {
+                    colorScheme.surfaceBright.copy(alpha = 0.92f)
+                } else {
+                    colorScheme.surface.copy(alpha = 0.84f)
+                }
+            }
+            preset.isFluentMaterial() -> {
+                if (isDarkTheme) {
+                    lerp(colorScheme.surfaceContainerHigh, colorScheme.surfaceBright, 0.22f).copy(alpha = 0.90f)
+                } else {
+                    lerp(colorScheme.surfaceContainerLow, colorScheme.surface, 0.35f).copy(alpha = 0.86f)
+                }
+            }
+            preset.isHazeMaterial() -> {
+                if (isDarkTheme) {
+                    colorScheme.surfaceContainer.copy(alpha = 0.88f)
+                } else {
+                    colorScheme.surface.copy(alpha = 0.82f)
+                }
+            }
+            else -> fallbackColor
+        }
     }
 }
 
@@ -399,19 +458,85 @@ fun rememberGlassHazeBackgroundColor(
     val colorScheme = MaterialTheme.colorScheme
     val isDarkTheme = colorScheme.background.luminance() < 0.5f
     return remember(glassPrefs.materialPreset, glassColors, hazeStyle, dialogSurface, isDarkTheme, colorScheme) {
-        if (dialogSurface) {
+        if (dialogSurface && !glassPrefs.materialPreset.usesOfficialHazeMaterial()) {
             return@remember Color.Transparent
         }
         when (glassPrefs.materialPreset) {
             AppSettings.GlassMaterialPreset.KOTOTORO,
             AppSettings.GlassMaterialPreset.CUSTOM -> glassColors.containerColor
+            AppSettings.GlassMaterialPreset.HAZE_ULTRA_THIN,
+            AppSettings.GlassMaterialPreset.HAZE_THIN,
             AppSettings.GlassMaterialPreset.HAZE_REGULAR,
+            AppSettings.GlassMaterialPreset.HAZE_THICK,
+            AppSettings.GlassMaterialPreset.HAZE_ULTRA_THICK,
+            AppSettings.GlassMaterialPreset.CUPERTINO_ULTRA_THIN,
+            AppSettings.GlassMaterialPreset.CUPERTINO_THIN,
             AppSettings.GlassMaterialPreset.CUPERTINO_REGULAR,
-            AppSettings.GlassMaterialPreset.FLUENT_ACRYLIC -> if (isDarkTheme) {
-                colorScheme.surfaceContainerHigh.copy(alpha = 0.94f)
-            } else {
-                colorScheme.surface.copy(alpha = 0.96f)
-            }
+            AppSettings.GlassMaterialPreset.CUPERTINO_THICK,
+            AppSettings.GlassMaterialPreset.FLUENT_THIN_ACRYLIC,
+            AppSettings.GlassMaterialPreset.FLUENT_ACCENT_ACRYLIC_BASE,
+            AppSettings.GlassMaterialPreset.FLUENT_ACCENT_ACRYLIC_DEFAULT,
+            AppSettings.GlassMaterialPreset.FLUENT_ACRYLIC_BASE,
+            AppSettings.GlassMaterialPreset.FLUENT_ACRYLIC_DEFAULT,
+            AppSettings.GlassMaterialPreset.FLUENT_MICA,
+            AppSettings.GlassMaterialPreset.FLUENT_MICA_ALT -> Color.Unspecified
         }
+    }
+}
+
+private fun AppSettings.GlassMaterialPreset.usesOfficialHazeMaterial(): Boolean {
+    return when (this) {
+        AppSettings.GlassMaterialPreset.HAZE_ULTRA_THIN,
+        AppSettings.GlassMaterialPreset.HAZE_THIN,
+        AppSettings.GlassMaterialPreset.HAZE_REGULAR,
+        AppSettings.GlassMaterialPreset.HAZE_THICK,
+        AppSettings.GlassMaterialPreset.HAZE_ULTRA_THICK,
+        AppSettings.GlassMaterialPreset.CUPERTINO_ULTRA_THIN,
+        AppSettings.GlassMaterialPreset.CUPERTINO_THIN,
+        AppSettings.GlassMaterialPreset.CUPERTINO_REGULAR,
+        AppSettings.GlassMaterialPreset.CUPERTINO_THICK,
+        AppSettings.GlassMaterialPreset.FLUENT_THIN_ACRYLIC,
+        AppSettings.GlassMaterialPreset.FLUENT_ACCENT_ACRYLIC_BASE,
+        AppSettings.GlassMaterialPreset.FLUENT_ACCENT_ACRYLIC_DEFAULT,
+        AppSettings.GlassMaterialPreset.FLUENT_ACRYLIC_BASE,
+        AppSettings.GlassMaterialPreset.FLUENT_ACRYLIC_DEFAULT,
+        AppSettings.GlassMaterialPreset.FLUENT_MICA,
+        AppSettings.GlassMaterialPreset.FLUENT_MICA_ALT -> true
+        AppSettings.GlassMaterialPreset.KOTOTORO,
+        AppSettings.GlassMaterialPreset.CUSTOM -> false
+    }
+}
+
+private fun AppSettings.GlassMaterialPreset.isHazeMaterial(): Boolean {
+    return when (this) {
+        AppSettings.GlassMaterialPreset.HAZE_ULTRA_THIN,
+        AppSettings.GlassMaterialPreset.HAZE_THIN,
+        AppSettings.GlassMaterialPreset.HAZE_REGULAR,
+        AppSettings.GlassMaterialPreset.HAZE_THICK,
+        AppSettings.GlassMaterialPreset.HAZE_ULTRA_THICK -> true
+        else -> false
+    }
+}
+
+private fun AppSettings.GlassMaterialPreset.isCupertinoMaterial(): Boolean {
+    return when (this) {
+        AppSettings.GlassMaterialPreset.CUPERTINO_ULTRA_THIN,
+        AppSettings.GlassMaterialPreset.CUPERTINO_THIN,
+        AppSettings.GlassMaterialPreset.CUPERTINO_REGULAR,
+        AppSettings.GlassMaterialPreset.CUPERTINO_THICK -> true
+        else -> false
+    }
+}
+
+private fun AppSettings.GlassMaterialPreset.isFluentMaterial(): Boolean {
+    return when (this) {
+        AppSettings.GlassMaterialPreset.FLUENT_THIN_ACRYLIC,
+        AppSettings.GlassMaterialPreset.FLUENT_ACCENT_ACRYLIC_BASE,
+        AppSettings.GlassMaterialPreset.FLUENT_ACCENT_ACRYLIC_DEFAULT,
+        AppSettings.GlassMaterialPreset.FLUENT_ACRYLIC_BASE,
+        AppSettings.GlassMaterialPreset.FLUENT_ACRYLIC_DEFAULT,
+        AppSettings.GlassMaterialPreset.FLUENT_MICA,
+        AppSettings.GlassMaterialPreset.FLUENT_MICA_ALT -> true
+        else -> false
     }
 }

@@ -212,7 +212,8 @@ fun KototoroFavoritesHostRoute(
     val effectiveChildTopBarOverrideState = childTopBarOverrideState.takeIf {
         !uiState.isLoading &&
             !uiState.isEmpty &&
-            childTopBarOverrideGeneration == activeChildOverrideGeneration
+            childTopBarOverrideGeneration == activeChildOverrideGeneration &&
+            (it as? org.skepsun.kototoro.main.ui.compose.ContentSelectionTopBarOverrideState) != null
     }
     val effectiveChildFilterRailOverrideState = childFilterRailOverrideState.takeIf {
         !uiState.isLoading &&

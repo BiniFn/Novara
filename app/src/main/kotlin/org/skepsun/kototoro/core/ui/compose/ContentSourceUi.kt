@@ -14,6 +14,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil3.Image
+import coil3.ImageLoader
+import coil3.memory.MemoryCache
 import coil3.compose.AsyncImage
 import coil3.asImage
 import coil3.asDrawable
@@ -162,6 +164,12 @@ fun ContentSourceResolvedIcon(
     contentDescription: String? = null,
 ) {
     val context = LocalContext.current
+    val imageLoader = remember(context) {
+        EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            BaseApp.BaseAppEntryPoint::class.java,
+        ).imageLoader()
+    }
     val resolvedSource = source
     val listIconUrl = (resolvedSource as? JsonSourceListSource)?.iconUrl?.takeIf { it.isNotBlank() }
     val sourceFailureKey = remember(resolvedSource.name, resolvedSource.javaClass.name, styleResId, listIconUrl) {
@@ -210,6 +218,17 @@ fun ContentSourceResolvedIcon(
         }
     }
 
+    val iconCacheKey = remember(sourceFailureKey, resolvedSource.name, resolvedSource.javaClass.name, styleResId, listIconUrl) {
+        listIconUrl?.let {
+            "${resolvedSource.name}#$SOURCE_ICON_CACHE_VERSION#${resolvedSource.javaClass.name}#$styleResId#${it.hashCode()}"
+        } ?: sourceFailureKey
+    }
+    val memoryCacheKey = remember(iconCacheKey) { MemoryCache.Key(iconCacheKey) }
+    val cachedIcon = remember(imageLoader, memoryCacheKey, hasError, useFallbackOnly) {
+        imageLoader.memoryCache?.get(memoryCacheKey)?.image
+            ?.takeUnless { hasError || useFallbackOnly }
+    }
+
     val request: Any = remember(
         resolvedSource.name,
         resolvedSource.javaClass.name,
@@ -224,10 +243,6 @@ fun ContentSourceResolvedIcon(
         if (hasError || useFallbackOnly) {
             fallbackDrawable
         } else {
-            val iconCacheKey = listIconUrl?.let {
-                "${resolvedSource.name}#$SOURCE_ICON_CACHE_VERSION#${resolvedSource.javaClass.name}#$styleResId#${it.hashCode()}"
-            }
-                ?: sourceFailureKey
             logSourceIconRequest(
                 source = resolvedSource,
                 cacheKey = iconCacheKey,
@@ -247,7 +262,15 @@ fun ContentSourceResolvedIcon(
         }
     }
 
-    if (hasError || useFallbackOnly || !loadEnabled || !isLoadGateOpen) {
+    if (cachedIcon != null) {
+        val cachedPainter = rememberDrawablePainter(cachedIcon.asDrawable(context.resources))
+        androidx.compose.foundation.Image(
+            painter = cachedPainter,
+            contentDescription = contentDescription,
+            contentScale = ContentScale.Fit,
+            modifier = modifier.clip(RoundedCornerShape(4.dp)),
+        )
+    } else if (hasError || useFallbackOnly || !loadEnabled || !isLoadGateOpen) {
         val fallbackPainter = rememberDrawablePainter(fallbackDrawable?.asDrawable(context.resources))
         androidx.compose.foundation.Image(
             painter = fallbackPainter,

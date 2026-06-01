@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
+import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.explore.ui.model.SourceTag
 
 private val CompactSourceTagButtonSize = 36.dp
@@ -73,6 +74,7 @@ fun SourceTagDropdown(
             expanded = expanded,
             onDismissRequest = { expanded = false },
             offset = DpOffset(x = 0.dp, y = 4.dp),
+            style = GlassDefaults.subtleStyle(),
         ) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.all)) },

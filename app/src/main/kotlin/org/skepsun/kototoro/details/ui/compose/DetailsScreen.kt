@@ -3298,62 +3298,76 @@ private fun ReadingRecordSheet(
             onDismissRequest()
         },
         sheetState = sheetState,
+        containerColor = Color.Transparent,
+        tonalElevation = 0.dp,
+        shape = RoundedCornerShape(0.dp),
+        dragHandle = null,
     ) {
-        LazyColumn(
-            state = listState,
+        GlassSurface(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = maxListHeight)
-                .onSizeChanged { size ->
-                    Log.d(ReadingRecordSheetLogTag, "listSize width=${size.width}, height=${size.height}")
-                }
-                .padding(horizontal = 20.dp),
-            contentPadding = PaddingValues(
-                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 20.dp,
-            ),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                .padding(horizontal = 16.dp),
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            style = GlassDefaults.prominentStyle(),
+            dialogSurface = true,
         ) {
-            item {
-                Text(
-                    text = stringResource(R.string.reading_record),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-            item {
-                ReadingRecordSummaryCard(
-                    totalDuration = totalDuration,
-                    readingDays = readingDays,
-                    lastReadAt = lastReadAt,
-                    progress = progress,
-                )
-            }
-            if (snapshot.chapters.isNotEmpty()) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = maxListHeight)
+                    .onSizeChanged { size ->
+                        Log.d(ReadingRecordSheetLogTag, "listSize width=${size.width}, height=${size.height}")
+                    }
+                    .padding(horizontal = 20.dp),
+                contentPadding = PaddingValues(
+                    top = 20.dp,
+                    bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 20.dp,
+                ),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
                 item {
-                    ChapterStatisticsSummary(
-                        chapters = snapshot.chapters.take(4),
-                        chapterTitle = chapterTitle,
+                    Text(
+                        text = stringResource(R.string.reading_record),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
                     )
                 }
-            }
-            item {
-                RecordSectionHeader(
-                    title = stringResource(R.string.timeline),
-                    count = timelineItems.size,
-                )
-            }
-            if (timelineItems.isEmpty()) {
-                item { RecordEmptyLine(stringResource(R.string.no_reading_record)) }
-            } else {
-                items(timelineItems, key = { it.key }) { item ->
-                    when (item) {
-                        is ReadingTimelineItem.Session -> TimelineSessionRow(item.session, chapterTitle)
-                        is ReadingTimelineItem.Jump -> TimelineJumpRow(item.point, chapterTitle) { point ->
-                            Log.d(
-                                ReadingRecordSheetLogTag,
-                                "jumpClick id=${point.id}, from=${point.fromChapterId}:${point.fromPage}:${point.fromScroll}",
-                            )
-                            onJumpPointClick(point)
+                item {
+                    ReadingRecordSummaryCard(
+                        totalDuration = totalDuration,
+                        readingDays = readingDays,
+                        lastReadAt = lastReadAt,
+                        progress = progress,
+                    )
+                }
+                if (snapshot.chapters.isNotEmpty()) {
+                    item {
+                        ChapterStatisticsSummary(
+                            chapters = snapshot.chapters.take(4),
+                            chapterTitle = chapterTitle,
+                        )
+                    }
+                }
+                item {
+                    RecordSectionHeader(
+                        title = stringResource(R.string.timeline),
+                        count = timelineItems.size,
+                    )
+                }
+                if (timelineItems.isEmpty()) {
+                    item { RecordEmptyLine(stringResource(R.string.no_reading_record)) }
+                } else {
+                    items(timelineItems, key = { it.key }) { item ->
+                        when (item) {
+                            is ReadingTimelineItem.Session -> TimelineSessionRow(item.session, chapterTitle)
+                            is ReadingTimelineItem.Jump -> TimelineJumpRow(item.point, chapterTitle) { point ->
+                                Log.d(
+                                    ReadingRecordSheetLogTag,
+                                    "jumpClick id=${point.id}, from=${point.fromChapterId}:${point.fromPage}:${point.fromScroll}",
+                                )
+                                onJumpPointClick(point)
+                            }
                         }
                     }
                 }
@@ -3369,9 +3383,9 @@ private fun ReadingRecordSummaryCard(
     lastReadAt: Long?,
     progress: Float,
 ) {
-    Surface(
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.36f),
+    GlassSurface(
+        shape = RoundedCornerShape(22.dp),
+        style = GlassDefaults.subtleStyle(),
     ) {
         Column(
             modifier = Modifier
@@ -3449,9 +3463,9 @@ private fun ChapterStatisticsSummary(
     chapters: List<ReadingChapterAggregateEntity>,
     chapterTitle: (Long) -> String,
 ) {
-    Surface(
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f),
+    GlassSurface(
+        shape = RoundedCornerShape(22.dp),
+        style = GlassDefaults.subtleStyle(),
     ) {
         Column(
             modifier = Modifier
@@ -3747,6 +3761,7 @@ private fun DetailsOverflowMenu(
         GlassDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
+            style = GlassDefaults.subtleStyle(),
         ) {
             if (showTranslateAction) {
                 DropdownMenuItem(
@@ -4030,11 +4045,16 @@ fun DetailsChromeButton(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    IconButton(
-        onClick = onClick,
+    GlassSurface(
         modifier = modifier.padding(horizontal = 2.dp),
+        shape = RoundedCornerShape(28.dp),
+        style = GlassDefaults.subtleStyle(),
     ) {
-        content()
+        IconButton(
+            onClick = onClick,
+        ) {
+            content()
+        }
     }
 }
 

@@ -318,7 +318,8 @@ fun KototoroApp(
     var searchOverlayInitialQuery by rememberSaveable { mutableStateOf("") }
     var isSearchOverlayQueryCommitted by rememberSaveable { mutableStateOf(false) }
     var isDetailsChromeTransitionPending by rememberSaveable { mutableStateOf(false) }
-    var topBarOverrideState by remember { mutableStateOf<TopBarOverrideState?>(null) }
+    val routeTopBarOverrideStates = remember { mutableStateMapOf<String, TopBarOverrideState>() }
+    var globalTopBarOverrideState by remember { mutableStateOf<TopBarOverrideState?>(null) }
     var contextualMenuActions by remember { mutableStateOf<List<KototoroTopBarMenuAction>>(emptyList()) }
     var offsetDestinationRoute by remember { mutableStateOf<String?>(null) }
 
@@ -415,19 +416,12 @@ fun KototoroApp(
     val isChromeOffsetFromCurrentDestination = offsetDestinationRoute == currentDestinationRoute
     val effectiveTopBarOffset = if (isChromeOffsetFromCurrentDestination) topBarOffset else 0f
     val effectiveBottomNavOffset = if (isChromeOffsetFromCurrentDestination) bottomNavOffset else 0f
-    var previousTopBarOwnerKey by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(currentDestinationRoute, currentTopBarOwnerKey) {
         if (currentDestinationRoute != null && !isDetailsRoute && !isSearchRoute) {
-            val previousOwner = previousTopBarOwnerKey
-            val isFavoritesFeedSwitch = setOf(previousOwner, currentTopBarOwnerKey) == setOf("favorites", "feed")
             topBarOffset = 0f
             bottomNavOffset = 0f
             topFilterRailOffset = 0f
             offsetDestinationRoute = currentDestinationRoute
-            if (!isFavoritesFeedSwitch) {
-                topBarOverrideState = null
-            }
-            previousTopBarOwnerKey = currentTopBarOwnerKey
         }
     }
     var isChromeVisible by rememberSaveable { mutableStateOf(shouldShowChrome && !isDetailsRoute) }
@@ -476,7 +470,9 @@ fun KototoroApp(
     val showBrowseSourceSettingsEntry = currentDestination?.let {
         it.hasRoute<ExploreRoute>() || it.hasRoute<DiscoverRoute>()
     } == true
-    val resolvedTopBarOverrideState = topBarOverrideState
+    val resolvedTopBarOverrideState = currentTopBarOwnerKey
+        ?.let(routeTopBarOverrideStates::get)
+        ?: globalTopBarOverrideState
     val layeredTopBarOverrideState = when (resolvedTopBarOverrideState) {
         is LayeredTopBarOverrideState -> resolvedTopBarOverrideState
         is FavoritesTopBarOverrideState -> LayeredTopBarOverrideState(
@@ -658,11 +654,15 @@ fun KototoroApp(
                             onExploreSourceSelectionTopBarChanged = { overrideState ->
                                 when (overrideState) {
                                     is RouteScopedTopBarOverrideState -> {
-                                        if (overrideState.ownerRoute == currentTopBarOwnerKey) {
-                                            topBarOverrideState = overrideState.state
+                                        val ownerRoute = overrideState.ownerRoute
+                                        val state = overrideState.state
+                                        if (state == null) {
+                                            routeTopBarOverrideStates.remove(ownerRoute)
+                                        } else {
+                                            routeTopBarOverrideStates[ownerRoute] = state
                                         }
                                     }
-                                    else -> topBarOverrideState = overrideState
+                                    else -> globalTopBarOverrideState = overrideState
                                 }
                             },
                             onContextualMenuActionsChanged = { contextualMenuActions = it },

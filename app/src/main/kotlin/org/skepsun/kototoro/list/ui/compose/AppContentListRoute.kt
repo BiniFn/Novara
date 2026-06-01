@@ -97,9 +97,9 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     showQuickFilterInline: Boolean = true,
 ) {
     val items by viewModel.content.collectAsStateWithLifecycle()
-    val listMode by viewModel.listMode.collectAsStateWithLifecycle(initialValue = org.skepsun.kototoro.core.prefs.ListMode.GRID)
-    val gridScale by viewModel.gridScale.collectAsStateWithLifecycle(initialValue = 1f)
-    val isRefreshing by viewModel.isLoading.collectAsStateWithLifecycle(initialValue = false)
+    val listMode by viewModel.listMode.collectAsStateWithLifecycle()
+    val gridScale by viewModel.gridScale.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isLoading.collectAsStateWithLifecycle()
 
     var composeSelectionIds by rememberSaveable { mutableStateOf(emptySet<Long>()) }
     var pendingFixIds by remember { mutableStateOf<Set<Long>?>(null) }

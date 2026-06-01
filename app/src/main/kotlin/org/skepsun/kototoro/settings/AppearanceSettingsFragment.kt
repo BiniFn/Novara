@@ -465,9 +465,22 @@ private class AppearanceSettingsCoordinator(
     private fun buildGlassMaterialPresetOptions(): List<SettingsChoiceOption<GlassMaterialPreset>> {
         return listOf(
             SettingsChoiceOption(GlassMaterialPreset.KOTOTORO, context.getString(R.string.glass_material_kototoro)),
+            SettingsChoiceOption(GlassMaterialPreset.HAZE_ULTRA_THIN, context.getString(R.string.glass_material_haze_ultra_thin)),
+            SettingsChoiceOption(GlassMaterialPreset.HAZE_THIN, context.getString(R.string.glass_material_haze_thin)),
             SettingsChoiceOption(GlassMaterialPreset.HAZE_REGULAR, context.getString(R.string.glass_material_haze_regular)),
+            SettingsChoiceOption(GlassMaterialPreset.HAZE_THICK, context.getString(R.string.glass_material_haze_thick)),
+            SettingsChoiceOption(GlassMaterialPreset.HAZE_ULTRA_THICK, context.getString(R.string.glass_material_haze_ultra_thick)),
+            SettingsChoiceOption(GlassMaterialPreset.CUPERTINO_ULTRA_THIN, context.getString(R.string.glass_material_cupertino_ultra_thin)),
+            SettingsChoiceOption(GlassMaterialPreset.CUPERTINO_THIN, context.getString(R.string.glass_material_cupertino_thin)),
             SettingsChoiceOption(GlassMaterialPreset.CUPERTINO_REGULAR, context.getString(R.string.glass_material_cupertino_regular)),
-            SettingsChoiceOption(GlassMaterialPreset.FLUENT_ACRYLIC, context.getString(R.string.glass_material_fluent_acrylic)),
+            SettingsChoiceOption(GlassMaterialPreset.CUPERTINO_THICK, context.getString(R.string.glass_material_cupertino_thick)),
+            SettingsChoiceOption(GlassMaterialPreset.FLUENT_ACCENT_ACRYLIC_BASE, context.getString(R.string.glass_material_fluent_accent_acrylic_base)),
+            SettingsChoiceOption(GlassMaterialPreset.FLUENT_ACCENT_ACRYLIC_DEFAULT, context.getString(R.string.glass_material_fluent_accent_acrylic_default)),
+            SettingsChoiceOption(GlassMaterialPreset.FLUENT_THIN_ACRYLIC, context.getString(R.string.glass_material_fluent_thin_acrylic)),
+            SettingsChoiceOption(GlassMaterialPreset.FLUENT_ACRYLIC_BASE, context.getString(R.string.glass_material_fluent_acrylic_base)),
+            SettingsChoiceOption(GlassMaterialPreset.FLUENT_ACRYLIC_DEFAULT, context.getString(R.string.glass_material_fluent_acrylic_default)),
+            SettingsChoiceOption(GlassMaterialPreset.FLUENT_MICA, context.getString(R.string.glass_material_fluent_mica)),
+            SettingsChoiceOption(GlassMaterialPreset.FLUENT_MICA_ALT, context.getString(R.string.glass_material_fluent_mica_alt)),
             SettingsChoiceOption(GlassMaterialPreset.CUSTOM, context.getString(R.string.custom)),
         )
     }

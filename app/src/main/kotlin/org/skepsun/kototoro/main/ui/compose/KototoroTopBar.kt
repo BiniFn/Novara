@@ -263,6 +263,8 @@ fun KototoroTopBar(
                                         expanded = isMoreMenuExpanded,
                                         onDismissRequest = { isMoreMenuExpanded = false },
                                         offset = androidx.compose.ui.unit.DpOffset(x = 0.dp, y = 4.dp),
+                                        shape = RoundedCornerShape(28.dp),
+                                        style = GlassDefaults.subtleStyle(),
                                     ) {
                                     if (supportsDisplayModeMenu || supportsGridSizeSlider) {
                                         DropdownMenuItem(
@@ -347,6 +349,8 @@ fun KototoroTopBar(
                                     expanded = isLanguagePresetMenuExpanded,
                                     onDismissRequest = { isLanguagePresetMenuExpanded = false },
                                     offset = DpOffset(x = 0.dp, y = 4.dp),
+                                    shape = RoundedCornerShape(28.dp),
+                                    style = GlassDefaults.subtleStyle(),
                                 ) {
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.all)) },

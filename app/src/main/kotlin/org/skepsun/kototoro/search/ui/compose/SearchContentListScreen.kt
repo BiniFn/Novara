@@ -217,58 +217,14 @@ private fun SearchFilterSheetSurface(
     allowRuntimeHaze: Boolean = true,
     content: @Composable () -> Unit,
 ) {
-    val style = GlassDefaults.prominentStyle()
-    val glassPrefs = rememberGlassPrefsOrFallback()
-    val glassColors = rememberGlassSurfaceColors(style = style, glassPrefs = glassPrefs)
-    val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val hazeState = LocalHazeState.current
-    val useRuntimeHaze = allowRuntimeHaze && glassPrefs.isGlassEffectEnabled && supportsRuntimeHaze()
-    val immersiveStrength = (glassPrefs.immersiveStrengthPercent.coerceIn(0, 100)) / 100f
-    val runtimeContainerColor = if (isDarkTheme) {
-        MaterialTheme.colorScheme.surfaceContainerHigh.copy(
-            alpha = glassColors.containerColor.alpha.coerceIn(
-                lerpFloat(SearchFilterSheetDarkMinAlpha - 0.08f, SearchFilterSheetDarkMinAlpha, immersiveStrength),
-                lerpFloat(SearchFilterSheetDarkMaxAlpha - 0.04f, SearchFilterSheetDarkMaxAlpha, immersiveStrength),
-            ),
-        )
-    } else {
-        MaterialTheme.colorScheme.surface.copy(
-            alpha = glassColors.containerColor.alpha.coerceIn(
-                lerpFloat(SearchFilterSheetLightMinAlpha - 0.08f, SearchFilterSheetLightMinAlpha, immersiveStrength),
-                lerpFloat(SearchFilterSheetLightMaxAlpha - 0.04f, SearchFilterSheetLightMaxAlpha, immersiveStrength),
-            ),
-        )
-    }
-    val hazeStyle = HazeBlurDefaults.style(
-        Color.Transparent,
-        HazeBlurDefaults.tint(Color.Transparent),
-        glassColors.blurRadius,
-        glassColors.noiseFactor,
-    )
-    Surface(
-        modifier = modifier.clip(shape),
+    GlassSurface(
+        modifier = modifier,
         shape = shape,
-        color = runtimeContainerColor,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-        border = glassColors.border,
+        style = GlassDefaults.prominentStyle(),
+        allowRuntimeHaze = allowRuntimeHaze,
+        dialogSurface = true,
     ) {
-        Box(
-            modifier = if (useRuntimeHaze) {
-                Modifier
-                    .fillMaxSize()
-                    .hazeChild(hazeState, hazeStyle) {
-                        backgroundColor = Color.Transparent
-                        blurredEdgeTreatment = BlurredEdgeTreatment(shape)
-                        clipToAreasBounds = true
-                        expandLayerBounds = false
-                        forceInvalidateOnPreDraw = true
-                    }
-            } else {
-                Modifier.fillMaxSize()
-            },
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
             content()
         }
     }
@@ -1498,6 +1454,8 @@ private fun MoreActionsButton(
             expanded = expanded,
             onDismissRequest = { expanded = false },
             offset = androidx.compose.ui.unit.DpOffset(x = 0.dp, y = 4.dp),
+            shape = RoundedCornerShape(28.dp),
+            style = GlassDefaults.subtleStyle(),
         ) {
             if (showRandomAction) {
                 DropdownMenuItem(

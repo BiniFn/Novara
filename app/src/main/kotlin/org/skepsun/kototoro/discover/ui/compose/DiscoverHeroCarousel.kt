@@ -22,16 +22,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -89,6 +89,8 @@ import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
 import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
 import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
+import org.skepsun.kototoro.core.ui.glass.GlassDefaults
+import org.skepsun.kototoro.core.ui.glass.GlassSurface
 import org.skepsun.kototoro.main.ui.compose.GlassDropdownMenu
 import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.secondaryTitleText
@@ -449,16 +451,13 @@ fun DiscoverHeroCarousel(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (onOpenSchedule != null) {
-                            IconButton(
-                                onClick = onOpenSchedule,
-                                modifier = Modifier.size(40.dp),
+                            GlassSurface(
+                                shape = RoundedCornerShape(999.dp),
+                                style = GlassDefaults.subtleStyle(),
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(RoundedCornerShape(999.dp))
-                                        .background(heroControlContainerColor),
-                                    contentAlignment = Alignment.Center,
+                                IconButton(
+                                    onClick = onOpenSchedule,
+                                    modifier = Modifier.size(40.dp),
                                 ) {
                                     Icon(
                                         imageVector = Icons.Filled.DateRange,
@@ -470,38 +469,48 @@ fun DiscoverHeroCarousel(
                             }
                         }
                         Box {
-                            AssistChip(
-                                onClick = {
-                                    isServiceMenuExpanded = true
-                                },
-                                leadingIcon = {
+                            GlassSurface(
+                                shape = RoundedCornerShape(999.dp),
+                                style = GlassDefaults.subtleStyle(),
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .heightIn(min = 40.dp)
+                                        .widthIn(min = 40.dp)
+                                        .clickable {
+                                            isServiceMenuExpanded = true
+                                        }
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
                                     Icon(
                                         painter = rememberSafePainter(service.iconResId),
                                         contentDescription = null,
                                         modifier = Modifier.size(16.dp),
+                                        tint = heroContentColor,
                                     )
-                                },
-                                trailingIcon = {
+                                    Text(
+                                        text = stringResource(service.titleResId),
+                                        color = heroContentColor,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
                                     Icon(
                                         imageVector = Icons.Filled.ArrowDropDown,
                                         contentDescription = null,
                                         modifier = Modifier.size(18.dp),
+                                        tint = heroContentColor,
                                     )
-                                },
-                                label = {
-                                    Text(stringResource(service.titleResId))
-                                },
-                                colors = AssistChipDefaults.assistChipColors(
-                                    containerColor = heroControlContainerColor,
-                                    labelColor = heroContentColor,
-                                    leadingIconContentColor = heroContentColor,
-                                    trailingIconContentColor = heroContentColor,
-                                ),
-                            )
+                                }
+                            }
                             GlassDropdownMenu(
                                 expanded = isServiceMenuExpanded,
                                 onDismissRequest = { isServiceMenuExpanded = false },
                                 offset = androidx.compose.ui.unit.DpOffset(x = 0.dp, y = 4.dp),
+                                shape = RoundedCornerShape(28.dp),
+                                style = GlassDefaults.subtleStyle(),
                             ) {
                                 availableServices.forEach { candidate ->
                                     DropdownMenuItem(
@@ -680,9 +689,9 @@ private fun DiscoverHeroPill(
     contentColor: Color = MaterialTheme.colorScheme.onSurface,
     containerColor: Color = MaterialTheme.colorScheme.surface.copy(alpha = 0.78f),
 ) {
-    Surface(
+    GlassSurface(
         shape = RoundedCornerShape(999.dp),
-        color = containerColor,
+        style = GlassDefaults.subtleStyle(),
     ) {
         Text(
             text = text,

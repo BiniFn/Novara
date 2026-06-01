@@ -2308,7 +2308,43 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 			defaultNoiseStrengthPercent = 12,
 			defaultImmersiveStrengthPercent = 65,
 		),
+		HAZE_ULTRA_THIN(
+			defaultOpacityPercent = 100,
+			defaultBlurStrengthPercent = 24,
+			defaultNoiseStrengthPercent = 0,
+			defaultImmersiveStrengthPercent = 50,
+		),
+		HAZE_THIN(
+			defaultOpacityPercent = 100,
+			defaultBlurStrengthPercent = 24,
+			defaultNoiseStrengthPercent = 0,
+			defaultImmersiveStrengthPercent = 50,
+		),
 		HAZE_REGULAR(
+			defaultOpacityPercent = 100,
+			defaultBlurStrengthPercent = 24,
+			defaultNoiseStrengthPercent = 0,
+			defaultImmersiveStrengthPercent = 50,
+		),
+		HAZE_THICK(
+			defaultOpacityPercent = 100,
+			defaultBlurStrengthPercent = 24,
+			defaultNoiseStrengthPercent = 0,
+			defaultImmersiveStrengthPercent = 50,
+		),
+		HAZE_ULTRA_THICK(
+			defaultOpacityPercent = 100,
+			defaultBlurStrengthPercent = 24,
+			defaultNoiseStrengthPercent = 0,
+			defaultImmersiveStrengthPercent = 50,
+		),
+		CUPERTINO_ULTRA_THIN(
+			defaultOpacityPercent = 100,
+			defaultBlurStrengthPercent = 24,
+			defaultNoiseStrengthPercent = 0,
+			defaultImmersiveStrengthPercent = 50,
+		),
+		CUPERTINO_THIN(
 			defaultOpacityPercent = 100,
 			defaultBlurStrengthPercent = 24,
 			defaultNoiseStrengthPercent = 0,
@@ -2320,7 +2356,49 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 			defaultNoiseStrengthPercent = 0,
 			defaultImmersiveStrengthPercent = 50,
 		),
-		FLUENT_ACRYLIC(
+		CUPERTINO_THICK(
+			defaultOpacityPercent = 100,
+			defaultBlurStrengthPercent = 24,
+			defaultNoiseStrengthPercent = 0,
+			defaultImmersiveStrengthPercent = 50,
+		),
+		FLUENT_THIN_ACRYLIC(
+			defaultOpacityPercent = 100,
+			defaultBlurStrengthPercent = 60,
+			defaultNoiseStrengthPercent = 2,
+			defaultImmersiveStrengthPercent = 50,
+		),
+		FLUENT_ACCENT_ACRYLIC_BASE(
+			defaultOpacityPercent = 100,
+			defaultBlurStrengthPercent = 60,
+			defaultNoiseStrengthPercent = 2,
+			defaultImmersiveStrengthPercent = 50,
+		),
+		FLUENT_ACCENT_ACRYLIC_DEFAULT(
+			defaultOpacityPercent = 100,
+			defaultBlurStrengthPercent = 60,
+			defaultNoiseStrengthPercent = 2,
+			defaultImmersiveStrengthPercent = 50,
+		),
+		FLUENT_ACRYLIC_BASE(
+			defaultOpacityPercent = 100,
+			defaultBlurStrengthPercent = 60,
+			defaultNoiseStrengthPercent = 2,
+			defaultImmersiveStrengthPercent = 50,
+		),
+		FLUENT_ACRYLIC_DEFAULT(
+			defaultOpacityPercent = 100,
+			defaultBlurStrengthPercent = 60,
+			defaultNoiseStrengthPercent = 2,
+			defaultImmersiveStrengthPercent = 50,
+		),
+		FLUENT_MICA(
+			defaultOpacityPercent = 100,
+			defaultBlurStrengthPercent = 60,
+			defaultNoiseStrengthPercent = 2,
+			defaultImmersiveStrengthPercent = 50,
+		),
+		FLUENT_MICA_ALT(
 			defaultOpacityPercent = 100,
 			defaultBlurStrengthPercent = 60,
 			defaultNoiseStrengthPercent = 2,
@@ -2358,9 +2436,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context: C
 				immersiveStrengthPercent: Int,
 			): GlassMaterialPreset {
 				return when (raw) {
-					"SUBTLE" -> HAZE_REGULAR
+					"SUBTLE" -> HAZE_THIN
 					"BALANCED" -> KOTOTORO
-					"STRONG" -> FLUENT_ACRYLIC
+					"STRONG" -> FLUENT_ACRYLIC_DEFAULT
+					"FLUENT_ACRYLIC" -> FLUENT_ACRYLIC_DEFAULT
 					"CUSTOM" -> CUSTOM
 					else -> entries.firstOrNull { preset ->
 						preset != CUSTOM &&
