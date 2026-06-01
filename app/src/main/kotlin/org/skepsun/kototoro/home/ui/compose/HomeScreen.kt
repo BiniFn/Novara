@@ -442,7 +442,12 @@ private fun HomeHeroSection(
             viewportWidth = pagerWidth,
             pageSpacing = pageSpacing,
         )
-        val horizontalContentPadding = ((pagerWidth - cardWidth) / 2f).coerceAtLeast(0.dp)
+        val contentPadding = 16.dp
+        val density = LocalDensity.current
+        val contentPadPx = with(density) { contentPadding.toPx() }
+        val stepPx = with(density) { (cardWidth + pageSpacing).toPx() }
+        val pagerWidthPx = with(density) { pagerWidth.toPx() }
+        val cardWidthPx = with(density) { cardWidth.toPx() }
 
         Box(
             modifier = Modifier.fillMaxWidth(),
@@ -453,7 +458,7 @@ private fun HomeHeroSection(
                 pageSize = PageSize.Fixed(cardWidth),
                 pageSpacing = pageSpacing,
                 beyondViewportPageCount = 2,
-                contentPadding = PaddingValues(horizontal = horizontalContentPadding),
+                contentPadding = PaddingValues(horizontal = contentPadding),
                 modifier = Modifier.width(pagerWidth),
             ) { page ->
                 HomeHeroCard(
@@ -466,9 +471,16 @@ private fun HomeHeroSection(
                     modifier = Modifier
                         .zIndex(if (page == selectedIndex) 1f else 0f)
                         .graphicsLayer {
-                            val signedOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction)
-                                .coerceIn(-1f, 1f)
-                            val focus = 1f - signedOffset.absoluteValue.coerceIn(0f, 1f)
+                            val rawOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+                            val signedOffset = rawOffset.coerceIn(-1f, 1f)
+                            val visualLeft = contentPadPx - rawOffset * stepPx
+                            val visualRight = visualLeft + cardWidthPx
+                            val focus = when {
+                                visualRight <= 0f || visualLeft >= pagerWidthPx -> 0f
+                                visualLeft >= 0f && visualRight <= pagerWidthPx -> 1f
+                                visualLeft < 0f -> (visualRight / cardWidthPx).coerceIn(0f, 1f)
+                                else -> ((pagerWidthPx - visualLeft) / cardWidthPx).coerceIn(0f, 1f)
+                            }
                             val hOrigin = when {
                                 signedOffset < -0.02f -> 0f
                                 signedOffset > 0.02f -> 1f
