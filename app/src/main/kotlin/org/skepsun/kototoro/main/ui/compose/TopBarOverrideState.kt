@@ -28,6 +28,24 @@ data class CompactFilterRailOverrideState(
     val items: List<CompactFilterRailItem>,
 ) : TopBarOverrideState
 
+fun List<CompactFilterRailItem>.selectedFirst(): List<CompactFilterRailItem> {
+    if (size < 2) return this
+    val selectedItems = ArrayList<CompactFilterRailItem>(size)
+    val unselectedItems = ArrayList<CompactFilterRailItem>(size)
+    for (item in this) {
+        if (item.isSelected) {
+            selectedItems += item
+        } else {
+            unselectedItems += item
+        }
+    }
+    if (selectedItems.isEmpty() || unselectedItems.isEmpty()) return this
+    return buildList(size) {
+        addAll(selectedItems)
+        addAll(unselectedItems)
+    }
+}
+
 data class FavoritesTopBarOverrideState(
     val tabsState: CompactTabsTopBarOverrideState,
     val filterRailState: CompactFilterRailOverrideState? = null,

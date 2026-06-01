@@ -34,6 +34,7 @@ import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.QuickFilter
 import org.skepsun.kototoro.main.ui.compose.CompactFilterRailItem
 import org.skepsun.kototoro.main.ui.compose.CompactFilterRailOverrideState
+import org.skepsun.kototoro.main.ui.compose.selectedFirst
 import org.skepsun.kototoro.main.ui.compose.ContentSelectionTopBarOverrideState
 import org.skepsun.kototoro.main.ui.compose.TopBarOverrideState
 import org.skepsun.kototoro.core.util.ext.getDisplayMessage
@@ -159,7 +160,7 @@ fun <VM : ContentListViewModel> AppContentListRoute(
                         source = sourceOption?.mangaSource,
                         onClick = { (viewModel as? org.skepsun.kototoro.list.domain.QuickFilterListener)?.toggleFilterOption(option) },
                     )
-                },
+                }.selectedFirst(),
             )
         }
     }

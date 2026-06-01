@@ -524,6 +524,7 @@ fun QuickFilterSection(
     onQuickFilterOptionClick: (ListFilterOption) -> Unit,
 ) {
     val context = LocalContext.current
+    val listState = rememberLazyListState()
     val entryPoint = remember(context.applicationContext) {
         runCatching {
             EntryPointAccessors.fromApplication(
@@ -532,12 +533,28 @@ fun QuickFilterSection(
             )
         }.getOrNull()
     }
+    val orderedChips = remember(quickFilter.items) {
+        quickFilter.items.sortedBy { chip -> !chip.isChecked }
+    }
+    LaunchedEffect(orderedChips) {
+        if (orderedChips.firstOrNull()?.isChecked == true && listState.firstVisibleItemIndex > 0) {
+            listState.animateScrollToItem(0)
+        }
+    }
     LazyRow(
+        state = listState,
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        items(quickFilter.items, contentType = { "filter_chip" }) { chip ->
+        items(
+            items = orderedChips,
+            key = { chip ->
+                val option = chip.data as? ListFilterOption
+                option?.let { "${it::class.qualifiedName}:${it.hashCode()}" } ?: chip.hashCode()
+            },
+            contentType = { "filter_chip" },
+        ) { chip ->
             val option = chip.data as? ListFilterOption
             GlassSurface(
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),

@@ -53,6 +53,9 @@ fun SourceTagDropdown(
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
+    val sortedEntries = remember(entries, selectedTags) {
+        entries.sortedBy { tag -> tag !in selectedTags }
+    }
 
     Box(modifier = modifier) {
         IconButton(
@@ -91,7 +94,7 @@ fun SourceTagDropdown(
                 },
             )
 
-            entries.forEach { tag ->
+            sortedEntries.forEach { tag ->
                 DropdownMenuItem(
                     text = { Text(stringResource(tag.titleRes)) },
                     onClick = {

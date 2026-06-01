@@ -21,6 +21,7 @@ import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.main.ui.compose.CompactFilterRailOverrideState
 import org.skepsun.kototoro.main.ui.compose.TopBarOverrideState
+import org.skepsun.kototoro.main.ui.compose.selectedFirst
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.core.ui.compose.resolveSourceTitleForUi
 
@@ -77,7 +78,7 @@ fun KototoroFavoritesListScreen(
                         source = sourceOption?.mangaSource,
                         onClick = { viewModel.toggleFilterOption(option) },
                     )
-                },
+                }.selectedFirst(),
             )
         }
     }

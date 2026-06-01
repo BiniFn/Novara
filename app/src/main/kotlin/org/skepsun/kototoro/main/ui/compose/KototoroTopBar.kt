@@ -588,7 +588,15 @@ fun CompactTopBarFilterRail(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
-    EnsureItemFullyVisible(listState = listState, targetIndex = remember(state.items) { state.items.indexOfFirst { it.isSelected } })
+    val firstSelectedIndex = remember(state.items) {
+        state.items.indexOfFirst { it.isSelected }
+    }
+    EnsureItemFullyVisible(listState = listState, targetIndex = firstSelectedIndex)
+    LaunchedEffect(state.items, firstSelectedIndex) {
+        if (firstSelectedIndex == 0 && listState.firstVisibleItemIndex > 0) {
+            listState.animateScrollToItem(0)
+        }
+    }
     val visibleItemRange = remember(listState.layoutInfo) {
         val visibleItems = listState.layoutInfo.visibleItemsInfo
         val minVisible = visibleItems.minOfOrNull { it.index } ?: 0
