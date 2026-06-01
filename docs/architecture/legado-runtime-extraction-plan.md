@@ -509,8 +509,8 @@ JS 中需要哪些方法，由 bridge 显式注册，而不是把整个应用辅
 职责：
 
 - 处理 `@js` / `<js>`
-- 处理 `{{...}}`
-- 处理 `{{page}}`
+- 处理 `&#123;&#123;...}}`
+- 处理 `&#123;&#123;page}}`
 - 处理 `<a,b,c>` 这类分页模板
 
 输出：
@@ -680,7 +680,7 @@ Kototoro 不需要等待 Legado 先完成抽取，完全可以先按未来模块
 
 任务：
 
-- 基于 [legado-adaptation-gap-analysis.md](/d1/chuxiong/code/Kototoro/docs/reference/legado-adaptation-gap-analysis.md:1) 整理规则样例
+- 基于 [legado-adaptation-gap-analysis.md](../reference/legado-adaptation-gap-analysis.md) 整理规则样例
 - 建立 golden tests
 - 用同一组样例对比：
   - Legado 原实现
