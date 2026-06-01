@@ -1575,12 +1575,32 @@
     <string name="pref_doh_custom_url">自定義 DoH URL</string>
     <string name="pref_github_mirror">GitHub 網絡加速鏡像</string>
     <string name="pref_github_mirror_summary">如果您身處國內導致 GitHub 直連報錯，請選擇一個加速鏡像路線解決。</string>
+    <string-array name="pref_github_mirror_entries">
+        <item>原生直連 (默認)</item>
+        <item>KKGithub (推薦)</item>
+        <item>GHProxy 路線 1</item>
+        <item>GHProxy 路線 2</item>
+    </string-array>
+    <string-array name="pref_github_mirror_values">
+        <item>native</item>
+        <item>kkgithub</item>
+        <item>ghproxy</item>
+        <item>ghproxy_net</item>
+    </string-array>
     <string name="pref_glass_effect">毛玻璃模糊</string>
     <string name="pref_glass_effect_summary">模糊支持的 Compose 容器背後的內容</string>
     <string name="pref_haze_opacity">玻璃容器不透明度</string>
     <string name="pref_haze_opacity_summary">控制玻璃風格容器的不透明度，關閉模糊後依然生效</string>
     <string name="pref_huggingface_mirror">HuggingFace 網絡加速鏡像</string>
     <string name="pref_huggingface_mirror_summary">如果您身處國內導致 HuggingFace 下載模型失敗，請選擇加速鏡像路線。</string>
+    <string-array name="pref_huggingface_mirror_entries">
+        <item>原生直連 (默認)</item>
+        <item>hf-mirror.com</item>
+    </string-array>
+    <string-array name="pref_huggingface_mirror_values">
+        <item>native</item>
+        <item>hf_mirror</item>
+    </string-array>
     <string name="pref_loading_circle_style">加載圓圈與進度條樣式</string>
     <string name="pref_loading_circle_style_summary">控制加載圓圈與進度條的外觀。</string>
     <string name="pref_nav_floating">懸浮導航欄</string>
@@ -2492,4 +2512,78 @@ SHA-256 指紋:
     <string name="year">年</string>
     <string name="years">年</string>
     <string name="you_may_like">猜你喜歡</string>
+
+    <!-- 批量源遷移 -->
+    <string name="batch_source_migration">批量源遷移</string>
+    <string name="source_migration_title">批量源遷移</string>
+    <string name="source_migration_from_label">來源源</string>
+    <string name="source_migration_to_label">目標源</string>
+    <string name="source_migration_start">開始遷移</string>
+    <string name="source_migration_cancel">取消遷移</string>
+    <string name="source_migration_concurrency">搜索併發數：%1$d</string>
+    <string name="source_migration_channel_name">源遷移</string>
+    <string name="source_migration_notification_title">源遷移</string>
+    <string name="migration_progress">已遷移 %1$d / %2$d</string>
+    <string name="migration_progress_detail">已完成：%1$d / %2$d\n失敗：%3$d\n未找到：%4$d</string>
+    <string name="migration_status_active">正在遷移：%1$s</string>
+    <string name="migration_completed_title">遷移完成</string>
+    <string name="migration_completed_summary">成功：%1$d，失敗：%2$d，未找到：%3$d</string>
+    <string name="migration_same_source_error">來源和目標源不能相同</string>
+    <string name="migration_no_sources">收藏中無可遷移的源</string>
+    <string name="content_type_filter">內容類型</string>
+    <string name="source_type_filter">源類型</string>
+    <plurals name="source_count">
+        <item quantity="other">%d 個源</item>
+    </plurals>
+    <plurals name="sources_imported_successfully">
+        <item quantity="other">成功匯入 %d 個源</item>
+    </plurals>
+
+    <!-- 玻璃效果 -->
+    <string name="pref_glass_blur_strength">玻璃模糊半徑</string>
+    <string name="pref_glass_blur_strength_summary">設定自定義玻璃表面的最終模糊半徑，單位 dp</string>
+    <string name="pref_glass_noise_strength">玻璃噪點係數</string>
+    <string name="pref_glass_noise_strength_summary">設定應用於自定義玻璃表面的最終噪點量，範圍 0.00 至 1.00</string>
+    <string name="pref_glass_immersive_strength">沉浸式着色強度</string>
+    <string name="pref_glass_immersive_strength_summary">控制自定義玻璃邊緣頂部和底部的沉浸式着色強度</string>
+    <string name="glass_material_kototoro">Kototoro（推薦）</string>
+    <string name="glass_material_haze_ultra_thin">Haze 超薄</string>
+    <string name="glass_material_haze_thin">Haze 薄</string>
+    <string name="glass_material_haze_regular">Haze 標準</string>
+    <string name="glass_material_haze_thick">Haze 厚</string>
+    <string name="glass_material_haze_ultra_thick">Haze 超厚</string>
+    <string name="glass_material_cupertino_ultra_thin">Cupertino 超薄</string>
+    <string name="glass_material_cupertino_thin">Cupertino 薄</string>
+    <string name="glass_material_cupertino_regular">Cupertino 標準</string>
+    <string name="glass_material_cupertino_thick">Cupertino 厚</string>
+    <string name="glass_material_fluent_accent_acrylic_base">Fluent 強調亞克力基礎</string>
+    <string name="glass_material_fluent_accent_acrylic_default">Fluent 強調亞克力默認</string>
+    <string name="glass_material_fluent_thin_acrylic">Fluent 薄亞克力</string>
+    <string name="glass_material_fluent_acrylic_base">Fluent 亞克力基礎</string>
+    <string name="glass_material_fluent_acrylic_default">Fluent 亞克力默認</string>
+    <string name="glass_material_fluent_mica">Fluent 雲母</string>
+    <string name="glass_material_fluent_mica_alt">Fluent 雲母替代</string>
+
+    <!-- 小說翻頁動畫 -->
+    <string name="novel_page_turn_animation">翻頁動畫</string>
+    <string name="novel_page_turn_slide">平移</string>
+    <string name="novel_page_turn_simulation">仿真</string>
+
+    <!-- 閱讀記錄 -->
+    <string name="reading_record">閱讀記錄</string>
+    <string name="total_reading_time">總時長</string>
+    <string name="reading_days">閱讀天數</string>
+    <string name="recent_reading">最近閱讀</string>
+    <string name="current_progress">當前進度</string>
+    <string name="timeline">時間線</string>
+    <string name="chapter_statistics">章節統計</string>
+    <string name="jump_points">跳轉點</string>
+    <string name="no_reading_record">暫無閱讀記錄</string>
+    <string name="no_jump_points">暫無跳轉點</string>
+    <string name="restore_jump_point">點按恢復到跳轉前位置</string>
+    <string name="reading_chapter_record_format">%1$d 次 · %2$s</string>
+
+    <!-- 章節範圍選擇 -->
+    <string name="chapter_range_selection_hint">提示：選中兩個章節後，長按它們之間的可見章節可補全範圍。</string>
+    <string name="hide_read_chapters">隱藏已讀章節</string>
 </resources>
