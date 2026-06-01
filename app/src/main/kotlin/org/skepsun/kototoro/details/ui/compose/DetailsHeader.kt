@@ -1,7 +1,6 @@
 package org.skepsun.kototoro.details.ui.compose
 
 import android.text.format.Formatter
-import android.widget.RatingBar
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -39,6 +38,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -73,7 +74,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -93,7 +96,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import android.widget.Toast
@@ -935,13 +937,16 @@ private fun UnifiedRatingBar(
     onDisabledClick: () -> Unit,
 ) {
     val context = LocalContext.current
-    var localRating by remember(rating) { mutableFloatStateOf(rating) }
-    val displayRating = if (localRating > 0f) localRating else rating
-    val label = remember(displayRating) {
-        if (displayRating <= 0f) {
+    var displayStars by remember { mutableFloatStateOf((rating.coerceIn(0f, 1f) * 5f).coerceIn(0f, 5f)) }
+    LaunchedEffect(rating) {
+        displayStars = (rating.coerceIn(0f, 1f) * 5f).coerceIn(0f, 5f)
+    }
+    val label = remember(displayStars) {
+        val score = (displayStars * 2f).roundToInt()
+        if (score <= 0) {
             "0"
         } else {
-            ((displayRating * 10f).roundToInt()).toString()
+            score.toString()
         }
     }
     Row(
@@ -954,30 +959,60 @@ private fun UnifiedRatingBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        AndroidView(
-            factory = {
-                RatingBar(context, null, android.R.attr.ratingBarStyleSmall).apply {
-                    numStars = 5
-                    stepSize = 0.5f
-                    max = 5
-                    setIsIndicator(!enabled)
-                    setOnRatingBarChangeListener { _, value, fromUser ->
-                        if (fromUser) {
-                            localRating = (value / 5f).coerceIn(0f, 1f)
-                            onRatingChanged(localRating)
-                        }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            repeat(5) { index ->
+                val starIndex = index + 1
+                val fraction = (displayStars - index).coerceIn(0f, 1f)
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .then(
+                            if (enabled) {
+                                Modifier.clickable {
+                                    displayStars = resolveCyclicRatingSelection(
+                                        currentStars = displayStars,
+                                        tappedStarIndex = starIndex,
+                                    )
+                                    onRatingChanged((displayStars / 5f).coerceIn(0f, 1f))
+                                }
+                            } else {
+                                Modifier
+                            },
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.StarOutline,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                            alpha = if (enabled) 1f else 0.55f,
+                        ),
+                        modifier = Modifier.size(20.dp),
+                    )
+                    if (fraction > 0f) {
+                        Icon(
+                            imageVector = Icons.Filled.Star,
+                            contentDescription = null,
+                            tint = if (enabled) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                            },
+                            modifier = Modifier
+                                .size(20.dp)
+                                .drawWithContent {
+                                    clipRect(right = size.width * fraction) {
+                                        this@drawWithContent.drawContent()
+                                    }
+                                },
+                        )
                     }
                 }
-            },
-            update = { ratingBar ->
-                ratingBar.setIsIndicator(!enabled)
-                if (ratingBar.rating != displayRating * 5f) {
-                    ratingBar.rating = displayRating * 5f
-                }
-                ratingBar.alpha = if (enabled) 1f else 0.55f
-                ratingBar.contentDescription = context.getString(R.string.details_rating_value, label)
-            },
-        )
+            }
+        }
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
@@ -987,6 +1022,16 @@ private fun UnifiedRatingBar(
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
         )
+    }
+}
+
+private fun resolveCyclicRatingSelection(currentStars: Float, tappedStarIndex: Int): Float {
+    val fullStarRating = tappedStarIndex.toFloat()
+    val halfStarRating = (tappedStarIndex - 0.5f).coerceAtLeast(0.5f)
+    return if (currentStars == halfStarRating) {
+        fullStarRating
+    } else {
+        halfStarRating
     }
 }
 
