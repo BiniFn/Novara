@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.main.ui.compose
 
+import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -85,18 +86,10 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.isMainRouteTransit
 }
 
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.mainRouteFadeIn(): EnterTransition =
-    if (isMainRouteTransition()) {
-        fadeIn(tween(90, easing = LinearEasing))
-    } else {
-        EnterTransition.None
-    }
+    EnterTransition.None
 
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.mainRouteFadeOut(): ExitTransition =
-    if (isMainRouteTransition()) {
-        fadeOut(tween(60, easing = LinearEasing))
-    } else {
-        ExitTransition.None
-    }
+    ExitTransition.None
 
 private fun buildFavoriteCategoryTabsState(
     items: List<ListModel>,
@@ -146,6 +139,7 @@ private const val TOP_BAR_OWNER_FEED = "feed"
 private const val TOP_BAR_OWNER_LOCAL = "local"
 private const val TOP_BAR_OWNER_SUGGESTIONS = "suggestions"
 private const val TOP_BAR_OWNER_UPDATED = "updated"
+private const val MainRouteFlickerLogTag = "MainRouteFlicker"
 
 private fun NavDestination.isMainRoute(): Boolean =
     hasRoute<HomeRoute>() ||
@@ -452,7 +446,7 @@ fun AppNavGraph(
             val items by viewModel.content.collectAsStateWithLifecycle()
             val listMode by viewModel.listMode.collectAsStateWithLifecycle()
             val isStatsEnabled by viewModel.isStatsEnabled.collectAsStateWithLifecycle()
-            val isResumeEnabled by viewModel.isResumeEnabled.collectAsStateWithLifecycle(initialValue = false)
+            val isResumeEnabled by viewModel.isResumeEnabled.collectAsStateWithLifecycle()
             val gridScale by viewModel.gridScale.collectAsStateWithLifecycle()
             val selectedGroupTab by viewModel.currentGroupTab.collectAsStateWithLifecycle()
             val selectedSourceTags by viewModel.currentSourceTags.collectAsStateWithLifecycle()
@@ -490,6 +484,24 @@ fun AppNavGraph(
                 items
                     .filterIsInstance<org.skepsun.kototoro.list.ui.model.ContentListModel>()
                     .filter { it.id in selectedItemsIds }
+            }
+            LaunchedEffect(
+                contentPadding,
+                items.size,
+                historyFilterRailState?.items?.size,
+                selectedItemsIds.size,
+                isResumeEnabled,
+                bottomBarOffsetPx,
+                bottomBarHeightPx,
+            ) {
+                Log.d(
+                    MainRouteFlickerLogTag,
+                    "nav history state items=${items.size} railItems=${historyFilterRailState?.items?.size ?: -1} " +
+                        "selected=${selectedItemsIds.size} resume=$isResumeEnabled " +
+                        "paddingTop=${contentPadding.calculateTopPadding()} " +
+                        "paddingBottom=${contentPadding.calculateBottomPadding()} " +
+                        "bottomOffset=$bottomBarOffsetPx bottomHeight=$bottomBarHeightPx",
+                )
             }
 
             DisposableEffect(onContextualMenuActionsChanged) {
@@ -550,17 +562,9 @@ fun AppNavGraph(
                     onExploreSourceSelectionTopBarChanged(
                         RouteScopedTopBarOverrideState(
                             TOP_BAR_OWNER_HISTORY,
-                            LayeredTopBarOverrideState(
-                                filterRailState = historyFilterRailState,
-                            ),
+                            LayeredTopBarOverrideState(),
                         ),
                     )
-                }
-            }
-
-            DisposableEffect(Unit) {
-                onDispose {
-                    onExploreSourceSelectionTopBarChanged(RouteScopedTopBarOverrideState(TOP_BAR_OWNER_HISTORY, null))
                 }
             }
 
@@ -653,7 +657,7 @@ fun AppNavGraph(
                     onContinueReadingClick = { viewModel.openLastReader() },
                     onQuickFilterOptionClick = viewModel::toggleFilterOption,
                     showContinueReadingButton = isResumeEnabled && !isLandscapeNavigation,
-                    showQuickFilterInline = false,
+                    showQuickFilterInline = true,
                     bottomBarOffsetPx = bottomBarOffsetPx,
                     bottomBarHeightPx = bottomBarHeightPx,
                     showInlineSelectionTopBar = false,
@@ -805,6 +809,14 @@ fun AppNavGraph(
             }
 
             CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
+                LaunchedEffect(contentPadding, selectedGroupTab, selectedSourceTags) {
+                    Log.d(
+                        MainRouteFlickerLogTag,
+                        "nav favorites state group=$selectedGroupTab sourceTags=${selectedSourceTags.size} " +
+                            "paddingTop=${contentPadding.calculateTopPadding()} " +
+                            "paddingBottom=${contentPadding.calculateBottomPadding()}",
+                    )
+                }
                 KototoroFavoritesHostRoute(
                     appRouter = appRouter,
                     contentPadding = contentPadding,

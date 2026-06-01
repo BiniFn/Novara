@@ -8,6 +8,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import android.widget.Toast
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.activity.compose.BackHandler
@@ -125,6 +127,15 @@ fun <VM : ContentListViewModel> AppContentListRoute(
     }
     val selectedModels = selectionModels.selectedModels
     val quickFilter = remember(items) { items.firstOrNull { it is QuickFilter } as? QuickFilter }
+    val gridState = rememberSaveable(viewModel, saver = LazyGridState.Saver) {
+        LazyGridState()
+    }
+    val listState = rememberSaveable(viewModel, saver = LazyListState.Saver) {
+        LazyListState()
+    }
+    val detailedListState = rememberSaveable(viewModel, saver = LazyListState.Saver) {
+        LazyListState()
+    }
     val quickFilterRailOverride = remember(quickFilter, context) {
         quickFilter?.let { filter ->
             CompactFilterRailOverrideState(
@@ -477,5 +488,8 @@ fun <VM : ContentListViewModel> AppContentListRoute(
         showInlineSelectionTopBar = false,
         listHeader = listHeader,
         showQuickFilterInline = showQuickFilterInline,
+        gridState = gridState,
+        listState = listState,
+        detailedListState = detailedListState,
     )
 }

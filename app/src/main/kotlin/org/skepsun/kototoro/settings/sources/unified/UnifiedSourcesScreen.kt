@@ -964,6 +964,7 @@ fun UnifiedSourcesToolbarActions(
 	if (searchActive && readyState != null) {
 		Row(
 			modifier = modifier,
+			horizontalArrangement = Arrangement.End,
 			verticalAlignment = Alignment.CenterVertically,
 		) {
 			ToolbarSearchField(
@@ -979,6 +980,18 @@ fun UnifiedSourcesToolbarActions(
 					tint = MaterialTheme.colorScheme.onSurface,
 				)
 			}
+			ToolbarFilterIconButton(
+				iconRes = R.drawable.ic_language,
+				activeCount = readyState.filters.languages.size,
+				contentDescription = stringResource(R.string.filter_extensions_by_language),
+				onClick = onLanguageFilterClick,
+			)
+			ToolbarFilterIconButton(
+				iconRes = R.drawable.ic_filter_menu,
+				activeCount = readyState.filters.otherFilterCount(),
+				contentDescription = stringResource(R.string.more_filters),
+				onClick = onMoreFiltersClick,
+			)
 		}
 		return
 	}

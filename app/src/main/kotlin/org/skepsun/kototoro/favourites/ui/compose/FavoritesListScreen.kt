@@ -1,8 +1,9 @@
 package org.skepsun.kototoro.favourites.ui.compose
 
+import android.util.Log
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
@@ -22,6 +23,9 @@ import org.skepsun.kototoro.main.ui.compose.CompactFilterRailOverrideState
 import org.skepsun.kototoro.main.ui.compose.TopBarOverrideState
 import org.skepsun.kototoro.parsers.model.Content
 import org.skepsun.kototoro.core.ui.compose.resolveSourceTitleForUi
+
+private const val FavoritesAutofilterLogTag = "FavoritesAutofilter"
+private const val MainRouteFlickerLogTag = "MainRouteFlicker"
 
 @Composable
 fun KototoroFavoritesListScreen(
@@ -78,17 +82,30 @@ fun KototoroFavoritesListScreen(
         }
     }
 
-    SideEffect {
-        if (isActivePage) {
-            onFilterRailOverrideChanged(filterRailOverride)
-        }
+    LaunchedEffect(categoryId, isActivePage, topQuickFilter, filterRailOverride) {
+        Log.d(
+            FavoritesAutofilterLogTag,
+            "list category=$categoryId active=$isActivePage quickItems=${topQuickFilter?.items?.size ?: -1} " +
+                "railItems=${filterRailOverride?.items?.size ?: -1}",
+        )
     }
 
-    DisposableEffect(isActivePage) {
-        onDispose {
-            if (isActivePage) {
-                onFilterRailOverrideChanged(null)
-            }
+    LaunchedEffect(categoryId, isActivePage, contentPadding) {
+        Log.d(
+            MainRouteFlickerLogTag,
+            "favorites list category=$categoryId active=$isActivePage " +
+                "paddingTop=${contentPadding.calculateTopPadding()} " +
+                "paddingBottom=${contentPadding.calculateBottomPadding()}",
+        )
+    }
+
+    SideEffect {
+        if (isActivePage) {
+            Log.d(
+                FavoritesAutofilterLogTag,
+                "list emit category=$categoryId railItems=${filterRailOverride?.items?.size ?: -1}",
+            )
+            onFilterRailOverrideChanged(filterRailOverride)
         }
     }
 
@@ -120,6 +137,6 @@ fun KototoroFavoritesListScreen(
         onMarkAsCompletedSelection = { items ->
             viewModel.markAsRead(items.map { it.manga }.toSet())
         },
-        showQuickFilterInline = false,
+        showQuickFilterInline = true,
     )
 }

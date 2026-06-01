@@ -8,7 +8,8 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.positionChange
@@ -40,7 +41,6 @@ import org.skepsun.kototoro.R
 import org.skepsun.kototoro.parsers.model.ContentType
 
 private val CompactFilterChipSize = 36.dp
-private val CompactFilterChipCellSize = 30.dp
 
 @Composable
 fun SwipeableFilterChip(
@@ -56,7 +56,6 @@ fun SwipeableFilterChip(
     val currentSelectedType by rememberUpdatedState(selectedType)
     val currentOnTypeSelected by rememberUpdatedState(onTypeSelected)
 
-    val cellSizePx = with(density) { CompactFilterChipCellSize.toPx() }
     val swipeThresholdPx = with(density) { 24.dp.toPx() }
 
     // 0 = collapsed, 1 = fully expanded
@@ -80,11 +79,12 @@ fun SwipeableFilterChip(
     val iconAll = painterResource(R.drawable.ic_filter_content_type)
 
     val exp = expansion.value
-    val totalWidth = cellSizePx * (1f + 2f * exp) // collapsed=1cell, expanded=3cells
+    val animatedWidth = CompactFilterChipSize * (1f + exp) // collapsed=1cell, expanded=2 layout cells
 
     Box(
         modifier = modifier
-            .size(CompactFilterChipSize)
+            .width(animatedWidth)
+            .height(CompactFilterChipSize)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -171,29 +171,30 @@ fun SwipeableFilterChip(
             },
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val baseW = size.width
+        Canvas(
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            val baseW = size.height
+            val totalW = baseW * (1f + 2f * exp)
             val h = size.height
             val radius = h / 2f
             val cr = CornerRadius(radius, radius)
-            val extraWidth = baseW * exp
             val iconPadding = baseW * 0.25f
             val iconSize = baseW - iconPadding * 2f
+            val centerSlotLeft = (totalW - baseW) / 2f
 
-            // Background pill (expands evenly left and right)
             if (exp > 0.01f) {
                 drawRoundRect(
                     color = surfaceVariant.copy(alpha = exp),
-                    topLeft = Offset(-extraWidth, 0f),
-                    size = Size(baseW + 2f * extraWidth, h),
+                    topLeft = Offset.Zero,
+                    size = Size(totalW, h),
                     cornerRadius = cr,
                 )
 
-                // Highlight behind selected icon
                 val highlightX = when (highlightIndex) {
-                    0 -> -baseW
-                    2 -> baseW
-                    else -> 0f
+                    0 -> centerSlotLeft - baseW
+                    2 -> centerSlotLeft + baseW
+                    else -> centerSlotLeft
                 }
                 drawRoundRect(
                     color = primaryContainer.copy(alpha = exp),
@@ -212,7 +213,7 @@ fun SwipeableFilterChip(
                     else -> iconAll
                 }
                 val tint = if (selectedType != null) onPrimaryContainer else onSurfaceVariant
-                val iconOffset = (baseW - iconSize) / 2f
+                val iconOffset = centerSlotLeft + (baseW - iconSize) / 2f
                 translate(left = iconOffset, top = (h - iconSize) / 2f) {
                     with(collapsedIcon) {
                         draw(
@@ -230,9 +231,9 @@ fun SwipeableFilterChip(
                 for (i in 0..2) {
                     val isEnabled = types[i] in enabledTypes
                     val centerX = when (i) {
-                        0 -> baseW / 2f - baseW
-                        2 -> baseW / 2f + baseW
-                        else -> baseW / 2f
+                        0 -> centerSlotLeft + baseW / 2f - baseW
+                        2 -> centerSlotLeft + baseW / 2f + baseW
+                        else -> centerSlotLeft + baseW / 2f
                     }
                     val isHighlighted = i == highlightIndex
                     val alpha = if (isEnabled) {

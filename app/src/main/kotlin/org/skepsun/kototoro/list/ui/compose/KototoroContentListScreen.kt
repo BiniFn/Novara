@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -21,16 +22,18 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.Modifier
@@ -55,6 +58,9 @@ import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
 import org.skepsun.kototoro.core.ui.compose.VerticalRailAnimatedVisibility
 import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
 import org.skepsun.kototoro.core.ui.compose.rememberVerticalRailScrollIntensity
+import org.skepsun.kototoro.core.ui.compose.resolveSourceTitleForUi
+import org.skepsun.kototoro.core.ui.glass.GlassDefaults
+import org.skepsun.kototoro.core.ui.glass.GlassSurface
 import org.skepsun.kototoro.list.ui.model.ContentCompactListModel
 import org.skepsun.kototoro.list.ui.model.ContentDetailedListModel
 import org.skepsun.kototoro.list.ui.model.ContentGridModel
@@ -67,11 +73,69 @@ import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.LoadingState
 import org.skepsun.kototoro.list.ui.model.QuickFilter
 
+private const val LoadMoreVisibleThreshold = 4
+private val QuickFilterChipHeight = 34.dp
+private val QuickFilterChipIconSize = 16.dp
+
 private data class ContentListScreenPrefs(
     val showSourceOnCards: Boolean,
     val isVerticalCardListAnimationEnabled: Boolean,
     val cardUiPrefs: ContentCardUiPrefs,
 )
+
+@Composable
+private fun LoadMoreOnNearEndEffect(
+    state: LazyGridState,
+    enabled: Boolean,
+    onLoadMore: () -> Unit,
+) {
+    val loadMoreItemCount by remember(state) {
+        derivedStateOf {
+            val layoutInfo = state.layoutInfo
+            val totalItemsCount = layoutInfo.totalItemsCount
+            val lastVisibleIndex = layoutInfo.visibleItemsInfo.maxOfOrNull { it.index } ?: -1
+            if (enabled && totalItemsCount > 0 && lastVisibleIndex >= totalItemsCount - LoadMoreVisibleThreshold) {
+                totalItemsCount
+            } else {
+                -1
+            }
+        }
+    }
+    var lastRequestedItemCount by remember { mutableIntStateOf(-1) }
+    LaunchedEffect(loadMoreItemCount) {
+        if (loadMoreItemCount > 0 && loadMoreItemCount != lastRequestedItemCount) {
+            lastRequestedItemCount = loadMoreItemCount
+            onLoadMore()
+        }
+    }
+}
+
+@Composable
+private fun LoadMoreOnNearEndEffect(
+    state: LazyListState,
+    enabled: Boolean,
+    onLoadMore: () -> Unit,
+) {
+    val loadMoreItemCount by remember(state) {
+        derivedStateOf {
+            val layoutInfo = state.layoutInfo
+            val totalItemsCount = layoutInfo.totalItemsCount
+            val lastVisibleIndex = layoutInfo.visibleItemsInfo.maxOfOrNull { it.index } ?: -1
+            if (enabled && totalItemsCount > 0 && lastVisibleIndex >= totalItemsCount - LoadMoreVisibleThreshold) {
+                totalItemsCount
+            } else {
+                -1
+            }
+        }
+    }
+    var lastRequestedItemCount by remember { mutableIntStateOf(-1) }
+    LaunchedEffect(loadMoreItemCount) {
+        if (loadMoreItemCount > 0 && loadMoreItemCount != lastRequestedItemCount) {
+            lastRequestedItemCount = loadMoreItemCount
+            onLoadMore()
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -103,7 +167,9 @@ fun KototoroContentListScreen(
     listState: LazyListState? = null,
     detailedListState: LazyListState? = null,
 ) {
-    val lastContentItem = items.lastOrNull { it is ContentListModel }
+    val canLoadMore = remember(items) {
+        items.any { it is ContentListModel }
+    }
     val context = LocalContext.current
     val settings = androidx.compose.runtime.remember(context.applicationContext) { AppSettings(context.applicationContext) }
     val screenPrefs = settings.observeAsState(
@@ -160,6 +226,11 @@ fun KototoroContentListScreen(
                     ListMode.GRID -> {
                         val posterStyle = compactPosterCardStyle(gridScale)
                         val actualGridState = gridState ?: rememberLazyGridState()
+                        LoadMoreOnNearEndEffect(
+                            state = actualGridState,
+                            enabled = canLoadMore,
+                            onLoadMore = onLoadMore,
+                        )
                         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                             val horizontalPadding = innerPadding.calculateLeftPadding(LayoutDirection.Ltr) +
                                 innerPadding.calculateRightPadding(LayoutDirection.Ltr)
@@ -232,17 +303,17 @@ fun KototoroContentListScreen(
                                         )
                                     }
 
-                                    if (listModel == lastContentItem) {
-                                        LaunchedEffect(listModel) {
-                                            onLoadMore()
-                                        }
-                                    }
                                 }
                             }
                         }
                     }
                     ListMode.LIST -> {
                         val actualListState = listState ?: rememberLazyListState()
+                        LoadMoreOnNearEndEffect(
+                            state = actualListState,
+                            enabled = canLoadMore,
+                            onLoadMore = onLoadMore,
+                        )
                         val scrollIntensity = if (isVerticalCardListAnimationEnabled) {
                             rememberVerticalRailScrollIntensity(actualListState)
                         } else {
@@ -300,16 +371,16 @@ fun KototoroContentListScreen(
                                         }
                                     }
                                 }
-                                if (listModel == lastContentItem) {
-                                    LaunchedEffect(listModel) {
-                                        onLoadMore()
-                                    }
-                                }
                             }
                         }
                     }
                     ListMode.DETAILED_LIST -> {
                         val actualListState = detailedListState ?: rememberLazyListState()
+                        LoadMoreOnNearEndEffect(
+                            state = actualListState,
+                            enabled = canLoadMore,
+                            onLoadMore = onLoadMore,
+                        )
                         val scrollIntensity = if (isVerticalCardListAnimationEnabled) {
                             rememberVerticalRailScrollIntensity(actualListState)
                         } else {
@@ -365,11 +436,6 @@ fun KototoroContentListScreen(
                                                 onRetry = onRetry,
                                             )
                                         }
-                                    }
-                                }
-                                if (listModel == lastContentItem) {
-                                    LaunchedEffect(listModel) {
-                                        onLoadMore()
                                     }
                                 }
                             }
@@ -467,46 +533,48 @@ fun QuickFilterSection(
         }.getOrNull()
     }
     LazyRow(
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         items(quickFilter.items, contentType = { "filter_chip" }) { chip ->
             val option = chip.data as? ListFilterOption
-            FilterChip(
-                selected = chip.isChecked,
-                onClick = {
-                    if (option != null) {
-                        onQuickFilterOptionClick(option)
-                    }
-                },
-                enabled = option != null,
-                leadingIcon = chipIcon(chip),
-                shape = MaterialTheme.shapes.small,
-                colors = FilterChipDefaults.filterChipColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    selectedLeadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                ),
-                border = FilterChipDefaults.filterChipBorder(
-                    enabled = option != null,
-                    selected = chip.isChecked,
-                    borderColor = if (chip.isChecked) {
-                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.45f)
-                    } else {
-                        MaterialTheme.colorScheme.outlineVariant
-                    },
-                ),
-                label = {
+            GlassSurface(
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+                style = GlassDefaults.subtleStyle(),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .then(
+                            if (option != null) {
+                                Modifier.clickable { onQuickFilterOptionClick(option) }
+                            } else {
+                                Modifier
+                            },
+                        )
+                        .height(QuickFilterChipHeight)
+                        .padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    chipIcon(chip)?.invoke()
                     Text(
-                        text = buildChipLabel(chip, entryPoint),
+                        text = buildChipLabel(context, chip, entryPoint),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (chip.isChecked) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        fontWeight = if (chip.isChecked) {
+                            androidx.compose.ui.text.font.FontWeight.SemiBold
+                        } else {
+                            androidx.compose.ui.text.font.FontWeight.Normal
+                        },
                         maxLines = 1,
                     )
-                },
-            )
+                }
+            }
         }
     }
 }
@@ -733,7 +801,7 @@ private fun chipIcon(chip: ChipsView.ChipModel): (@Composable () -> Unit)? {
             Icon(
                 painter = painterResource(R.drawable.ic_check),
                 contentDescription = null,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(QuickFilterChipIconSize),
             )
         }
     }
@@ -747,13 +815,14 @@ private fun chipIcon(chip: ChipsView.ChipModel): (@Composable () -> Unit)? {
                 contentDescription = null,
                 placeholder = painterResource(chip.icon.takeIf { it != 0 } ?: com.google.android.material.R.drawable.navigation_empty_icon),
                 error = painterResource(chip.icon.takeIf { it != 0 } ?: com.google.android.material.R.drawable.navigation_empty_icon),
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(QuickFilterChipIconSize),
             )
         } else {
             Icon(
                 painter = painterResource(chip.icon),
                 contentDescription = null,
                 tint = if (chip.tint == 0) LocalContentColor.current else MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(QuickFilterChipIconSize),
             )
         }
     }
@@ -789,12 +858,13 @@ private fun listModelComposeKey(
 
 @Composable
 private fun buildChipLabel(
+    context: android.content.Context,
     chip: ChipsView.ChipModel,
     entryPoint: BaseApp.BaseAppEntryPoint?,
 ): String {
     val title = when {
         chip.titleResId != 0 -> stringResource(chip.titleResId)
-        else -> resolveFilterChipTitle(chip, entryPoint)
+        else -> resolveFilterChipTitle(context, chip, entryPoint)
     }
     return if (chip.counter > 0) {
         "$title ${chip.counter}"
@@ -804,19 +874,17 @@ private fun buildChipLabel(
 }
 
 private fun resolveFilterChipTitle(
+    context: android.content.Context,
     chip: ChipsView.ChipModel,
     entryPoint: BaseApp.BaseAppEntryPoint?,
 ): String {
     val sourceOption = chip.data as? ListFilterOption.Source
-    if (sourceOption != null && sourceOption.mangaSource.name.startsWith("MIHON_")) {
-        val resolvedTitle = entryPoint
-            ?.mihonExtensionManager()
-            ?.getMihonMangaSourceByName(sourceOption.mangaSource.name)
-            ?.displayName
-            ?.takeIf { it.isNotBlank() }
-        if (resolvedTitle != null) {
-            return resolvedTitle
-        }
+    if (sourceOption != null) {
+        return resolveSourceTitleForUi(
+            context = context,
+            source = sourceOption.mangaSource,
+            entryPoint = entryPoint,
+        )
     }
     return chip.title?.toString().orEmpty()
 }

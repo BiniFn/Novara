@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.history.ui.compose
 
+import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -7,15 +8,18 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,6 +34,14 @@ import org.skepsun.kototoro.list.ui.model.ContentListModel
 import org.skepsun.kototoro.list.ui.model.ListModel
 import org.skepsun.kototoro.list.ui.model.QuickFilter
 import org.skepsun.kototoro.list.domain.ListFilterOption
+import kotlinx.coroutines.flow.distinctUntilChanged
+
+private const val MainRouteFlickerLogTag = "MainRouteFlicker"
+
+private fun List<ListModel>.contentAtVisibleIndex(index: Int): String {
+    val content = filterIsInstance<ContentListModel>().getOrNull(index) ?: return "none"
+    return "${content.source.name}:${content.id}:${content.title}"
+}
 
 @Composable
 fun HistoryScreen(
@@ -64,9 +76,15 @@ fun HistoryScreen(
     val contentItems = remember(items) {
         items.filterNot { it is QuickFilter }
     }
-    val listState = rememberLazyListState()
-    val detailedListState = rememberLazyListState()
-    val gridState = rememberLazyGridState()
+    val listState = rememberSaveable(saver = LazyListState.Saver) {
+        LazyListState()
+    }
+    val detailedListState = rememberSaveable(saver = LazyListState.Saver) {
+        LazyListState()
+    }
+    val gridState = rememberSaveable(saver = LazyGridState.Saver) {
+        LazyGridState()
+    }
     val fabCollapseProgress = remember(bottomBarOffsetPx, bottomBarHeightPx) {
         if (bottomBarHeightPx <= 0) {
             0f
@@ -75,16 +93,55 @@ fun HistoryScreen(
         }
     }
     val isFabExpanded = fabCollapseProgress < 0.5f
-    val listContentPadding = remember(contentPadding, showContinueReadingButton) {
+    val listContentPadding = remember(contentPadding) {
         PaddingValues(
             start = contentPadding.calculateLeftPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
             top = contentPadding.calculateTopPadding(),
             end = contentPadding.calculateRightPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
-            bottom = contentPadding.calculateBottomPadding() + if (showContinueReadingButton) 88.dp else 0.dp,
+            bottom = contentPadding.calculateBottomPadding() + 88.dp,
         )
     }
     val fabBottomPadding = remember(contentPadding) {
         contentPadding.calculateBottomPadding() + 28.dp
+    }
+    LaunchedEffect(
+        items.size,
+        contentItems.size,
+        quickFilter?.items?.size,
+        listMode,
+        isRefreshing,
+        selectedItemsIds.size,
+        showContinueReadingButton,
+        contentPadding,
+        listContentPadding,
+        bottomBarOffsetPx,
+        bottomBarHeightPx,
+    ) {
+        Log.d(
+            MainRouteFlickerLogTag,
+            "history screen state items=${items.size} contentItems=${contentItems.size} " +
+                "quickItems=${quickFilter?.items?.size ?: -1} listMode=$listMode refreshing=$isRefreshing " +
+                "selected=${selectedItemsIds.size} continue=$showContinueReadingButton " +
+                "paddingTop=${contentPadding.calculateTopPadding()} paddingBottom=${contentPadding.calculateBottomPadding()} " +
+                "listPaddingTop=${listContentPadding.calculateTopPadding()} " +
+                "listPaddingBottom=${listContentPadding.calculateBottomPadding()} " +
+                "bottomOffset=$bottomBarOffsetPx bottomHeight=$bottomBarHeightPx " +
+                "visibleGrid=${contentItems.contentAtVisibleIndex(gridState.firstVisibleItemIndex)} " +
+                "visibleList=${contentItems.contentAtVisibleIndex(listState.firstVisibleItemIndex)} " +
+                "visibleDetail=${contentItems.contentAtVisibleIndex(detailedListState.firstVisibleItemIndex)}",
+        )
+    }
+
+    LaunchedEffect(listState, detailedListState, gridState) {
+        snapshotFlow {
+            "list=${listState.firstVisibleItemIndex}/${listState.firstVisibleItemScrollOffset} " +
+                "detail=${detailedListState.firstVisibleItemIndex}/${detailedListState.firstVisibleItemScrollOffset} " +
+                "grid=${gridState.firstVisibleItemIndex}/${gridState.firstVisibleItemScrollOffset}"
+        }
+            .distinctUntilChanged()
+            .collect { scrollState ->
+                Log.d(MainRouteFlickerLogTag, "history scroll $scrollState")
+            }
     }
     Box(
         modifier = modifier.fillMaxSize()

@@ -68,6 +68,7 @@ import org.skepsun.kototoro.parsers.model.ContentType
 import org.skepsun.kototoro.search.ui.suggestion.model.SearchSuggestionItem
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.util.FoldableUtils
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -318,7 +319,6 @@ fun KototoroApp(
     var isSearchOverlayQueryCommitted by rememberSaveable { mutableStateOf(false) }
     var isDetailsChromeTransitionPending by rememberSaveable { mutableStateOf(false) }
     var topBarOverrideState by remember { mutableStateOf<TopBarOverrideState?>(null) }
-    val routeScopedTopBarOverrideStates = remember { mutableStateMapOf<String, TopBarOverrideState?>() }
     var contextualMenuActions by remember { mutableStateOf<List<KototoroTopBarMenuAction>>(emptyList()) }
     var offsetDestinationRoute by remember { mutableStateOf<String?>(null) }
 
@@ -381,7 +381,7 @@ fun KototoroApp(
         val route = routeForBottomNavItem(itemId)
         if (!navController.currentDestination.isBottomNavRoute(itemId)) {
             navController.navigate(route) {
-                popUpTo<HomeRoute> {
+                popUpTo(navController.graph.findStartDestination().id) {
                     inclusive = false
                     saveState = restoreState
                 }
@@ -411,15 +411,23 @@ fun KototoroApp(
     val isSearchRoute = currentDestination?.hasRoute<SearchRoute>() == true
     val isDetailsRoute = currentDestination?.hasRoute<DetailsRoute>() == true
     val shouldShowChrome = !isSearchRoute
+    val currentTopBarOwnerKey = routeOwnerKeyForDestination(currentDestination)
     val isChromeOffsetFromCurrentDestination = offsetDestinationRoute == currentDestinationRoute
     val effectiveTopBarOffset = if (isChromeOffsetFromCurrentDestination) topBarOffset else 0f
     val effectiveBottomNavOffset = if (isChromeOffsetFromCurrentDestination) bottomNavOffset else 0f
-    LaunchedEffect(currentDestinationRoute) {
+    var previousTopBarOwnerKey by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(currentDestinationRoute, currentTopBarOwnerKey) {
         if (currentDestinationRoute != null && !isDetailsRoute && !isSearchRoute) {
+            val previousOwner = previousTopBarOwnerKey
+            val isFavoritesFeedSwitch = setOf(previousOwner, currentTopBarOwnerKey) == setOf("favorites", "feed")
             topBarOffset = 0f
             bottomNavOffset = 0f
             topFilterRailOffset = 0f
             offsetDestinationRoute = currentDestinationRoute
+            if (!isFavoritesFeedSwitch) {
+                topBarOverrideState = null
+            }
+            previousTopBarOwnerKey = currentTopBarOwnerKey
         }
     }
     var isChromeVisible by rememberSaveable { mutableStateOf(shouldShowChrome && !isDetailsRoute) }
@@ -465,19 +473,10 @@ fun KototoroApp(
         if (maxCollapse <= 0f) 1f
         else (1f + effectiveTopBarOffset / maxCollapse).coerceIn(0f, 1f)
     }
-    val chromeAlpha by animateFloatAsState(
-        targetValue = scrollAlpha,
-        animationSpec = tween(durationMillis = 120),
-        label = "chrome_alpha",
-    )
     val showBrowseSourceSettingsEntry = currentDestination?.let {
         it.hasRoute<ExploreRoute>() || it.hasRoute<DiscoverRoute>()
     } == true
-    val currentTopBarOwnerKey = routeOwnerKeyForDestination(currentDestination)
-    val resolvedTopBarOverrideState = when (currentTopBarOwnerKey) {
-        null -> topBarOverrideState
-        else -> routeScopedTopBarOverrideStates[currentTopBarOwnerKey]
-    }
+    val resolvedTopBarOverrideState = topBarOverrideState
     val layeredTopBarOverrideState = when (resolvedTopBarOverrideState) {
         is LayeredTopBarOverrideState -> resolvedTopBarOverrideState
         is FavoritesTopBarOverrideState -> LayeredTopBarOverrideState(
@@ -494,6 +493,25 @@ fun KototoroApp(
     } else {
         resolvedTopBarOverrideState
     }
+    val shouldKeepFavoriteTabsVisible = !isNavBarPinned &&
+        currentDestination?.hasRoute<FavoritesRoute>() == true &&
+        topTabsOverrideState != null &&
+        scrollAlpha < 0.98f
+    val effectiveChromeAlphaTarget = if (shouldKeepFavoriteTabsVisible) {
+        1f
+    } else {
+        scrollAlpha
+    }
+    val effectiveCompactTabsTopBarOffset = if (shouldKeepFavoriteTabsVisible) {
+        0f
+    } else {
+        effectiveTopBarOffset
+    }
+    val chromeAlpha by animateFloatAsState(
+        targetValue = effectiveChromeAlphaTarget,
+        animationSpec = tween(durationMillis = 120),
+        label = "chrome_alpha",
+    )
     val isHomeRoute = currentDestination?.hasRoute<HomeRoute>() == true
     val supportsDisplayModeMenu = currentDestination?.let {
         it.hasRoute<ExploreRoute>() ||
@@ -536,15 +554,24 @@ fun KototoroApp(
         }
     }
 
-    val maxCollapsePx = (topBarHeightPx - statusBarHeightPx).coerceAtLeast(0)
+    val reservedTopBarHeightPx = maxOf(
+        topBarHeightPx,
+        statusBarHeightPx + with(density) { 44.dp.roundToPx() },
+    )
+    val maxCollapsePx = (reservedTopBarHeightPx - statusBarHeightPx).coerceAtLeast(0)
+    val reservedTopFilterRailHeightPx = when {
+        topFilterRailHeightPx > 0 -> topFilterRailHeightPx
+        else -> with(density) { 34.dp.roundToPx() }
+    }
     val visibleTopFilterInsetPx = if (shouldShowChrome && topFilterRailOverrideState != null) {
         val gapPx = with(density) { 8.dp.roundToPx() }
-        (topFilterRailHeightPx + gapPx).coerceAtLeast(gapPx)
+        reservedTopFilterRailHeightPx + gapPx
     } else {
         0
     }
     val contentTopInsetPx = if (shouldShowChrome) {
-        (topBarHeightPx + effectiveTopBarOffset).toInt().coerceIn(maxCollapsePx, topBarHeightPx) + visibleTopFilterInsetPx
+        (reservedTopBarHeightPx + effectiveTopBarOffset).toInt()
+            .coerceIn(maxCollapsePx, reservedTopBarHeightPx) + visibleTopFilterInsetPx
     } else {
         0
     }
@@ -586,6 +613,7 @@ fun KototoroApp(
             )
         }
     }
+
 
     KototoroTheme(cornerRadius = cornerRadius) {
         val hazeState = remember { HazeState() }
@@ -630,15 +658,11 @@ fun KototoroApp(
                             onExploreSourceSelectionTopBarChanged = { overrideState ->
                                 when (overrideState) {
                                     is RouteScopedTopBarOverrideState -> {
-                                        if (overrideState.state == null) {
-                                            routeScopedTopBarOverrideStates.remove(overrideState.ownerRoute)
-                                        } else {
-                                            routeScopedTopBarOverrideStates[overrideState.ownerRoute] = overrideState.state
+                                        if (overrideState.ownerRoute == currentTopBarOwnerKey) {
+                                            topBarOverrideState = overrideState.state
                                         }
                                     }
-                                    else -> {
-                                        topBarOverrideState = overrideState
-                                    }
+                                    else -> topBarOverrideState = overrideState
                                 }
                             },
                             onContextualMenuActionsChanged = { contextualMenuActions = it },
@@ -846,11 +870,12 @@ fun KototoroApp(
                             },
                             showSourceSettingsEntry = showBrowseSourceSettingsEntry,
                             contextualMenuActions = contextualMenuActions,
+                            forceCompactTabsExpanded = shouldKeepFavoriteTabsVisible,
                             modifier = Modifier
                                 .align(if (isLandscapeNavigation) Alignment.TopStart else Alignment.TopCenter)
                                 .then(if (isLandscapeNavigation) Modifier.fillMaxWidth() else Modifier)
                                 .padding(start = visibleStartInsetDp)
-                                .offset { androidx.compose.ui.unit.IntOffset(0, effectiveTopBarOffset.toInt()) }
+                                .offset { androidx.compose.ui.unit.IntOffset(0, effectiveCompactTabsTopBarOffset.toInt()) }
                                 .graphicsLayer { alpha = chromeAlpha }
                                 .onGloballyPositioned { coords ->
                                     val newHeight = coords.size.height

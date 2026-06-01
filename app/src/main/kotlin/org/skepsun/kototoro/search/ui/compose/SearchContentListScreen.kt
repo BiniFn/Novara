@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -250,7 +251,7 @@ private fun SearchFilterSheetSurface(
         color = runtimeContainerColor,
         contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 0.dp,
-        shadowElevation = if (isDarkTheme) style.shadowElevation else 2.dp,
+        shadowElevation = 0.dp,
         border = glassColors.border,
     ) {
         Box(
@@ -848,11 +849,11 @@ fun AppSearchContentListRoute(
                     onDismissRequest = { showFilterPanel = false },
                     containerColor = Color.Transparent,
                     tonalElevation = 0.dp,
+                    shape = RoundedCornerShape(0.dp),
                     dragHandle = null,
                 ) {
                     SearchFilterSheetSurface(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        allowRuntimeHaze = false,
                     ) {
                         SearchFilterPanel(
                             sourceName = viewModel.source.name,
@@ -1845,7 +1846,17 @@ private fun SearchFilterPanel(
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
-            OutlinedButton(onClick = onReset) {
+            OutlinedButton(
+                onClick = onReset,
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.38f),
+                    contentColor = MaterialTheme.colorScheme.primary,
+                ),
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.34f),
+                ),
+            ) {
                 Text(stringResource(R.string.reset_filter))
             }
         }
@@ -2040,27 +2051,40 @@ private fun SortOrderFilterSection(
     Column(
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onExpandedChange(!expanded) }
-                .padding(vertical = 6.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.42f),
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
+            border = BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f),
+            ),
         ) {
-            Text(
-                text = selectedLabel,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Icon(
-                painter = painterResource(R.drawable.ic_expand_more),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onExpandedChange(!expanded) }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = selectedLabel,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Icon(
+                    painter = painterResource(R.drawable.ic_expand_more),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
 
         if (expanded) {
@@ -2303,18 +2327,19 @@ private fun SearchPanelChip(
                 null
             },
             colors = FilterChipDefaults.filterChipColors(
-                containerColor = Color.Transparent,
-                selectedContainerColor = Color.Transparent,
-                selectedLabelColor = MaterialTheme.colorScheme.primary,
-                selectedLeadingIconColor = MaterialTheme.colorScheme.primary,
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.34f),
+                labelColor = MaterialTheme.colorScheme.onSurface,
+                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.68f),
+                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
             ),
             border = FilterChipDefaults.filterChipBorder(
                 enabled = true,
                 selected = selected,
                 borderColor = if (selected) {
-                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.45f)
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.58f)
                 } else {
-                    MaterialTheme.colorScheme.outlineVariant
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.52f)
                 },
             ),
         )

@@ -1,6 +1,7 @@
 package org.skepsun.kototoro.details.ui.compose
 
 import android.os.Build
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.size
@@ -87,10 +89,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.clip
@@ -200,6 +204,7 @@ import dev.chrisbanes.haze.haze
 import dev.chrisbanes.haze.hazeChild
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import java.util.Locale
@@ -208,6 +213,7 @@ import java.util.Date
 import java.util.concurrent.TimeUnit
 
 private val DetailsTopBarHeight = 56.dp
+private const val ReadingRecordSheetLogTag = "ReadingRecordSheet"
 private val DetailsTopButtonContainerHeight = 44.dp
 private val DetailsTopActionButtonSize = 40.dp
 private val DetailsTopActionIconSize = 18.dp
@@ -1334,7 +1340,9 @@ fun DetailsScreen(
 
             if (showStatsDialog && content != null) {
                 val statsViewModel: ContentStatsViewModel = hiltViewModel()
-                statsViewModel.initialize(content)
+                LaunchedEffect(content.id) {
+                    statsViewModel.initialize(content)
+                }
                 ContentStatsDialog(
                     viewModel = statsViewModel,
                     onDismissRequest = { showStatsDialog = false },
@@ -3252,14 +3260,53 @@ private fun ReadingRecordSheet(
             .take(30)
     }
     val progress = progressPercent.coerceIn(0f, 1f)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val listState = rememberLazyListState()
+    val configuration = LocalConfiguration.current
+    val maxListHeight = remember(configuration.screenHeightDp) {
+        (configuration.screenHeightDp.dp * 0.86f).coerceAtLeast(360.dp)
+    }
+    LaunchedEffect(snapshot.summary, sessions.size, snapshot.jumpPoints.size, timelineItems.size) {
+        Log.d(
+            ReadingRecordSheetLogTag,
+            "show sessions=${sessions.size}, jumps=${snapshot.jumpPoints.size}, chapters=${snapshot.chapters.size}, " +
+                "timeline=${timelineItems.size}, progress=$progress",
+        )
+    }
+    LaunchedEffect(sheetState) {
+        snapshotFlow {
+            "current=${sheetState.currentValue}, target=${sheetState.targetValue}, visible=${sheetState.isVisible}"
+        }.distinctUntilChanged().collect { state ->
+            Log.d(ReadingRecordSheetLogTag, "sheetState $state")
+        }
+    }
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            val layoutInfo = listState.layoutInfo
+            val first = layoutInfo.visibleItemsInfo.firstOrNull()
+            val last = layoutInfo.visibleItemsInfo.lastOrNull()
+            "scrolling=${listState.isScrollInProgress}, first=${first?.index}:${first?.offset}, " +
+                "last=${last?.index}:${last?.offset}, total=${layoutInfo.totalItemsCount}, " +
+                "viewport=${layoutInfo.viewportStartOffset}..${layoutInfo.viewportEndOffset}"
+        }.distinctUntilChanged().collect { state ->
+            Log.d(ReadingRecordSheetLogTag, "listState $state")
+        }
+    }
     ModalBottomSheet(
-        onDismissRequest = onDismissRequest,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        onDismissRequest = {
+            Log.d(ReadingRecordSheetLogTag, "dismissRequest")
+            onDismissRequest()
+        },
+        sheetState = sheetState,
     ) {
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.86f)
+                .heightIn(max = maxListHeight)
+                .onSizeChanged { size ->
+                    Log.d(ReadingRecordSheetLogTag, "listSize width=${size.width}, height=${size.height}")
+                }
                 .padding(horizontal = 20.dp),
             contentPadding = PaddingValues(
                 bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 20.dp,
@@ -3301,7 +3348,13 @@ private fun ReadingRecordSheet(
                 items(timelineItems, key = { it.key }) { item ->
                     when (item) {
                         is ReadingTimelineItem.Session -> TimelineSessionRow(item.session, chapterTitle)
-                        is ReadingTimelineItem.Jump -> TimelineJumpRow(item.point, chapterTitle, onJumpPointClick)
+                        is ReadingTimelineItem.Jump -> TimelineJumpRow(item.point, chapterTitle) { point ->
+                            Log.d(
+                                ReadingRecordSheetLogTag,
+                                "jumpClick id=${point.id}, from=${point.fromChapterId}:${point.fromPage}:${point.fromScroll}",
+                            )
+                            onJumpPointClick(point)
+                        }
                     }
                 }
             }

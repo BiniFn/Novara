@@ -141,7 +141,7 @@ class FavouritesContainerViewModel @Inject constructor(
 		activeCategoryCounts,
 		observeAllFavouritesVisibility(),
 	) { list, countsState, showAll ->
-		if (list == null || countsState == ActiveCategoryCountsState.Loading) {
+		if (list == null) {
 			return@combine FavoritesHostUiState()
 		}
 

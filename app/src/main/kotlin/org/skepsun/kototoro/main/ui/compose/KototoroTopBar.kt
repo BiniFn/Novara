@@ -1,6 +1,12 @@
 package org.skepsun.kototoro.main.ui.compose
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.core.animateFloatAsState
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.lazy.LazyRow
@@ -59,7 +65,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
@@ -127,11 +133,13 @@ fun KototoroTopBar(
     isIncognitoModeEnabled: Boolean = false,
     onIncognitoToggle: () -> Unit = {},
     isCollapsedFullyTransparent: Boolean = false,
+    forceCompactTabsExpanded: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     var isMoreMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var isLanguagePresetMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var showDisplayOptionsSheet by rememberSaveable { mutableStateOf(false) }
+    var areCompactTabsExpanded by rememberSaveable { mutableStateOf(false) }
     var pendingListMode by remember(showDisplayOptionsSheet) { mutableStateOf(currentListMode) }
     var pendingGridSize by remember(showDisplayOptionsSheet) { mutableIntStateOf(gridSize) }
 
@@ -146,6 +154,14 @@ fun KototoroTopBar(
         label = "top_bar_alpha",
     )
     val showMoreActions = true
+    val compactTabsExpanded = compactTabsState != null && (areCompactTabsExpanded || forceCompactTabsExpanded)
+    val hidePrimaryControlsForTabs = compactTabsExpanded
+
+    LaunchedEffect(compactTabsState) {
+        if (compactTabsState == null) {
+            areCompactTabsExpanded = false
+        }
+    }
 
     Box(
         modifier = modifier
@@ -160,82 +176,94 @@ fun KototoroTopBar(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            GlassSurface(
-                modifier = Modifier.wrapContentWidth(),
-                shape = RoundedCornerShape(28.dp),
-                style = GlassDefaults.subtleStyle(),
+            AnimatedVisibility(
+                visible = !hidePrimaryControlsForTabs,
+                enter = fadeIn() + expandHorizontally(),
+                exit = shrinkHorizontally() + fadeOut(),
             ) {
-                IconButton(
-                    onClick = onSearchClick,
-                    modifier = Modifier.size(CollapsedSearchBarHeight),
+                GlassSurface(
+                    modifier = Modifier.wrapContentWidth(),
+                    shape = RoundedCornerShape(28.dp),
+                    style = GlassDefaults.subtleStyle(),
                 ) {
-                    Box(
-                        modifier = Modifier.size(CompactTopBarIconSize),
-                        contentAlignment = Alignment.Center,
+                    IconButton(
+                        onClick = onSearchClick,
+                        modifier = Modifier.size(CollapsedSearchBarHeight),
                     ) {
-                        Icon(
-                            Icons.Filled.Search,
-                            contentDescription = stringResource(R.string.search),
+                        Box(
                             modifier = Modifier.size(CompactTopBarIconSize),
-                        )
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                Icons.Filled.Search,
+                                contentDescription = stringResource(R.string.search),
+                                modifier = Modifier.size(CompactTopBarIconSize),
+                            )
+                        }
                     }
                 }
             }
             if (compactTabsState != null) {
                 InlineCompactTopBarTabsRail(
                     state = compactTabsState,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f, fill = true),
+                    onExpandedChange = { areCompactTabsExpanded = it },
                 )
             } else {
                 Spacer(modifier = Modifier.weight(1f))
             }
-            GlassSurface(
-                modifier = Modifier.wrapContentWidth(),
-                shape = RoundedCornerShape(28.dp),
-                style = GlassDefaults.subtleStyle(),
+            AnimatedVisibility(
+                visible = !hidePrimaryControlsForTabs,
+                enter = fadeIn() + expandHorizontally(expandFrom = Alignment.End),
+                exit = shrinkHorizontally(shrinkTowards = Alignment.End) + fadeOut(),
             ) {
-                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides CompactTopBarActionSize) {
-                    Row(
-                        modifier = Modifier
-                            .widthIn(min = CompactTopBarActionSize)
-                            .height(CollapsedSearchBarHeight)
-                            .padding(start = 2.dp, end = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (isContentTypeFilterVisible) {
-                            SwipeableFilterChip(
-                                selectedType = selectedContentType,
-                                enabledTypes = enabledContentTypes,
-                                onTypeSelected = onContentTypeSelected,
-                                modifier = Modifier.zIndex(1f),
-                            )
-                        }
-                        if (isSourceTagFilterVisible) {
-                            SourceTagDropdown(
-                                selectedTags = selectedSourceTags,
-                                entries = sourceTagEntries,
-                                enabledTags = enabledSourceTags,
-                                onButtonClickIntercept = onSourceTagFilterClick,
-                                onTagSelected = onSourceTagSelected,
-                            )
-                        }
-                        if (showMoreActions) {
-                            Box {
-                                IconButton(
-                                    onClick = { isMoreMenuExpanded = true },
-                                    modifier = Modifier.size(CompactTopBarActionSize),
-                                ) {
-                                    Icon(
-                                        painterResource(R.drawable.ic_more_vert),
-                                        contentDescription = stringResource(R.string.more),
-                                        modifier = Modifier.size(CompactTopBarIconSize),
-                                    )
-                                }
-                                GlassDropdownMenu(
-                                    expanded = isMoreMenuExpanded,
-                                    onDismissRequest = { isMoreMenuExpanded = false },
-                                    offset = androidx.compose.ui.unit.DpOffset(x = 0.dp, y = 4.dp),
-                                ) {
+                GlassSurface(
+                    modifier = Modifier.wrapContentWidth(),
+                    shape = RoundedCornerShape(28.dp),
+                    style = GlassDefaults.subtleStyle(),
+                ) {
+                    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides CompactTopBarActionSize) {
+                        Row(
+                            modifier = Modifier
+                                .widthIn(min = CompactTopBarActionSize)
+                                .height(CollapsedSearchBarHeight)
+                                .padding(start = 2.dp, end = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (isContentTypeFilterVisible) {
+                                SwipeableFilterChip(
+                                    selectedType = selectedContentType,
+                                    enabledTypes = enabledContentTypes,
+                                    onTypeSelected = onContentTypeSelected,
+                                    modifier = Modifier.zIndex(1f),
+                                )
+                            }
+                            if (isSourceTagFilterVisible) {
+                                SourceTagDropdown(
+                                    selectedTags = selectedSourceTags,
+                                    entries = sourceTagEntries,
+                                    enabledTags = enabledSourceTags,
+                                    onButtonClickIntercept = onSourceTagFilterClick,
+                                    onTagSelected = onSourceTagSelected,
+                                )
+                            }
+                            if (showMoreActions) {
+                                Box {
+                                    IconButton(
+                                        onClick = { isMoreMenuExpanded = true },
+                                        modifier = Modifier.size(CompactTopBarActionSize),
+                                    ) {
+                                        Icon(
+                                            painterResource(R.drawable.ic_more_vert),
+                                            contentDescription = stringResource(R.string.more),
+                                            modifier = Modifier.size(CompactTopBarIconSize),
+                                        )
+                                    }
+                                    GlassDropdownMenu(
+                                        expanded = isMoreMenuExpanded,
+                                        onDismissRequest = { isMoreMenuExpanded = false },
+                                        offset = androidx.compose.ui.unit.DpOffset(x = 0.dp, y = 4.dp),
+                                    ) {
                                     if (supportsDisplayModeMenu || supportsGridSizeSlider) {
                                         DropdownMenuItem(
                                             text = { Text(stringResource(R.string.display_options)) },
@@ -362,6 +390,7 @@ fun KototoroTopBar(
                     }
                 }
             }
+        }
         if (showDisplayOptionsSheet && (supportsDisplayModeMenu || supportsGridSizeSlider || onBrowseTrackingRecommendationsChange != null)) {
             org.skepsun.kototoro.list.ui.compose.DisplayOptionsSheet(
                 supportsDisplayModeMenu = supportsDisplayModeMenu,
@@ -414,6 +443,7 @@ fun CompactTopBarTabsRail(
     state: CompactTabsTopBarOverrideState,
     modifier: Modifier = Modifier,
 ) {
+    val density = LocalDensity.current
     val listState = rememberLazyListState()
     EnsureItemFullyVisible(listState = listState, targetIndex = state.items.indexOfFirst { it.id == state.selectedItemId })
     GlassSurface(
@@ -452,13 +482,67 @@ fun CompactTopBarTabsRail(
     }
 }
 
+private const val CompactTabsLogTag = "CompactTabsRail"
+
 @Composable
 private fun InlineCompactTopBarTabsRail(
     state: CompactTabsTopBarOverrideState,
     modifier: Modifier = Modifier,
+    onExpandedChange: (Boolean) -> Unit = {},
 ) {
+    val density = LocalDensity.current
     val listState = rememberLazyListState()
-    EnsureItemFullyVisible(listState = listState, targetIndex = state.items.indexOfFirst { it.id == state.selectedItemId })
+    var restoreRequest by remember { mutableIntStateOf(0) }
+    var previousSelectedItemId by remember { mutableStateOf<Long?>(null) }
+    val selectedIndex = state.items.indexOfFirst { it.id == state.selectedItemId }
+    EnsureItemFullyVisible(listState = listState, targetIndex = selectedIndex)
+    val isScrollInProgress = listState.isScrollInProgress
+    LaunchedEffect(isScrollInProgress) {
+        Log.d(
+            CompactTabsLogTag,
+            "scrollProgress=$isScrollInProgress selected=${state.selectedItemId} index=$selectedIndex " +
+                "visible=${listState.layoutInfo.visibleItemsInfo.firstOrNull()?.index}.." +
+                "${listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index}",
+        )
+        if (isScrollInProgress) {
+            onExpandedChange(true)
+        } else {
+            delay(900)
+            onExpandedChange(false)
+        }
+    }
+    LaunchedEffect(restoreRequest) {
+        if (restoreRequest <= 0) {
+            return@LaunchedEffect
+        }
+        onExpandedChange(true)
+        delay(1600)
+        if (!listState.isScrollInProgress) {
+            onExpandedChange(false)
+        }
+    }
+    LaunchedEffect(state.selectedItemId, selectedIndex) {
+        val previous = previousSelectedItemId
+        previousSelectedItemId = state.selectedItemId
+        Log.d(
+            CompactTabsLogTag,
+            "selectedEffect previous=$previous selected=${state.selectedItemId} index=$selectedIndex " +
+                "items=${state.items.size}",
+        )
+        if (previous == null || previous == state.selectedItemId) {
+            return@LaunchedEffect
+        }
+        if (selectedIndex < 0) {
+            return@LaunchedEffect
+        }
+        onExpandedChange(true)
+        Log.d(CompactTabsLogTag, "autoExpandAndScroll targetIndex=$selectedIndex selected=${state.selectedItemId}")
+        listState.animateScrollToItem(index = selectedIndex, scrollOffset = -with(density) { 24.dp.roundToPx() })
+        delay(1600)
+        if (!listState.isScrollInProgress) {
+            onExpandedChange(false)
+        }
+    }
     GlassSurface(
         modifier = modifier,
         shape = RoundedCornerShape(28.dp),
@@ -479,7 +563,10 @@ private fun InlineCompactTopBarTabsRail(
                 Text(
                     text = item.title,
                     modifier = Modifier
-                        .clickable { state.onItemSelected(item.id) }
+                        .clickable {
+                            restoreRequest += 1
+                            state.onItemSelected(item.id)
+                        }
                         .padding(horizontal = 5.dp, vertical = 2.dp),
                     style = MaterialTheme.typography.labelMedium,
                     color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -506,7 +593,9 @@ fun CompactTopBarFilterRail(
     }
     LazyRow(
         state = listState,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(CompactTopFilterRailHeight),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
         contentPadding = PaddingValues(horizontal = 12.dp),

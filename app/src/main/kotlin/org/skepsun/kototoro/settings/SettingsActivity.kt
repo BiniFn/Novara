@@ -644,17 +644,42 @@ class SettingsActivity :
 		if (view == null) return
 
 		view.tag = tag
-		val maxActionWidth = (420 * resources.displayMetrics.density).toInt()
-		val actionWidth = (resources.displayMetrics.widthPixels * 0.36f).toInt()
-			.coerceAtMost(maxActionWidth)
+		val actionWidth = if (fillAvailableWidth) {
+			ViewGroup.LayoutParams.MATCH_PARENT
+		} else {
+			val maxActionWidth = (420 * resources.displayMetrics.density).toInt()
+			(resources.displayMetrics.widthPixels * 0.36f).toInt().coerceAtMost(maxActionWidth)
+		}
 		toolbar.addView(
 			view,
 			androidx.appcompat.widget.Toolbar.LayoutParams(
-				if (fillAvailableWidth) ViewGroup.LayoutParams.MATCH_PARENT else actionWidth,
+				actionWidth,
 				ViewGroup.LayoutParams.MATCH_PARENT,
 				Gravity.END or Gravity.CENTER_VERTICAL,
 			),
 		)
+	}
+
+	private fun updateUnifiedSourcesToolbarForSearch(searchActive: Boolean) {
+		if (composeDestination !is SettingsDestination.UnifiedSources) {
+			return
+		}
+		setTitle(
+			if (searchActive) {
+				null
+			} else {
+				composeDestinationTitle(composeDestination ?: return)
+			},
+		)
+		(0 until (viewBinding.toolbarDetail ?: viewBinding.toolbar).childCount)
+			.map { (viewBinding.toolbarDetail ?: viewBinding.toolbar).getChildAt(it) }
+			.firstOrNull { it.tag == "section_toolbar_actions" }
+			?.let { setSectionToolbarActions(it, fillAvailableWidth = searchActive) }
+	}
+
+	private fun updateUnifiedSourcesSearchActive(active: Boolean) {
+		unifiedSourcesSearchActive = active
+		updateUnifiedSourcesToolbarForSearch(active)
 	}
 
 	@Composable
@@ -928,7 +953,7 @@ class SettingsActivity :
 	) {
 		viewModel.discardSearch()
 		if (destination !is SettingsDestination.UnifiedSources) {
-			unifiedSourcesSearchActive = false
+			updateUnifiedSourcesSearchActive(false)
 			unifiedSourcesActivePanel = null
 			setSectionToolbarActions(null)
 		}
@@ -983,7 +1008,7 @@ class SettingsActivity :
 				sourcesSettingsViewModel.refreshLinksEnabled()
 			}
 			is SettingsDestination.UnifiedSources -> {
-				unifiedSourcesSearchActive = false
+				updateUnifiedSourcesSearchActive(false)
 				unifiedSourcesActivePanel = null
 			}
 			SettingsDestination.SuggestionsSettings -> {
@@ -1430,14 +1455,14 @@ class SettingsActivity :
 			is SettingsDestination.UnifiedSources -> {
 				val readyState by unifiedSourcesViewModel.uiState.collectAsStateWithLifecycle()
 				SectionToolbarActionsEffect(
-					fillAvailableWidth = isMasterDetails && unifiedSourcesSearchActive,
+					fillAvailableWidth = unifiedSourcesSearchActive,
 				) {
 					UnifiedSourcesToolbarActions(
 						readyState = readyState as? org.skepsun.kototoro.settings.sources.unified.UnifiedSourcesUiState.Ready,
 						searchActive = unifiedSourcesSearchActive,
-						onSearchClick = { unifiedSourcesSearchActive = true },
+						onSearchClick = { updateUnifiedSourcesSearchActive(true) },
 						onSearchClose = {
-							unifiedSourcesSearchActive = false
+							updateUnifiedSourcesSearchActive(false)
 							unifiedSourcesViewModel.setSearchQuery("")
 						},
 						onSearchQueryChange = unifiedSourcesViewModel::setSearchQuery,
@@ -1456,7 +1481,7 @@ class SettingsActivity :
 				) {
 					UnifiedSourcesRoute(
 						searchActive = unifiedSourcesSearchActive,
-						onSearchActiveChange = { unifiedSourcesSearchActive = it },
+						onSearchActiveChange = ::updateUnifiedSourcesSearchActive,
 						activePanel = unifiedSourcesActivePanel,
 						onActivePanelChange = { unifiedSourcesActivePanel = it },
 						initialAddRepositoryKind = destination.initialRepositoryKind,

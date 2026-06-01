@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.favourites.ui.compose
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -31,6 +32,9 @@ import org.skepsun.kototoro.main.ui.compose.CompactTabsTopBarOverrideState
 import org.skepsun.kototoro.main.ui.compose.CompactTopBarTabItem
 import org.skepsun.kototoro.main.ui.compose.TopBarOverrideState
 import org.skepsun.kototoro.parsers.model.Content
+
+private const val FavoritesAutofilterLogTag = "FavoritesAutofilter"
+private const val MainRouteFlickerLogTag = "MainRouteFlicker"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -105,8 +109,12 @@ fun KototoroFavoritesHostRoute(
     var childTopBarOverrideGeneration by remember { mutableIntStateOf(-1) }
     var childFilterRailOverrideGeneration by remember { mutableIntStateOf(-1) }
     var activeChildOverrideGeneration by remember { mutableIntStateOf(0) }
+    var lastActiveCategoryId by remember { mutableStateOf<Long?>(null) }
+    var lastStableChildFilterRailOverrideState by remember { mutableStateOf<CompactFilterRailOverrideState?>(null) }
     val allFavouritesLabel = stringResource(R.string.all_favourites)
-    val activeCategoryId = displayCategories.getOrNull(pagerState.currentPage)?.id
+    val activePage = pagerState.settledPage.coerceIn(0, (displayCategories.size - 1).coerceAtLeast(0))
+    val selectedTabsPage = pagerState.targetPage.coerceIn(0, (displayCategories.size - 1).coerceAtLeast(0))
+    val activeCategoryId = displayCategories.getOrNull(activePage)?.id
 
     val innerPadding = PaddingValues(
         start = contentPadding.calculateStartPadding(androidx.compose.ui.platform.LocalLayoutDirection.current),
@@ -115,6 +123,23 @@ fun KototoroFavoritesHostRoute(
         bottom = contentPadding.calculateBottomPadding(),
     )
 
+    LaunchedEffect(
+        uiState.isLoading,
+        uiState.isEmpty,
+        uiState.categories.size,
+        displayCategories.size,
+        activeCategoryId,
+        contentPadding,
+    ) {
+        Log.d(
+            MainRouteFlickerLogTag,
+            "favorites host state loading=${uiState.isLoading} empty=${uiState.isEmpty} " +
+                "categories=${uiState.categories.size} displayCategories=${displayCategories.size} " +
+                "active=$activeCategoryId currentPage=${pagerState.currentPage} settledPage=${pagerState.settledPage} " +
+                "paddingTop=${contentPadding.calculateTopPadding()} " +
+                "paddingBottom=${contentPadding.calculateBottomPadding()}",
+        )
+    }
     LaunchedEffect(displayCategories, initialCategoryId, initialSelectionApplied) {
         if (initialSelectionApplied || displayCategories.isEmpty()) {
             return@LaunchedEffect
@@ -126,13 +151,30 @@ fun KototoroFavoritesHostRoute(
         initialSelectionApplied = true
     }
 
-    LaunchedEffect(activeCategoryId, uiState.isLoading, uiState.isEmpty) {
-        activeChildOverrideGeneration += 1
+    LaunchedEffect(activeCategoryId) {
+        val previousActiveCategoryId = lastActiveCategoryId
+        if (previousActiveCategoryId == activeCategoryId) {
+            return@LaunchedEffect
+        }
+        lastActiveCategoryId = activeCategoryId
+        if (previousActiveCategoryId == null) {
+            Log.d(
+                FavoritesAutofilterLogTag,
+                "host activeCategoryInitial active=$activeCategoryId generation=$activeChildOverrideGeneration",
+            )
+            return@LaunchedEffect
+        }
+        val nextGeneration = activeChildOverrideGeneration + 1
+        Log.d(
+            FavoritesAutofilterLogTag,
+            "host activeCategoryChanged previous=$previousActiveCategoryId active=$activeCategoryId generation=$nextGeneration",
+        )
+        activeChildOverrideGeneration = nextGeneration
         childTopBarOverrideState = null
         childFilterRailOverrideState = null
     }
 
-    val compactTabsState = remember(displayCategories, pagerState.currentPage) {
+    val compactTabsState = remember(displayCategories, selectedTabsPage) {
         CompactTabsTopBarOverrideState(
             items = displayCategories.map {
                 CompactTopBarTabItem(
@@ -140,13 +182,30 @@ fun KototoroFavoritesHostRoute(
                     title = if (it.id == NO_ID) allFavouritesLabel else (it.title ?: ""),
                 )
             },
-            selectedItemId = displayCategories.getOrNull(pagerState.currentPage)?.id ?: NO_ID,
+            selectedItemId = displayCategories.getOrNull(selectedTabsPage)?.id ?: NO_ID,
             onItemSelected = { categoryId ->
                 val targetPage = displayCategories.indexOfFirst { it.id == categoryId }
                 if (targetPage >= 0) {
                     coroutineScope.launch { pagerState.animateScrollToPage(targetPage) }
                 }
             },
+        )
+    }
+    LaunchedEffect(
+        pagerState.currentPage,
+        pagerState.settledPage,
+        pagerState.targetPage,
+        activePage,
+        selectedTabsPage,
+        activeCategoryId,
+        compactTabsState.selectedItemId,
+    ) {
+        Log.d(
+            FavoritesAutofilterLogTag,
+            "host pager current=${pagerState.currentPage} settled=${pagerState.settledPage} target=${pagerState.targetPage} " +
+                "activePage=$activePage selectedTabsPage=$selectedTabsPage " +
+                "activeCategory=$activeCategoryId selectedTab=${compactTabsState.selectedItemId} " +
+                "tabs=${compactTabsState.items.size}",
         )
     }
 
@@ -160,25 +219,62 @@ fun KototoroFavoritesHostRoute(
             !uiState.isEmpty &&
             childFilterRailOverrideGeneration == activeChildOverrideGeneration
     }
+    if (effectiveChildFilterRailOverrideState != null) {
+        lastStableChildFilterRailOverrideState = effectiveChildFilterRailOverrideState
+    }
+    val topBarFilterRailOverrideState = effectiveChildFilterRailOverrideState ?: lastStableChildFilterRailOverrideState
+
+    LaunchedEffect(
+        activeCategoryId,
+        uiState.isLoading,
+        uiState.isEmpty,
+        childFilterRailOverrideState,
+        effectiveChildFilterRailOverrideState,
+        childFilterRailOverrideGeneration,
+        activeChildOverrideGeneration,
+    ) {
+        Log.d(
+            FavoritesAutofilterLogTag,
+            "host resolve active=$activeCategoryId loading=${uiState.isLoading} empty=${uiState.isEmpty} " +
+                "rawRailItems=${childFilterRailOverrideState?.items?.size ?: -1} " +
+                "effectiveRailItems=${effectiveChildFilterRailOverrideState?.items?.size ?: -1} " +
+                "childGen=$childFilterRailOverrideGeneration activeGen=$activeChildOverrideGeneration",
+        )
+    }
 
     val favoritesTopBarOverrideState = remember(
         compactTabsState,
-        effectiveChildFilterRailOverrideState,
         effectiveChildTopBarOverrideState,
     ) {
         FavoritesTopBarOverrideState(
             tabsState = compactTabsState,
-            filterRailState = effectiveChildFilterRailOverrideState,
             contextualOverrideState = effectiveChildTopBarOverrideState,
         )
     }
 
     SideEffect {
+        if (uiState.isLoading) {
+            Log.d(
+                FavoritesAutofilterLogTag,
+                "host skipEmitLoading active=$activeCategoryId tabs=${favoritesTopBarOverrideState.tabsState.items.size} " +
+                    "railItems=${favoritesTopBarOverrideState.filterRailState?.items?.size ?: -1}",
+            )
+            return@SideEffect
+        }
+        Log.d(
+            FavoritesAutofilterLogTag,
+            "host emit active=$activeCategoryId tabs=${favoritesTopBarOverrideState.tabsState.items.size} " +
+                "railItems=${favoritesTopBarOverrideState.filterRailState?.items?.size ?: -1} " +
+                "rawRailItems=${effectiveChildFilterRailOverrideState?.items?.size ?: -1} " +
+                "contextual=${favoritesTopBarOverrideState.contextualOverrideState?.javaClass?.simpleName}",
+        )
         onTopBarOverrideChanged(favoritesTopBarOverrideState)
     }
 
     DisposableEffect(Unit) {
-        onDispose { onTopBarOverrideChanged(null) }
+        onDispose {
+            Log.d(FavoritesAutofilterLogTag, "host dispose keep routeScopedState active=$activeCategoryId")
+        }
     }
 
     if (uiState.isLoading) {
@@ -205,7 +301,7 @@ fun KototoroFavoritesHostRoute(
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             val category = displayCategories.getOrNull(page)
             if (category != null) {
-                val enabled = page == pagerState.currentPage
+                val enabled = page == activePage
                 KototoroFavoritesListScreen(
                     categoryId = category.id,
                     appRouter = appRouter,
@@ -214,16 +310,25 @@ fun KototoroFavoritesHostRoute(
                     sharedTransitionEnabled = enabled,
                     isActivePage = enabled,
                     onTopBarOverrideChanged = { overrideState ->
-                        if (enabled && category.id == activeCategoryId) {
+                        val accepted = enabled && category.id == activeCategoryId
+                        Log.d(
+                            FavoritesAutofilterLogTag,
+                            "host childTopBar category=${category.id} active=$activeCategoryId enabled=$enabled " +
+                                "accepted=$accepted state=${overrideState?.javaClass?.simpleName} " +
+                                "generation=$activeChildOverrideGeneration",
+                        )
+                        if (accepted) {
                             childTopBarOverrideState = overrideState
                             childTopBarOverrideGeneration = activeChildOverrideGeneration
                         }
                     },
                     onFilterRailOverrideChanged = { overrideState ->
-                        if (enabled && category.id == activeCategoryId) {
-                            childFilterRailOverrideState = overrideState
-                            childFilterRailOverrideGeneration = activeChildOverrideGeneration
-                        }
+                        Log.d(
+                            FavoritesAutofilterLogTag,
+                            "host childRail category=${category.id} active=$activeCategoryId enabled=$enabled " +
+                                "accepted=false inline=true railItems=${overrideState?.items?.size ?: -1} " +
+                                "generation=$activeChildOverrideGeneration",
+                        )
                     },
                 )
             }
