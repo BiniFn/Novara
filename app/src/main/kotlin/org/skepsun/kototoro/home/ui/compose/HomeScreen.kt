@@ -83,7 +83,6 @@ import java.util.Locale
 import kotlin.math.absoluteValue
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.compose.HeroAutoAdvanceEffect
-import org.skepsun.kototoro.core.ui.compose.HeroPagerIndicator
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
@@ -420,7 +419,6 @@ private fun HomeHeroSection(
 ) {
     if (entries.isEmpty()) return
     val pagerState = rememberPagerState(pageCount = { entries.size })
-    val hasIndicator = entries.size > 1
     val selectedIndex by remember(entries, pagerState) {
         derivedStateOf { pagerState.currentPage.coerceIn(0, entries.lastIndex) }
     }
@@ -463,7 +461,7 @@ private fun HomeHeroSection(
             ) { page ->
                 HomeHeroCard(
                     entry = entries[page],
-                    bottomInset = if (hasIndicator) 28.dp else 10.dp,
+                    bottomInset = 10.dp,
                     posterWidth = 82.dp,
                     posterHeight = 114.dp,
                     panoramaPrefs = panoramaPrefs,
@@ -495,24 +493,6 @@ private fun HomeHeroSection(
             }
         }
 
-        if (hasIndicator) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                HeroPagerIndicator(
-                    pageCount = entries.size,
-                    currentPage = selectedIndex,
-                )
-                HomeBadge(
-                    text = "${selectedIndex + 1}/${entries.size}",
-                    iconRes = entries[selectedIndex].kind.iconRes,
-                )
-            }
-        }
     }
 }
 
