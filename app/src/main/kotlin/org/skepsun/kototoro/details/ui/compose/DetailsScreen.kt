@@ -146,7 +146,10 @@ import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.observeAsState
+import org.skepsun.kototoro.core.ui.compose.LocalHeroTransitionInProgress
 import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
+import org.skepsun.kototoro.core.ui.compose.logHeroTransition
+import org.skepsun.kototoro.core.ui.compose.sharedCoverMemoryCacheKey
 import org.skepsun.kototoro.core.util.FoldableUtils
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
@@ -646,6 +649,12 @@ fun DetailsScreen(
 
     val detailsHazeState = remember { HazeState() }
     val useBackgroundHaze = remember { Build.VERSION.SDK_INT >= Build.VERSION_CODES.S }
+    val heroTransitionInProgress = LocalHeroTransitionInProgress.current
+    LaunchedEffect(heroTransitionInProgress, content?.title, mangaDetails?.id) {
+        logHeroTransition(
+            "details lightweight=$heroTransitionInProgress title=${content?.title ?: "unknown"} detailsId=${mangaDetails?.id}",
+        )
+    }
 
     CompositionLocalProvider(LocalHazeState provides detailsHazeState) {
         Box(
@@ -661,18 +670,17 @@ fun DetailsScreen(
                         .matchParentSize()
                         .background(MaterialTheme.colorScheme.surface),
                 )
-                if (panoramaPrefs.isEnabled) {
+                if (panoramaPrefs.isEnabled && !heroTransitionInProgress) {
                     val panoramaCoverUrl = mangaDetails?.coverUrl?.takeIf { it.isNotBlank() }
                         ?: content?.largeCoverUrl?.takeIf { it.isNotBlank() }
                         ?: content?.coverUrl?.takeIf { it.isNotBlank() }
                     if (panoramaCoverUrl != null) {
                         val request = remember(content?.source?.name, content?.url, panoramaCoverUrl) {
-                            val cacheKey = stableDetailsImageCacheKey(
-                                "details-panorama",
-                                content?.source?.name,
-                                content?.url,
-                                panoramaCoverUrl,
-                            )
+                            val cacheKey = sharedCoverMemoryCacheKey(
+                                sourceName = content?.source?.name,
+                                ownerKey = content?.url,
+                                url = panoramaCoverUrl,
+                            )?.let { "${it}#panorama" }
                             ImageRequest.Builder(context)
                                 .data(panoramaCoverUrl)
                                 .memoryCacheKey(cacheKey)
@@ -914,6 +922,7 @@ fun DetailsScreen(
                                     contentPadding = paddingValues,
                                     headerTopSpacing = if (panoramaPrefs.isEnabled) panoramaExtraHeightDp else 0.dp,
                                     bottomSpacerHeight = 40.dp,
+                                    preferLightweightFirstFrame = heroTransitionInProgress,
                                     mangaDetails = mangaDetails,
                                     favouriteCategories = favouriteCategories,
                                     historyInfo = historyInfo,
@@ -1086,6 +1095,7 @@ fun DetailsScreen(
                                 contentPadding = paddingValues,
                                 headerTopSpacing = detailsHeaderTopSpacing,
                                 bottomSpacerHeight = compactPaneCollapsedHeight + 28.dp,
+                                preferLightweightFirstFrame = heroTransitionInProgress,
                                 mangaDetails = mangaDetails,
                                 favouriteCategories = favouriteCategories,
                                 historyInfo = historyInfo,
@@ -1975,6 +1985,7 @@ private fun DetailsScrollableContent(
     contentPadding: PaddingValues = PaddingValues(0.dp),
     headerTopSpacing: androidx.compose.ui.unit.Dp = 0.dp,
     bottomSpacerHeight: androidx.compose.ui.unit.Dp,
+    preferLightweightFirstFrame: Boolean = false,
     pendingTagSearch: (ContentTag) -> Unit,
     pendingAuthorSearch: (String, ContentSource) -> Unit,
     onInfoCardTopSync: (Float) -> Unit,
@@ -1995,7 +2006,10 @@ private fun DetailsScrollableContent(
 ) {
     val context = LocalContext.current
     val source = content?.source
-    val visibleSupplementalSections = remember(supplementalSections, entityRelationSections) {
+    val visibleSupplementalSections = remember(preferLightweightFirstFrame, supplementalSections, entityRelationSections) {
+        if (preferLightweightFirstFrame) {
+            return@remember emptyList()
+        }
         val hasEntityCharacterSection = entityRelationSections.any { it.titleRes == R.string.entity_graph_section_characters }
         if (hasEntityCharacterSection) {
             supplementalSections.filterNot { it.titleRes == R.string.entity_graph_section_characters }
@@ -2108,7 +2122,7 @@ private fun DetailsScrollableContent(
                 onActionClick(DetailsAction.ManageTrackingBinding(match.service, match.remoteId, match.title, match.url))
             },
         )
-        if (supplementalMetadataProperties.isNotEmpty()) {
+        if (!preferLightweightFirstFrame && supplementalMetadataProperties.isNotEmpty()) {
             DetailsSupplementMetadataCard(properties = supplementalMetadataProperties)
         }
         if (visibleSupplementalSections.isNotEmpty()) {
@@ -2131,7 +2145,7 @@ private fun DetailsScrollableContent(
                 },
             )
         }
-        if (entityRelationSections.isNotEmpty()) {
+        if (!preferLightweightFirstFrame && entityRelationSections.isNotEmpty()) {
             DetailsRelationSections(
                 sections = entityRelationSections,
                 onItemClick = { item ->
@@ -2969,21 +2983,6 @@ internal fun DetailsDockActionButton(
             )
         }
     }
-}
-
-private fun stableDetailsImageCacheKey(
-    prefix: String,
-    sourceName: String?,
-    ownerKey: String?,
-    url: String,
-): String = buildString {
-    append(prefix)
-    append('#')
-    append(sourceName.orEmpty())
-    append('#')
-    append(ownerKey.orEmpty())
-    append('#')
-    append(url)
 }
 
 sealed interface DetailsAction {

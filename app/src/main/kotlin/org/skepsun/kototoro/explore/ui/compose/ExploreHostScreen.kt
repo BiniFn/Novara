@@ -101,13 +101,17 @@ import org.skepsun.kototoro.core.ui.compose.ContentSourceResolvedIcon
 import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
 import org.skepsun.kototoro.core.ui.compose.rememberRailAnimationFactor
 import org.skepsun.kototoro.core.ui.compose.KototoroPullToRefreshBox
+import org.skepsun.kototoro.core.ui.compose.LocalHeroTransitionInProgress
 import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
 import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
 import org.skepsun.kototoro.core.ui.compose.VerticalRailAnimatedVisibility
 import org.skepsun.kototoro.core.ui.compose.clearFailedContentSourceIcons
 import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
 import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
+import org.skepsun.kototoro.core.ui.compose.HeroCoverSnapshotStore
+import org.skepsun.kototoro.core.ui.compose.logHeroTransition
 import org.skepsun.kototoro.core.ui.compose.rememberHorizontalRailScrollIntensity
+import org.skepsun.kototoro.core.ui.compose.sharedCoverMemoryCacheKey
 import org.skepsun.kototoro.core.ui.compose.rememberVerticalRailScrollIntensity
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.core.ui.compose.unclippedBoundsInWindow
@@ -1752,6 +1756,7 @@ private fun BrowsePopularListItem(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val heroTransitionInProgress = LocalHeroTransitionInProgress.current
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
     val backgroundRequest = remember(item.coverUrl, item.id, panoramaCoverBlur) {
@@ -1769,13 +1774,24 @@ private fun BrowsePopularListItem(
             coverUrl = item.coverUrl,
             content = item.manga,
             size = 320,
+            sharedMemoryCacheKey = sharedCoverMemoryCacheKey(
+                sourceName = item.manga.source.name,
+                ownerKey = item.manga.url,
+                url = item.coverUrl,
+            ),
+            crossfadeEnabled = !heroTransitionInProgress,
         )
     }
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clickable(
+                onClick = {
+                    logHeroTransition("explore_popular_click title=${item.title} sharedKey=$sharedElementKey")
+                    onClick()
+                },
+            ),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.16f),
         tonalElevation = 1.dp,
@@ -1845,6 +1861,9 @@ private fun BrowsePopularListItem(
                         contentDescription = item.title,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
+                        onSuccess = { state ->
+                            HeroCoverSnapshotStore.put(sharedElementKey, state.result.image)
+                        },
                     )
                     item.scoreText?.takeIf { it.isNotBlank() }?.let { scoreText ->
                         Surface(
@@ -1933,6 +1952,7 @@ private fun TrackingCompactPoster(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val heroTransitionInProgress = LocalHeroTransitionInProgress.current
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
     val imageRequest = remember(item.coverUrl, item.id) {
@@ -1941,6 +1961,12 @@ private fun TrackingCompactPoster(
             coverUrl = item.coverUrl,
             content = item.manga,
             size = 320,
+            sharedMemoryCacheKey = sharedCoverMemoryCacheKey(
+                sourceName = item.manga.source.name,
+                ownerKey = item.manga.url,
+                url = item.coverUrl,
+            ),
+            crossfadeEnabled = !heroTransitionInProgress,
         )
     }
 
@@ -1948,7 +1974,12 @@ private fun TrackingCompactPoster(
         modifier = modifier
             .width(posterStyle.itemWidth)
             .height(posterStyle.posterHeight + 32.dp)
-            .clickable(onClick = onClick),
+            .clickable(
+                onClick = {
+                    logHeroTransition("explore_tracking_click title=${item.title} sharedKey=$sharedElementKey")
+                    onClick()
+                },
+            ),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
@@ -1973,6 +2004,9 @@ private fun TrackingCompactPoster(
                 contentDescription = item.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
+                onSuccess = { state ->
+                    HeroCoverSnapshotStore.put(sharedElementKey, state.result.image)
+                },
             )
             item.scoreText?.takeIf { it.isNotBlank() }?.let { scoreText ->
                 Surface(
@@ -2137,12 +2171,18 @@ private fun buildExploreCoverRequest(
     content: org.skepsun.kototoro.parsers.model.Content,
     size: Int? = null,
     blurPercent: Int = 0,
+    sharedMemoryCacheKey: String? = null,
+    crossfadeEnabled: Boolean = true,
 ): ImageRequest {
     val builder = ImageRequest.Builder(context)
         .data(normalizeExploreCoverUrl(coverUrl))
         .mangaExtra(content)
-        .crossfade(true)
+        .crossfade(crossfadeEnabled)
         .panoramaBlur(blurPercent)
+    if (sharedMemoryCacheKey != null) {
+        builder.memoryCacheKey(sharedMemoryCacheKey)
+        builder.diskCacheKey(sharedMemoryCacheKey)
+    }
     if (size != null) {
         builder.size(size)
     }

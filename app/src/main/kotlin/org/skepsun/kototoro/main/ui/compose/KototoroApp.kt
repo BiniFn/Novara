@@ -31,6 +31,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -85,8 +86,12 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.mutableLongStateOf
 import org.skepsun.kototoro.core.ui.compose.LocalRailAnimationFactor
+import org.skepsun.kototoro.core.ui.compose.LocalHeroTransitionInProgress
 import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
+import org.skepsun.kototoro.core.ui.compose.heroTransitionTimestampMs
+import org.skepsun.kototoro.core.ui.compose.logHeroTransition
 import org.skepsun.kototoro.core.ui.compose.rememberRailAnimationFactor
 import kotlinx.coroutines.delay
 import org.skepsun.kototoro.main.ui.compose.CompactFilterRailOverrideState
@@ -426,6 +431,7 @@ fun KototoroApp(
     }
     var isChromeVisible by rememberSaveable { mutableStateOf(shouldShowChrome && !isDetailsRoute) }
     var lastResolvedWasDetailsRoute by rememberSaveable { mutableStateOf(isDetailsRoute) }
+    var lastHeroTransitionStartedAtMs by remember { mutableLongStateOf(0L) }
     LaunchedEffect(currentDestination, shouldShowChrome, isDetailsRoute, isDetailsChromeTransitionPending) {
         if (currentDestination == null) {
             return@LaunchedEffect
@@ -461,6 +467,35 @@ fun KototoroApp(
                 isDetailsChromeTransitionPending = false
             }
         }
+    }
+    val heroTransitionInProgress by produceState(
+        initialValue = false,
+        isDetailsChromeTransitionPending,
+        isDetailsRoute,
+        lastHeroTransitionStartedAtMs,
+    ) {
+        if (!isDetailsRoute && !isDetailsChromeTransitionPending) {
+            value = false
+            return@produceState
+        }
+        if (lastHeroTransitionStartedAtMs == 0L) {
+            value = isDetailsChromeTransitionPending
+            return@produceState
+        }
+        value = isDetailsChromeTransitionPending || isDetailsRoute
+        val elapsed = heroTransitionTimestampMs() - lastHeroTransitionStartedAtMs
+        if (elapsed < 420L) {
+            value = true
+            delay(420L - elapsed)
+        }
+        value = false
+    }
+    LaunchedEffect(heroTransitionInProgress, isDetailsRoute, lastHeroTransitionStartedAtMs) {
+        if (lastHeroTransitionStartedAtMs == 0L) return@LaunchedEffect
+        val elapsed = heroTransitionTimestampMs() - lastHeroTransitionStartedAtMs
+        logHeroTransition(
+            "window active=$heroTransitionInProgress isDetailsRoute=$isDetailsRoute elapsed=${elapsed}ms",
+        )
     }
     val scrollAlpha = if (!isChromeVisible) 0f else {
         val maxCollapse = topBarHeightPx.toFloat()
@@ -634,6 +669,7 @@ fun KototoroApp(
                 )) {
                 SharedTransitionLayout {
                     CompositionLocalProvider(
+                        LocalHeroTransitionInProgress provides heroTransitionInProgress,
                         LocalSharedTransitionScope provides if (isSharedElementTransitionsEnabled) {
                             this@SharedTransitionLayout
                         } else {
@@ -650,6 +686,10 @@ fun KototoroApp(
                             pageSaveHelper = pageSaveHelper,
                             onDetailsTransitionRequested = {
                                 isDetailsChromeTransitionPending = true
+                                lastHeroTransitionStartedAtMs = heroTransitionTimestampMs()
+                                logHeroTransition(
+                                    "navigate_to_details started route=${currentDestination?.route ?: "unknown"}",
+                                )
                             },
                             onExploreSourceSelectionTopBarChanged = { overrideState ->
                                 when (overrideState) {

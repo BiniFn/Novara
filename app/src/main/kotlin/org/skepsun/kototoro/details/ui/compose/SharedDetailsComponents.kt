@@ -22,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,12 +30,23 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil3.ImageLoader
+import coil3.asDrawable
 import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
+import coil3.memory.MemoryCache
 import org.skepsun.kototoro.R
+import dagger.hilt.android.EntryPointAccessors
+import org.skepsun.kototoro.core.BaseApp
+import org.skepsun.kototoro.core.ui.compose.HeroCoverSnapshotStore
+import org.skepsun.kototoro.core.ui.compose.logHeroTransition
+import org.skepsun.kototoro.core.ui.compose.rememberDrawablePainter
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
+import org.skepsun.kototoro.core.ui.compose.sharedCoverMemoryCacheKey
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
 import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
@@ -47,6 +59,9 @@ fun DetailsCoverFrame(
     coverModel: Any?,
     contentDescription: String,
     showNsfwBadge: Boolean,
+    sourceName: String? = null,
+    ownerKey: String? = null,
+    coverUrl: String? = null,
     sharedElementKey: String? = null,
     topBadgeText: String? = null,
     @DrawableRes topBadgeIconRes: Int? = null,
@@ -54,22 +69,49 @@ fun DetailsCoverFrame(
     modifier: Modifier = Modifier,
     onState: ((coil3.compose.AsyncImagePainter.State) -> Unit)? = null,
 ) {
+    val context = LocalContext.current
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
+    val imageLoader = remember(context.applicationContext) {
+        EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            BaseApp.BaseAppEntryPoint::class.java,
+        ).imageLoader()
+    }
+    val cachedPlaceholder = remember(imageLoader, sourceName, ownerKey, coverUrl) {
+        val cacheKey = sharedCoverMemoryCacheKey(
+            sourceName = sourceName,
+            ownerKey = ownerKey,
+            url = coverUrl,
+        ) ?: return@remember null
+        imageLoader.memoryCache?.get(MemoryCache.Key(cacheKey))?.image?.also {
+            logHeroTransition("details_cover cache_hit key=$cacheKey")
+        } ?: run {
+            logHeroTransition("details_cover cache_miss key=$cacheKey")
+            null
+        }
+    }
+    val snapshotPlaceholder = remember(sharedElementKey) {
+        sharedElementKey?.let(HeroCoverSnapshotStore::get)
+    }
+    val sharedPlaceholder = cachedPlaceholder ?: snapshotPlaceholder
+    val cachedPainter = rememberDrawablePainter(sharedPlaceholder?.asDrawable(context.resources))
+    val enableSharedElement = sharedElementKey != null &&
+        sharedPlaceholder != null &&
+        sharedTransitionScope != null &&
+        animatedVisibilityScope != null
+
+    remember(sharedElementKey, enableSharedElement, cachedPlaceholder, snapshotPlaceholder) {
+        if (sharedElementKey != null && !enableSharedElement) {
+            logHeroTransition("details_cover shared_element_disabled reason=no_cached_cover key=$sharedElementKey")
+        } else if (sharedElementKey != null && cachedPlaceholder == null && snapshotPlaceholder != null) {
+            logHeroTransition("details_cover snapshot_fallback_hit key=$sharedElementKey")
+        }
+    }
 
     Box(
         modifier = modifier
             .width(132.dp)
-            .then(
-                if (sharedElementKey != null && sharedTransitionScope != null && animatedVisibilityScope != null) {
-                    with(sharedTransitionScope) {
-                        Modifier.sharedElement(
-                            rememberSharedContentState(key = sharedElementKey),
-                            animatedVisibilityScope = animatedVisibilityScope,
-                        )
-                    }
-                } else Modifier,
-            )
             .shadow(
                 elevation = 18.dp,
                 shape = MaterialTheme.shapes.large,
@@ -124,16 +166,41 @@ fun DetailsCoverFrame(
                 AsyncImage(
                     model = coverModel,
                     contentDescription = contentDescription,
+                    imageLoader = imageLoader,
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(13f / 18f)
+                        .then(
+                            if (enableSharedElement) {
+                                with(sharedTransitionScope) {
+                                    Modifier.sharedElement(
+                                        rememberSharedContentState(key = sharedElementKey),
+                                        animatedVisibilityScope = animatedVisibilityScope,
+                                    )
+                                }
+                            } else Modifier
+                        )
                         .clip(MaterialTheme.shapes.medium)
                         .background(
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
                             shape = MaterialTheme.shapes.medium,
                         ),
                     contentScale = ContentScale.Crop,
-                    onState = { state -> onState?.invoke(state) },
+                    placeholder = cachedPainter,
+                    error = cachedPainter,
+                    fallback = cachedPainter,
+                    onLoading = { state ->
+                        logHeroTransition("details_cover loading model=${coverModel?.hashCode()}")
+                        onState?.invoke(state)
+                    },
+                    onSuccess = { state ->
+                        logHeroTransition("details_cover success model=${coverModel?.hashCode()}")
+                        onState?.invoke(state)
+                    },
+                    onError = { state ->
+                        logHeroTransition("details_cover error model=${coverModel?.hashCode()}")
+                        onState?.invoke(state)
+                    },
                 )
             }
             if (!topBadgeText.isNullOrBlank()) {

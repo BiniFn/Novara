@@ -89,6 +89,7 @@ import org.skepsun.kototoro.core.prefs.ListMode
 import org.skepsun.kototoro.core.prefs.observeAsState
 import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
 import org.skepsun.kototoro.core.ui.compose.HorizontalRailAnimatedVisibility
+import org.skepsun.kototoro.core.ui.compose.HeroCoverSnapshotStore
 import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
 import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
 import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
@@ -614,6 +615,9 @@ private fun HomeHeroCard(
                     contentDescription = content.title,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
+                    onSuccess = { state ->
+                        HeroCoverSnapshotStore.put(sharedElementKey, state.result.image)
+                    },
                 )
                 if (content.isNsfw()) {
                     ContentCardNsfwBadge(
@@ -973,6 +977,9 @@ private fun HomeListRailRowItem(
                 contentDescription = content.title,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
+                onSuccess = { state ->
+                    HeroCoverSnapshotStore.put(sharedElementKey, state.result.image)
+                },
             )
             if (content.isNsfw()) {
                 ContentCardNsfwBadge(
@@ -1098,6 +1105,9 @@ private fun HomeCoverRowItem(
                 contentDescription = content.title,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
+                onSuccess = { state ->
+                    HeroCoverSnapshotStore.put(sharedElementKey, state.result.image)
+                },
             )
             if (content.isNsfw()) {
                 ContentCardNsfwBadge(

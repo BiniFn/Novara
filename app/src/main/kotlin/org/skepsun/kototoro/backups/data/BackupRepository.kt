@@ -35,6 +35,7 @@ import org.skepsun.kototoro.backups.data.model.SourceBackup
 import org.skepsun.kototoro.backups.data.model.StatisticBackup
 import org.skepsun.kototoro.backups.domain.BackupSection
 import org.skepsun.kototoro.core.db.MangaDatabase
+import org.skepsun.kototoro.core.db.entity.MangaPrefsEntity
 import org.skepsun.kototoro.core.db.entity.ExternalExtensionRepoEntity
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.util.CompositeResult
@@ -44,6 +45,7 @@ import org.skepsun.kototoro.explore.data.ContentSourcesRepository
 import org.skepsun.kototoro.filter.data.PersistableFilter
 import org.skepsun.kototoro.filter.data.SavedFiltersRepository
 import org.skepsun.kototoro.parsers.util.runCatchingCancellable
+import org.skepsun.kototoro.reader.domain.ReaderColorFilter
 import org.skepsun.kototoro.reader.data.TapGridSettings
 import org.skepsun.kototoro.settings.sources.unified.UnifiedRecommendedRepository
 import org.skepsun.kototoro.settings.sources.unified.UnifiedRecommendedRepositories
@@ -98,7 +100,12 @@ class BackupRepository @Inject constructor(
 
                 BackupSection.HISTORY -> output.writeJsonArray(
                     section = BackupSection.HISTORY,
-                    data = database.getHistoryDao().dump().map { HistoryBackup(it) },
+                    data = database.getHistoryDao().dump().map {
+                        HistoryBackup(
+                            entity = it,
+                            prefs = database.getPreferencesDao().find(it.manga.id),
+                        )
+                    },
                     serializer = serializer(),
                 )
 
@@ -110,7 +117,12 @@ class BackupRepository @Inject constructor(
 
                 BackupSection.FAVOURITES -> output.writeJsonArray(
                     section = BackupSection.FAVOURITES,
-                    data = database.getFavouritesDao().dump().map { FavouriteBackup(it) },
+                    data = database.getFavouritesDao().dump().map {
+                        FavouriteBackup(
+                            entity = it,
+                            prefs = database.getPreferencesDao().find(it.manga.id),
+                        )
+                    },
                     serializer = serializer(),
                 )
 
@@ -126,7 +138,13 @@ class BackupRepository @Inject constructor(
 
                 BackupSection.BOOKMARKS -> output.writeJsonArray(
                     section = BackupSection.BOOKMARKS,
-                    data = database.getBookmarksDao().dump().map { BookmarkBackup(it.first, it.second) },
+                    data = database.getBookmarksDao().dump().map {
+                        BookmarkBackup(
+                            manga = it.first,
+                            entities = it.second,
+                            prefs = database.getPreferencesDao().find(it.first.manga.id),
+                        )
+                    },
                     serializer = serializer(),
                 )
 
@@ -450,7 +468,44 @@ class BackupRepository @Inject constructor(
         val tags = manga.tags.map { it.toEntity() }
         getTagsDao().upsert(tags)
         getMangaDao().upsert(manga.toEntity(), tags)
+        if (manga.hasPrefsPayload()) {
+            val dao = getPreferencesDao()
+            val existing = dao.find(manga.id)
+            dao.upsert(
+                if (existing == null) {
+                    newPrefsEntity(manga)
+                } else {
+                    existing.copy(
+                        titleOverride = manga.titleOverride,
+                        coverUrlOverride = manga.coverUrlOverride,
+                        contentRatingOverride = manga.contentRatingOverride,
+                        metadataSourceKind = manga.metadataSourceKind,
+                        metadataSourceService = manga.metadataSourceService,
+                        metadataSourceRemoteId = manga.metadataSourceRemoteId,
+                    )
+                },
+            )
+        }
     }
+
+    private fun newPrefsEntity(manga: ContentBackup) = MangaPrefsEntity(
+        mangaId = manga.id,
+        mode = -1,
+        cfBrightness = ReaderColorFilter.EMPTY.brightness,
+        cfContrast = ReaderColorFilter.EMPTY.contrast,
+        cfInvert = ReaderColorFilter.EMPTY.isInverted,
+        cfGrayscale = ReaderColorFilter.EMPTY.isGrayscale,
+        cfBookEffect = ReaderColorFilter.EMPTY.isBookBackground,
+        titleOverride = manga.titleOverride,
+        coverUrlOverride = manga.coverUrlOverride,
+        contentRatingOverride = manga.contentRatingOverride,
+        metadataSourceKind = manga.metadataSourceKind,
+        metadataSourceService = manga.metadataSourceService,
+        metadataSourceRemoteId = manga.metadataSourceRemoteId,
+        readingStatus = null,
+        ignoredTrackingSuggestionService = null,
+        ignoredTrackingSuggestionRemoteId = null,
+    )
 
     private suspend inline fun <T> Sequence<T>.restoreToDb(crossinline block: suspend MangaDatabase.(T) -> Unit): CompositeResult {
         return fold(CompositeResult.EMPTY) { result, item ->

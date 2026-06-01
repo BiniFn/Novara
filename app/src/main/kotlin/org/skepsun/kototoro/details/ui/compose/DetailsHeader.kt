@@ -112,12 +112,14 @@ import org.skepsun.kototoro.core.model.getContentType
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.model.FavouriteCategory
 import org.skepsun.kototoro.core.model.ContentSourceInfo
+import org.skepsun.kototoro.core.ui.compose.LocalHeroTransitionInProgress
 import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
 import org.skepsun.kototoro.core.ui.compose.KototoroLoadingIndicator
 import org.skepsun.kototoro.core.ui.compose.KototoroLinearProgressIndicator
 import org.skepsun.kototoro.core.ui.compose.iconResForUi
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
+import org.skepsun.kototoro.core.ui.compose.sharedCoverMemoryCacheKey
 import org.skepsun.kototoro.core.ui.model.titleRes
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
@@ -207,6 +209,7 @@ fun DetailsHeader(
     onManageTrackingSuggestion: (org.skepsun.kototoro.tracking.discovery.domain.TrackingSiteMatchResult) -> Unit,
 ) {
     val context = LocalContext.current
+    val heroTransitionInProgress = LocalHeroTransitionInProgress.current
     val content = mangaDetails?.toContent()
     val originalTitle = content?.title.orEmpty()
     val displayTitle = translatedTitle ?: originalTitle
@@ -255,7 +258,15 @@ fun DetailsHeader(
         "-"
     }
     val localContent = mangaDetails?.local
-    val onDeviceSizeLabel by produceState<String?>(initialValue = null, key1 = localContent?.file?.absolutePath) {
+    val onDeviceSizeLabel by produceState<String?>(
+        initialValue = null,
+        key1 = localContent?.file?.absolutePath,
+        key2 = heroTransitionInProgress,
+    ) {
+        if (heroTransitionInProgress) {
+            value = null
+            return@produceState
+        }
         val file = localContent?.file
         value = if (file != null && file.exists()) {
             Formatter.formatFileSize(context, file.computeSize())
@@ -298,7 +309,11 @@ fun DetailsHeader(
 
     val coverModel = remember(content?.source?.name, content?.url, currentCoverUrl) {
         currentCoverUrl?.let {
-            val cacheKey = stableDetailsImageCacheKey("details-cover", content?.source?.name, content?.url, it)
+            val cacheKey = sharedCoverMemoryCacheKey(
+                sourceName = content?.source?.name,
+                ownerKey = content?.url,
+                url = it,
+            )
             ImageRequest.Builder(context)
                 .data(it)
                 .memoryCacheKey(cacheKey)
@@ -309,7 +324,9 @@ fun DetailsHeader(
         }
     }
     val isNsfw = content?.isNsfw() == true
-    val infoItems = buildList {
+    val infoItems = if (heroTransitionInProgress) {
+        emptyList()
+    } else buildList {
         content?.let {
             add(
                 DetailsInfoItem(
@@ -378,6 +395,9 @@ fun DetailsHeader(
                 coverModel = coverModel,
                 contentDescription = displayTitle,
                 showNsfwBadge = isNsfw,
+                sourceName = content?.source?.name,
+                ownerKey = content?.url,
+                coverUrl = currentCoverUrl,
                 sharedElementKey = sharedElementKey,
                 topBadgeText = ratingLabel,
                 topBadgeIconRes = R.drawable.ic_star_small,
@@ -422,7 +442,7 @@ fun DetailsHeader(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                if (supplementalActions.isNotEmpty()) {
+                if (!heroTransitionInProgress && supplementalActions.isNotEmpty()) {
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
@@ -499,7 +519,8 @@ fun DetailsHeader(
             }
         }
 
-        val showInfoCard = metadataSourceOptions.isNotEmpty() || readingSourceOptions.isNotEmpty() || infoItems.isNotEmpty()
+        val showInfoCard = !heroTransitionInProgress &&
+            (metadataSourceOptions.isNotEmpty() || readingSourceOptions.isNotEmpty() || infoItems.isNotEmpty())
         if (showInfoCard) {
             GlassSurface(
                 modifier = Modifier
@@ -622,51 +643,55 @@ fun DetailsHeader(
             }
         }
 
-        visibleTrackingSuggestion?.let { suggestion ->
+        if (!heroTransitionInProgress) {
+            visibleTrackingSuggestion?.let { suggestion ->
             TrackingSuggestionCard(
                 match = suggestion,
                 onBindClick = { onBindTrackingSuggestion(suggestion) },
                 onOpenClick = { onOpenTrackingSuggestion(suggestion) },
                 onIgnoreClick = { onIgnoreTrackingSuggestion(suggestion) },
             )
+            }
         }
 
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(
+        if (!heroTransitionInProgress) {
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(
-                    text = stringResource(R.string.description),
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                if (canExpandDescription) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Text(
-                        text = if (isDescriptionExpanded) stringResource(R.string.show_less) else stringResource(R.string.show_more),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.clickable { isDescriptionExpanded = !isDescriptionExpanded }
+                        text = stringResource(R.string.description),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    if (canExpandDescription) {
+                        Text(
+                            text = if (isDescriptionExpanded) stringResource(R.string.show_less) else stringResource(R.string.show_more),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.clickable { isDescriptionExpanded = !isDescriptionExpanded }
+                        )
+                    }
+                }
+                SelectionContainer {
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().clickable { if (canExpandDescription) isDescriptionExpanded = !isDescriptionExpanded },
+                        maxLines = if (isDescriptionExpanded) Int.MAX_VALUE else 3,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
-            SelectionContainer {
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().clickable { if (canExpandDescription) isDescriptionExpanded = !isDescriptionExpanded },
-                    maxLines = if (isDescriptionExpanded) Int.MAX_VALUE else 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
         }
 
-        if (!content?.tags.isNullOrEmpty()) {
+        if (!heroTransitionInProgress && !content?.tags.isNullOrEmpty()) {
             CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 24.dp) {
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     FlowRow(
@@ -1251,12 +1276,11 @@ private fun SourceOptionCard(
                 when {
                     !displayModel.coverUrl.isNullOrBlank() -> {
                         val cacheKey = remember(displayModel.source?.name, displayModel.coverUrl) {
-                            stableDetailsImageCacheKey(
-                                "details-source-cover",
-                                displayModel.source?.name,
-                                displayModel.title,
-                                displayModel.coverUrl,
-                            )
+                            sharedCoverMemoryCacheKey(
+                                sourceName = displayModel.source?.name,
+                                ownerKey = displayModel.title,
+                                url = displayModel.coverUrl,
+                            )?.let { "${it}#details-source-cover" }
                         }
                         AsyncImage(
                             model = ImageRequest.Builder(LocalContext.current)
@@ -1374,21 +1398,6 @@ private fun SourceOptionCard(
             }
         }
     }
-}
-
-private fun stableDetailsImageCacheKey(
-    prefix: String,
-    sourceName: String?,
-    ownerKey: String?,
-    url: String,
-): String = buildString {
-    append(prefix)
-    append('#')
-    append(sourceName.orEmpty())
-    append('#')
-    append(ownerKey.orEmpty())
-    append('#')
-    append(url)
 }
 
 private fun supportedStatusesForService(service: ScrobblerService): List<ScrobblingStatus> {

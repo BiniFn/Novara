@@ -48,6 +48,7 @@ import org.skepsun.kototoro.core.ui.compose.rememberRailAnimationFactor
 import org.skepsun.kototoro.core.ui.compose.unclippedBoundsInWindow
 import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
 import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
+import org.skepsun.kototoro.core.ui.compose.HeroCoverSnapshotStore
 
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.list.ui.compose.ContentCardCornerBadges
@@ -191,6 +192,9 @@ private fun FeedUpdatedPosterCard(
 				contentDescription = model.title,
 				modifier = Modifier.fillMaxSize(),
 				contentScale = ContentScale.Crop,
+				onSuccess = { state ->
+					HeroCoverSnapshotStore.put(sharedElementKey, state.result.image)
+				},
 			)
 			if ("nsfw" in badgesBottomRight) {
 				ContentCardCornerBadges(

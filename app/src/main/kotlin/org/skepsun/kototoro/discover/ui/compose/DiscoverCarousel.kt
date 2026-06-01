@@ -43,6 +43,7 @@ import org.skepsun.kototoro.core.ui.compose.rememberRailAnimationFactor
 import org.skepsun.kototoro.core.ui.compose.compactPosterRailCardStyle
 import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
+import org.skepsun.kototoro.core.ui.compose.HeroCoverSnapshotStore
 import org.skepsun.kototoro.list.ui.compose.ContentCardCornerBadges
 import org.skepsun.kototoro.list.ui.compose.ContentCardNsfwBadge
 import org.skepsun.kototoro.list.ui.compose.asBadgeModel
@@ -184,6 +185,9 @@ private fun DiscoverPosterCard(
                 contentDescription = model.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.matchParentSize(),
+                onSuccess = { state ->
+                    HeroCoverSnapshotStore.put(sharedElementKey, state.result.image)
+                },
             )
             model.scoreText?.takeIf { it.isNotBlank() }?.let { scoreText ->
                 Surface(

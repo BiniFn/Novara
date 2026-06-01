@@ -39,6 +39,7 @@ import org.skepsun.kototoro.core.model.isNsfw
 import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
 import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
 import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
+import org.skepsun.kototoro.core.ui.compose.HeroCoverSnapshotStore
 import org.skepsun.kototoro.core.ui.compose.unclippedBoundsInWindow
 
 import org.skepsun.kototoro.list.ui.compose.ContentCardNsfwBadge
@@ -92,7 +93,10 @@ fun FeedItemCard(
 					.build(),
 				contentDescription = item.title,
 				contentScale = ContentScale.Crop,
-				modifier = Modifier.matchParentSize()
+				modifier = Modifier.matchParentSize(),
+				onSuccess = { state ->
+					HeroCoverSnapshotStore.put(sharedElementKey, state.result.image)
+				},
 			)
 			if (item.manga.isNsfw()) {
 				ContentCardNsfwBadge(

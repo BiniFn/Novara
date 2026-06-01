@@ -81,6 +81,7 @@ import org.skepsun.kototoro.core.ui.image.rememberPanoramaRequestSize
 import org.skepsun.kototoro.core.ui.compose.HeroAutoAdvanceEffect
 import org.skepsun.kototoro.core.ui.compose.unclippedBoundsInWindow
 import org.skepsun.kototoro.core.ui.compose.HeroPagerIndicator
+import org.skepsun.kototoro.core.ui.compose.LocalHeroTransitionInProgress
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.ui.compose.panoramaAnimationDurations
 import org.skepsun.kototoro.core.ui.compose.panoramaAnimationMotion
@@ -88,7 +89,10 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
 import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
 import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
+import org.skepsun.kototoro.core.ui.compose.HeroCoverSnapshotStore
+import org.skepsun.kototoro.core.ui.compose.logHeroTransition
 import org.skepsun.kototoro.core.ui.compose.rememberSafePainter
+import org.skepsun.kototoro.core.ui.compose.sharedCoverMemoryCacheKey
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
 import org.skepsun.kototoro.main.ui.compose.GlassDropdownMenu
@@ -97,6 +101,7 @@ import org.skepsun.kototoro.list.ui.model.secondaryTitleText
 import org.skepsun.kototoro.list.ui.model.supportingText
 import org.skepsun.kototoro.list.ui.model.buildInfoText
 import org.skepsun.kototoro.scrobbling.common.domain.model.ScrobblerService
+import org.skepsun.kototoro.core.util.ext.mangaExtra
 
 private val DiscoverHeroHeight = 340.dp
 private val DiscoverHeroHeightDetached = 262.dp
@@ -161,6 +166,7 @@ fun DiscoverHeroCarousel(
 ) {
     if (items.isEmpty()) return
 
+    val heroTransitionInProgress = LocalHeroTransitionInProgress.current
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val heroHeight = when {
@@ -171,7 +177,11 @@ fun DiscoverHeroCarousel(
     val context = LocalContext.current
     val resolvedSettings = settings ?: remember(context.applicationContext) { AppSettings(context.applicationContext) }
     val panoramaPrefs = rememberDiscoverHeroPanoramaPrefs(resolvedSettings)
-    val useRealtimeBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && panoramaPrefs.blurPercent > 0
+    val useRealtimeBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+        panoramaPrefs.blurPercent > 0 &&
+        !heroTransitionInProgress
+    val isPanoramaEnabled = panoramaPrefs.isEnabled && !heroTransitionInProgress
+    val isPanoramaAnimationEnabled = panoramaPrefs.animationEnabled && !heroTransitionInProgress
     val realtimeBlurRadius = ((panoramaPrefs.blurPercent.coerceIn(0, 100) / 100f) * 18f).dp
     val panoramaRequestSize = rememberPanoramaRequestSize(
         minWidthPx = 1280,
@@ -206,7 +216,7 @@ fun DiscoverHeroCarousel(
     val selectedItem = items[selectedIndex]
     var isServiceMenuExpanded by rememberSaveable { mutableStateOf(false) }
 
-    val infiniteTransition = if (panoramaPrefs.animationEnabled) {
+    val infiniteTransition = if (isPanoramaAnimationEnabled) {
         rememberInfiniteTransition(label = "discover_hero_background")
     } else {
         null
@@ -277,10 +287,10 @@ fun DiscoverHeroCarousel(
             modifier = heroImageModifier
                 .background(pageBackground),
         )
-        if (panoramaPrefs.isEnabled) {
+        if (isPanoramaEnabled) {
             Crossfade(
                 targetState = selectedItem.id,
-                animationSpec = tween(180),
+                animationSpec = tween(if (heroTransitionInProgress) 0 else 180),
                 label = "discover_hero_background",
                 modifier = heroImageModifier,
             ) { currentId ->
@@ -544,9 +554,17 @@ fun DiscoverHeroCarousel(
                 val sharedElementKey = remember(item.id, page) { sharedElementKeyForItem(item, page) }
                 var coverBounds by remember(item.id) { mutableStateOf<Rect?>(null) }
                 val posterRequest = remember(item.id, item.coverUrl) {
+                    val memoryCacheKey = sharedCoverMemoryCacheKey(
+                        sourceName = item.manga.source.name,
+                        ownerKey = item.manga.url,
+                        url = item.coverUrl,
+                    )
                     ImageRequest.Builder(context)
                         .data(item.coverUrl)
-                        .crossfade(true)
+                        .memoryCacheKey(memoryCacheKey)
+                        .diskCacheKey(memoryCacheKey)
+                        .crossfade(false)
+                        .apply { mangaExtra(item.manga) }
                         .build()
                 }
                 val sharedTransitionScope = LocalSharedTransitionScope.current
@@ -554,7 +572,12 @@ fun DiscoverHeroCarousel(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onItemClick(item, coverBounds, sharedElementKey) }
+                        .clickable {
+                            logHeroTransition(
+                                "discover_click title=${item.title} sharedKey=$sharedElementKey bounds=${coverBounds != null}",
+                            )
+                            onItemClick(item, coverBounds, sharedElementKey)
+                        }
                         .padding(horizontal = 20.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -584,6 +607,9 @@ fun DiscoverHeroCarousel(
                                 )
                                 .clip(RoundedCornerShape(18.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant),
+                            onSuccess = { state ->
+                                HeroCoverSnapshotStore.put(sharedElementKey, state.result.image)
+                            },
                         )
                         item.scoreText?.takeIf { it.isNotBlank() }?.let { scoreText ->
                             Surface(

@@ -2,6 +2,7 @@ package org.skepsun.kototoro.backups.data.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import org.skepsun.kototoro.core.db.entity.MangaPrefsEntity
 import org.skepsun.kototoro.core.db.entity.MangaWithTags
 import org.skepsun.kototoro.history.data.HistoryEntity
 import org.skepsun.kototoro.history.data.HistoryWithContent
@@ -20,7 +21,7 @@ class HistoryBackup(
 	@SerialName("manga") val manga: ContentBackup,
 ) {
 
-	constructor(entity: HistoryWithContent) : this(
+	constructor(entity: HistoryWithContent, prefs: MangaPrefsEntity? = null) : this(
 		mangaId = entity.manga.id,
 		createdAt = entity.history.createdAt,
 		updatedAt = entity.history.updatedAt,
@@ -29,7 +30,7 @@ class HistoryBackup(
 		scroll = entity.history.scroll,
 		percent = entity.history.percent,
 		chaptersCount = entity.history.chaptersCount,
-		manga = ContentBackup(MangaWithTags(entity.manga, entity.tags)),
+		manga = ContentBackup(MangaWithTags(entity.manga, entity.tags), prefs),
 	)
 
 	fun toEntity() = HistoryEntity(

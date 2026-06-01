@@ -73,6 +73,7 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
 import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
 import org.skepsun.kototoro.core.ui.compose.contentCoverSharedKey
+import org.skepsun.kototoro.core.ui.compose.HeroCoverSnapshotStore
 import org.skepsun.kototoro.core.prefs.ProgressIndicatorMode.CHAPTERS_LEFT
 import org.skepsun.kototoro.core.prefs.ProgressIndicatorMode.CHAPTERS_READ
 import org.skepsun.kototoro.core.prefs.ProgressIndicatorMode.NONE
@@ -284,7 +285,10 @@ fun KototoroContentCardGrid(
                 model = coverRequest,
                 contentDescription = manga.title,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.matchParentSize()
+                modifier = Modifier.matchParentSize(),
+                onSuccess = { state ->
+                    HeroCoverSnapshotStore.put(sharedKey, state.result.image)
+                },
             )
 
             if (isSelected) {
@@ -567,7 +571,10 @@ fun KototoroContentCardList(
                 model = coverRequest,
                 contentDescription = item.title,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.matchParentSize()
+                modifier = Modifier.matchParentSize(),
+                onSuccess = { state ->
+                    HeroCoverSnapshotStore.put(sharedKey, state.result.image)
+                },
             )
             ContentCardCornerBadges(
                 badges = resolvedUiPrefs.badgesTopLeft,
@@ -890,7 +897,10 @@ fun KototoroContentCardDetailedList(
                 model = coverRequest,
                 contentDescription = item.title,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.matchParentSize()
+                modifier = Modifier.matchParentSize(),
+                onSuccess = { state ->
+                    HeroCoverSnapshotStore.put(sharedKey, state.result.image)
+                },
             )
             ContentCardCornerBadges(
                 badges = resolvedUiPrefs.badgesTopLeft,
