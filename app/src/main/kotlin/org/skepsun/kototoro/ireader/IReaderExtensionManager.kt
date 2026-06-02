@@ -65,6 +65,7 @@ class IReaderExtensionManager @Inject constructor(
     val installedExtensions: StateFlow<List<IReaderLoadResult.Success>> = facade.installedExtensions
     val failedExtensions: StateFlow<List<IReaderLoadResult.Error>> = facade.failedExtensions
     val isLoading: StateFlow<Boolean> = facade.isLoading
+    val changes: StateFlow<Int> = facade.changes
 
     fun initialize() {
         facade.initialize()

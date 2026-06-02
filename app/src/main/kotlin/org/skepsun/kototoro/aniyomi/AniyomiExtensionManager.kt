@@ -69,6 +69,7 @@ class AniyomiExtensionManager @Inject constructor(
     val installedExtensions: StateFlow<List<AniyomiLoadResult.Success>> = facade.installedExtensions
     val failedExtensions: StateFlow<List<AniyomiLoadResult.Error>> = facade.failedExtensions
     val isLoading: StateFlow<Boolean> = facade.isLoading
+    val changes: StateFlow<Int> = facade.changes
     
     /**
      * Initialize the extension manager and load all extensions.

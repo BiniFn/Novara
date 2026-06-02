@@ -50,6 +50,7 @@ import coil3.request.crossfade
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.util.ext.mangaExtra
 import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
+import org.skepsun.kototoro.core.ui.compose.ContentSourceResolvedIcon
 import org.skepsun.kototoro.core.ui.compose.unclippedBoundsInWindow
 import org.skepsun.kototoro.core.model.getLocale
 import org.skepsun.kototoro.core.ui.compose.compactPosterCardStyle
@@ -737,7 +738,7 @@ fun ContentCardCornerBadges(
                     }
                 }
                 "source" -> {
-                    ContentSourceIcon(
+                    ContentSourceResolvedIcon(
                         source = resolvedSource,
                         contentDescription = resolvedSource.name,
                         modifier = Modifier.size(metrics.iconSize),

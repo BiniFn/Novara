@@ -46,6 +46,13 @@ data class ContentSourceChipMeta(
 
 @Composable
 fun rememberResolvedContentSource(source: ContentSource): ContentSource {
+    val name = source.name
+    if (!name.startsWith("MIHON_") && !name.startsWith("ANIYOMI_") &&
+        !name.startsWith("IREADER_") && !name.startsWith("CLOUDSTREAM_") &&
+        !name.startsWith("JSON_")
+    ) {
+        return source
+    }
     val context = LocalContext.current
     val entryPoint = remember(context) {
         EntryPointAccessors.fromApplication(
@@ -53,14 +60,11 @@ fun rememberResolvedContentSource(source: ContentSource): ContentSource {
             BaseApp.BaseAppEntryPoint::class.java,
         )
     }
-    val mihonInstalled by entryPoint.mihonExtensionManager().installedExtensions.collectAsState()
-    val aniyomiInstalled by entryPoint.aniyomiExtensionManager().installedExtensions.collectAsState()
-    val ireaderInstalled by entryPoint.ireaderExtensionManager().installedExtensions.collectAsState()
-    val mihonLoading by entryPoint.mihonExtensionManager().isLoading.collectAsState()
-    val aniyomiLoading by entryPoint.aniyomiExtensionManager().isLoading.collectAsState()
-    val ireaderLoading by entryPoint.ireaderExtensionManager().isLoading.collectAsState()
-    val jsonKey = remember(source.name) {
-        source.name.takeIf { it.startsWith("JSON_") }
+    val mihonChanges by entryPoint.mihonExtensionManager().changes.collectAsState()
+    val aniyomiChanges by entryPoint.aniyomiExtensionManager().changes.collectAsState()
+    val ireaderChanges by entryPoint.ireaderExtensionManager().changes.collectAsState()
+    val jsonKey = remember(name) {
+        name.takeIf { it.startsWith("JSON_") }
     }
     val resolvedJsonSource by androidx.compose.runtime.produceState<ContentSource?>(initialValue = null, key1 = jsonKey) {
         value = jsonKey?.let { key ->
@@ -68,13 +72,10 @@ fun rememberResolvedContentSource(source: ContentSource): ContentSource {
         }
     }
     return remember(
-        source.name,
-        mihonInstalled,
-        aniyomiInstalled,
-        ireaderInstalled,
-        mihonLoading,
-        aniyomiLoading,
-        ireaderLoading,
+        name,
+        mihonChanges,
+        aniyomiChanges,
+        ireaderChanges,
         resolvedJsonSource?.name,
         resolvedJsonSource?.javaClass?.name,
     ) {

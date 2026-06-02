@@ -21,6 +21,9 @@ class ExternalExtensionManagerRuntime<ResultT, SuccessT, ErrorT, SourceT, Wrappe
 	private val _isLoading = MutableStateFlow(false)
 	val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+	private val _changes = MutableStateFlow(0)
+	val changes: StateFlow<Int> = _changes.asStateFlow()
+
 	private val sourceCache = mutableMapOf<Long, SourceT>()
 	private val wrappedSourceCache = mutableMapOf<Long, WrappedSourceT>()
 
@@ -47,6 +50,7 @@ class ExternalExtensionManagerRuntime<ResultT, SuccessT, ErrorT, SourceT, Wrappe
 			wrappedSourceCache.putAll(processed.wrappedSourceById)
 			_installedExtensions.value = processed.successful
 			_failedExtensions.value = processed.failed
+			_changes.value++
 		} finally {
 			_isLoading.value = false
 		}

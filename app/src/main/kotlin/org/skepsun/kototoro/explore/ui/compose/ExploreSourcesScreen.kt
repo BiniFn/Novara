@@ -31,6 +31,7 @@ import org.skepsun.kototoro.core.model.isLocal
 import org.skepsun.kototoro.core.nav.AppRouter
 import org.skepsun.kototoro.core.parser.external.ExternalContentSource
 import org.skepsun.kototoro.core.ui.compose.ContentSourceIcon
+import org.skepsun.kototoro.core.ui.compose.iconResForUi
 import org.skepsun.kototoro.core.ui.util.ReversibleActionObserver
 import org.skepsun.kototoro.explore.ui.ExploreViewModel
 import org.skepsun.kototoro.explore.ui.model.ContentSourceItem
@@ -77,6 +78,20 @@ fun KototoroExploreSourcesScreen(
         ) {
             items(
                 items = items,
+                key = { model ->
+                    when (model) {
+                        is ContentSourceItem -> model.id
+                        else -> model.hashCode()
+                    }
+                },
+                contentType = { model ->
+                    when (model) {
+                        is ContentSourceItem -> "source_card"
+                        is ListHeader -> "header"
+                        is EmptyState -> "empty"
+                        else -> "unknown"
+                    }
+                },
                 span = { item ->
                     if (item is ListHeader || item is EmptyState) {
                         GridItemSpan(maxLineSpan)
@@ -329,10 +344,10 @@ fun KototoroSourceCard(
                     modifier = Modifier.size(48.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    ContentSourceIcon(
-                        source = item.source,
-                        modifier = Modifier.size(30.dp),
+                    Icon(
+                        painter = painterResource(id = item.source.iconResForUi()),
                         contentDescription = title,
+                        modifier = Modifier.size(30.dp),
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))

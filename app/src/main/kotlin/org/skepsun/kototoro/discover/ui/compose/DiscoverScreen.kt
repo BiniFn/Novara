@@ -211,7 +211,8 @@ fun DiscoverScreen(
 				}
 				items(
 					items = carouselRows,
-					key = { it.category.id }
+					key = { it.category.id },
+					contentType = { _ -> "discover_carousel" },
 				) { row ->
 					DiscoverCarousel(
 						row = row,
@@ -271,7 +272,8 @@ fun DiscoverScreen(
 			) {
 				itemsIndexed(
 					items = gridItems,
-					key = { index, item -> "${item.manga.source.name}_${item.manga.id}_$index" }
+					key = { _, item -> "${item.manga.source.name}_${item.manga.id}" },
+					contentType = { _, _ -> "discover_grid_card" },
 				) { _, item ->
 					val sharedElementKey = remember(item.manga.source.name, item.coverUrl) {
 						contentCoverSharedKey(item.manga.source.name, item.coverUrl.orEmpty())

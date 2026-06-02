@@ -69,6 +69,7 @@ class MihonExtensionManager @Inject constructor(
     val installedExtensions: StateFlow<List<MihonLoadResult.Success>> = facade.installedExtensions
     val failedExtensions: StateFlow<List<MihonLoadResult.Error>> = facade.failedExtensions
     val isLoading: StateFlow<Boolean> = facade.isLoading
+    val changes: StateFlow<Int> = facade.changes
     
     /**
      * Initialize the extension manager and load all extensions.
