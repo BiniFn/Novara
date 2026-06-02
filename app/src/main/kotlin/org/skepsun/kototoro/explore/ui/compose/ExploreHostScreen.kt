@@ -164,27 +164,18 @@ private data class SourceQuickAccessGroup(
 
 private data class BrowseSourceItems(
     val sources: List<ContentSourceItem>,
-    val selectedSources: List<ContentSourceInfo>,
     val isLoadingOnly: Boolean,
 )
 
-private fun prepareBrowseSourceItems(
-    items: List<ListModel>,
-    selectedSourceIds: Set<Long>,
-): BrowseSourceItems {
+private fun prepareBrowseSourceItems(items: List<ListModel>): BrowseSourceItems {
     val sources = ArrayList<ContentSourceItem>()
-    val selectedSources = ArrayList<ContentSourceInfo>()
     items.forEach { item ->
         if (item is ContentSourceItem) {
             sources += item
-            if (item.id in selectedSourceIds) {
-                selectedSources += item.source
-            }
         }
     }
     return BrowseSourceItems(
         sources = sources,
-        selectedSources = selectedSources,
         isLoadingOnly = sources.isEmpty() && items.any { it is LoadingState },
     )
 }
@@ -346,10 +337,17 @@ fun KototoroExploreHostRoute(
     }
 
     var selectedSourceIds by rememberSaveable { mutableStateOf(emptySet<Long>()) }
-    val browseSourceItems = remember(sourceItems, selectedSourceIds) {
-        prepareBrowseSourceItems(sourceItems, selectedSourceIds)
+    val browseSourceItems = remember(sourceItems) {
+        prepareBrowseSourceItems(sourceItems)
     }
     val sources = browseSourceItems.sources
+    val sourceInfoById = remember(sources) {
+        buildMap(sources.size) {
+            sources.forEach { source ->
+                put(source.id, source.source)
+            }
+        }
+    }
     val browseDiscoverItems = remember(discoverItems) { prepareBrowseDiscoverItems(discoverItems) }
     val heroRow = if (isBrowseTrackingRecommendationsEnabled) browseDiscoverItems.heroRow else null
     val heroItems = if (isBrowseTrackingRecommendationsEnabled) browseDiscoverItems.heroItems else emptyList()
@@ -378,7 +376,9 @@ fun KototoroExploreHostRoute(
             }
         }
     }
-    val selectedSources = browseSourceItems.selectedSources
+    val selectedSources = remember(selectedSourceIds, sourceInfoById) {
+        selectedSourceIds.mapNotNull(sourceInfoById::get)
+    }
     val sourceMetrics = remember(gridScale) { sourceQuickAccessMetrics(gridScale) }
     var isSourcesExpanded by rememberSaveable(sources.size, browseListMode, isSourcesGroupedByLanguage) {
         mutableStateOf(false)
@@ -749,6 +749,7 @@ fun KototoroExploreHostRoute(
                     sourceQuickAccessItems(
                         metrics = sourceMetrics,
                         browseListMode = browseListMode,
+                        columns = sourceColumns,
                         visibleGroups = visibleSourceGroups,
                         selectedSourceIds = selectedSourceIds,
                         hasMoreSources = hasMoreSources,
@@ -1247,6 +1248,7 @@ private fun SourceQuickAccessGrid(
 private fun LazyListScope.sourceQuickAccessItems(
     metrics: SourceQuickAccessMetrics,
     browseListMode: ListMode,
+    columns: Int,
     visibleGroups: List<SourceQuickAccessGroup>,
     selectedSourceIds: Set<Long>,
     hasMoreSources: Boolean,
@@ -1288,39 +1290,32 @@ private fun LazyListScope.sourceQuickAccessItems(
                 )
             }
         }
-        item(
-            key = "source_group_rows_${groupIndex}_${group.title.orEmpty()}",
-            contentType = "source_group_rows",
-        ) {
-            BoxWithConstraints(
+        val rows = group.sources.chunked(columns)
+        itemsIndexed(
+            items = rows,
+            key = { rowIndex, rowSources ->
+                val firstId = rowSources.firstOrNull()?.id ?: rowIndex.toLong()
+                "source_row_${groupIndex}_${rowIndex}_$firstId"
+            },
+            contentType = { _, _ -> "source_row" },
+        ) { rowIndex, rowSources ->
+            SourceQuickAccessRow(
+                metrics = metrics,
+                browseListMode = browseListMode,
+                columns = columns,
+                sources = rowSources,
+                selectedSourceIds = selectedSourceIds,
+                onSourceClick = onSourceClick,
+                onSourceLongClick = onSourceLongClick,
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.background)
-                    .padding(horizontal = 16.dp),
-            ) {
-                val columns = remember(maxWidth, metrics, browseListMode) {
-                    calculateSourceGridColumns(
-                        availableWidth = maxWidth,
-                        metrics = metrics,
-                        browseListMode = browseListMode,
-                    )
-                }
-                val rows = remember(group.sources, columns) { group.sources.chunked(columns) }
-                Column(verticalArrangement = Arrangement.spacedBy(metrics.gridSpacing)) {
-                    rows.forEach { rowSources ->
-                        SourceQuickAccessRow(
-                            metrics = metrics,
-                            browseListMode = browseListMode,
-                            columns = columns,
-                            sources = rowSources,
-                            selectedSourceIds = selectedSourceIds,
-                            onSourceClick = onSourceClick,
-                            onSourceLongClick = onSourceLongClick,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                }
-            }
+                    .padding(
+                        start = 16.dp,
+                        end = 16.dp,
+                        bottom = if (rowIndex == rows.lastIndex) 0.dp else metrics.gridSpacing,
+                    ),
+            )
         }
     }
     if (hasMoreSources) {
@@ -1471,6 +1466,7 @@ private fun SourceQuickAccessCard(
                 ContentSourceResolvedIcon(
                     source = actualSource,
                     modifier = Modifier.size(metrics.iconSize),
+                    throttleNetworkLoad = true,
                     contentDescription = title,
                 )
                 if (source.source.isPinned) {
@@ -1532,6 +1528,7 @@ private fun SourceQuickAccessCard(
                 ContentSourceResolvedIcon(
                     source = actualSource,
                     modifier = Modifier.size(28.dp),
+                    throttleNetworkLoad = true,
                     contentDescription = title,
                 )
                 if (source.source.isPinned) {
