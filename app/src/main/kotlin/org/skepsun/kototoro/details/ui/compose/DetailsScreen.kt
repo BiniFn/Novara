@@ -702,14 +702,6 @@ fun DetailsScreen(
                     }
                 }
             }
-
-            val immersiveTopColors = listOf(
-                MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.28f),
-                MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.16f),
-                MaterialTheme.colorScheme.surface.copy(alpha = 0.07f),
-                Color.Transparent,
-            )
-
             val commonTopBar: @Composable () -> Unit = {
                 val titleAlpha = ((toolbarTitleProgressProvider() - 0.82f) / 0.18f).coerceIn(0f, 1f)
 
@@ -724,18 +716,6 @@ fun DetailsScreen(
                             }
                         },
                 ) {
-                    if (!isWideAdaptiveLayout) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(statusBarTopPadding + 84.dp)
-                                .background(
-                                    brush = Brush.verticalGradient(
-                                        colors = immersiveTopColors,
-                                    ),
-                                ),
-                        )
-                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -886,16 +866,6 @@ fun DetailsScreen(
                 Box(
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(statusBarTopPadding + 84.dp)
-                            .background(
-                                brush = Brush.verticalGradient(
-                                    colors = immersiveTopColors,
-                                ),
-                            ),
-                    )
                     Row(
                         modifier = Modifier
                             .fillMaxSize()
@@ -2359,29 +2329,7 @@ private fun DetailsPaneContent(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(
-                        if (showCollapsedHandle) {
-                            Modifier.background(
-                                brush = Brush.verticalGradient(
-                                    colors = listOf(
-                                        paneTopGradientColor,
-                                        paneMiddleGradientColor,
-                                        paneBottomGradientColor,
-                                    ),
-                                ),
-                            )
-                        } else {
-                            Modifier.background(
-                                brush = Brush.verticalGradient(
-                                    colors = listOf(
-                                        paneTopGradientColor,
-                                        paneMiddleGradientColor,
-                                        paneBottomGradientColor,
-                                    ),
-                                ),
-                            )
-                        }
-                    ),
+                    .background(paneMiddleGradientColor),
             ) {
                 Column(
                     modifier = Modifier

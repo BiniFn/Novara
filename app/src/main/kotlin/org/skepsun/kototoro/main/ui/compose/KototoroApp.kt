@@ -7,6 +7,7 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
@@ -749,46 +750,59 @@ fun KototoroApp(
                 }
 
                 val immersiveStrength = ((LocalGlassPrefs.current?.immersiveStrengthPercent ?: 65).coerceIn(0, 100)) / 100f
-                val immersiveTint = MaterialTheme.colorScheme.surfaceContainerHigh.copy(
-                    alpha = lerpFloat(0.24f, 0.52f, immersiveStrength),
-                )
+                val isDarkTheme = isSystemInDarkTheme()
+                val immersiveBaseColor = if (isDarkTheme) Color.Black else Color.White
                 val immersiveTransparent = Color.Transparent
+                val topImmersiveOverflowPx = with(density) { 6.dp.roundToPx() }
                 val topImmersiveHeight = with(density) {
-                    (statusBarHeightPx + (topBarHeightPx * 0.34f).toInt() + (topFilterRailHeightPx * 0.20f).toInt())
-                        .coerceAtLeast(statusBarHeightPx)
+                    (
+                        statusBarHeightPx +
+                            (topBarHeightPx * 0.72f).toInt() +
+                            if (shouldShowChrome && topFilterRailOverrideState != null) topFilterRailHeightPx else 0 +
+                            topImmersiveOverflowPx
+                        )
+                        .coerceAtLeast(statusBarHeightPx + topImmersiveOverflowPx)
                         .toDp()
                 }
                 val bottomImmersiveHeight = with(density) {
-                    (navigationBarHeightPx + (bottomNavHeightPx * 0.90f).toInt()).coerceAtLeast(navigationBarHeightPx).toDp()
+                    (
+                        (navigationBarHeightPx / 2) +
+                            if (!isLandscapeNavigation && shouldShowChrome) bottomNavHeightPx else 0
+                        )
+                        .coerceAtLeast(if (!isLandscapeNavigation && shouldShowChrome) bottomNavHeightPx else navigationBarHeightPx / 2)
+                        .toDp()
                 }
 
-                ImmersiveEdgeGradient(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .fillMaxWidth(),
-                    height = topImmersiveHeight,
-                    colors = listOf(
-                        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = lerpFloat(0.34f, 0.68f, immersiveStrength)),
-                        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = lerpFloat(0.18f, 0.48f, immersiveStrength)),
-                        MaterialTheme.colorScheme.surface.copy(alpha = lerpFloat(0.04f, 0.14f, immersiveStrength)),
-                        immersiveTransparent,
-                    ),
-                    stops = listOf(0f, 0.14f, 0.46f, 1f),
-                )
+                if (!isDetailsRoute) {
+                    ImmersiveEdgeGradient(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .fillMaxWidth(),
+                        height = topImmersiveHeight,
+                        colors = listOf(
+                            immersiveBaseColor.copy(alpha = lerpFloat(0.72f, 0.98f, immersiveStrength)),
+                            immersiveBaseColor.copy(alpha = lerpFloat(0.56f, 0.82f, immersiveStrength)),
+                            immersiveBaseColor.copy(alpha = lerpFloat(0.32f, 0.52f, immersiveStrength)),
+                            immersiveBaseColor.copy(alpha = lerpFloat(0.12f, 0.22f, immersiveStrength)),
+                            immersiveTransparent,
+                        ),
+                        stops = listOf(0f, 0.38f, 0.72f, 0.92f, 1f),
+                    )
 
-                ImmersiveEdgeGradient(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth(),
-                    height = bottomImmersiveHeight,
-                    colors = listOf(
-                        immersiveTransparent,
-                        MaterialTheme.colorScheme.surface.copy(alpha = lerpFloat(0.06f, 0.20f, immersiveStrength)),
-                        MaterialTheme.colorScheme.surfaceContainer.copy(alpha = lerpFloat(0.16f, 0.38f, immersiveStrength)),
-                        immersiveTint,
-                    ),
-                    stops = listOf(0f, 0.38f, 0.76f, 1f),
-                )
+                    ImmersiveEdgeGradient(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth(),
+                        height = bottomImmersiveHeight,
+                        colors = listOf(
+                            immersiveTransparent,
+                            immersiveBaseColor.copy(alpha = lerpFloat(0.14f, 0.24f, immersiveStrength)),
+                            immersiveBaseColor.copy(alpha = lerpFloat(0.34f, 0.54f, immersiveStrength)),
+                            immersiveBaseColor.copy(alpha = lerpFloat(0.60f, 0.90f, immersiveStrength)),
+                        ),
+                        stops = listOf(0f, 0.22f, 0.62f, 1f),
+                    )
+                }
 
                 if (isChromeVisible || chromeAlpha > 0f) {
                     if (effectiveTopBarOverrideState != null && effectiveTopBarOverrideState !is CompactTabsTopBarOverrideState) {
