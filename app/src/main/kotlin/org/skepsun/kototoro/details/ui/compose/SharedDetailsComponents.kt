@@ -22,9 +22,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -50,6 +55,9 @@ import org.skepsun.kototoro.core.ui.compose.sharedCoverMemoryCacheKey
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
 import org.skepsun.kototoro.core.ui.compose.LocalNavAnimatedVisibilityScope
+import org.skepsun.kototoro.core.ui.compose.LocalHeroTransitionPhase
+import org.skepsun.kototoro.core.ui.compose.HeroTransitionPhase
+import org.skepsun.kototoro.core.ui.compose.LocalHeroTransitionInProgress
 import org.skepsun.kototoro.core.ui.glass.GlassDefaults
 import org.skepsun.kototoro.core.ui.glass.GlassSurface
 
@@ -72,6 +80,8 @@ fun DetailsCoverFrame(
     val context = LocalContext.current
     val sharedTransitionScope = LocalSharedTransitionScope.current
     val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
+    val heroTransitionInProgress = LocalHeroTransitionInProgress.current
+    val heroTransitionPhase = LocalHeroTransitionPhase.current
     val imageLoader = remember(context.applicationContext) {
         EntryPointAccessors.fromApplication(
             context.applicationContext,
@@ -100,12 +110,43 @@ fun DetailsCoverFrame(
         sharedPlaceholder != null &&
         sharedTransitionScope != null &&
         animatedVisibilityScope != null
+    var hasResolvedCover by remember(coverModel) { mutableStateOf(false) }
+    val shouldFreezeCoverDuringEnter = enableSharedElement &&
+        heroTransitionInProgress &&
+        heroTransitionPhase == HeroTransitionPhase.EnteringDetails
+    val shouldFreezeCoverDuringReturn = enableSharedElement &&
+        heroTransitionInProgress &&
+        heroTransitionPhase == HeroTransitionPhase.ReturningFromDetails
+    val shouldHideResolvedCoverDuringTransition = shouldFreezeCoverDuringReturn
+    val shouldShowStableForeground = cachedPainter != null && (
+        shouldFreezeCoverDuringEnter ||
+            shouldFreezeCoverDuringReturn ||
+            !hasResolvedCover
+        )
 
     remember(sharedElementKey, enableSharedElement, cachedPlaceholder, snapshotPlaceholder) {
         if (sharedElementKey != null && !enableSharedElement) {
             logHeroTransition("details_cover shared_element_disabled reason=no_cached_cover key=$sharedElementKey")
         } else if (sharedElementKey != null && cachedPlaceholder == null && snapshotPlaceholder != null) {
             logHeroTransition("details_cover snapshot_fallback_hit key=$sharedElementKey")
+        }
+    }
+    LaunchedEffect(
+        sharedElementKey,
+        shouldHideResolvedCoverDuringTransition,
+        shouldFreezeCoverDuringEnter,
+        shouldFreezeCoverDuringReturn,
+        shouldShowStableForeground,
+        heroTransitionPhase,
+    ) {
+        if (sharedElementKey != null) {
+            logHeroTransition(
+                "details_cover inline_visible=${!shouldHideResolvedCoverDuringTransition} " +
+                    "freeze_enter=$shouldFreezeCoverDuringEnter " +
+                    "freeze_return=$shouldFreezeCoverDuringReturn " +
+                    "stable_foreground=$shouldShowStableForeground " +
+                    "phase=$heroTransitionPhase key=$sharedElementKey",
+            )
         }
     }
 
@@ -180,6 +221,7 @@ fun DetailsCoverFrame(
                                 }
                             } else Modifier
                         )
+                        .alpha(if (shouldShowStableForeground) 0f else 1f)
                         .clip(MaterialTheme.shapes.medium)
                         .background(
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
@@ -190,18 +232,46 @@ fun DetailsCoverFrame(
                     error = cachedPainter,
                     fallback = cachedPainter,
                     onLoading = { state ->
+                        hasResolvedCover = false
                         logHeroTransition("details_cover loading model=${coverModel?.hashCode()}")
                         onState?.invoke(state)
                     },
                     onSuccess = { state ->
+                        hasResolvedCover = true
                         logHeroTransition("details_cover success model=${coverModel?.hashCode()}")
                         onState?.invoke(state)
                     },
                     onError = { state ->
+                        hasResolvedCover = false
                         logHeroTransition("details_cover error model=${coverModel?.hashCode()}")
                         onState?.invoke(state)
                     },
                 )
+                if (shouldShowStableForeground) {
+                    androidx.compose.foundation.Image(
+                        painter = cachedPainter,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(13f / 18f)
+                            .then(
+                                if (enableSharedElement) {
+                                    with(sharedTransitionScope) {
+                                        Modifier.sharedElement(
+                                            rememberSharedContentState(key = sharedElementKey),
+                                            animatedVisibilityScope = animatedVisibilityScope,
+                                        )
+                                    }
+                                } else Modifier
+                            )
+                            .clip(MaterialTheme.shapes.medium)
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
+                                shape = MaterialTheme.shapes.medium,
+                            ),
+                    )
+                }
             }
             if (!topBadgeText.isNullOrBlank()) {
                 val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f

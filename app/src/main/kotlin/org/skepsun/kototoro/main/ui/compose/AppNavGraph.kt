@@ -168,6 +168,7 @@ fun AppNavGraph(
     onContextualMenuActionsChanged: (List<KototoroTopBarMenuAction>) -> Unit = {},
     onOpenSearch: (SearchNavigationRequest) -> Unit = {},
     onDetailsTransitionRequested: () -> Unit = {},
+    onDetailsReturnTransitionRequested: () -> Unit = {},
     isLandscapeNavigation: Boolean = false,
 ) {
     val activity = LocalContext.current as FragmentActivity
@@ -1345,7 +1346,7 @@ fun AppNavGraph(
                 slideOutOfContainer(
                     towards = AnimatedContentTransitionScope.SlideDirection.Left,
                     animationSpec = tween(320, easing = LinearEasing),
-                ) + fadeOut(tween(180, easing = LinearEasing))
+                )
             },
             popEnterTransition = {
                 slideIntoContainer(
@@ -1357,7 +1358,7 @@ fun AppNavGraph(
                 slideOutOfContainer(
                     towards = AnimatedContentTransitionScope.SlideDirection.Right,
                     animationSpec = tween(320, easing = LinearEasing),
-                ) + fadeOut(tween(160, easing = LinearEasing))
+                )
             },
         ) {
             val detailsViewModel = hiltViewModel<DetailsViewModel>()
@@ -1394,6 +1395,10 @@ fun AppNavGraph(
                         }
                     }
                 }
+                BackHandler {
+                    onDetailsReturnTransitionRequested()
+                    navController.popBackStack()
+                }
                 DetailsScreen(
                     viewModel = detailsViewModel,
                     pagesViewModel = pagesViewModel,
@@ -1401,7 +1406,10 @@ fun AppNavGraph(
                     settings = entryPoint.settings(),
                     appRouter = appRouter,
                     pageSaveHelper = effectivePageSaveHelper,
-                    onBackClick = { navController.popBackStack() },
+                    onBackClick = {
+                        onDetailsReturnTransitionRequested()
+                        navController.popBackStack()
+                    },
                     sharedElementKey = sharedKey,
                     onActionClick = { action ->
                         handleDetailsAction(
@@ -1412,7 +1420,10 @@ fun AppNavGraph(
                             coroutineScope = detailsCoroutineScope,
                             snackbarHost = rootView,
                             overrideEditLauncher = overrideEditLauncher,
-                            onFinish = { navController.popBackStack() },
+                            onFinish = {
+                                onDetailsReturnTransitionRequested()
+                                navController.popBackStack()
+                            },
                         )
                     },
                 )

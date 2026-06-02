@@ -88,6 +88,9 @@ import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.mutableLongStateOf
 import org.skepsun.kototoro.core.ui.compose.LocalRailAnimationFactor
+import org.skepsun.kototoro.core.ui.compose.LocalHeroTransitionPhase
+import org.skepsun.kototoro.core.ui.compose.HeroTransitionPhase
+import org.skepsun.kototoro.core.ui.compose.LocalHeroReturnTransitionInProgress
 import org.skepsun.kototoro.core.ui.compose.LocalHeroTransitionInProgress
 import org.skepsun.kototoro.core.ui.compose.LocalSharedTransitionScope
 import org.skepsun.kototoro.core.ui.compose.heroTransitionTimestampMs
@@ -432,6 +435,7 @@ fun KototoroApp(
     var isChromeVisible by rememberSaveable { mutableStateOf(shouldShowChrome && !isDetailsRoute) }
     var lastResolvedWasDetailsRoute by rememberSaveable { mutableStateOf(isDetailsRoute) }
     var lastHeroTransitionStartedAtMs by remember { mutableLongStateOf(0L) }
+    var heroTransitionPhase by rememberSaveable { mutableStateOf(HeroTransitionPhase.Idle) }
     LaunchedEffect(currentDestination, shouldShowChrome, isDetailsRoute, isDetailsChromeTransitionPending) {
         if (currentDestination == null) {
             return@LaunchedEffect
@@ -490,12 +494,19 @@ fun KototoroApp(
         }
         value = false
     }
+    val heroReturnTransitionInProgress =
+        heroTransitionInProgress && heroTransitionPhase == HeroTransitionPhase.ReturningFromDetails
     LaunchedEffect(heroTransitionInProgress, isDetailsRoute, lastHeroTransitionStartedAtMs) {
         if (lastHeroTransitionStartedAtMs == 0L) return@LaunchedEffect
         val elapsed = heroTransitionTimestampMs() - lastHeroTransitionStartedAtMs
         logHeroTransition(
             "window active=$heroTransitionInProgress isDetailsRoute=$isDetailsRoute elapsed=${elapsed}ms",
         )
+    }
+    LaunchedEffect(heroTransitionInProgress) {
+        if (!heroTransitionInProgress && heroTransitionPhase != HeroTransitionPhase.Idle) {
+            heroTransitionPhase = HeroTransitionPhase.Idle
+        }
     }
     val scrollAlpha = if (!isChromeVisible) 0f else {
         val maxCollapse = topBarHeightPx.toFloat()
@@ -670,6 +681,8 @@ fun KototoroApp(
                 SharedTransitionLayout {
                     CompositionLocalProvider(
                         LocalHeroTransitionInProgress provides heroTransitionInProgress,
+                        LocalHeroReturnTransitionInProgress provides heroReturnTransitionInProgress,
+                        LocalHeroTransitionPhase provides heroTransitionPhase,
                         LocalSharedTransitionScope provides if (isSharedElementTransitionsEnabled) {
                             this@SharedTransitionLayout
                         } else {
@@ -686,9 +699,18 @@ fun KototoroApp(
                             pageSaveHelper = pageSaveHelper,
                             onDetailsTransitionRequested = {
                                 isDetailsChromeTransitionPending = true
+                                heroTransitionPhase = HeroTransitionPhase.EnteringDetails
                                 lastHeroTransitionStartedAtMs = heroTransitionTimestampMs()
                                 logHeroTransition(
                                     "navigate_to_details started route=${currentDestination?.route ?: "unknown"}",
+                                )
+                            },
+                            onDetailsReturnTransitionRequested = {
+                                isDetailsChromeTransitionPending = true
+                                heroTransitionPhase = HeroTransitionPhase.ReturningFromDetails
+                                lastHeroTransitionStartedAtMs = heroTransitionTimestampMs()
+                                logHeroTransition(
+                                    "navigate_from_details started route=${currentDestination?.route ?: "unknown"}",
                                 )
                             },
                             onExploreSourceSelectionTopBarChanged = { overrideState ->

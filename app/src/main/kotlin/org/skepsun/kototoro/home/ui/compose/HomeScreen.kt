@@ -83,6 +83,7 @@ import java.util.Locale
 import kotlin.math.absoluteValue
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.ui.compose.HeroAutoAdvanceEffect
+import org.skepsun.kototoro.core.ui.compose.HeroPagerIndicator
 import org.skepsun.kototoro.core.ui.compose.rememberResolvedSourceTitle
 import org.skepsun.kototoro.core.prefs.AppSettings
 import org.skepsun.kototoro.core.prefs.ListMode
@@ -494,6 +495,27 @@ private fun HomeHeroSection(
             }
         }
 
+        if (entries.size > 1) {
+            val currentEntry = entries[selectedIndex]
+            HeroPagerIndicator(
+                pageCount = entries.size,
+                currentPage = selectedIndex,
+                pageCounter = "${selectedIndex + 1} / ${entries.size}",
+                counterColor = Color.White.copy(alpha = 0.78f),
+                trailingIcon = {
+                    Icon(
+                        painter = painterResource(currentEntry.kind.iconRes),
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.78f),
+                        modifier = Modifier.size(16.dp),
+                    )
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 20.dp, bottom = 12.dp),
+            )
+        }
+
     }
 }
 
@@ -535,7 +557,7 @@ private fun HomeHeroCard(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .height(192.dp)
+            .height(208.dp)
             .clip(MaterialTheme.shapes.large)
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable { onClick(content, coverBounds, sharedElementKey) },
@@ -562,18 +584,18 @@ private fun HomeHeroCard(
                     drawRect(
                         Brush.verticalGradient(
                             listOf(
-                                Color.Transparent,
-                                Color.Black.copy(alpha = 0.14f),
-                                Color.Black.copy(alpha = 0.70f),
+                                Color.Black.copy(alpha = 0.22f),
+                                Color.Black.copy(alpha = 0.28f),
+                                Color.Black.copy(alpha = 0.48f),
                             ),
                         ),
                     )
                     drawRect(
                         Brush.horizontalGradient(
                             listOf(
-                                Color.Black.copy(alpha = 0.16f),
+                                Color.Black.copy(alpha = 0.18f),
                                 Color.Transparent,
-                                Color.Black.copy(alpha = 0.12f),
+                                Color.Black.copy(alpha = 0.14f),
                             ),
                         ),
                     )
@@ -589,7 +611,7 @@ private fun HomeHeroCard(
                     bottom = bottomInset,
                 ),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.Bottom,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
@@ -662,6 +684,7 @@ private fun HomeHeroCard(
                 }
             }
         }
+
     }
 }
 
@@ -700,7 +723,7 @@ private fun HomeRecentSearchSection(
             queries.forEach { query ->
                 AssistChip(
                     onClick = { onQueryClick(query) },
-                    leadingIcon = {
+                    trailingIcon = {
                         Icon(
                             painter = painterResource(R.drawable.ic_history),
                             contentDescription = null,

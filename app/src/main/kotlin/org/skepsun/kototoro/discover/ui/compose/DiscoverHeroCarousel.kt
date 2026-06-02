@@ -686,6 +686,7 @@ fun DiscoverHeroCarousel(
                     modifier = Modifier.padding(horizontal = 20.dp),
                     activeColor = heroContentColor,
                     inactiveColor = heroContentColor.copy(alpha = 0.34f),
+                    pageCounter = "${selectedIndex + 1} / ${items.size}",
                 )
             }
             if (bottomContent != null) {
@@ -704,6 +705,7 @@ fun DiscoverHeroCarousel(
                     .padding(start = 20.dp, end = 20.dp, bottom = 14.dp),
                 activeColor = heroContentColor,
                 inactiveColor = heroContentColor.copy(alpha = 0.34f),
+                pageCounter = "${selectedIndex + 1} / ${items.size}",
             )
         }
     }
