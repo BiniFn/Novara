@@ -11,6 +11,7 @@ import android.view.View
 import androidx.annotation.IdRes
 import com.google.android.material.navigation.NavigationBarView
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import org.skepsun.kototoro.core.prefs.NavItem
 import org.skepsun.kototoro.core.ui.widgets.BottomNavState
 import org.skepsun.kototoro.core.ui.widgets.BadgeInfo
@@ -31,7 +32,11 @@ class ComposeAppNavBarDelegator(
             onItemSelectedListener?.onNavigationItemSelected(StubMenuItem(value))
         }
 
-    override var labelVisibilityMode: Int = 0
+    override var labelVisibilityMode: Int
+        get() = stateFlow.value.labelVisibilityMode
+        set(value) {
+            stateFlow.update { it.copy(labelVisibilityMode = value) }
+        }
 
     override fun setOnItemSelectedListener(listener: NavigationBarView.OnItemSelectedListener?) {
         onItemSelectedListener = listener

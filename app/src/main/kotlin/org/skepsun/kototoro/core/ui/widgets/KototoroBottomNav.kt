@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import com.google.android.material.navigation.NavigationBarView
 import kotlinx.coroutines.flow.StateFlow
 import org.skepsun.kototoro.R
 import org.skepsun.kototoro.core.prefs.AppSettings
@@ -75,6 +76,7 @@ fun KototoroBottomNav(
     val tabletUiMode by appSettings.observeAsState(AppSettings.KEY_TABLET_UI_MODE) { tabletUiMode }
 
     val activeItems = navState.items.filter { navState.itemVisibility[it.id] != false }
+    val showSelectedLabels = navState.labelVisibilityMode != NavigationBarView.LABEL_VISIBILITY_UNLABELED
     val useNavigationRail = remember(configuration.orientation, configuration.screenWidthDp, tabletUiMode) {
         FoldableUtils.shouldUseTabletLayout(context, appSettings, configuration)
     }
@@ -215,7 +217,7 @@ fun KototoroBottomNav(
                                 )
                             },
                             label = { Text(stringResource(item.title)) },
-                            alwaysShowLabel = false,
+                            alwaysShowLabel = showSelectedLabels,
                             colors = NavigationRailItemDefaults.colors(
                                 indicatorColor = Color.Transparent,
                                 selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -242,6 +244,7 @@ fun KototoroBottomNav(
                     selectedItemId = navState.selectedItemId,
                     badges = navState.badges,
                     clickPulses = clickPulses,
+                    showSelectedLabels = showSelectedLabels,
                     itemSpacing = floatingNavItemSpacing,
                     onItemSelected = onItemSelected,
                     onItemReselected = onItemReselected,
@@ -296,7 +299,7 @@ fun KototoroBottomNav(
                                 )
                             },
                             label = { Text(stringResource(item.title)) },
-                            alwaysShowLabel = false,
+                            alwaysShowLabel = showSelectedLabels,
                             colors = NavigationBarItemDefaults.colors(
                                 indicatorColor = Color.Transparent,
                                 selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -348,6 +351,7 @@ private fun FloatingBottomNavRow(
     selectedItemId: Int,
     badges: Map<Int, BadgeInfo>,
     clickPulses: MutableMap<Int, Int>,
+    showSelectedLabels: Boolean,
     itemSpacing: Dp,
     onItemSelected: (Int) -> Unit,
     onItemReselected: (Int) -> Unit,
@@ -399,7 +403,7 @@ private fun FloatingBottomNavRow(
                             contentDescription = stringResource(item.title),
                         )
                     }
-                    if (isSelected) {
+                    if (isSelected && showSelectedLabels) {
                         Spacer(modifier = Modifier.height(0.dp))
                         Text(
                             text = stringResource(item.title),

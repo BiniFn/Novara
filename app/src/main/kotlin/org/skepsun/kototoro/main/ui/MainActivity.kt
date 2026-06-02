@@ -16,6 +16,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.withResumed
+import com.google.android.material.navigation.NavigationBarView
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -186,6 +187,16 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
             settings.observeAsFlow(AppSettings.KEY_NAV_MAIN) { mainNavItems }
                 .collect { items ->
                     composeNavBarDelegator.setupMenu(items)
+                }
+        }
+        lifecycleScope.launch {
+            settings.observeAsFlow(AppSettings.KEY_NAV_LABELS) { isNavLabelsVisible }
+                .collect { isVisible ->
+                    composeNavBarDelegator.labelVisibilityMode = if (isVisible) {
+                        NavigationBarView.LABEL_VISIBILITY_SELECTED
+                    } else {
+                        NavigationBarView.LABEL_VISIBILITY_UNLABELED
+                    }
                 }
         }
 
