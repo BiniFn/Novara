@@ -1,5 +1,6 @@
 package org.skepsun.kototoro.mihon
 
+import android.util.Log
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import org.skepsun.kototoro.parsers.model.ContentListFilter
@@ -20,6 +21,7 @@ object MihonFilterMapper {
         var currentHeader = "General"
 
         mihonFilters.forEachIndexed { index, filter ->
+            Log.d(TAG, "[mapOptions] filter[$index] type=${filter::class.simpleName} name=${filter.name.take(60)}")
             when (filter) {
                 is Filter.Header -> {
                     currentHeader = filter.name
@@ -68,17 +70,24 @@ object MihonFilterMapper {
                 else -> {
                     val tags = mapFilterToTags(filter, null, source)
                     if (tags.isNotEmpty()) {
+                        Log.d(TAG, "[mapOptions] else: filter type=${filter::class.simpleName} -> ${tags.size} tags")
                         tagGroups.add(ContentTagGroup(currentHeader, tags.toSet()))
                     }
                 }
             }
         }
-        
+
         val mergedGroups = tagGroups.groupBy { it.title }.map { (title, groups) ->
             val allTags = groups.flatMap { it.tags }.toSet()
             ContentTagGroup(title, allTags)
         }
-        
+
+        Log.d(TAG, "[mapOptions] DONE: groups=${mergedGroups.size} totalTags=${mergedGroups.flatMap { it.tags }.size}")
+        mergedGroups.forEachIndexed { i, g ->
+            val preview = g.tags.take(5).joinToString(" | ") { "'${it.title}' (${it.key.take(40)})" }
+            Log.d(TAG, "[mapOptions] group[$i] '${g.title}': ${g.tags.size} tags -> $preview")
+        }
+
         return ContentListFilterOptions(
             availableTags = mergedGroups.flatMap { it.tags }.toSet(),
             tagGroups = mergedGroups
@@ -86,23 +95,41 @@ object MihonFilterMapper {
     }
 
     private fun mapFilterToTags(
-        filter: Filter<*>, 
-        parentName: String?, 
+        filter: Filter<*>,
+        parentName: String?,
         source: org.skepsun.kototoro.parsers.model.ContentSource,
     ): List<ContentTag> {
         val prefix = if (parentName != null) "$parentName/" else PREFIX_TOP
-        
+        val filterType = filter::class.simpleName
+        val parentInfo = parentName ?: "<root>"
+
         return when (filter) {
             is Filter.CheckBox -> {
-                listOf(ContentTag(filter.name, "$prefix${filter.name}", source))
+                val title = filter.name.cleanTitle()
+                val key = "$prefix${filter.name}"
+                Log.d(TAG, "[mapFilterToTags] CheckBox parent=$parentInfo name='${filter.name}' cleaned='$title' -> key=$key")
+                listOf(ContentTag(title, key, source))
             }
             is Filter.TriState -> {
-                listOf(ContentTag(filter.name, "$prefix${filter.name}", source))
+                val title = filter.name.cleanTitle()
+                val key = "$prefix${filter.name}"
+                Log.d(TAG, "[mapFilterToTags] TriState parent=$parentInfo name='${filter.name}' cleaned='$title' -> key=$key")
+                listOf(ContentTag(title, key, source))
             }
             is Filter.Select<*> -> {
-                filter.values.map { value ->
-                    val title = value.toString()
-                    ContentTag(title, "$prefix${filter.name}/$title", source)
+                val values = filter.values
+                Log.d(TAG, "[mapFilterToTags] Select parent=$parentInfo name='${filter.name}' values.count=${values.size} values.class=${values::class.simpleName}")
+                filter.values.mapIndexedNotNull { idx, value ->
+                    val raw = value.toString()
+                    val valueClass = value?.javaClass?.name ?: "null"
+                    val title = value.cleanTitle()
+                    if (title.isEmpty()) {
+                        Log.d(TAG, "[mapFilterToTags] Select[$idx] class=$valueClass raw='${raw.take(80)}' -> SKIPPED (fragment)")
+                        return@mapIndexedNotNull null
+                    }
+                    val key = "$prefix${filter.name}/$title"
+                    Log.d(TAG, "[mapFilterToTags] Select[$idx] class=$valueClass raw='${raw.take(80)}' cleaned='$title' -> key=$key")
+                    ContentTag(title, key, source)
                 }
             }
             is Filter.Sort -> {
@@ -118,6 +145,10 @@ object MihonFilterMapper {
                 ))
             }
             is Filter.Group<*> -> {
+                val state = filter.state
+                val stateType = state?.javaClass?.name ?: "null"
+                val stateSize = (state as? List<*>)?.size ?: "not-list"
+                Log.d(TAG, "[mapFilterToTags] Group parent=$parentInfo name='${filter.name}' stateType=$stateType stateSize=$stateSize")
                 val nestedTags = mutableListOf<ContentTag>()
                 (filter.state as? List<*>)?.forEach { subItem ->
                     if (subItem is Filter<*>) {
@@ -125,10 +156,42 @@ object MihonFilterMapper {
                         nestedTags.addAll(mapFilterToTags(subItem, nestedPrefix, source))
                     }
                 }
+                Log.d(TAG, "[mapFilterToTags] Group result: ${nestedTags.size} nested tags")
                 nestedTags
             }
-            else -> emptyList()
+            else -> {
+                Log.d(TAG, "[mapFilterToTags] UNKNOWN filterType=$filterType parent=$parentInfo name='${filter.name}'")
+                emptyList()
+            }
         }
+    }
+
+    /**
+     * Extract a readable title from a raw [Filter] value.
+     * Some sources embed data-class representations like
+     * {@code ThemeInfo(name=爱情, pathWord=xiaoyuan)} inside filter
+     * values. Extract the first field value from those.
+     * Fragments like {@code pathWord=aiqing)} (split by a buggy source)
+     * are also discarded.
+     */
+    private fun Any?.cleanTitle(): String {
+        if (this == null) return ""
+        val raw = toString()
+        // "ClassName(field1=value1, ...)" → extract first field value
+        val classPattern = Regex("""^\w+\((\w+)=([^,)]+)""")
+        val match = classPattern.find(raw)
+        if (match != null) {
+            val result = match.groupValues[2]
+            Log.d(TAG, "[cleanTitle] class='${raw.take(60)}' -> '$result'")
+            return result
+        }
+        // Fragment like "field=value)" without a class prefix → discard
+        if (raw.matches(Regex("""^\w+=[^,)]+\)?$"""))) {
+            Log.d(TAG, "[cleanTitle] fragment='${raw.take(60)}' -> EMPTY")
+            return ""
+        }
+        Log.v(TAG, "[cleanTitle] plain='${raw.take(60)}' -> pass through")
+        return raw
     }
 
     fun updateMihonFilters(mihonFilters: FilterList, kotoFilter: ContentListFilter) {
@@ -167,7 +230,7 @@ object MihonFilterMapper {
             }
             is Filter.Select<*> -> {
                 filter.values.forEachIndexed { index, value ->
-                    val key = "$prefix${filter.name}/$value"
+                    val key = "$prefix${filter.name}/${value.cleanTitle()}"
                     if (key in selectedTags) {
                         filter.state = index
                     }

@@ -85,6 +85,15 @@ class SavedFiltersRepository @Inject constructor(
         }
     }
 
+    suspend fun setAutoEnabled(source: ContentSource, id: Int, enabled: Boolean) = withContext(Dispatchers.Default) {
+        val filter = load(source, id) ?: return@withContext
+        val newFilter = filter.copy(autoEnabled = enabled)
+        val prefs = getPrefs(source)
+        prefs.edit(commit = true) {
+            putString(key(id), Json.encodeToString(newFilter))
+        }
+    }
+
     private fun persist(persistableFilter: PersistableFilter) {
         val prefs = getPrefs(persistableFilter.source)
         val json = Json.encodeToString(persistableFilter)

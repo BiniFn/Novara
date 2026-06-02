@@ -4,6 +4,7 @@ import androidx.core.text.HtmlCompat
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -65,6 +66,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -73,6 +75,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -135,6 +138,7 @@ import org.skepsun.kototoro.core.ui.glass.rememberGlassSurfaceColors
 import org.skepsun.kototoro.core.ui.glass.supportsRuntimeHaze
 import org.skepsun.kototoro.core.ui.model.titleRes
 import org.skepsun.kototoro.core.util.ShareHelper
+import org.skepsun.kototoro.core.util.AlphanumComparator
 import org.skepsun.kototoro.core.util.ext.mangaSourceExtra
 import org.skepsun.kototoro.core.parser.favicon.directFaviconUriOrNull
 import org.skepsun.kototoro.list.ui.compose.KototoroSelectionTopBar
@@ -142,6 +146,9 @@ import org.skepsun.kototoro.list.ui.compose.SelectionAction
 import org.skepsun.kototoro.main.ui.compose.GlassDropdownMenu
 
 import org.skepsun.kototoro.filter.ui.model.UiTagGroup
+import org.skepsun.kototoro.filter.ui.model.FilterProperty
+import org.skepsun.kototoro.filter.data.PersistableFilter
+import org.skepsun.kototoro.filter.data.PersistableFilter.Companion.MAX_TITLE_LENGTH
 import org.skepsun.kototoro.list.domain.ListFilterOption
 import org.skepsun.kototoro.list.ui.compose.KototoroContentListScreen
 import org.skepsun.kototoro.list.ui.model.ContentListModel
@@ -160,6 +167,7 @@ import dev.chrisbanes.haze.HazeDefaults as HazeBlurDefaults
 import dev.chrisbanes.haze.haze
 import dev.chrisbanes.haze.hazeChild
 import java.util.Locale
+import java.util.TreeSet
 
 private val SearchTopActionsHeight = 56.dp
 private val SearchTopButtonContainerHeight = 44.dp
@@ -311,6 +319,11 @@ fun AppSearchContentListRoute(
     val statesProperty by viewModel.filterCoordinator.states.collectAsStateWithLifecycle()
     val localeProperty by viewModel.filterCoordinator.locale.collectAsStateWithLifecycle()
     val authorsProperty by viewModel.filterCoordinator.authors.collectAsStateWithLifecycle()
+    val savedFiltersProperty by viewModel.filterCoordinator.savedFilters.collectAsStateWithLifecycle()
+
+    val isFilterSaveEnabled by derivedStateOf {
+        filterSnapshot.listFilter.isNotEmpty() && savedFiltersProperty.selectedItems.isEmpty()
+    }
 
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -373,6 +386,17 @@ fun AppSearchContentListRoute(
     LaunchedEffect(filterSnapshot.listFilter.query, searchMode) {
         if (!searchMode) {
             searchQuery = filterSnapshot.listFilter.query.orEmpty()
+        }
+    }
+
+    var autoApplyDone by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(showFilterPanel, isWideAdaptiveLayout) {
+        val shouldAutoApply = (isWideAdaptiveLayout || showFilterPanel) && !autoApplyDone
+        if (shouldAutoApply) {
+            autoApplyDone = true
+            savedFiltersProperty.availableItems
+                .filter { it.autoEnabled && it !in savedFiltersProperty.selectedItems }
+                .forEach { viewModel.filterCoordinator.toggleSavedFilter(it) }
         }
     }
 
@@ -728,6 +752,13 @@ fun AppSearchContentListRoute(
                                     )
                                 },
                                 modifier = Modifier.fillMaxHeight(),
+                                savedFilters = savedFiltersProperty,
+                                isSaveEnabled = isFilterSaveEnabled,
+                                onToggleSavedFilter = viewModel.filterCoordinator::toggleSavedFilter,
+                                onSaveFilter = viewModel.filterCoordinator::saveCurrentFilter,
+                                onRenameSavedFilter = viewModel.filterCoordinator::renameSavedFilter,
+                                onDeleteSavedFilter = viewModel.filterCoordinator::deleteSavedFilter,
+                                onSetSavedFilterAutoEnabled = viewModel.filterCoordinator::setSavedFilterAutoEnabled,
                             )
                         }
                     }
@@ -850,6 +881,12 @@ fun AppSearchContentListRoute(
                             },
                             modifier = Modifier.fillMaxWidth(),
                             fillAvailableHeight = false,
+                            savedFilters = savedFiltersProperty,
+                            isSaveEnabled = isFilterSaveEnabled,
+                            onToggleSavedFilter = viewModel.filterCoordinator::toggleSavedFilter,
+                            onSaveFilter = viewModel.filterCoordinator::saveCurrentFilter,
+                            onRenameSavedFilter = viewModel.filterCoordinator::renameSavedFilter,
+                            onDeleteSavedFilter = viewModel.filterCoordinator::deleteSavedFilter,
                         )
                     }
                 }
@@ -1061,10 +1098,13 @@ private fun SearchContentTopBar(
     val statusBarTopPadding = statusBarPadding.calculateTopPadding()
     val glassPrefs = rememberGlassPrefsOrFallback()
     val immersiveStrength = (glassPrefs.immersiveStrengthPercent.coerceIn(0, 100)) / 100f
+    val isDarkTheme = isSystemInDarkTheme()
+    val immersiveBaseColor = if (isDarkTheme) Color.Black else Color.White
     val immersiveTopColors = listOf(
-        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = lerpFloat(0.28f, 0.58f, immersiveStrength)),
-        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = lerpFloat(0.14f, 0.34f, immersiveStrength)),
-        MaterialTheme.colorScheme.surface.copy(alpha = lerpFloat(0.03f, 0.10f, immersiveStrength)),
+        immersiveBaseColor.copy(alpha = lerpFloat(0.72f, 0.98f, immersiveStrength)),
+        immersiveBaseColor.copy(alpha = lerpFloat(0.56f, 0.82f, immersiveStrength)),
+        immersiveBaseColor.copy(alpha = lerpFloat(0.32f, 0.52f, immersiveStrength)),
+        immersiveBaseColor.copy(alpha = lerpFloat(0.12f, 0.22f, immersiveStrength)),
         Color.Transparent,
     )
 
@@ -1074,14 +1114,15 @@ private fun SearchContentTopBar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(statusBarTopPadding + topActionsHeight + 12.dp)
+                .height(statusBarTopPadding + topActionsHeight + 6.dp)
                 .background(
                     brush = Brush.verticalGradient(
                         colorStops = arrayOf(
                             0f to immersiveTopColors[0],
-                            0.16f to immersiveTopColors[1],
-                            0.44f to immersiveTopColors[2],
-                            1f to immersiveTopColors[3],
+                            0.38f to immersiveTopColors[1],
+                            0.72f to immersiveTopColors[2],
+                            0.92f to immersiveTopColors[3],
+                            1f to immersiveTopColors[4],
                         ),
                     ),
                 ),
@@ -1782,10 +1823,21 @@ private fun SearchFilterPanel(
     onOpenTagCatalog: (String?, Boolean) -> Unit,
     modifier: Modifier = Modifier,
     fillAvailableHeight: Boolean = true,
+    savedFilters: FilterProperty<PersistableFilter> = FilterProperty.EMPTY,
+    isSaveEnabled: Boolean = false,
+    onToggleSavedFilter: (PersistableFilter) -> Unit = {},
+    onSaveFilter: (String) -> Unit = {},
+    onRenameSavedFilter: (Int, String) -> Unit = { _, _ -> },
+    onDeleteSavedFilter: (Int) -> Unit = {},
+    onSetSavedFilterAutoEnabled: (Int, Boolean) -> Unit = { _, _ -> },
 ) {
     val scrollState = rememberScrollState()
     var sortExpanded by rememberSaveable { mutableStateOf(false) }
     var textInputDialog by remember { mutableStateOf<ContentTag?>(null) }
+    var pendingSaveName by remember { mutableStateOf<String?>(null) }
+    var pendingOverwriteName by remember { mutableStateOf<String?>(null) }
+    var pendingRenameFilter by remember { mutableStateOf<PersistableFilter?>(null) }
+    var savedFilterMenuPreset by remember { mutableStateOf<PersistableFilter?>(null) }
 
     Column(
         modifier = modifier
@@ -1804,18 +1856,37 @@ private fun SearchFilterPanel(
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
-            OutlinedButton(
-                onClick = onReset,
-                colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.38f),
-                    contentColor = MaterialTheme.colorScheme.primary,
-                ),
-                border = BorderStroke(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.34f),
-                ),
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(stringResource(R.string.reset_filter))
+                OutlinedButton(
+                    onClick = { pendingSaveName = "" },
+                    enabled = isSaveEnabled,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.38f),
+                        contentColor = MaterialTheme.colorScheme.primary,
+                    ),
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.34f),
+                    ),
+                ) {
+                    Text(stringResource(R.string.save))
+                }
+                OutlinedButton(
+                    onClick = onReset,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.38f),
+                        contentColor = MaterialTheme.colorScheme.primary,
+                    ),
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.34f),
+                    ),
+                ) {
+                    Text(stringResource(R.string.reset_filter))
+                }
             }
         }
 
@@ -1936,6 +2007,98 @@ private fun SearchFilterPanel(
                 onOpenTagCatalog = onOpenTagCatalog,
             )
         }
+
+        if (!savedFilters.isEmpty() || savedFilters.isLoading) {
+            FilterSection(title = stringResource(R.string.saved_filters)) {
+                FilterChipFlow {
+                    savedFilters.availableItems.forEach { preset ->
+                        val selected = preset in savedFilters.selectedItems
+                        Box {
+                            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 24.dp) {
+                                FilterChip(
+                                    selected = selected,
+                                    onClick = { onToggleSavedFilter(preset) },
+                                    modifier = Modifier.heightIn(min = 24.dp),
+                                    label = {
+                                        androidx.compose.material3.ProvideTextStyle(MaterialTheme.typography.labelSmall) {
+                                            Text(
+                                                text = preset.name,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                    },
+                                    trailingIcon = {
+                                        IconButton(
+                                            onClick = { savedFilterMenuPreset = preset },
+                                            modifier = Modifier.size(18.dp),
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.MoreVert,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(14.dp),
+                                            )
+                                        }
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.34f),
+                                        labelColor = MaterialTheme.colorScheme.onSurface,
+                                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.68f),
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    ),
+                                    border = FilterChipDefaults.filterChipBorder(
+                                        enabled = true,
+                                        selected = selected,
+                                        borderColor = if (selected) {
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.58f)
+                                        } else if (preset.autoEnabled) {
+                                            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.58f)
+                                        } else {
+                                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.52f)
+                                        },
+                                    ),
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = savedFilterMenuPreset == preset,
+                                onDismissRequest = { savedFilterMenuPreset = null },
+                            ) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            if (preset.autoEnabled) {
+                                                stringResource(R.string.disable_auto_apply)
+                                            } else {
+                                                stringResource(R.string.enable_auto_apply)
+                                            },
+                                        )
+                                    },
+                                    onClick = {
+                                        savedFilterMenuPreset = null
+                                        onSetSavedFilterAutoEnabled(preset.id, !preset.autoEnabled)
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.rename)) },
+                                    onClick = {
+                                        savedFilterMenuPreset = null
+                                        pendingRenameFilter = preset
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.delete)) },
+                                    onClick = {
+                                        savedFilterMenuPreset = null
+                                        onDeleteSavedFilter(preset.id)
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     textInputDialog?.let { tag ->
@@ -1953,6 +2116,124 @@ private fun SearchFilterPanel(
             onDismissRequest = { textInputDialog = null },
         )
     }
+
+    pendingSaveName?.let { initialName ->
+        val existingNames = remember(savedFilters.availableItems) {
+            savedFilters.availableItems.mapTo(TreeSet(AlphanumComparator()), PersistableFilter::name)
+        }
+        SaveFilterNameDialog(
+            initialValue = initialName,
+            existingNames = existingNames,
+            onDismiss = { pendingSaveName = null },
+            onConfirm = { name ->
+                pendingSaveName = null
+                if (name in existingNames) {
+                    pendingOverwriteName = name
+                } else {
+                    onSaveFilter(name)
+                }
+            },
+        )
+    }
+
+    pendingOverwriteName?.let { name ->
+        AlertDialog(
+            onDismissRequest = { pendingOverwriteName = null },
+            title = { Text(stringResource(R.string.save_filter)) },
+            text = { Text(stringResource(R.string.filter_overwrite_confirm, name)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingOverwriteName = null
+                        onSaveFilter(name)
+                    },
+                ) {
+                    Text(stringResource(R.string.overwrite))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        pendingOverwriteName = null
+                        pendingSaveName = name
+                    },
+                ) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            },
+        )
+    }
+
+    pendingRenameFilter?.let { preset ->
+        val existingNames = remember(savedFilters.availableItems, preset.name) {
+            savedFilters.availableItems
+                .mapTo(TreeSet(AlphanumComparator()), PersistableFilter::name)
+                .apply { remove(preset.name) }
+        }
+        SaveFilterNameDialog(
+            initialValue = preset.name,
+            existingNames = existingNames,
+            rejectExistingName = true,
+            onDismiss = { pendingRenameFilter = null },
+            onConfirm = { name ->
+                pendingRenameFilter = null
+                onRenameSavedFilter(preset.id, name)
+            },
+        )
+    }
+}
+
+@Composable
+private fun SaveFilterNameDialog(
+    initialValue: String,
+    existingNames: Set<String>,
+    rejectExistingName: Boolean = false,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var value by remember(initialValue) { mutableStateOf(initialValue) }
+    val trimmed = value.trim()
+    val hasError = trimmed.isEmpty() || (rejectExistingName && trimmed in existingNames)
+
+    SearchInputDialogSurface(
+        onDismissRequest = onDismiss,
+        title = stringResource(R.string.save_filter),
+        content = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = { value = it.take(MAX_TITLE_LENGTH) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text(text = stringResource(R.string.filter_name)) },
+                    isError = hasError,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        disabledContainerColor = Color.Transparent,
+                    ),
+                )
+                if (hasError) {
+                    Text(
+                        text = stringResource(R.string.invalid_value_message),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        },
+        actions = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(android.R.string.cancel))
+            }
+            TextButton(
+                enabled = !hasError,
+                onClick = { onConfirm(trimmed) },
+            ) {
+                Text(stringResource(R.string.save))
+            }
+        },
+    )
 }
 
 @Composable

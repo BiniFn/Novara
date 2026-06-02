@@ -1818,6 +1818,9 @@
     <string name="test_parser">Test manga source</string>
     <string name="rename">Rename</string>
     <string name="save_filter">Save filter</string>
+    <string name="filter_name">Filter name</string>
+    <string name="enable_auto_apply">Auto-apply on open</string>
+    <string name="disable_auto_apply">Disable auto-apply</string>
     <string name="overwrite">Overwrite</string>
     <string name="filter_overwrite_confirm">A filter named \"%s\" already exists. Do you want to overwrite it?</string>
     <string name="storage_and_network">Storage and network</string>

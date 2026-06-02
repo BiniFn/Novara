@@ -71,10 +71,12 @@ fun SManga.toKotoContent(
         },
         coverUrl = absoluteThumbnailUrl,
         largeCoverUrl = absoluteThumbnailUrl, // Also set largeCoverUrl for details page
-        tags = safeGenres?.map { genreName: String ->
-            ContentTag(
-                title = genreName,
-                key = genreName.lowercase().replace(" ", "_"),
+        tags = safeGenres?.mapNotNull { genreName: String ->
+            val clean = genreName.cleanMihonGenre()
+            if (clean.isEmpty()) null
+            else ContentTag(
+                title = clean,
+                key = clean.lowercase().replace(" ", "_"),
                 source = source,
             )
         }?.toSet() ?: emptySet(),
@@ -291,4 +293,20 @@ private fun resolveUrl(baseUrl: String, url: String?): String? {
         return baseUrl.trimEnd('/') + "/" + url.trimStart('/')
     }
     return url
+}
+
+/**
+ * Some Mihon sources (e.g. CopyManga) store data-class representations like
+ * {@code ThemeInfo(name=爱情, pathWord=xiaoyuan)} inside SManga.genre, which
+ * SManga.getGenres() then splits at commas into fragments.
+ * Extract the first field value from such representations; discard fragments.
+ */
+private fun String.cleanMihonGenre(): String {
+    // "ClassName(field=value, ...)" or "ClassName(field=value" (split) → first field value
+    val classPattern = Regex("""^\w+\((\w+)=([^,)]+)""")
+    val match = classPattern.find(this)
+    if (match != null) return match.groupValues[2]
+    // Fragment like "field=value)" without a class prefix → discard
+    if (this.matches(Regex("""^\w+=[^,)]+\)?$"""))) return ""
+    return this
 }

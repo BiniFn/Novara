@@ -2419,6 +2419,9 @@
     <string name="repository_url">仓库 URL</string>
     <string name="rewind">快退</string>
     <string name="save_filter">保存筛选器</string>
+    <string name="filter_name">筛选器名称</string>
+    <string name="enable_auto_apply">打开时自动启用</string>
+    <string name="disable_auto_apply">取消自动启用</string>
     <string name="saved_filters">已保存的筛选器</string>
     <string name="scrobbler_search_auth_hint">搜索无需登录即可使用。登录后可关联 %s。</string>
     <string name="scrobbler_search_requires_login_label">%1$s · %2$s</string>

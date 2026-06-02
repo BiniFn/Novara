@@ -150,6 +150,12 @@ fun FilterSheetRoute(
     val context = LocalContext.current
     val resources = context.resources
 
+    LaunchedEffect(Unit) {
+        savedFiltersProperty.availableItems
+            .filter { it.autoEnabled && it !in savedFiltersProperty.selectedItems }
+            .forEach { filter.toggleSavedFilter(it) }
+    }
+
     FilterSheetContent(
         sourceName = filter.mangaSource.name,
         sortOrderProperty = sortOrderProperty,
@@ -192,6 +198,7 @@ fun FilterSheetRoute(
         onToggleSavedFilter = filter::toggleSavedFilter,
         onRenameSavedFilter = { pendingRenameFilter = it },
         onDeleteSavedFilter = { filter.deleteSavedFilter(it.id) },
+        onSetSavedFilterAutoEnabled = { id, enabled -> filter.setSavedFilterAutoEnabled(id, enabled) },
         onTextInputTagClick = { pendingTextInputTag = it },
         onOpenTagCatalog = onOpenTagCatalog,
         resolveSortOrderLabel = { sourceName, order ->
@@ -313,7 +320,7 @@ private fun FilterNameInputDialog(
                 TextField(
                     value = value,
                     onValueChange = { value = it.take(MAX_TITLE_LENGTH) },
-                    label = { Text(context.getString(R.string.enter_name)) },
+                    label = { Text(context.getString(R.string.filter_name)) },
                     singleLine = true,
                     isError = hasError,
                     modifier = Modifier.fillMaxWidth(),
@@ -437,6 +444,7 @@ private fun FilterSheetContent(
     onToggleSavedFilter: (PersistableFilter) -> Unit,
     onRenameSavedFilter: (PersistableFilter) -> Unit,
     onDeleteSavedFilter: (PersistableFilter) -> Unit,
+    onSetSavedFilterAutoEnabled: (Int, Boolean) -> Unit,
     onTextInputTagClick: (ContentTag) -> Unit,
     onOpenTagCatalog: (String?, Boolean) -> Unit,
     resolveSortOrderLabel: (String, SortOrder) -> String,
@@ -515,6 +523,7 @@ private fun FilterSheetContent(
                 onToggleSavedFilter = onToggleSavedFilter,
                 onRenameSavedFilter = onRenameSavedFilter,
                 onDeleteSavedFilter = onDeleteSavedFilter,
+                onSetSavedFilterAutoEnabled = onSetSavedFilterAutoEnabled,
                 resolveErrorMessage = resolveErrorMessage,
             )
 
@@ -780,6 +789,7 @@ private fun SavedFiltersSection(
     onToggleSavedFilter: (PersistableFilter) -> Unit,
     onRenameSavedFilter: (PersistableFilter) -> Unit,
     onDeleteSavedFilter: (PersistableFilter) -> Unit,
+    onSetSavedFilterAutoEnabled: (Int, Boolean) -> Unit,
     resolveErrorMessage: (Throwable?) -> String?,
 ) {
     var menuPreset by remember { mutableStateOf<PersistableFilter?>(null) }
@@ -820,6 +830,21 @@ private fun SavedFiltersSection(
                         expanded = menuPreset == preset,
                         onDismissRequest = { menuPreset = null },
                     ) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    if (preset.autoEnabled) {
+                                        LocalContext.current.getString(R.string.disable_auto_apply)
+                                    } else {
+                                        LocalContext.current.getString(R.string.enable_auto_apply)
+                                    },
+                                )
+                            },
+                            onClick = {
+                                menuPreset = null
+                                onSetSavedFilterAutoEnabled(preset.id, !preset.autoEnabled)
+                            },
+                        )
                         DropdownMenuItem(
                             text = { Text(LocalContext.current.getString(R.string.rename)) },
                             onClick = {

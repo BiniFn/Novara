@@ -353,6 +353,10 @@ class FilterCoordinator @Inject constructor(
         selectedSavedFilterIds.update { it - id }
     }
 
+    fun setSavedFilterAutoEnabled(id: Int, enabled: Boolean) = coroutineScope.launch {
+        savedFiltersRepository.setAutoEnabled(repository.source, id, enabled)
+    }
+
     /**
      * Toggle a saved filter:
      * - First selection: replace the entire filter (like the old behavior).

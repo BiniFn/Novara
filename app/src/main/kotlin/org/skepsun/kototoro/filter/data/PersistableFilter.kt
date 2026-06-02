@@ -18,6 +18,8 @@ data class PersistableFilter(
     @Serializable(with = ContentListFilterSerializer::class)
     @SerialName("filter")
     val filter: ContentListFilter,
+    @SerialName("auto_enabled")
+    val autoEnabled: Boolean = false,
 ) {
 
     val id: Int
