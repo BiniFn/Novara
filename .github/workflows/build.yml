@@ -1,10 +1,15 @@
 name: Build Android App
 
 on:
+  workflow_dispatch:
   push:
     branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
+
+# Grant workflow permission to create releases and upload assets
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -44,11 +49,13 @@ jobs:
         name: Novara-App-debug-apks
         path: app/build/outputs/apk/debug/*.apk
 
-    - name: Create draft GitHub Release and upload APKs
+    - name: Upload APKs to existing release 'Apps'
       uses: ncipollo/release-action@v1
       with:
-        tag: "apk-${{ github.run_number }}"
+        token: ${{ secrets.GITHUB_TOKEN }}
+        tag: "Apps"
         name: "Novara debug APKs (run #${{ github.run_number }})"
-        files: app/build/outputs/apk/debug/*.apk
-        draft: true
+        artifacts: Novara-App-debug-apks
+        replacesArtifacts: true
+        draft: false
         prerelease: false
