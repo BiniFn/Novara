@@ -2,7 +2,10 @@
   <h1><img src="assets/images/logo.png" width="48" height="48" align="center" style="border-radius: 12px;"/> Novara</h1>
   <p>A fast, extensible, and minimalist manga reader for Android.</p>
   <br/>
-  <img src="assets/images/novara_reader_preview.png" alt="Novara Reader Preview" width="300" style="border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);"/>
+<img src="assets/images/logo.png" 
+     alt="Logo" 
+     width="300" 
+     style="border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); display: block; margin: 10px auto;" />
 </div>
 
 <br/>
