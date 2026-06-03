@@ -38,8 +38,17 @@ jobs:
     - name: Build with Gradle
       run: ./gradlew clean assembleDebug --no-daemon -Dorg.gradle.java.home=$JAVA_HOME
 
-    - name: Upload APK
+    - name: Upload APKs (per-ABI)
       uses: actions/upload-artifact@v4
       with:
-        name: Novara-App
+        name: Novara-App-debug-apks
         path: app/build/outputs/apk/debug/*.apk
+
+    - name: Create draft GitHub Release and upload APKs
+      uses: ncipollo/release-action@v1
+      with:
+        tag: "apk-${{ github.run_number }}"
+        name: "Novara debug APKs (run #${{ github.run_number }})"
+        files: app/build/outputs/apk/debug/*.apk
+        draft: true
+        prerelease: false
