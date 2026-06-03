@@ -2635,4 +2635,8 @@
     <string name="no_jump_points">No jump points yet</string>
     <string name="restore_jump_point">Tap to restore the position before this jump</string>
     <string name="reading_chapter_record_format">%1$d sessions · %2$s</string>
+    <!-- Blur/Glass mode labels (required default values) -->
+    <string name="blur_mode_standard">Light</string>
+    <string name="blur_mode_immersive">Balanced (Recommended)</string>
+    <string name="blur_mode_enhanced">Strong</string>
 </resources>
