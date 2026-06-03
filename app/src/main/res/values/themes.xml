@@ -54,39 +54,39 @@
 		<item name="windowActionModeOverlay">true</item>
 
 		<!-- System components styles -->
-		<item name="android:alertDialogTheme">@style/ThemeOverlay.Novara.AlertDialog</item>
-		<item name="alertDialogTheme">@style/ThemeOverlay.Novara.AlertDialog</item>
-		<item name="bottomSheetDialogTheme">@style/ThemeOverlay.Novara.BottomSheetDialog</item>
-		<item name="sideSheetDialogTheme">@style/ThemeOverlay.Novara.SideSheetDialog</item>
-		<item name="recyclerViewStyle">@style/Widget.Novara.RecyclerView</item>
-		<item name="android:dropDownSpinnerStyle">@style/Widget.Novara.Spinner.DropDown</item>
+		<item name="android:alertDialogTheme">@style/ThemeOverlay.Kototoro.AlertDialog</item>
+		<item name="alertDialogTheme">@style/ThemeOverlay.Kototoro.AlertDialog</item>
+		<item name="bottomSheetDialogTheme">@style/ThemeOverlay.Kototoro.BottomSheetDialog</item>
+		<item name="sideSheetDialogTheme">@style/ThemeOverlay.Kototoro.SideSheetDialog</item>
+		<item name="recyclerViewStyle">@style/Widget.Kototoro.RecyclerView</item>
+		<item name="android:dropDownSpinnerStyle">@style/Widget.Kototoro.Spinner.DropDown</item>
 		<item name="switchPreferenceCompatStyle">@style/Preference.SwitchPreferenceCompat.M3</item>
-		<item name="circularProgressIndicatorStyle">@style/Widget.Novara.CircularProgressIndicator.ThickStraight</item>
-		<item name="linearProgressIndicatorStyle">@style/Widget.Novara.LinearProgressIndicator.ThickStraight</item>
-		<item name="bottomSheetDragHandleStyle">@style/Widget.Novara.BottomSheet.DragHandle</item>
-		<item name="preferenceTheme">@style/PreferenceThemeOverlay.Novara</item>
+		<item name="circularProgressIndicatorStyle">@style/Widget.Kototoro.CircularProgressIndicator.ThickStraight</item>
+		<item name="linearProgressIndicatorStyle">@style/Widget.Kototoro.LinearProgressIndicator.ThickStraight</item>
+		<item name="bottomSheetDragHandleStyle">@style/Widget.Kototoro.BottomSheet.DragHandle</item>
+		<item name="preferenceTheme">@style/PreferenceThemeOverlay.Kototoro</item>
 		<!-- Fix crash in A15 + compact spacing for SearchBar filter icons -->
-		<item name="actionButtonStyle">@style/Widget.Novara.ActionButton.Compact</item>
+		<item name="actionButtonStyle">@style/Widget.Kototoro.ActionButton.Compact</item>
 
 		<!-- Custom views -->
-		<item name="fastScrollerStyle">@style/Widget.Novara.FastScroller</item>
-		<item name="listItemTextViewStyle">@style/Widget.Novara.ListItemTextView</item>
-		<item name="dotIndicatorStyle">@style/Widget.Novara.DotIndicator</item>
-		<item name="badgeViewStyle">@style/Widget.Novara.BadgeView</item>
-		<item name="coverImageViewStyle">@style/Widget.Novara.ImageView.Cover</item>
+		<item name="fastScrollerStyle">@style/Widget.Kototoro.FastScroller</item>
+		<item name="listItemTextViewStyle">@style/Widget.Kototoro.ListItemTextView</item>
+		<item name="dotIndicatorStyle">@style/Widget.Kototoro.DotIndicator</item>
+		<item name="badgeViewStyle">@style/Widget.Kototoro.BadgeView</item>
+		<item name="coverImageViewStyle">@style/Widget.Kototoro.ImageView.Cover</item>
 	</style>
 
 	<!--== Default Theme ==-->
 	<style name="Theme.Novara" parent="Base.Theme.Novara" />
 
 	<!-- Base ThemeOverlay -->
-	<style name="ThemeOverlay.Novara" parent="ThemeOverlay.Material3.Light" />
+	<style name="ThemeOverlay.Kototoro" parent="ThemeOverlay.Material3.Light" />
 
 	<!-- Monet theme only support S+ -->
-	<style name="ThemeOverlay.Novara.Monet" parent="ThemeOverlay.Material3.DynamicColors.Light" />
+	<style name="ThemeOverlay.Kototoro.Monet" parent="ThemeOverlay.Material3.DynamicColors.Light" />
 
 	<!-- Expressive Monet theme -->
-	<style name="ThemeOverlay.Novara.Expressive" parent="ThemeOverlay.Material3Expressive.DynamicColors.DayNight">
+	<style name="ThemeOverlay.Kototoro.Expressive" parent="ThemeOverlay.Material3Expressive.DynamicColors.DayNight">
 		<item name="alertDialogTheme">@style/ThemeOverlay.Material3Expressive.Dialog.Alert</item>
 		<item name="materialAlertDialogTheme">@style/ThemeOverlay.Material3Expressive.MaterialAlertDialog</item>
 
@@ -148,21 +148,27 @@
 	</style>
 
 	<!-- Changes only for night -->
-	<style name="ThemeOverlay.Novara.Amoled" parent="" />
+	<style name="ThemeOverlay.Kototoro.Amoled" parent="" />
 
-	<style name="ThemeOverlay.Novara.PopupRadius.12" parent="">
+	<!-- Loading circle styles -->
+	<style name="ThemeOverlay.Kototoro.Loading.ThickStraight" parent="" />
+	<style name="ThemeOverlay.Kototoro.Loading.ThickWavy" parent="" />
+	<style name="ThemeOverlay.Kototoro.Loading.ThinStraight" parent="" />
+	<style name="ThemeOverlay.Kototoro.Loading.ThinWavy" parent="" />
+
+	<style name="ThemeOverlay.Kototoro.PopupRadius.12" parent="">
 		<item name="popupMenuBackground">@drawable/bg_popup_12</item>
 		<item name="android:popupBackground">@drawable/bg_popup_12</item>
 	</style>
-	<style name="ThemeOverlay.Novara.PopupRadius.16" parent="">
+	<style name="ThemeOverlay.Kototoro.PopupRadius.16" parent="">
 		<item name="popupMenuBackground">@drawable/bg_popup_16</item>
 		<item name="android:popupBackground">@drawable/bg_popup_16</item>
 	</style>
-	<style name="ThemeOverlay.Novara.PopupRadius.20" parent="">
+	<style name="ThemeOverlay.Kototoro.PopupRadius.20" parent="">
 		<item name="popupMenuBackground">@drawable/bg_popup_20</item>
 		<item name="android:popupBackground">@drawable/bg_popup_20</item>
 	</style>
-	<style name="ThemeOverlay.Novara.PopupRadius.24" parent="">
+	<style name="ThemeOverlay.Kototoro.PopupRadius.24" parent="">
 		<item name="popupMenuBackground">@drawable/bg_popup_24</item>
 		<item name="android:popupBackground">@drawable/bg_popup_24</item>
 	</style>
