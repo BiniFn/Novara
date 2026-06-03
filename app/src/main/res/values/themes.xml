@@ -150,12 +150,6 @@
 	<!-- Changes only for night -->
 	<style name="ThemeOverlay.Kototoro.Amoled" parent="" />
 
-	<!-- Loading circle styles -->
-	<style name="ThemeOverlay.Kototoro.Loading.ThickStraight" parent="" />
-	<style name="ThemeOverlay.Kototoro.Loading.ThickWavy" parent="" />
-	<style name="ThemeOverlay.Kototoro.Loading.ThinStraight" parent="" />
-	<style name="ThemeOverlay.Kototoro.Loading.ThinWavy" parent="" />
-
 	<style name="ThemeOverlay.Kototoro.PopupRadius.12" parent="">
 		<item name="popupMenuBackground">@drawable/bg_popup_12</item>
 		<item name="android:popupBackground">@drawable/bg_popup_12</item>
