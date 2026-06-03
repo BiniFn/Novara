@@ -38,8 +38,8 @@ jobs:
     - name: Build with Gradle
       run: ./gradlew clean assembleDebug --no-daemon -Dorg.gradle.java.home=$JAVA_HOME
 
-    - name: Upload APK
+    - name: Upload APKs (per-ABI)
       uses: actions/upload-artifact@v4
       with:
-        name: Novara-App
+        name: Novara-App-debug-apks
         path: app/build/outputs/apk/debug/*.apk
