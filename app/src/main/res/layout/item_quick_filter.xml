@@ -18,7 +18,7 @@
 		android:clipToPadding="false"
 		android:paddingTop="2dp"
 		android:paddingBottom="6dp"
-		app:chipStyle="@style/Widget.Kototoro.Chip.Filter"
+		app:chipStyle="@style/Widget.Novara.Chip.Filter"
 		app:selectionRequired="false"
 		app:singleLine="true"
 		app:singleSelection="false" />

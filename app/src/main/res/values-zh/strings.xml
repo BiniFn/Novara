@@ -380,7 +380,7 @@
     <string name="aniyomi_source_count">%d 个源可用</string>
     <string name="aniyomi_sources">Aniyomi</string>
     <string name="any">所有</string>
-    <string name="app_name">Kototoro</string>
+    <string name="app_name">Novara</string>
     <string name="app_update_available">发现新版本</string>
     <string name="app_version">版本 %s</string>
     <string name="appearance">外观</string>
@@ -732,7 +732,7 @@
     <string name="discord">Discord</string>
     <string name="discord_logout_summary">清除已保存的 Discord Token，并退出内置 Discord 会话。</string>
     <string name="discord_rpc">绑定 Discord 状态</string>
-    <string name="discord_rpc_description">正在 Kototoro - 一个漫画阅读软件上阅读漫画</string>
+    <string name="discord_rpc_description">正在 Novara - 一个漫画阅读软件上阅读漫画</string>
     <string name="discord_rpc_summary">在 Discord 个人信息栏内显示你的阅读状态</string>
     <string name="discord_token">Discord Token</string>
     <string name="discord_token_description">输入你的 Discord Token 或者点击 %s 打开内置浏览器获取 Token</string>
@@ -870,7 +870,7 @@
     <string name="error_corrupted_file">回传的数据无效或文件已损坏</string>
     <string name="error_corrupted_zip">损坏的 ZIP 文件 (%s)</string>
     <string name="error_details">错误详细信息</string>
-    <string name="error_disclaimer_app_outdated">您的 Kototoro 版本过旧，请下载最新版本以修复问题</string>
+    <string name="error_disclaimer_app_outdated">您的 Novara 版本过旧，请下载最新版本以修复问题</string>
     <string name="error_disclaimer_manga">尝试在网络浏览器中打开漫画，以确保此漫画在图源中可用</string>
     <string name="error_disclaimer_report">可向开发者提交错误报告，将会帮助我们定位并修复错误</string>
     <string name="error_filter_locale_genre_not_supported">此图源不支持同时按类别和区域筛选</string>
@@ -1059,7 +1059,7 @@
     <string name="incognito_mode_hint">阅读进度不会保存</string>
     <string name="incognito_mode_hint_nsfw">此漫画可能包含成人内容，需要打开无痕模式继续浏览吗？</string>
     <string name="incompatible_extension">不兼容</string>
-    <string name="incompatible_extension_message">%1$s %2$s 无法安装，因其库版本（%3$s）超出 Kototoro 的支持范围。</string>
+    <string name="incompatible_extension_message">%1$s %2$s 无法安装，因其库版本（%3$s）超出 Novara 的支持范围。</string>
     <string name="incompatible_section">不兼容</string>
     <string name="inline_preference_pattern">%1$s: %2$s</string>
     <string name="install_extension">安装</string>
@@ -1087,7 +1087,7 @@
     <string name="jar_plugins_update_all">全部更新</string>
     <string name="jar_plugins_updates_available">JAR 插件有可用更新！</string>
     <string name="jar_plugins_updating">正在更新 JAR 插件...</string>
-    <string name="jar_priority_order_summary">逗号分隔的 JAR 前缀。当多个解析器同名时，仅展示排名最高仓库中的解析器。示例: kototoro-parsers, kotatsu-parsers-redo, kotatsu-parsers</string>
+    <string name="jar_priority_order_summary">逗号分隔的 JAR 前缀。当多个解析器同名时，仅展示排名最高仓库中的解析器。示例: novara-parsers, kotatsu-parsers-redo, kotatsu-parsers</string>
     <string name="jar_priority_order_title">插件去重优先级顺序</string>
     <string name="just_now">刚刚</string>
     <string name="keep_screen_on">保持屏幕常亮</string>
@@ -1117,7 +1117,7 @@
     <string name="less_than_minute">不到1分钟</string>
     <string name="light">浅色</string>
     <string name="light_indicator">LED指示器</string>
-    <string name="link_to_manga_in_app">在 Kototoro 上连接漫画</string>
+    <string name="link_to_manga_in_app">在 Novara 上连接漫画</string>
     <string name="link_to_manga_on_s">在 %s 上连接漫画</string>
     <string name="list">列表</string>
     <string name="list_ellipsize_pattern">(+%d)</string>
@@ -1179,7 +1179,7 @@
     <string name="manage_sources">内容源管理</string>
     <string name="manga_count_short">漫画 %1$d</string>
     <string name="manga_downloading_">正在下载…</string>
-    <string name="manga_error_description_pattern">错误详情：&amp;lt;br&amp;gt;&amp;lt;tt&amp;gt;%1$s&amp;lt;/tt&amp;gt;&amp;lt;br&amp;gt;&amp;lt;br&amp;gt;1.尝试&amp;lt;a href=%2$s&amp;gt;在浏览器中打开内容&amp;lt;/a&amp;gt;确保内容在内容源中正常显示&amp;lt;br&amp;gt;2.确认正在使用的是&amp;lt;a href=kototoro://about&amp;gt;最新版本的Kototoro&amp;lt;/a&amp;gt;&amp;lt;br&amp;gt;3.若已排除以上问题，请向开发人员发送错误报告。</string>
+    <string name="manga_error_description_pattern">错误详情：&amp;lt;br&amp;gt;&amp;lt;tt&amp;gt;%1$s&amp;lt;/tt&amp;gt;&amp;lt;br&amp;gt;&amp;lt;br&amp;gt;1.尝试&amp;lt;a href=%2$s&amp;gt;在浏览器中打开内容&amp;lt;/a&amp;gt;确保内容在内容源中正常显示&amp;lt;br&amp;gt;2.确认正在使用的是&amp;lt;a href=kototoro://about&amp;gt;最新版本的Novara&amp;lt;/a&amp;gt;&amp;lt;br&amp;gt;3.若已排除以上问题，请向开发人员发送错误报告。</string>
     <string name="manga_fix_prompt">这个功能将会从其他来源寻找你所选择的漫画，此操作耗时较长且会在后台进行</string>
     <string name="manga_list">漫画列表</string>
     <string name="manga_migration">即将换源</string>
@@ -1398,8 +1398,8 @@
     <string name="pin_navigation_ui">固定导航 UI</string>
     <string name="pin_navigation_ui_summary">当上下滑动时不隐藏导航栏和搜索框</string>
     <string name="pinned_sources_only">仅固定源</string>
-    <string name="plugin_incompatible">插件不兼容或出现了外部错误，请确保你已经将 Kototoro 以及插件更新至最新版本</string>
-    <string name="plugin_incompatible_with_cause">插件错误： %s\n请确认正在使用的插件及Kototoro是否为最新版本</string>
+    <string name="plugin_incompatible">插件不兼容或出现了外部错误，请确保你已经将 Novara 以及插件更新至最新版本</string>
+    <string name="plugin_incompatible_with_cause">插件错误： %s\n请确认正在使用的插件及Novara是否为最新版本</string>
     <string name="popular">热度（降序）</string>
     <string name="popular_in_hour">一小时内热门</string>
     <string name="popular_in_month">本月热门</string>
@@ -1484,7 +1484,7 @@
     <string name="progress">阅读进度</string>
     <string name="protect_application">应用锁</string>
     <string name="protect_application_subtitle">请填写密码</string>
-    <string name="protect_application_summary">在启动Kototoro时要求输入密码</string>
+    <string name="protect_application_summary">在启动Novara时要求输入密码</string>
     <string name="proxy">代理</string>
     <string name="pull_bottom_no_next">到底了</string>
     <string name="pull_to_next_chapter">松开即可阅读下一章</string>
@@ -2346,7 +2346,7 @@ SHA-256 指纹:
     <string name="unread_updates">未读更新</string>
     <string name="unstable_feature">不稳定功能</string>
     <string name="unstable_feature_summary">实验性功能，请确保您已备份，以防数据丢失</string>
-    <string name="unsupported_backup_message">请选择正确的 Kototoro 备份文件</string>
+    <string name="unsupported_backup_message">请选择正确的 Novara 备份文件</string>
     <string name="unsupported_novel_source">不支持此小说源</string>
     <string name="unsupported_source">不支持此漫画图源</string>
     <string name="unsupported_video_source">不支持此视频源</string>
@@ -2527,11 +2527,11 @@ SHA-256 指纹:
     <string name="webtoon_zoom_summary">允许在条漫模式下使用缩放手势</string>
     <string name="week">周</string>
     <string name="welcome">欢迎</string>
-    <string name="welcome_jar_install_failed">Kototoro: 解析器网络装载失败 (%1$s)，请重试或前往设置切换加速镜像</string>
-    <string name="welcome_jar_install_success">Kototoro: 成功从云端网络抓取并挂载了 %1$d 个最新解析器引擎！</string>
-    <string name="welcome_jar_install_up_to_date">Kototoro: 云端校验完成，本地解析器已是最新版本！(总计载入: %1$d 个源)</string>
-    <string name="welcome_plugins_disclaimer">这些扩展仓库由独立的在线社区维护。Kototoro 开发者与这些第三方仓库没有任何控制或关联关系。我知晓并同意，配置这些来源的风险由我自己承担。</string>
-    <string name="welcome_plugins_repo_kototoro">Kototoro 官方库</string>
+    <string name="welcome_jar_install_failed">Novara: 解析器网络装载失败 (%1$s)，请重试或前往设置切换加速镜像</string>
+    <string name="welcome_jar_install_success">Novara: 成功从云端网络抓取并挂载了 %1$d 个最新解析器引擎！</string>
+    <string name="welcome_jar_install_up_to_date">Novara: 云端校验完成，本地解析器已是最新版本！(总计载入: %1$d 个源)</string>
+    <string name="welcome_plugins_disclaimer">这些扩展仓库由独立的在线社区维护。Novara 开发者与这些第三方仓库没有任何控制或关联关系。我知晓并同意，配置这些来源的风险由我自己承担。</string>
+    <string name="welcome_plugins_repo_novara">Novara 官方库</string>
     <string name="welcome_plugins_repo_redo">Redo 解析库</string>
     <string name="welcome_plugins_repo_yakateam">Yakateam 官方补存库</string>
     <string name="welcome_plugins_start_btn">一键拉取并初始化装载</string>
@@ -2591,7 +2591,7 @@ SHA-256 指纹:
     <string name="pref_glass_noise_strength_summary">设置应用于自定义玻璃表面的最终噪点量，范围 0.00 至 1.00</string>
     <string name="pref_glass_immersive_strength">沉浸式着色强度</string>
     <string name="pref_glass_immersive_strength_summary">控制自定义玻璃边缘顶部和底部的沉浸式着色强度</string>
-    <string name="glass_material_kototoro">Kototoro（推荐）</string>
+    <string name="glass_material_novara">Novara（推荐）</string>
     <string name="glass_material_haze_ultra_thin">Haze 超薄</string>
     <string name="glass_material_haze_thin">Haze 薄</string>
     <string name="glass_material_haze_regular">Haze 标准</string>

@@ -35,7 +35,7 @@
 
 	<TextView
 		android:id="@+id/label_used"
-		style="@style/Widget.Kototoro.TextView.Indicator"
+		style="@style/Widget.Novara.TextView.Indicator"
 		android:layout_width="match_parent"
 		android:layout_height="wrap_content"
 		android:layout_marginTop="@dimen/margin_normal"
@@ -45,7 +45,7 @@
 
 	<TextView
 		android:id="@+id/label_available"
-		style="@style/Widget.Kototoro.TextView.Indicator"
+		style="@style/Widget.Novara.TextView.Indicator"
 		android:layout_width="match_parent"
 		android:layout_height="wrap_content"
 		android:layout_marginTop="@dimen/margin_small"
@@ -55,7 +55,7 @@
 
 	<com.google.android.material.chip.Chip
 		android:id="@+id/chip_cleanup"
-		style="@style/Widget.Kototoro.Chip.Assist"
+		style="@style/Widget.Novara.Chip.Assist"
 		android:layout_width="wrap_content"
 		android:layout_height="wrap_content"
 		android:layout_marginTop="12dp"

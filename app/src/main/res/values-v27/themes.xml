@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-	<style name="Base.V27.Kototoro" parent="Base.Theme.Kototoro">
+	<style name="Base.V27.Novara" parent="Base.Theme.Novara">
 		<item name="android:windowLightNavigationBar">@bool/light_navigation_bar</item>
 		<item name="android:navigationBarColor">@android:color/transparent</item>
 	</style>
 
-	<style name="Theme.Kototoro" parent="Base.V27.Kototoro" />
+	<style name="Theme.Novara" parent="Base.V27.Novara" />
 
 </resources>

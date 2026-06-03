@@ -2,42 +2,42 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
 
 	<!-- Base application theme. -->
-	<style name="Base.Theme.Kototoro" parent="Theme.Material3.DayNight.NoActionBar">
+	<style name="Base.Theme.Novara" parent="Theme.Material3.DayNight.NoActionBar">
 
 		<!-- Theme Colors -->
-		<item name="colorPrimary">@color/kototoro_primary</item>
-		<item name="colorPrimaryContainer">@color/kototoro_primaryContainer</item>
-		<item name="colorOnPrimary">@color/kototoro_onPrimary</item>
-		<item name="colorOnPrimaryContainer">@color/kototoro_onPrimaryContainer</item>
-		<item name="colorPrimaryInverse">@color/kototoro_inversePrimary</item>
-		<item name="colorSecondary">@color/kototoro_secondary</item>
-		<item name="colorSecondaryContainer">@color/kototoro_secondaryContainer</item>
-		<item name="colorOnSecondary">@color/kototoro_onSecondary</item>
-		<item name="colorOnSecondaryContainer">@color/kototoro_onSecondaryContainer</item>
-		<item name="colorTertiary">@color/kototoro_tertiary</item>
-		<item name="colorTertiaryContainer">@color/kototoro_tertiaryContainer</item>
-		<item name="colorOnTertiary">@color/kototoro_onTertiary</item>
-		<item name="colorOnTertiaryContainer">@color/kototoro_onTertiaryContainer</item>
-		<item name="colorSurface">@color/kototoro_surface</item>
-		<item name="colorSurfaceDim">@color/kototoro_surfaceDim</item>
-		<item name="colorSurfaceBright">@color/kototoro_surfaceBright</item>
-		<item name="colorSurfaceContainerLowest">@color/kototoro_surfaceContainerLowest</item>
-		<item name="colorSurfaceContainerLow">@color/kototoro_surfaceContainerLow</item>
-		<item name="colorSurfaceContainer">@color/kototoro_surfaceContainer</item>
-		<item name="colorSurfaceContainerHigh">@color/kototoro_surfaceContainerHigh</item>
-		<item name="colorSurfaceContainerHighest">@color/kototoro_surfaceContainerHighest</item>
-		<item name="colorSurfaceVariant">@color/kototoro_surfaceVariant</item>
-		<item name="colorOnSurface">@color/kototoro_onSurface</item>
-		<item name="colorOnSurfaceVariant">@color/kototoro_onSurfaceVariant</item>
-		<item name="colorSurfaceInverse">@color/kototoro_inverseSurface</item>
-		<item name="colorOnSurfaceInverse">@color/kototoro_inverseOnSurface</item>
-		<item name="colorOnBackground">@color/kototoro_onSurface</item>
+		<item name="colorPrimary">@color/novara_primary</item>
+		<item name="colorPrimaryContainer">@color/novara_primaryContainer</item>
+		<item name="colorOnPrimary">@color/novara_onPrimary</item>
+		<item name="colorOnPrimaryContainer">@color/novara_onPrimaryContainer</item>
+		<item name="colorPrimaryInverse">@color/novara_inversePrimary</item>
+		<item name="colorSecondary">@color/novara_secondary</item>
+		<item name="colorSecondaryContainer">@color/novara_secondaryContainer</item>
+		<item name="colorOnSecondary">@color/novara_onSecondary</item>
+		<item name="colorOnSecondaryContainer">@color/novara_onSecondaryContainer</item>
+		<item name="colorTertiary">@color/novara_tertiary</item>
+		<item name="colorTertiaryContainer">@color/novara_tertiaryContainer</item>
+		<item name="colorOnTertiary">@color/novara_onTertiary</item>
+		<item name="colorOnTertiaryContainer">@color/novara_onTertiaryContainer</item>
+		<item name="colorSurface">@color/novara_surface</item>
+		<item name="colorSurfaceDim">@color/novara_surfaceDim</item>
+		<item name="colorSurfaceBright">@color/novara_surfaceBright</item>
+		<item name="colorSurfaceContainerLowest">@color/novara_surfaceContainerLowest</item>
+		<item name="colorSurfaceContainerLow">@color/novara_surfaceContainerLow</item>
+		<item name="colorSurfaceContainer">@color/novara_surfaceContainer</item>
+		<item name="colorSurfaceContainerHigh">@color/novara_surfaceContainerHigh</item>
+		<item name="colorSurfaceContainerHighest">@color/novara_surfaceContainerHighest</item>
+		<item name="colorSurfaceVariant">@color/novara_surfaceVariant</item>
+		<item name="colorOnSurface">@color/novara_onSurface</item>
+		<item name="colorOnSurfaceVariant">@color/novara_onSurfaceVariant</item>
+		<item name="colorSurfaceInverse">@color/novara_inverseSurface</item>
+		<item name="colorOnSurfaceInverse">@color/novara_inverseOnSurface</item>
+		<item name="colorOnBackground">@color/novara_onSurface</item>
 		<item name="colorError">@color/error</item>
 		<item name="colorErrorContainer">@color/errorContainer</item>
 		<item name="colorOnError">@color/onError</item>
 		<item name="colorOnErrorContainer">@color/onErrorContainer</item>
-		<item name="colorOutline">@color/kototoro_outline</item>
-		<item name="colorOutlineVariant">@color/kototoro_outline</item>
+		<item name="colorOutline">@color/novara_outline</item>
+		<item name="colorOutlineVariant">@color/novara_outline</item>
 
 		<!-- Drawables (icons) -->
 		<item name="actionModeCloseDrawable">@drawable/abc_ic_clear_material</item>
@@ -54,39 +54,39 @@
 		<item name="windowActionModeOverlay">true</item>
 
 		<!-- System components styles -->
-		<item name="android:alertDialogTheme">@style/ThemeOverlay.Kototoro.AlertDialog</item>
-		<item name="alertDialogTheme">@style/ThemeOverlay.Kototoro.AlertDialog</item>
-		<item name="bottomSheetDialogTheme">@style/ThemeOverlay.Kototoro.BottomSheetDialog</item>
-		<item name="sideSheetDialogTheme">@style/ThemeOverlay.Kototoro.SideSheetDialog</item>
-		<item name="recyclerViewStyle">@style/Widget.Kototoro.RecyclerView</item>
-		<item name="android:dropDownSpinnerStyle">@style/Widget.Kototoro.Spinner.DropDown</item>
+		<item name="android:alertDialogTheme">@style/ThemeOverlay.Novara.AlertDialog</item>
+		<item name="alertDialogTheme">@style/ThemeOverlay.Novara.AlertDialog</item>
+		<item name="bottomSheetDialogTheme">@style/ThemeOverlay.Novara.BottomSheetDialog</item>
+		<item name="sideSheetDialogTheme">@style/ThemeOverlay.Novara.SideSheetDialog</item>
+		<item name="recyclerViewStyle">@style/Widget.Novara.RecyclerView</item>
+		<item name="android:dropDownSpinnerStyle">@style/Widget.Novara.Spinner.DropDown</item>
 		<item name="switchPreferenceCompatStyle">@style/Preference.SwitchPreferenceCompat.M3</item>
-		<item name="circularProgressIndicatorStyle">@style/Widget.Kototoro.CircularProgressIndicator.ThickStraight</item>
-		<item name="linearProgressIndicatorStyle">@style/Widget.Kototoro.LinearProgressIndicator.ThickStraight</item>
-		<item name="bottomSheetDragHandleStyle">@style/Widget.Kototoro.BottomSheet.DragHandle</item>
-		<item name="preferenceTheme">@style/PreferenceThemeOverlay.Kototoro</item>
+		<item name="circularProgressIndicatorStyle">@style/Widget.Novara.CircularProgressIndicator.ThickStraight</item>
+		<item name="linearProgressIndicatorStyle">@style/Widget.Novara.LinearProgressIndicator.ThickStraight</item>
+		<item name="bottomSheetDragHandleStyle">@style/Widget.Novara.BottomSheet.DragHandle</item>
+		<item name="preferenceTheme">@style/PreferenceThemeOverlay.Novara</item>
 		<!-- Fix crash in A15 + compact spacing for SearchBar filter icons -->
-		<item name="actionButtonStyle">@style/Widget.Kototoro.ActionButton.Compact</item>
+		<item name="actionButtonStyle">@style/Widget.Novara.ActionButton.Compact</item>
 
 		<!-- Custom views -->
-		<item name="fastScrollerStyle">@style/Widget.Kototoro.FastScroller</item>
-		<item name="listItemTextViewStyle">@style/Widget.Kototoro.ListItemTextView</item>
-		<item name="dotIndicatorStyle">@style/Widget.Kototoro.DotIndicator</item>
-		<item name="badgeViewStyle">@style/Widget.Kototoro.BadgeView</item>
-		<item name="coverImageViewStyle">@style/Widget.Kototoro.ImageView.Cover</item>
+		<item name="fastScrollerStyle">@style/Widget.Novara.FastScroller</item>
+		<item name="listItemTextViewStyle">@style/Widget.Novara.ListItemTextView</item>
+		<item name="dotIndicatorStyle">@style/Widget.Novara.DotIndicator</item>
+		<item name="badgeViewStyle">@style/Widget.Novara.BadgeView</item>
+		<item name="coverImageViewStyle">@style/Widget.Novara.ImageView.Cover</item>
 	</style>
 
 	<!--== Default Theme ==-->
-	<style name="Theme.Kototoro" parent="Base.Theme.Kototoro" />
+	<style name="Theme.Novara" parent="Base.Theme.Novara" />
 
 	<!-- Base ThemeOverlay -->
-	<style name="ThemeOverlay.Kototoro" parent="ThemeOverlay.Material3.Light" />
+	<style name="ThemeOverlay.Novara" parent="ThemeOverlay.Material3.Light" />
 
 	<!-- Monet theme only support S+ -->
-	<style name="ThemeOverlay.Kototoro.Monet" parent="ThemeOverlay.Material3.DynamicColors.Light" />
+	<style name="ThemeOverlay.Novara.Monet" parent="ThemeOverlay.Material3.DynamicColors.Light" />
 
 	<!-- Expressive Monet theme -->
-	<style name="ThemeOverlay.Kototoro.Expressive" parent="ThemeOverlay.Material3Expressive.DynamicColors.DayNight">
+	<style name="ThemeOverlay.Novara.Expressive" parent="ThemeOverlay.Material3Expressive.DynamicColors.DayNight">
 		<item name="alertDialogTheme">@style/ThemeOverlay.Material3Expressive.Dialog.Alert</item>
 		<item name="materialAlertDialogTheme">@style/ThemeOverlay.Material3Expressive.MaterialAlertDialog</item>
 
@@ -148,21 +148,21 @@
 	</style>
 
 	<!-- Changes only for night -->
-	<style name="ThemeOverlay.Kototoro.Amoled" parent="" />
+	<style name="ThemeOverlay.Novara.Amoled" parent="" />
 
-	<style name="ThemeOverlay.Kototoro.PopupRadius.12" parent="">
+	<style name="ThemeOverlay.Novara.PopupRadius.12" parent="">
 		<item name="popupMenuBackground">@drawable/bg_popup_12</item>
 		<item name="android:popupBackground">@drawable/bg_popup_12</item>
 	</style>
-	<style name="ThemeOverlay.Kototoro.PopupRadius.16" parent="">
+	<style name="ThemeOverlay.Novara.PopupRadius.16" parent="">
 		<item name="popupMenuBackground">@drawable/bg_popup_16</item>
 		<item name="android:popupBackground">@drawable/bg_popup_16</item>
 	</style>
-	<style name="ThemeOverlay.Kototoro.PopupRadius.20" parent="">
+	<style name="ThemeOverlay.Novara.PopupRadius.20" parent="">
 		<item name="popupMenuBackground">@drawable/bg_popup_20</item>
 		<item name="android:popupBackground">@drawable/bg_popup_20</item>
 	</style>
-	<style name="ThemeOverlay.Kototoro.PopupRadius.24" parent="">
+	<style name="ThemeOverlay.Novara.PopupRadius.24" parent="">
 		<item name="popupMenuBackground">@drawable/bg_popup_24</item>
 		<item name="android:popupBackground">@drawable/bg_popup_24</item>
 	</style>
@@ -170,8 +170,8 @@
 
 	<!-- App Widgets -->
 
-	<style name="Theme.Kototoro.AppWidgetContainer" parent="@style/Theme.MaterialComponents.Light">
-		<item name="android:colorBackground">@color/kototoro_background</item>
-		<item name="android:panelColorBackground">@color/kototoro_primaryContainer</item>
+	<style name="Theme.Novara.AppWidgetContainer" parent="@style/Theme.MaterialComponents.Light">
+		<item name="android:colorBackground">@color/novara_background</item>
+		<item name="android:panelColorBackground">@color/novara_primaryContainer</item>
 	</style>
 </resources>

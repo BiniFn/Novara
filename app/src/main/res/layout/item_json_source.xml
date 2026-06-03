@@ -30,7 +30,7 @@
         android:background="?colorControlHighlight"
         android:contentDescription="@null"
         android:scaleType="centerCrop"
-        app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Kototoro.Cover.Small"
+        app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Novara.Cover.Small"
         tools:src="@drawable/ic_placeholder" />
 
     <LinearLayout

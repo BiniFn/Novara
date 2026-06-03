@@ -52,7 +52,7 @@
     <string name="about">À propos</string>
     <string name="passwords_mismatch">Les mots de passe ne correspondent pas</string>
     <string name="repeat_password">Répéter le mot de passe</string>
-    <string name="protect_application_summary">Demander le mot de passe au démarrage de Kototoro</string>
+    <string name="protect_application_summary">Demander le mot de passe au démarrage de Novara</string>
     <string name="protect_application">Protéger l\'application</string>
     <string name="wrong_password">Mot de passe erroné</string>
     <string name="enter_password">Entrez le mot de passe</string>
@@ -269,7 +269,7 @@
     <string name="invalid_domain_message">Domaine invalide</string>
     <string name="select_range">Sélectionner une plage</string>
     <string name="not_found_404">Contenu non trouvé ou supprimé</string>
-    <string name="manga_error_description_pattern">Détails de l\'erreur:&lt;br&gt;&lt;tt&gt;%1$s&lt;/tt&gt;&lt;br&gt;&lt;br&gt;1. Essayez d\'&lt;a href=%2$s&gt;ouvrir le manga dans un navigateur web&lt;/a&gt; pour vous assurer qu\'il est disponible sur sa source&lt;br&gt;2. Assurez-vous que vous utilisez la &lt;a href=kototoro://about&gt;dernière version de Kototoro&lt;/a&gt;&lt;br&gt;3. Si elle est disponible, envoyez un rapport d\'erreur aux développeurs.</string>
+    <string name="manga_error_description_pattern">Détails de l\'erreur:&lt;br&gt;&lt;tt&gt;%1$s&lt;/tt&gt;&lt;br&gt;&lt;br&gt;1. Essayez d\'&lt;a href=%2$s&gt;ouvrir le manga dans un navigateur web&lt;/a&gt; pour vous assurer qu\'il est disponible sur sa source&lt;br&gt;2. Assurez-vous que vous utilisez la &lt;a href=kototoro://about&gt;dernière version de Novara&lt;/a&gt;&lt;br&gt;3. Si elle est disponible, envoyez un rapport d\'erreur aux développeurs.</string>
     <string name="confirm_exit">Appuyez à nouveau sur Retour pour quitter</string>
     <string name="categories_delete_confirm">Êtes-vous sûr(e) de vouloir supprimer les catégories de favoris sélectionnées ?\nTous les mangas qui s\'y trouvent seront perdus et ceci ne peut pas être annulé.</string>
     <string name="exit_confirmation_summary">Appuyez deux fois sur la touche Retour pour quitter l\'appli</string>
@@ -566,7 +566,7 @@
     <string name="show_labels_in_navbar">Afficher les étiquettes dans la barre de navigation</string>
     <string name="pages_saving">Sauvegarder les pages</string>
     <string name="default_webtoon_zoom_out">Zoom webtoon par défaut</string>
-    <string name="unsupported_backup_message">Veuillez sélectionner un fichier de sauvegarde Kototoro valide</string>
+    <string name="unsupported_backup_message">Veuillez sélectionner un fichier de sauvegarde Novara valide</string>
     <string name="preferred_download_format">Format de téléchargement préféré</string>
     <string name="clear_stats_confirm">Voulez-vous vraiment effacer tout les statistiques de lecture ? Cette action ne peut pas annuler.</string>
     <string name="reading_stats">Statistiques de lecture</string>
@@ -714,7 +714,7 @@
     <string name="retry">Réessayer</string>
     <string name="too_many_requests_message_retry">Trop de demandes. Essayez encore après %s</string>
     <string name="not_in_favorites">Pas dans les favoris</string>
-    <string name="plugin_incompatible">Greffon incompatible ou erreur interne. Assurez-vous d\'utiliser la dernière version du greffon et de Kototoro</string>
+    <string name="plugin_incompatible">Greffon incompatible ou erreur interne. Assurez-vous d\'utiliser la dernière version du greffon et de Novara</string>
     <string name="all_languages">Toutes les langues</string>
     <string name="sources_unpinned">Sources désépinglées</string>
     <string name="sources_pinned">Sources épinglées</string>
@@ -737,7 +737,7 @@
     <string name="allow_always">Toujours autoriser</string>
     <string name="allow_once">Autoriser une fois</string>
     <string name="ask_every_time">Demander à chaque fois</string>
-    <string name="plugin_incompatible_with_cause">Erreur du module d\'extension : %s\n- Assurez-vous que vous utilisez la dernière version du module d\'extension et de Kototoro</string>
+    <string name="plugin_incompatible_with_cause">Erreur du module d\'extension : %s\n- Assurez-vous que vous utilisez la dernière version du module d\'extension et de Novara</string>
     <string name="content_type_image_set">Collection d\'images</string>
     <string name="error_not_image">Format invalide : une image était attendue mais a reçu %s</string>
     <string name="access_denied_403">Accès refusé (403)</string>
@@ -759,7 +759,7 @@
     <string name="telegram_chat_id">ID de chat Telegram</string>
     <string name="backup_tg_echo">Message de test</string>
     <string name="test_connection">Tester la connexion</string>
-    <string name="open_telegram_bot_summary">Appuyez pour ouvrir le chat avec le bot de sauvegarde Kototoro</string>
+    <string name="open_telegram_bot_summary">Appuyez pour ouvrir le chat avec le bot de sauvegarde Novara</string>
     <string name="error_connection_reset">Connexion réinitialisée par l\'hôte distant</string>
     <string name="backup_tg_id_not_set">L\'ID du chat n\'est pas défini</string>
     <string name="telegram_chat_id_summary">Entrez l\'ID du chat où les sauvegardes doivent être envoyées</string>
@@ -775,7 +775,7 @@
     <string name="restoring_backup">Restauration de la sauvegarde</string>
     <string name="error_details">Détails de l\'erreur</string>
     <string name="error_disclaimer_manga">Essayez d\'ouvrir le manga dans un navigateur Web pour vous assurer qu\'il est disponible sur sa source.</string>
-    <string name="error_disclaimer_app_outdated">Il semble que votre version de Kototoro soit obsolète. Veuillez installer la dernière version pour obtenir tous les correctifs disponibles.</string>
+    <string name="error_disclaimer_app_outdated">Il semble que votre version de Novara soit obsolète. Veuillez installer la dernière version pour obtenir tous les correctifs disponibles.</string>
     <string name="error_disclaimer_report">Vous pouvez envoyer un rapport des erreurs aux développeurs. Cela nous aidera à enquêter sur le problème et à le résoudre.</string>
     <string name="search_disabled_sources">Rechercher dans les sources désactivées</string>
     <string name="reader_info_bar_transparent">Barre d\'informations transparente pour le lecteur</string>
@@ -788,7 +788,7 @@
     <string name="screen_rotation_locked">La rotation de l\'écran a été verrouillée</string>
     <string name="screen_rotation_unlocked">La rotation de l\'écran a été déverrouillée</string>
     <string name="link_to_manga_on_s">Lien vers le manga sur %s</string>
-    <string name="link_to_manga_in_app">Lien vers le manga dans Kototoro</string>
+    <string name="link_to_manga_in_app">Lien vers le manga dans Novara</string>
     <string name="simple">Simple</string>
     <string name="disable_captcha_notifications">Désactiver les notifications captcha</string>
     <string name="disable_captcha_notifications_summary">Vous ne recevrez pas de notifications concernant la résolution du CAPTCHA pour cette source, mais cela peut entraîner l\'interruption des opérations en arrière-plan (vérification de nouveaux chapitres, obtention de recommandations, etc)</string>
@@ -846,7 +846,7 @@
     <string name="discord_token_hint">Colle ton jeton Discord ici</string>
     <string name="discord_rpc_summary">Affiche ton statut de lecture sur Discord</string>
     <string name="obtain">Obtenir</string>
-    <string name="discord_rpc_description">Lecture de manga sur Kototoro – une application de lecture de manga</string>
+    <string name="discord_rpc_description">Lecture de manga sur Novara – une application de lecture de manga</string>
     <string name="reading_s">Lecture de %s</string>
     <string name="read_on_s">Lire sur %s</string>
     <string name="rpc_skip_nsfw_summary">Ne pas utiliser la présence enrichie pour du contenu adulte</string>
@@ -951,7 +951,7 @@
     <string name="aniyomi_source_count">%d source(s) disponible(s)</string>
     <string name="aniyomi_sources">Aniyomi</string>
     <string name="aniyomi_sources_directory">Répertoire des extensions Aniyomi</string>
-    <string name="app_name">Kototoro</string>
+    <string name="app_name">Novara</string>
     <string name="assembling_apk">Assemblage de la mise à jour incrémentielle. Veuillez patienter…</string>
     <string name="auth_title">Authentification</string>
     <string name="auto_double_foldable">Deux pages automatique sur pliable</string>
@@ -1394,7 +1394,7 @@
     <string name="import_local_jar">Importer un JAR local</string>
     <string name="importing_">Importation en cours…</string>
     <string name="incompatible_extension">Incompatible</string>
-    <string name="incompatible_extension_message">%1$s %2$s ne peut pas être installé car sa version de bibliothèque (%3$s) est en dehors de la plage prise en charge par Kototoro.</string>
+    <string name="incompatible_extension_message">%1$s %2$s ne peut pas être installé car sa version de bibliothèque (%3$s) est en dehors de la plage prise en charge par Novara.</string>
     <string name="incompatible_section">Incompatible</string>
     <string name="inline_preference_pattern">%1$s : %2$s</string>
     <string name="install_extension">Installer</string>
@@ -1414,7 +1414,7 @@
     <string name="jar_plugins_update_all">Tout mettre à jour</string>
     <string name="jar_plugins_updates_available">Des mises à jour sont disponibles pour les plugins JAR !</string>
     <string name="jar_plugins_updating">Mise à jour des plugins JAR...</string>
-    <string name="jar_priority_order_summary">Préfixes JAR séparés par des virgules. Lorsque plusieurs analyseurs partagent le même nom, seul l\'analyseur du dépôt le mieux classé est exposé. Exemple : kototoro-parsers, kotatsu-parsers-redo, kotatsu-parsers</string>
+    <string name="jar_priority_order_summary">Préfixes JAR séparés par des virgules. Lorsque plusieurs analyseurs partagent le même nom, seul l\'analyseur du dépôt le mieux classé est exposé. Exemple : novara-parsers, kotatsu-parsers-redo, kotatsu-parsers</string>
     <string name="jar_priority_order_title">Séquence de priorité de déduplication des plugins</string>
     <string name="json_content_required">Le contenu JSON est requis</string>
     <string name="json_sources">JSON</string>
@@ -2465,15 +2465,15 @@
     <string name="webdav_upload_now">Télécharger la sauvegarde maintenant</string>
     <string name="webdav_upload_success">Sauvegarde téléchargée vers WebDAV</string>
     <string name="webdav_username">Nom d\'utilisateur WebDAV</string>
-    <string name="welcome_jar_install_failed">Kototoro : Échec du chargement réseau de l\'analyseur (%1$s), veuillez réessayer ou accéder aux paramètres pour changer de miroir proxy.</string>
-    <string name="welcome_jar_install_success">Kototoro : %1$d derniers moteurs d\'analyse ont été récupérés et montés avec succès depuis le réseau cloud !</string>
-    <string name="welcome_jar_install_up_to_date">Kototoro : Vérification cloud terminée, les analyseurs locaux sont à jour ! (%1$d sources chargées au total)</string>
-    <string name="welcome_plugins_disclaimer">Ces dépôts d\'extensions sont maintenus par des communautés en ligne indépendantes. Les développeurs de Kototoro n\'ont aucune affiliation, contrôle ou association avec ces dépôts tiers. Je reconnais configurer ces sources à mes propres risques.</string>
-    <string name="welcome_plugins_repo_kototoro">Analyseurs Kototoro</string>
+    <string name="welcome_jar_install_failed">Novara : Échec du chargement réseau de l\'analyseur (%1$s), veuillez réessayer ou accéder aux paramètres pour changer de miroir proxy.</string>
+    <string name="welcome_jar_install_success">Novara : %1$d derniers moteurs d\'analyse ont été récupérés et montés avec succès depuis le réseau cloud !</string>
+    <string name="welcome_jar_install_up_to_date">Novara : Vérification cloud terminée, les analyseurs locaux sont à jour ! (%1$d sources chargées au total)</string>
+    <string name="welcome_plugins_disclaimer">Ces dépôts d\'extensions sont maintenus par des communautés en ligne indépendantes. Les développeurs de Novara n\'ont aucune affiliation, contrôle ou association avec ces dépôts tiers. Je reconnais configurer ces sources à mes propres risques.</string>
+    <string name="welcome_plugins_repo_novara">Analyseurs Novara</string>
     <string name="welcome_plugins_repo_redo">Analyseurs Redo</string>
     <string name="welcome_plugins_repo_yakateam">Analyseurs Yakateam</string>
     <string name="welcome_plugins_start_btn">Initialisation en 1 clic</string>
-    <string name="welcome_plugins_summary">Kototoro utilise désormais des plugins dynamiques découplés. Sélectionnez d\'abord des dépôts prédéfinis et un miroir proxy pour initialiser les analyseurs.</string>
+    <string name="welcome_plugins_summary">Novara utilise désormais des plugins dynamiques découplés. Sélectionnez d\'abord des dépôts prédéfinis et un miroir proxy pour initialiser les analyseurs.</string>
     <string name="welcome_plugins_title">Initialiser les sources de plugins</string>
     <string name="work_info">Infos sur l\'œuvre</string>
     <string name="you_may_like">Vous pourriez aussi aimer</string>

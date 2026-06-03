@@ -10,8 +10,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
 import android.widget.FrameLayout
-import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.annotation.AttrRes
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import com.google.android.material.slider.Slider
@@ -37,7 +38,7 @@ class ReaderActionsView @JvmOverloads constructor(
 	context: Context,
 	attrs: AttributeSet? = null,
 	@AttrRes defStyleAttr: Int = 0,
-) : LinearLayout(context, attrs, defStyleAttr),
+) : ConstraintLayout(context, attrs, defStyleAttr),
 	View.OnClickListener,
 	SharedPreferences.OnSharedPreferenceChangeListener,
 	Slider.OnChangeListener,
@@ -89,8 +90,6 @@ class ReaderActionsView @JvmOverloads constructor(
 	var listener: OnInteractionListener? = null
 
 	init {
-		orientation = HORIZONTAL
-		gravity = Gravity.CENTER_VERTICAL
 		binding.buttonNext.initAction()
 		binding.buttonPrev.initAction()
 		binding.buttonSave.initAction()
@@ -101,6 +100,7 @@ class ReaderActionsView @JvmOverloads constructor(
 		binding.buttonBookmark.initAction()
 		binding.buttonDownload.initAction()
 		binding.buttonTranslate.initAction()
+		binding.buttonClose.initAction()
 		binding.slider.setLabelFormatter(PageLabelFormatter())
 		binding.slider.addOnChangeListener(this)
 		binding.slider.addOnSliderTouchListener(this)
@@ -135,6 +135,7 @@ class ReaderActionsView @JvmOverloads constructor(
 			R.id.button_bookmark -> listener?.onBookmarkClick()
 			R.id.button_download -> listener?.onDownloadClick()
 			R.id.button_translate -> listener?.onTranslateClick()
+			R.id.button_close -> (context as? android.app.Activity)?.finish()
 		}
 	}
 
@@ -203,8 +204,13 @@ class ReaderActionsView @JvmOverloads constructor(
 	}
 
 	fun setPageLabel(current: Int, total: Int) {
-		pageLabelFormatter = { c, t -> "$c/$t" }
+		pageLabelFormatter = { c, t -> "$c / $t" }
+		binding.textPageIndicator.text = pageLabelFormatter?.invoke(current, total)
 		binding.slider.setLabelFormatter { pageLabelFormatter?.invoke(current, total) ?: it.toInt().toString() }
+	}
+
+	fun setChapterTitle(title: String) {
+		binding.textChapterTitle.text = title
 	}
 
 	fun setSliderReversed(reversed: Boolean) {
@@ -293,17 +299,7 @@ class ReaderActionsView @JvmOverloads constructor(
 	}
 
 	private fun adjustLayoutParams() {
-		val isSliderVisible = binding.slider.isVisible
-		repeat(childCount) { i ->
-			val child = getChildAt(i)
-			if (child is FrameLayout) {
-				child.isVisible = child.hasVisibleChildren
-				child.updateLayoutParams<LayoutParams> {
-					width = if (isSliderVisible) LayoutParams.WRAP_CONTENT else 0
-					weight = if (isSliderVisible) 0f else 1f
-				}
-			}
-		}
+		// Nothing to adjust for ConstraintLayout in this case
 	}
 
 	private fun updateRotationButton() {

@@ -63,7 +63,7 @@
     <string name="show_notification_new_chapters_on">您將會收到您正在閱讀的漫畫的更新通知</string>
     <string name="tracker_warning">一些裝置有不同的系統行為，這可能會破壞背景任務。</string>
     <string name="protect_application_subtitle">輸入密碼以啟動應用程式</string>
-    <string name="protect_application_summary">在啟動 Kototoro 時要求密碼</string>
+    <string name="protect_application_summary">在啟動 Novara 時要求密碼</string>
     <string name="chapters_empty">此漫畫沒有章節</string>
     <string name="text_feed_holder">您想要閱讀的漫畫的新的章節會顯示在此</string>
     <string name="history_shortcuts_summary">通過長案應用程式圖示來提供最近的漫畫</string>
@@ -424,7 +424,7 @@
     <string name="memory_usage_pattern">%1$s - %2$s</string>
     <string name="allow_unstable_updates_summary">接收不穩定建置的更新通知</string>
     <string name="scrobbling_empty_hint">要追蹤閱讀進度，在漫畫詳細畫面選擇選單 → 追蹤。</string>
-    <string name="manga_error_description_pattern">錯誤詳情:&lt;br&gt;&lt;tt&gt;%1$s&lt;/tt&gt;&lt;br&gt;&lt;br&gt;1. 嘗試&lt;a href=%2$s&gt;在瀏覽器中開啟漫畫&lt;/a&gt; 以確保它在其來源中是可用的&lt;br&gt;2. 確認您使用的是 &lt;a href=kototoro://about&gt;最新版的的 Kototoro&lt;/a&gt;&lt;br&gt;3. 如果可用，請向開發人員發送錯誤報告。</string>
+    <string name="manga_error_description_pattern">錯誤詳情:&lt;br&gt;&lt;tt&gt;%1$s&lt;/tt&gt;&lt;br&gt;&lt;br&gt;1. 嘗試&lt;a href=%2$s&gt;在瀏覽器中開啟漫畫&lt;/a&gt; 以確保它在其來源中是可用的&lt;br&gt;2. 確認您使用的是 &lt;a href=kototoro://about&gt;最新版的的 Novara&lt;/a&gt;&lt;br&gt;3. 如果可用，請向開發人員發送錯誤報告。</string>
     <string name="languages">語言</string>
     <string name="zoom_in">放大</string>
     <string name="captcha_required_summary">%s 需要通過驗證碼才能正常工作</string>
@@ -575,7 +575,7 @@
     <string name="preferred_download_format">偏好的下載格式</string>
     <string name="automatic">自動</string>
     <string name="single_cbz_file">單一 CBZ 檔案</string>
-    <string name="unsupported_backup_message">請選擇一個適當的 Kototoro 備份檔案</string>
+    <string name="unsupported_backup_message">請選擇一個適當的 Novara 備份檔案</string>
     <string name="last_used">最後使用</string>
     <string name="delete_read_chapters_auto">自動刪除已讀章節</string>
     <string name="runs_on_app_start">當應用程式啟動時運行</string>
@@ -639,7 +639,7 @@
     <string name="disable_connectivity_check_summary">若您遇到連線檢查問題（例如，網路已連接但應用程式進入離線模式），可以略過連線檢查</string>
     <string name="manga_fix_prompt">此功能將為選定的漫畫尋找替代來源。此任務將需要一些時間，並會在背景中進行</string>
     <string name="show_quick_filters_summary">提供依照特定參數過濾漫畫列表的功能</string>
-    <string name="plugin_incompatible">不相容的外掛或內部錯誤。請確保您使用的是最新版本的外掛與 Kototoro</string>
+    <string name="plugin_incompatible">不相容的外掛或內部錯誤。請確保您使用的是最新版本的外掛與 Novara</string>
     <string name="filter_search_warning">此來源不支援帶有過濾條件的搜尋。您的過濾條件已被清除</string>
     <string name="text_empty_holder_secondary_filtered">沒有符合您所選過濾條件的漫畫</string>
     <string name="too_many_requests_message_retry">請求過多。請在 %s 之後再試</string>
@@ -817,7 +817,7 @@
     <string name="aniyomi_sources">Aniyomi</string>
     <string name="aniyomi_sources_directory">Aniyomi源目錄</string>
     <string name="any">所有</string>
-    <string name="app_name">Kototoro</string>
+    <string name="app_name">Novara</string>
     <string name="ask_every_time">每次詢問</string>
     <string name="assembling_apk">正在組裝增量更新包，請稍候…</string>
     <string name="auth_title">賬戶登錄</string>
@@ -1035,7 +1035,7 @@
     <string name="discord">Discord</string>
     <string name="discord_logout_summary">清除已保存的 Discord Token，並退出內置 Discord 會話。</string>
     <string name="discord_rpc">綁定 Discord 狀態</string>
-    <string name="discord_rpc_description">正在 Kototoro - 一個漫畫閱讀軟件上閱讀漫畫</string>
+    <string name="discord_rpc_description">正在 Novara - 一個漫畫閱讀軟件上閱讀漫畫</string>
     <string name="discord_rpc_summary">在 Discord 個人信息欄內顯示你的閱讀狀態</string>
     <string name="discord_token">Discord Token</string>
     <string name="discord_token_description">輸入你的 Discord Token 或者點擊 %s 打開內置瀏覽器獲取 Token</string>
@@ -1169,7 +1169,7 @@
     <string name="error_corrupted_zip">損壞的 ZIP 文件 (%s)</string>
     <string name="error_database_error">執行 \'%s\' 時發生數據庫錯誤</string>
     <string name="error_details">錯誤詳細信息</string>
-    <string name="error_disclaimer_app_outdated">您的 Kototoro 版本過舊，請下載最新版本以修復問題</string>
+    <string name="error_disclaimer_app_outdated">您的 Novara 版本過舊，請下載最新版本以修復問題</string>
     <string name="error_disclaimer_manga">嘗試在網絡瀏覽器中打開漫畫，以確保此漫畫在圖源中可用</string>
     <string name="error_disclaimer_report">可向開發者提交錯誤報告，將會幫助我們定位並修復錯誤</string>
     <string name="error_duplicate_source_id">ID 爲 \'%s\' 的源已存在</string>
@@ -1325,7 +1325,7 @@
     <string name="incognito_for_nsfw">成人漫畫無痕模式</string>
     <string name="incognito_mode_hint_nsfw">此漫畫可能包含成人內容，需要打開無痕模式繼續瀏覽嗎？</string>
     <string name="incompatible_extension">不兼容</string>
-    <string name="incompatible_extension_message">%1$s %2$s 無法安裝，因其庫版本（%3$s）超出 Kototoro 的支持範圍。</string>
+    <string name="incompatible_extension_message">%1$s %2$s 無法安裝，因其庫版本（%3$s）超出 Novara 的支持範圍。</string>
     <string name="incompatible_section">不兼容</string>
     <string name="inline_preference_pattern">%1$s: %2$s</string>
     <string name="install_extension">安裝</string>
@@ -1343,7 +1343,7 @@
     <string name="ireader_sources">IReader</string>
     <string name="jar_extension_repositories">JAR 倉庫</string>
     <string name="jar_manage_sources">Jar源管理</string>
-    <string name="jar_priority_order_summary">逗號分隔的 JAR 前綴。當多個解析器同名時，僅展示排名最高倉庫中的解析器。示例: kototoro-parsers, kotatsu-parsers-redo, kotatsu-parsers</string>
+    <string name="jar_priority_order_summary">逗號分隔的 JAR 前綴。當多個解析器同名時，僅展示排名最高倉庫中的解析器。示例: novara-parsers, kotatsu-parsers-redo, kotatsu-parsers</string>
     <string name="jar_priority_order_title">插件去重優先級順序</string>
     <string name="json_content_required">需要 JSON 內容</string>
     <string name="json_sources">JSON</string>
@@ -1365,7 +1365,7 @@
     <string name="kitsu_category_trending_anime">熱門動畫</string>
     <string name="kitsu_category_trending_manga">熱門漫畫</string>
     <string name="landscape">橫屏</string>
-    <string name="link_to_manga_in_app">在 Kototoro 上連接漫畫</string>
+    <string name="link_to_manga_in_app">在 Novara 上連接漫畫</string>
     <string name="link_to_manga_on_s">在 %s 上連接漫畫</string>
     <string name="list_ellipsize_pattern">(+%d)</string>
     <string name="lnreader_plugins">LNReader 插件</string>
@@ -1559,7 +1559,7 @@
     <string name="pinned_sources_only">僅固定源</string>
     <string name="play">播放</string>
     <string name="playback_settings">播放</string>
-    <string name="plugin_incompatible_with_cause">插件錯誤： %s\n請確認正在使用的插件及Kototoro是否爲最新版本</string>
+    <string name="plugin_incompatible_with_cause">插件錯誤： %s\n請確認正在使用的插件及Novara是否爲最新版本</string>
     <string name="popular_in_hour">一小時內熱門</string>
     <string name="popular_in_month">本月熱門</string>
     <string name="popular_in_week">本週熱門</string>
@@ -2498,11 +2498,11 @@ SHA-256 指紋:
     <string name="webdav_upload_now">立即上傳備份</string>
     <string name="webdav_upload_success">已上傳到 WebDAV</string>
     <string name="webdav_username">WebDAV 用戶名</string>
-    <string name="welcome_jar_install_failed">Kototoro: 解析器網絡裝載失敗 (%1$s)，請重試或前往設置切換加速鏡像</string>
-    <string name="welcome_jar_install_success">Kototoro: 成功從雲端網絡抓取並掛載了 %1$d 個最新解析器引擎！</string>
-    <string name="welcome_jar_install_up_to_date">Kototoro: 雲端校驗完成，本地解析器已是最新版本！(總計載入: %1$d 個源)</string>
-    <string name="welcome_plugins_disclaimer">這些擴展倉庫由獨立的在線社區維護。Kototoro 開發者與這些第三方倉庫沒有任何控制或關聯關係。我知曉並同意，配置這些來源的風險由我自己承擔。</string>
-    <string name="welcome_plugins_repo_kototoro">Kototoro 官方庫</string>
+    <string name="welcome_jar_install_failed">Novara: 解析器網絡裝載失敗 (%1$s)，請重試或前往設置切換加速鏡像</string>
+    <string name="welcome_jar_install_success">Novara: 成功從雲端網絡抓取並掛載了 %1$d 個最新解析器引擎！</string>
+    <string name="welcome_jar_install_up_to_date">Novara: 雲端校驗完成，本地解析器已是最新版本！(總計載入: %1$d 個源)</string>
+    <string name="welcome_plugins_disclaimer">這些擴展倉庫由獨立的在線社區維護。Novara 開發者與這些第三方倉庫沒有任何控制或關聯關係。我知曉並同意，配置這些來源的風險由我自己承擔。</string>
+    <string name="welcome_plugins_repo_novara">Novara 官方庫</string>
     <string name="welcome_plugins_repo_redo">Redo 解析庫</string>
     <string name="welcome_plugins_repo_yakateam">Yakateam 官方補存庫</string>
     <string name="welcome_plugins_start_btn">一鍵拉取並初始化裝載</string>
@@ -2546,7 +2546,7 @@ SHA-256 指紋:
     <string name="pref_glass_noise_strength_summary">設定應用於自定義玻璃表面的最終噪點量，範圍 0.00 至 1.00</string>
     <string name="pref_glass_immersive_strength">沉浸式着色強度</string>
     <string name="pref_glass_immersive_strength_summary">控制自定義玻璃邊緣頂部和底部的沉浸式着色強度</string>
-    <string name="glass_material_kototoro">Kototoro（推薦）</string>
+    <string name="glass_material_novara">Novara（推薦）</string>
     <string name="glass_material_haze_ultra_thin">Haze 超薄</string>
     <string name="glass_material_haze_thin">Haze 薄</string>
     <string name="glass_material_haze_regular">Haze 標準</string>

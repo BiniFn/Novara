@@ -2,123 +2,123 @@
 
 	<!--AlertDialog-->
 
-	<style name="ThemeOverlay.Kototoro.AlertDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
-		<item name="alertDialogStyle">@style/AlertDialog.Kototoro</item>
+	<style name="ThemeOverlay.Novara.AlertDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+		<item name="alertDialogStyle">@style/AlertDialog.Novara</item>
 		<item name="dialogCornerRadius">@dimen/m3_alert_dialog_corner_size</item>
 	</style>
 
-	<style name="AlertDialog.Kototoro" parent="MaterialAlertDialog.Material3">
+	<style name="AlertDialog.Novara" parent="MaterialAlertDialog.Material3">
 		<item name="android:background">@drawable/m3_popup_background</item>
 	</style>
 
 	<!-- Bottom sheet -->
 
-	<style name="ThemeOverlay.Kototoro.BottomSheetDialog" parent="ThemeOverlay.Material3.BottomSheetDialog">
-		<item name="android:windowAnimationStyle">@style/Animation.Kototoro.BottomSheetDialog</item>
-		<item name="bottomSheetStyle">@style/Widget.Kototoro.BottomSheet.Modal</item>
+	<style name="ThemeOverlay.Novara.BottomSheetDialog" parent="ThemeOverlay.Material3.BottomSheetDialog">
+		<item name="android:windowAnimationStyle">@style/Animation.Novara.BottomSheetDialog</item>
+		<item name="bottomSheetStyle">@style/Widget.Novara.BottomSheet.Modal</item>
 	</style>
 
-	<style name="ThemeOverlay.Kototoro.SideSheetDialog" parent="ThemeOverlay.Material3.SideSheetDialog" />
+	<style name="ThemeOverlay.Novara.SideSheetDialog" parent="ThemeOverlay.Material3.SideSheetDialog" />
 
-	<style name="Widget.Kototoro.BottomSheet.Modal" parent="Widget.Material3.BottomSheet.Modal">
+	<style name="Widget.Novara.BottomSheet.Modal" parent="Widget.Material3.BottomSheet.Modal">
 		<item name="paddingBottomSystemWindowInsets">false</item>
 	</style>
 
-	<style name="Widget.Kototoro.BottomSheet.DragHandle" parent="Widget.Material3.BottomSheet.DragHandle">
+	<style name="Widget.Novara.BottomSheet.DragHandle" parent="Widget.Material3.BottomSheet.DragHandle">
 		<!-- Fix weird bottom padding -->
 		<item name="android:paddingBottom">0dp</item>
 	</style>
 
-	<style name="Widget.Kototoro.Spinner.DropDown" parent="Widget.AppCompat.Spinner.DropDown">
+	<style name="Widget.Novara.Spinner.DropDown" parent="Widget.AppCompat.Spinner.DropDown">
 		<item name="android:popupBackground">@drawable/m3_spinner_popup_background</item>
 		<item name="android:elevation">8dp</item>
 		<item name="android:popupElevation">3dp</item>
 	</style>
 
-	<style name="Animation.Kototoro.BottomSheetDialog" parent="Animation.AppCompat.Dialog">
+	<style name="Animation.Novara.BottomSheetDialog" parent="Animation.AppCompat.Dialog">
 		<item name="android:windowEnterAnimation">@anim/bottom_sheet_slide_in</item>
 		<item name="android:windowExitAnimation">@anim/bottom_sheet_slide_out</item>
 	</style>
 
 	<!-- Widget styles -->
 
-	<style name="Widget.Kototoro.SearchView" parent="@style/Widget.AppCompat.SearchView">
+	<style name="Widget.Novara.SearchView" parent="@style/Widget.AppCompat.SearchView">
 		<item name="iconifiedByDefault">false</item>
 		<item name="searchIcon">@null</item>
 		<item name="queryBackground">@null</item>
-		<item name="android:textAppearance">@style/TextAppearance.Kototoro.SearchView</item>
+		<item name="android:textAppearance">@style/TextAppearance.Novara.SearchView</item>
 		<item name="android:textSize">18sp</item>
 	</style>
 
-	<style name="Widget.Kototoro.CircularProgressIndicator.ThickStraight" parent="Widget.Material3.CircularProgressIndicator" />
-	<style name="Widget.Kototoro.LinearProgressIndicator.ThickStraight" parent="Widget.Material3.LinearProgressIndicator" />
+	<style name="Widget.Novara.CircularProgressIndicator.ThickStraight" parent="Widget.Material3.CircularProgressIndicator" />
+	<style name="Widget.Novara.LinearProgressIndicator.ThickStraight" parent="Widget.Material3.LinearProgressIndicator" />
 
-	<style name="Widget.Kototoro.CircularProgressIndicator.ThickWavy" parent="Widget.Material3Expressive.CircularProgressIndicator.Wavy" />
-	<style name="Widget.Kototoro.LinearProgressIndicator.ThickWavy" parent="Widget.Material3Expressive.LinearProgressIndicator.Wavy" />
+	<style name="Widget.Novara.CircularProgressIndicator.ThickWavy" parent="Widget.Material3Expressive.CircularProgressIndicator.Wavy" />
+	<style name="Widget.Novara.LinearProgressIndicator.ThickWavy" parent="Widget.Material3Expressive.LinearProgressIndicator.Wavy" />
 
-	<style name="Widget.Kototoro.CircularProgressIndicator.ThinStraight" parent="Widget.MaterialComponents.CircularProgressIndicator" />
-	<style name="Widget.Kototoro.LinearProgressIndicator.ThinStraight" parent="Widget.MaterialComponents.LinearProgressIndicator" />
+	<style name="Widget.Novara.CircularProgressIndicator.ThinStraight" parent="Widget.MaterialComponents.CircularProgressIndicator" />
+	<style name="Widget.Novara.LinearProgressIndicator.ThinStraight" parent="Widget.MaterialComponents.LinearProgressIndicator" />
 
-	<style name="Widget.Kototoro.CircularProgressIndicator.ThinWavy" parent="Widget.Material3Expressive.CircularProgressIndicator.Wavy">
+	<style name="Widget.Novara.CircularProgressIndicator.ThinWavy" parent="Widget.Material3Expressive.CircularProgressIndicator.Wavy">
 		<item name="trackThickness">2dp</item>
 	</style>
-	<style name="Widget.Kototoro.LinearProgressIndicator.ThinWavy" parent="Widget.Material3Expressive.LinearProgressIndicator.Wavy">
+	<style name="Widget.Novara.LinearProgressIndicator.ThinWavy" parent="Widget.Material3Expressive.LinearProgressIndicator.Wavy">
 		<item name="trackThickness">2dp</item>
 	</style>
 
-	<style name="ThemeOverlay.Kototoro.Loading.ThickStraight" parent="">
-		<item name="circularProgressIndicatorStyle">@style/Widget.Kototoro.CircularProgressIndicator.ThickStraight</item>
-		<item name="linearProgressIndicatorStyle">@style/Widget.Kototoro.LinearProgressIndicator.ThickStraight</item>
+	<style name="ThemeOverlay.Novara.Loading.ThickStraight" parent="">
+		<item name="circularProgressIndicatorStyle">@style/Widget.Novara.CircularProgressIndicator.ThickStraight</item>
+		<item name="linearProgressIndicatorStyle">@style/Widget.Novara.LinearProgressIndicator.ThickStraight</item>
 	</style>
 
-	<style name="ThemeOverlay.Kototoro.Loading.ThickWavy" parent="">
-		<item name="circularProgressIndicatorStyle">@style/Widget.Kototoro.CircularProgressIndicator.ThickWavy</item>
-		<item name="linearProgressIndicatorStyle">@style/Widget.Kototoro.LinearProgressIndicator.ThickWavy</item>
+	<style name="ThemeOverlay.Novara.Loading.ThickWavy" parent="">
+		<item name="circularProgressIndicatorStyle">@style/Widget.Novara.CircularProgressIndicator.ThickWavy</item>
+		<item name="linearProgressIndicatorStyle">@style/Widget.Novara.LinearProgressIndicator.ThickWavy</item>
 	</style>
 
-	<style name="ThemeOverlay.Kototoro.Loading.ThinStraight" parent="">
-		<item name="circularProgressIndicatorStyle">@style/Widget.Kototoro.CircularProgressIndicator.ThinStraight</item>
-		<item name="linearProgressIndicatorStyle">@style/Widget.Kototoro.LinearProgressIndicator.ThinStraight</item>
+	<style name="ThemeOverlay.Novara.Loading.ThinStraight" parent="">
+		<item name="circularProgressIndicatorStyle">@style/Widget.Novara.CircularProgressIndicator.ThinStraight</item>
+		<item name="linearProgressIndicatorStyle">@style/Widget.Novara.LinearProgressIndicator.ThinStraight</item>
 	</style>
 
-	<style name="ThemeOverlay.Kototoro.Loading.ThinWavy" parent="">
-		<item name="circularProgressIndicatorStyle">@style/Widget.Kototoro.CircularProgressIndicator.ThinWavy</item>
-		<item name="linearProgressIndicatorStyle">@style/Widget.Kototoro.LinearProgressIndicator.ThinWavy</item>
+	<style name="ThemeOverlay.Novara.Loading.ThinWavy" parent="">
+		<item name="circularProgressIndicatorStyle">@style/Widget.Novara.CircularProgressIndicator.ThinWavy</item>
+		<item name="linearProgressIndicatorStyle">@style/Widget.Novara.LinearProgressIndicator.ThinWavy</item>
 	</style>
 
-	<style name="Widget.Kototoro.LinearProgressIndicator" parent="Widget.Material3.LinearProgressIndicator">
+	<style name="Widget.Novara.LinearProgressIndicator" parent="Widget.Material3.LinearProgressIndicator">
 		<item name="trackCornerRadius">@dimen/mtrl_progress_indicator_full_rounded_corner_radius</item>
 	</style>
 
-	<style name="Widget.Kototoro.Chip" parent="Widget.Material3.Chip.Suggestion" />
+	<style name="Widget.Novara.Chip" parent="Widget.Material3.Chip.Suggestion" />
 
-	<style name="Widget.Kototoro.Chip.Filter" parent="Widget.Material3.Chip.Filter" />
+	<style name="Widget.Novara.Chip.Filter" parent="Widget.Material3.Chip.Filter" />
 
-	<style name="Widget.Kototoro.Chip.Assist" parent="Widget.Material3.Chip.Assist" />
+	<style name="Widget.Novara.Chip.Assist" parent="Widget.Material3.Chip.Assist" />
 
-	<style name="Widget.Kototoro.Chip.Dropdown" parent="Widget.Material3.Chip.Assist">
+	<style name="Widget.Novara.Chip.Dropdown" parent="Widget.Material3.Chip.Assist">
 		<item name="closeIconVisible">true</item>
 		<item name="closeIcon">@drawable/ic_expand_more</item>
 		<item name="chipIconVisible">true</item>
 	</style>
 
-	<style name="Widget.Kototoro.Button.More" parent="Widget.Material3.Button.TextButton">
+	<style name="Widget.Novara.Button.More" parent="Widget.Material3.Button.TextButton">
 		<item name="android:minWidth">48dp</item>
 	</style>
 
-	<style name="Widget.Kototoro.Button.More.Small">
+	<style name="Widget.Novara.Button.More.Small">
 		<item name="android:insetTop">0dp</item>
 		<item name="android:insetBottom">0dp</item>
 		<item name="android:minHeight">42dp</item>
 	</style>
 
-	<style name="Widget.Kototoro.ToggleButton" parent="Widget.Material3.Button.OutlinedButton">
+	<style name="Widget.Novara.ToggleButton" parent="Widget.Material3.Button.OutlinedButton">
 		<item name="android:checkable">true</item>
 		<item name="android:textAlignment">textStart</item>
 		<item name="iconPadding">16dp</item>
 	</style>
 
-	<style name="Widget.Kototoro.ToggleButton.Vertical">
+	<style name="Widget.Novara.ToggleButton.Vertical">
 		<item name="android:textAlignment">center</item>
 		<item name="iconPadding">2dp</item>
 		<item name="android:singleLine">false</item>
@@ -132,13 +132,13 @@
 	</style>
 
 	<!-- Transparent icon button style for video player -->
-	<style name="Widget.Kototoro.IconButton.Transparent" parent="Widget.Material3.Button.IconButton">
+	<style name="Widget.Novara.IconButton.Transparent" parent="Widget.Material3.Button.IconButton">
 		<item name="android:background">@android:color/transparent</item>
 		<item name="backgroundTint">@android:color/transparent</item>
 		<item name="rippleColor">?attr/colorControlHighlight</item>
 	</style>
 
-	<style name="Widget.Kototoro.TextButton.Transparent" parent="Widget.Material3.Button.TextButton">
+	<style name="Widget.Novara.TextButton.Transparent" parent="Widget.Material3.Button.TextButton">
 		<item name="android:background">@android:color/transparent</item>
 		<item name="backgroundTint">@android:color/transparent</item>
 		<item name="rippleColor">?attr/colorControlHighlight</item>
@@ -152,18 +152,18 @@
 	</style>
 
 
-	<style name="Widget.Kototoro.Slider.Wide" parent="Widget.Material3.Slider">
+	<style name="Widget.Novara.Slider.Wide" parent="Widget.Material3.Slider">
 		<item name="thumbHeight">48dp</item>
 		<item name="trackCornerSize">12dp</item>
 		<item name="trackHeight">40dp</item>
 	</style>
 
-	<style name="Widget.Kototoro.RecyclerView" parent="">
+	<style name="Widget.Novara.RecyclerView" parent="">
 		<item name="android:scrollbarStyle">outsideOverlay</item>
 		<item name="android:clipToPadding">false</item>
 	</style>
 
-	<style name="Widget.Kototoro.FastScroller" parent="">
+	<style name="Widget.Novara.FastScroller" parent="">
 		<item name="thumbColor">?colorTertiary</item>
 		<item name="bubbleColor">?colorTertiary</item>
 		<item name="bubbleTextColor">?colorOnTertiary</item>
@@ -172,9 +172,9 @@
 		<item name="scrollerOffset">@dimen/grid_spacing_outer</item>
 	</style>
 
-	<style name="Widget.Kototoro.DotIndicator" parent="" />
+	<style name="Widget.Novara.DotIndicator" parent="" />
 
-	<style name="Widget.Kototoro.BadgeView" parent="">
+	<style name="Widget.Novara.BadgeView" parent="">
 		<item name="android:textColor">@macro/m3_comp_badge_large_label_text_color</item>
 		<item name="android:minWidth">@dimen/m3_badge_with_text_size</item>
 		<item name="android:minHeight">@dimen/m3_badge_with_text_size</item>
@@ -187,7 +187,7 @@
 		<item name="android:outlineProvider">background</item>
 	</style>
 
-	<style name="Widget.Kototoro.ListItemTextView" parent="">
+	<style name="Widget.Novara.ListItemTextView" parent="">
 		<item name="android:textColor">@color/list_item_text_color</item>
 		<item name="backgroundFillColor">@color/list_item_background_color</item>
 		<item name="checkedDrawableStart">@drawable/ic_check</item>
@@ -204,7 +204,7 @@
 		<item name="android:paddingEnd">?android:listPreferredItemPaddingEnd</item>
 	</style>
 
-	<style name="Widget.Kototoro.TwoLinesItemView" parent="">
+	<style name="Widget.Novara.TwoLinesItemView" parent="">
 		<item name="backgroundFillColor">@color/list_item_background_color</item>
 		<item name="shapeAppearance">?attr/shapeAppearanceCornerLarge</item>
 		<item name="android:insetRight">6dp</item>
@@ -217,7 +217,7 @@
 		<item name="subtitleTextAppearance">?attr/textAppearanceBodySmall</item>
 	</style>
 
-	<style name="Widget.Kototoro.ExploreButton" parent="Widget.Material3.Button.ElevatedButton.Icon">
+	<style name="Widget.Novara.ExploreButton" parent="Widget.Material3.Button.ElevatedButton.Icon">
 		<item name="android:minHeight">56dp</item>
 		<item name="android:singleLine">true</item>
 		<item name="shapeAppearance">?shapeAppearanceCornerExtraLarge</item>
@@ -237,13 +237,13 @@
 		<item name="elevation">24dp</item>
 	</style>
 
-	<style name="Widget.Kototoro.TextView.Indicator" parent="Widget.MaterialComponents.TextView">
+	<style name="Widget.Novara.TextView.Indicator" parent="Widget.MaterialComponents.TextView">
 		<item name="android:drawablePadding">12dp</item>
 		<item name="android:gravity">center_vertical</item>
 		<item name="android:textAppearance">?textAppearanceLabelMedium</item>
 	</style>
 
-	<style name="Widget.Kototoro.TextView.Badge" parent="Widget.MaterialComponents.TextView">
+	<style name="Widget.Novara.TextView.Badge" parent="Widget.MaterialComponents.TextView">
 		<item name="android:background">@drawable/bg_chip</item>
 		<item name="android:gravity">center</item>
 		<item name="android:textAlignment">center</item>
@@ -255,7 +255,7 @@
 		<item name="android:textColor">?colorOnBackground</item>
 	</style>
 
-	<style name="Widget.Kototoro.ImageView.Cover" parent="Widget.MaterialComponents.ShapeableImageView">
+	<style name="Widget.Novara.ImageView.Cover" parent="Widget.MaterialComponents.ShapeableImageView">
 		<item name="aspectRationHeight">18</item>
 		<item name="aspectRationWidth">13</item>
 		<item name="android:scaleType">centerCrop</item>
@@ -263,11 +263,11 @@
 		<item name="trimImage">true</item>
 	</style>
 
-	<style name="ThemeOverlay.Kototoro.MainToolbar" parent="">
+	<style name="ThemeOverlay.Novara.MainToolbar" parent="">
 		<item name="colorControlHighlight">@color/selector_overlay</item>
 	</style>
 
-	<style name="ThemeOverlay.Kototoro.VideoControls" parent="ThemeOverlay.Material3.Dark">
+	<style name="ThemeOverlay.Novara.VideoControls" parent="ThemeOverlay.Material3.Dark">
 		<item name="colorOnSurface">@android:color/white</item>
 		<item name="colorOnSurfaceVariant">@android:color/white</item>
 		<item name="colorOutline">#4DFFFFFF</item>
@@ -276,18 +276,18 @@
 		<item name="colorControlNormal">@android:color/white</item>
 	</style>
 
-	<style name="ThemeOverlay.Kototoro.VideoInfoDialog" parent="ThemeOverlay.Material3.Dialog.Alert">
+	<style name="ThemeOverlay.Novara.VideoInfoDialog" parent="ThemeOverlay.Material3.Dialog.Alert">
 		<item name="backgroundTint">@android:color/transparent</item>
 	</style>
 
-	<style name="ThemeOverlay.Kototoro.ActionMode" parent="">
+	<style name="ThemeOverlay.Novara.ActionMode" parent="">
 		<item name="colorOnSurface">?colorPrimary</item>
 		<item name="colorControlNormal">?colorPrimary</item>
 	</style>
 
 	<!-- TextAppearance -->
 
-	<style name="TextAppearance.Kototoro.SearchView" parent="TextAppearance.Material3.SearchBar">
+	<style name="TextAppearance.Novara.SearchView" parent="TextAppearance.Material3.SearchBar">
 		<item name="android:textColor">?attr/colorOnSurfaceVariant</item>
 	</style>
 
@@ -295,11 +295,11 @@
 		<item name="android:textColor">?attr/colorOnBackground</item>
 	</style>
 
-	<style name="TextAppearance.Kototoro.Preference.Secondary" parent="TextAppearance.Material3.BodySmall" />
+	<style name="TextAppearance.Novara.Preference.Secondary" parent="TextAppearance.Material3.BodySmall" />
 
-	<style name="TextAppearance.Kototoro.GridTitle" parent="TextAppearance.Material3.TitleSmall" />
+	<style name="TextAppearance.Novara.GridTitle" parent="TextAppearance.Material3.TitleSmall" />
 
-	<style name="TextAppearance.Kototoro.GridTitle.Small" parent="TextAppearance.Material3.TitleSmall">
+	<style name="TextAppearance.Novara.GridTitle.Small" parent="TextAppearance.Material3.TitleSmall">
 		<item name="android:textSize">12sp</item>
 		<item name="android:letterSpacing">0.00714286</item>
 		<item name="lineHeight">14sp</item>
@@ -308,19 +308,19 @@
 
 	<!-- Shapes -->
 
-	<style name="ShapeAppearanceOverlay.Kototoro.Cover" parent="">
+	<style name="ShapeAppearanceOverlay.Novara.Cover" parent="">
 		<item name="cornerSize">12dp</item>
 	</style>
 
-	<style name="ShapeAppearanceOverlay.Kototoro.Cover.Medium" parent="">
+	<style name="ShapeAppearanceOverlay.Novara.Cover.Medium" parent="">
 		<item name="cornerSize">8dp</item>
 	</style>
 
-	<style name="ShapeAppearanceOverlay.Kototoro.Cover.Small" parent="">
+	<style name="ShapeAppearanceOverlay.Novara.Cover.Small" parent="">
 		<item name="cornerSize">4dp</item>
 	</style>
 
-	<style name="ShapeAppearanceOverlay.Kototoro.Circle" parent="">
+	<style name="ShapeAppearanceOverlay.Novara.Circle" parent="">
 		<item name="cornerFamily">rounded</item>
 		<item name="cornerSize">50%</item>
 	</style>
@@ -334,7 +334,7 @@
 
 	<!--Preferences-->
 
-	<style name="PreferenceThemeOverlay.Kototoro">
+	<style name="PreferenceThemeOverlay.Novara">
 		<item name="singleLineTitle">false</item>
 	</style>
 
@@ -393,7 +393,7 @@
 	</style>
 
 	<!-- Compact action button for SearchBar filter icons -->
-	<style name="Widget.Kototoro.ActionButton.Compact" parent="Widget.AppCompat.ActionButton">
+	<style name="Widget.Novara.ActionButton.Compact" parent="Widget.AppCompat.ActionButton">
 		<item name="android:minWidth">36dp</item>
 		<item name="android:paddingStart">2dp</item>
 		<item name="android:paddingEnd">2dp</item>

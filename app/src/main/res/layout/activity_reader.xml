@@ -69,7 +69,7 @@
 			android:layout_height="wrap_content"
 			android:elevation="@dimen/m3_card_elevated_elevation"
 			app:elevation="@dimen/m3_card_elevated_elevation"
-			app:popupTheme="@style/ThemeOverlay.Kototoro" />
+			app:popupTheme="@style/ThemeOverlay.Novara" />
 
 	</com.google.android.material.appbar.AppBarLayout>
 
@@ -79,7 +79,8 @@
 		android:layout_height="wrap_content"
 		android:layout_gravity="bottom"
 		android:fitsSystemWindows="false"
-		app:cardBackgroundColor="?colorSurfaceContainer"
+		app:cardBackgroundColor="@android:color/transparent"
+		app:cardElevation="0dp"
 		app:layout_insetEdge="bottom">
 
 		<org.skepsun.kototoro.reader.ui.ReaderActionsView

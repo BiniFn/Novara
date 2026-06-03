@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name" translatable="false">Kototoro</string>
+    <string name="app_name" translatable="false">Novara</string>
     <string name="quick_access">Quick access</string>
     <string name="home">Home</string>
     <string name="local_storage">Local storage</string>
@@ -165,7 +165,7 @@
     <string name="enter_password">Enter password</string>
     <string name="wrong_password">Wrong password</string>
     <string name="protect_application">Protect the app</string>
-    <string name="protect_application_summary">Ask for password when starting Kototoro</string>
+    <string name="protect_application_summary">Ask for password when starting Novara</string>
     <string name="repeat_password">Repeat the password</string>
     <string name="passwords_mismatch">Mismatching passwords</string>
     <string name="about">About</string>
@@ -238,9 +238,9 @@
     <string name="clear_local_novel_storage_prompt">Delete all locally saved and imported novel files? This cannot be undone.</string>
     <string name="clear_local_video_storage_prompt">Delete all locally saved and imported video files? This cannot be undone.</string>
     <string name="welcome">Welcome</string>
-    <string name="welcome_jar_install_success">Kototoro: Successfully fetched and mounted %1$d latest parser engines from cloud network!</string>
-    <string name="welcome_jar_install_up_to_date">Kototoro: Cloud verification complete, local parsers are up to date! (Loaded %1$d sources in total)</string>
-    <string name="welcome_jar_install_failed">Kototoro: Parser network loading failed (%1$s), please try again or go to settings to switch proxy mirrors</string>
+    <string name="welcome_jar_install_success">Novara: Successfully fetched and mounted %1$d latest parser engines from cloud network!</string>
+    <string name="welcome_jar_install_up_to_date">Novara: Cloud verification complete, local parsers are up to date! (Loaded %1$d sources in total)</string>
+    <string name="welcome_jar_install_failed">Novara: Parser network loading failed (%1$s), please try again or go to settings to switch proxy mirrors</string>
     <string name="home_placeholder_title">Reading dashboard</string>
     <string name="home_placeholder_subtitle">See your recent reading, updates, library, sync, and sources in one place.</string>
     <string name="home_hero_local_subtitle">Pick up where you left off, or jump back into what you opened recently.</string>
@@ -717,7 +717,7 @@
     <string name="import_completed_hint">You can delete the original file from storage to save space</string>
     <string name="import_will_start_soon">Import will start soon</string>
     <string name="feed">Feed</string>
-    <string name="manga_error_description_pattern">Error details:&lt;br&gt;&lt;tt&gt;%1$s&lt;/tt&gt;&lt;br&gt;&lt;br&gt;1. Try to &lt;a href="%2$s"&gt;open manga in a web browser&lt;/a&gt; to ensure it is available on its source&lt;br&gt;2. Make sure you are using the &lt;a href="kototoro://about"&gt;latest version of Kototoro&lt;/a&gt;&lt;br&gt;3. If it is available, send an error report to the developers.</string>
+    <string name="manga_error_description_pattern">Error details:&lt;br&gt;&lt;tt&gt;%1$s&lt;/tt&gt;&lt;br&gt;&lt;br&gt;1. Try to &lt;a href="%2$s"&gt;open manga in a web browser&lt;/a&gt; to ensure it is available on its source&lt;br&gt;2. Make sure you are using the &lt;a href="kototoro://about"&gt;latest version of Novara&lt;/a&gt;&lt;br&gt;3. If it is available, send an error report to the developers.</string>
     <string name="history_shortcuts">Show recent manga shortcuts</string>
     <string name="history_shortcuts_summary">Make recent manga available by long pressing on application icon</string>
     <string name="reader_control_ltr_summary">Do not adjust the page switching direction to the reader mode, e. g. pressing the right key always switches to the next page. This option affects only hardware input devices</string>
@@ -1461,7 +1461,7 @@
     <string name="show_pages_thumbs">Show pages thumbnails</string>
     <string name="show_pages_thumbs_summary">Enable the \"Pages\" tab on the details screen</string>
     <string name="error_no_data_received">No data was received from server</string>
-    <string name="unsupported_backup_message">Please select a proper Kototoro backup file</string>
+    <string name="unsupported_backup_message">Please select a proper Novara backup file</string>
     <string name="list_ellipsize_pattern" translatable="false">(+%d)</string>
     <!-- Short hours format pattern -->
     <string name="hours_short">%d h</string>
@@ -1521,8 +1521,8 @@
     <string name="chapters_read">Chapters read</string>
     <string name="chapters_left">Chapters left</string>
     <string name="external_source">External/plugin</string>
-    <string name="plugin_incompatible">Incompatible plugin or internal error. Make sure you are using the latest version of the plugin and Kototoro</string>
-    <string name="plugin_incompatible_with_cause">Plugin error: %s\n Make sure you are using the latest version of the plugin and Kototoro</string>
+    <string name="plugin_incompatible">Incompatible plugin or internal error. Make sure you are using the latest version of the plugin and Novara</string>
+    <string name="plugin_incompatible_with_cause">Plugin error: %s\n Make sure you are using the latest version of the plugin and Novara</string>
     <string name="connection_ok">Connection is OK</string>
     <string name="invalid_proxy_configuration">Invalid proxy configuration</string>
     <string name="show_quick_filters">Show quick filters</string>
@@ -1672,7 +1672,7 @@
     <string name="send_backups_telegram">Send backups in Telegram</string>
     <string name="test_connection">Test connection</string>
     <string name="telegram_chat_id_summary">Enter the chat ID where backups should be sent</string>
-    <string name="open_telegram_bot_summary">Press to open chat with Kototoro Backup Bot</string>
+    <string name="open_telegram_bot_summary">Press to open chat with Novara Backup Bot</string>
     <string name="clear_database">Clear database</string>
     <string name="clear_database_summary">Delete information about manga that is not used</string>
     <string name="enable_all_sources">Enable all content sources</string>
@@ -1703,7 +1703,7 @@
     <string name="search_disabled_sources">Search through disabled sources</string>
     <string name="error_details">Error details</string>
     <string name="error_disclaimer_manga">Try to open manga in a web browser to ensure it is available on its source.</string>
-    <string name="error_disclaimer_app_outdated">It looks like your version of Kototoro is out of date. Please install the latest version to get all available fixes.</string>
+    <string name="error_disclaimer_app_outdated">It looks like your version of Novara is out of date. Please install the latest version to get all available fixes.</string>
     <string name="error_disclaimer_report">You can send an error report to developers, this will help us locate and fix the error</string>
 
     <string name="enable_source_manga">Enable manga source</string>
@@ -1726,7 +1726,7 @@
     <string name="recommendation_novel">recommended novels</string>
     <string name="recommendation_video">recommended videos</string>
     <string name="link_to_manga_on_s">Link to manga on %s</string>
-    <string name="link_to_manga_in_app">Link to manga in Kototoro</string>
+    <string name="link_to_manga_in_app">Link to manga in Novara</string>
     <string name="clear_browser_data">Clear browser data</string>
     <string name="clear_browser_data_summary">Clear browser data such as cache and cookies. Warning: Authorization in content sources may become invalid</string>
     <string name="no_write_permission_to_file">Does not have permission to write a file</string>
@@ -1775,7 +1775,7 @@
     <string name="discord_token_hint">Paste your Discord Token here</string>
     <string name="discord_rpc_summary">Show your reading status on Discord</string>
     <string name="obtain">Obtain</string>
-    <string name="discord_rpc_description">Reading manga on Kototoro - a manga reader app</string>
+    <string name="discord_rpc_description">Reading manga on Novara - a manga reader app</string>
     <string name="discord_logout_summary">Clear the saved Discord token and sign out from the embedded Discord session</string>
     <string name="reading_s">Reading %s</string>
     <string name="read_on_s">Read on %s</string>
@@ -2188,7 +2188,7 @@
     <string name="trust_and_add">Trust and add</string>
     <string name="trust_extension_repository_message">Repository: %1$s\nWebsite: %2$s\nSHA-256 fingerprint:\n%3$s\n\nVerify this fingerprint with the publisher before trusting this repository.</string>
     <string name="untrusted_extension_message">%1$s (%2$s) is installed, but its signature does not match the selected repository fingerprint.\n\nRepository fingerprint: %3$s\n\nRemove the installed package before reinstalling from this repository.</string>
-    <string name="incompatible_extension_message">%1$s %2$s cannot be installed because its library version (%3$s) is outside Kototoro\'s supported range.</string>
+    <string name="incompatible_extension_message">%1$s %2$s cannot be installed because its library version (%3$s) is outside Novara\'s supported range.</string>
     <string name="eighteen_plus">18+</string>
     <plurals name="source_count">
         <item quantity="one">%d source</item>
@@ -2217,11 +2217,11 @@
     
     <!-- Welcome Init UI -->
     <string name="welcome_plugins_title">Initialize Plugin Sources</string>
-    <string name="welcome_plugins_summary">Kototoro now uses dynamic decoupled plugins. Select preset repositories and a proxy mirror to initialize parsers first.</string>
-    <string name="welcome_plugins_repo_kototoro">Kototoro Parsers</string>
+    <string name="welcome_plugins_summary">Novara now uses dynamic decoupled plugins. Select preset repositories and a proxy mirror to initialize parsers first.</string>
+    <string name="welcome_plugins_repo_novara">Novara Parsers</string>
     <string name="welcome_plugins_repo_yakateam">Yakateam Parsers</string>
     <string name="welcome_plugins_repo_redo">Redo Parsers</string>
-    <string name="welcome_plugins_disclaimer">These extension repositories are maintained by independent online communities. The Kototoro developers have no affiliation, control, or association with these third-party repositories. I acknowledge that I am configuring these sources at my own risk.</string>
+    <string name="welcome_plugins_disclaimer">These extension repositories are maintained by independent online communities. The Novara developers have no affiliation, control, or association with these third-party repositories. I acknowledge that I am configuring these sources at my own risk.</string>
     <string name="welcome_plugins_start_btn">1-Click Initialize</string>
 
     <string name="download_threads">Download threads</string>
@@ -2544,7 +2544,7 @@
     <string name="group_sources_by_language_summary">Display content sources grouped by their locale language rather than a flat list.</string>
 
     <string name="jar_priority_order_title">Plugin Deduplication Priority Sequence</string>
-    <string name="jar_priority_order_summary">Comma-separated JAR prefixes. When multiple parsers share the same name, only the parser from the highest ranking repository is exposed. Example: kototoro-parsers, kotatsu-parsers-redo, kotatsu-parsers</string>
+    <string name="jar_priority_order_summary">Comma-separated JAR prefixes. When multiple parsers share the same name, only the parser from the highest ranking repository is exposed. Example: novara-parsers, kotatsu-parsers-redo, kotatsu-parsers</string>
 
     <string name="pref_nav_floating">Floating navigation bar</string>
     <string name="pref_nav_floating_summary">Add a margin around the bottom navigation bar so it appears floating</string>
@@ -2573,14 +2573,14 @@
     <string name="pref_glass_effect">Frosted-glass blur</string>
     <string name="pref_glass_effect_summary">Blur content behind supported Compose surfaces</string>
     <string name="pref_haze_opacity">Glass surface opacity</string>
-    <string name="pref_haze_opacity_summary">Controls the background opacity of Kototoro custom glass surfaces, even when blur is off</string>
+    <string name="pref_haze_opacity_summary">Controls the background opacity of Novara custom glass surfaces, even when blur is off</string>
     <string name="pref_glass_blur_strength">Glass blur radius</string>
     <string name="pref_glass_blur_strength_summary">Sets the final blur radius used by custom glass surfaces, in dp</string>
     <string name="pref_glass_noise_strength">Glass noise factor</string>
     <string name="pref_glass_noise_strength_summary">Sets the final noise amount applied to custom glass surfaces, from 0.00 to 1.00</string>
     <string name="pref_glass_immersive_strength">Immersive tint strength</string>
     <string name="pref_glass_immersive_strength_summary">Controls the top and bottom immersive tint intensity used around custom glass chrome</string>
-    <string name="glass_material_kototoro">Kototoro (Recommended)</string>
+    <string name="glass_material_novara">Novara (Recommended)</string>
     <string name="glass_material_haze_ultra_thin">Haze Ultra Thin</string>
     <string name="glass_material_haze_thin">Haze Thin</string>
     <string name="glass_material_haze_regular">Haze Regular</string>

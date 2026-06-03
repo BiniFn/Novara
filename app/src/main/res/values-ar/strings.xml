@@ -341,7 +341,7 @@
     <string name="reader_slider">إظهار شريط التمرير لتبديل الصفحات</string>
     <string name="server_error">خطأ من جانب الخادم (%1$d). الرجاء المحاولة مرة أخرى لاحقًا</string>
     <string name="chapters_grid_view">عرض الشبكة</string>
-    <string name="manga_error_description_pattern">تفاصيل الخطأ:&lt;br&gt;&lt;tt&gt;%1$s&lt;/tt&gt;&lt;br&gt;&lt;br&gt;1. حاول &lt;a href=\"%2$s\"&gt;فتح المانجا في متصفح ويب&lt;/a&gt; للتأكد من أنها متوفرة على مصدرها&lt;br&gt;2. تأكد من أنك تستخدم &lt;a href=kototoro://about&gt;أحدث إصدار من Kototoro&lt;/a&gt;&lt;br&gt;3. إذا كانت متوفرة، أرسل تقرير خطأ إلى المطورين.</string>
+    <string name="manga_error_description_pattern">تفاصيل الخطأ:&lt;br&gt;&lt;tt&gt;%1$s&lt;/tt&gt;&lt;br&gt;&lt;br&gt;1. حاول &lt;a href=\"%2$s\"&gt;فتح المانجا في متصفح ويب&lt;/a&gt; للتأكد من أنها متوفرة على مصدرها&lt;br&gt;2. تأكد من أنك تستخدم &lt;a href=kototoro://about&gt;أحدث إصدار من Novara&lt;/a&gt;&lt;br&gt;3. إذا كانت متوفرة، أرسل تقرير خطأ إلى المطورين.</string>
     <string name="history_shortcuts_summary">إتاحة المانجا الحديثة بالضغط المطول على أيقونة التطبيق</string>
     <string name="reader_control_ltr_summary">النقر على الحافة اليمنى أو الضغط على المفتاح الأيمن يؤدي دائمًا إلى الانتقال للصفحة التالية</string>
     <string name="reader_control_ltr">تحكم مريح في القراءة</string>
@@ -617,7 +617,7 @@
     <string name="long_ago_read">قرأت منذ وقت طويل</string>
     <string name="unread">غير مقروءة</string>
     <string name="show_pages_thumbs">إظهار الصور المصغرة للصفحات</string>
-    <string name="unsupported_backup_message">الرجاء تحديد ملف النسخ الاحتياطي السليم لKototoro</string>
+    <string name="unsupported_backup_message">الرجاء تحديد ملف النسخ الاحتياطي السليم لNovara</string>
     <string name="minutes_short">%d ش</string>
     <string name="hours_minutes_short">%1$d س %2$d ش</string>
     <string name="webtoon_gaps">الفجوات في وضع الويبتون</string>
@@ -656,7 +656,7 @@
     <string name="text_empty_holder_secondary_filtered">لا توجد مانجا تطابق التصفيات التي حددتها</string>
     <string name="connection_ok">الاتصال جيد</string>
     <string name="external_source">خارجي/إضافي</string>
-    <string name="plugin_incompatible">مكون إضافي غير متوافق أو خطأ داخلي. تأكد من استخدام أحدث إصدار من المكون الإضافي وKototoro</string>
+    <string name="plugin_incompatible">مكون إضافي غير متوافق أو خطأ داخلي. تأكد من استخدام أحدث إصدار من المكون الإضافي وNovara</string>
     <string name="invalid_server_address_message">عنوان الخادم غير صالح</string>
     <string name="retry">‮حاول مجددا</string>
     <string name="pages_saved">الصفحات المحفوظة</string>
@@ -786,9 +786,9 @@
     <string name="screen_rotation_locked">تم ايقاف دوران الشاشة</string>
     <string name="screen_rotation_unlocked">تم تشغيل دوران الشاشة</string>
     <string name="link_to_manga_on_s">رابط المانغا على %s</string>
-    <string name="link_to_manga_in_app">رابط المانغا في Kototoro</string>
+    <string name="link_to_manga_in_app">رابط المانغا في Novara</string>
     <string name="backup_restored_background">سوف يتم استعادة النسخة الاحتياطية في الخلفية</string>
-    <string name="error_disclaimer_app_outdated">يبدو أن إصدار Kototoro الخاص بك قديم. يرجى تثبيت أحدث إصدار للحصول على جميع الإصلاحات المتاحة.</string>
+    <string name="error_disclaimer_app_outdated">يبدو أن إصدار Novara الخاص بك قديم. يرجى تثبيت أحدث إصدار للحصول على جميع الإصلاحات المتاحة.</string>
     <string name="disable_captcha_notifications">تعطيل اشعارات captcha</string>
     <string name="disable_captcha_notifications_summary">لن تتلقى إشعارات حول حل CAPTCHA لهذا المصدر ولكن هذا قد يؤدي إلى تعطيل العمليات الخلفية (التحقق من وجود فصول جديدة، الحصول على توصيات، وما إلى ذلك...)</string>
     <string name="global_search">البحث العالمي</string>
@@ -1080,7 +1080,7 @@
     <string name="discord">Discord</string>
     <string name="discord_logout_summary">مسح رمز Discord المحفوظ وتسجيل الخروج من جلسة Discord المضمنة</string>
     <string name="discord_rpc">Discord Rich Presence</string>
-    <string name="discord_rpc_description">قراءة المانجا على Kototoro - تطبيق قارئ مانجا</string>
+    <string name="discord_rpc_description">قراءة المانجا على Novara - تطبيق قارئ مانجا</string>
     <string name="discord_rpc_summary">إظهار حالة القراءة على Discord</string>
     <string name="discord_token">رمز Discord</string>
     <string name="discord_token_description">أدخل رمز Discord الخاص بك أو انقر فوق %s للحصول عليه باستخدام المتصفح</string>
@@ -1363,7 +1363,7 @@
     <string name="incognito_for_nsfw">وضع التصفح المتخفي للمانجا المحتوية على محتوى للبالغين</string>
     <string name="incognito_mode_hint_nsfw">قد تحتوي هذه المانجا على محتوى للبالغين. هل تريد استخدام وضع التصفح المتخفي؟</string>
     <string name="incompatible_extension">غير متوافق</string>
-    <string name="incompatible_extension_message">لا يمكن تثبيت %1$s %2$s لأن إصدار مكتبته (%3$s) خارج النطاق المدعوم من Kototoro.</string>
+    <string name="incompatible_extension_message">لا يمكن تثبيت %1$s %2$s لأن إصدار مكتبته (%3$s) خارج النطاق المدعوم من Novara.</string>
     <string name="incompatible_section">غير متوافق</string>
     <string name="inline_preference_pattern">%1$s: %2$s</string>
     <string name="install_extension">تثبيت</string>
@@ -1384,7 +1384,7 @@
     <string name="jar_plugins_update_all">تحديث الكل</string>
     <string name="jar_plugins_updates_available">تتوفر تحديثات لإضافات JAR!</string>
     <string name="jar_plugins_updating">جارٍ تحديث إضافات JAR...</string>
-    <string name="jar_priority_order_summary">بادئات JAR مفصولة بفواصل. عندما تشترك عدة محللات في نفس الاسم، يتم عرض المحلل من المستودع الأعلى ترتيبًا فقط. مثال: kototoro-parsers, kotatsu-parsers-redo, kotatsu-parsers</string>
+    <string name="jar_priority_order_summary">بادئات JAR مفصولة بفواصل. عندما تشترك عدة محللات في نفس الاسم، يتم عرض المحلل من المستودع الأعلى ترتيبًا فقط. مثال: novara-parsers, kotatsu-parsers-redo, kotatsu-parsers</string>
     <string name="jar_priority_order_title">تسلسل أولوية إزالة تكرار الإضافات</string>
     <string name="json_content_required">محتوى JSON مطلوب</string>
     <string name="json_sources">JSON</string>
@@ -2467,15 +2467,15 @@
     <string name="webdav_upload_now">رفع النسخة الاحتياطية الآن</string>
     <string name="webdav_upload_success">تم رفع النسخة الاحتياطية إلى WebDAV</string>
     <string name="webdav_username">اسم مستخدم WebDAV</string>
-    <string name="welcome_jar_install_failed">Kototoro: فشل تحميل شبكة المحلل (%1$s)، يرجى المحاولة مرة أخرى أو الذهاب إلى الإعدادات لتبديل مرايا الوكيل</string>
-    <string name="welcome_jar_install_success">Kototoro: تم جلب وتثبيت أحدث %1$d محرك محلل من الشبكة السحابية بنجاح!</string>
-    <string name="welcome_jar_install_up_to_date">Kototoro: اكتمل التحقق السحابي، المحللات المحلية محدثة! (تم تحميل %1$d مصدرًا إجمالاً)</string>
-    <string name="welcome_plugins_disclaimer">هذه المستودعات الموسعة تُدار بواسطة مجتمعات مستقلة عبر الإنترنت. مطورو Kototoro ليس لديهم أي انتماء أو تحكم أو ارتباط بهذه المستودعات الخارجية. أقر بأنني أقوم بتكوين هذه المصادر على مسؤوليتي الخاصة.</string>
-    <string name="welcome_plugins_repo_kototoro">محللات Kototoro</string>
+    <string name="welcome_jar_install_failed">Novara: فشل تحميل شبكة المحلل (%1$s)، يرجى المحاولة مرة أخرى أو الذهاب إلى الإعدادات لتبديل مرايا الوكيل</string>
+    <string name="welcome_jar_install_success">Novara: تم جلب وتثبيت أحدث %1$d محرك محلل من الشبكة السحابية بنجاح!</string>
+    <string name="welcome_jar_install_up_to_date">Novara: اكتمل التحقق السحابي، المحللات المحلية محدثة! (تم تحميل %1$d مصدرًا إجمالاً)</string>
+    <string name="welcome_plugins_disclaimer">هذه المستودعات الموسعة تُدار بواسطة مجتمعات مستقلة عبر الإنترنت. مطورو Novara ليس لديهم أي انتماء أو تحكم أو ارتباط بهذه المستودعات الخارجية. أقر بأنني أقوم بتكوين هذه المصادر على مسؤوليتي الخاصة.</string>
+    <string name="welcome_plugins_repo_novara">محللات Novara</string>
     <string name="welcome_plugins_repo_redo">إعادة المحللات</string>
     <string name="welcome_plugins_repo_yakateam">محللات Yakateam</string>
     <string name="welcome_plugins_start_btn">تهيئة بنقرة واحدة</string>
-    <string name="welcome_plugins_summary">يستخدم Kototoro الآن إضافات ديناميكية منفصلة. اختر مستودعات الإعدادات المسبقة ومرآة وكيل لتهيئة المحللات أولاً.</string>
+    <string name="welcome_plugins_summary">يستخدم Novara الآن إضافات ديناميكية منفصلة. اختر مستودعات الإعدادات المسبقة ومرآة وكيل لتهيئة المحللات أولاً.</string>
     <string name="welcome_plugins_title">تهيئة مصادر الإضافات</string>
     <string name="work_info">معلومات العمل</string>
     <string name="you_may_like">قد يعجبك أيضًا</string>

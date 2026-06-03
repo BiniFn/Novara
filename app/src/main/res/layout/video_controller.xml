@@ -22,7 +22,7 @@
         android:fitsSystemWindows="false"
         android:background="@android:color/transparent"
         android:clipToPadding="false"
-        android:theme="@style/ThemeOverlay.Kototoro">
+        android:theme="@style/ThemeOverlay.Novara">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -139,7 +139,7 @@
                 android:layout_height="wrap_content">
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/button_pages_thumbs"
-                    style="@style/Widget.Kototoro.IconButton.Transparent"
+                    style="@style/Widget.Novara.IconButton.Transparent"
                     android:layout_width="44dp"
                     android:layout_height="44dp"
                     android:layout_gravity="center"
@@ -159,7 +159,7 @@
                 android:layout_height="wrap_content">
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/button_options"
-                    style="@style/Widget.Kototoro.IconButton.Transparent"
+                    style="@style/Widget.Novara.IconButton.Transparent"
                     android:layout_width="44dp"
                     android:layout_height="44dp"
                     android:layout_gravity="center"

@@ -17,7 +17,7 @@
 		android:layout_height="wrap_content"
 		android:layout_margin="2dp"
 		app:cardElevation="3dp"
-		app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Kototoro.Cover">
+		app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Novara.Cover">
 
 		<org.skepsun.kototoro.image.ui.CoverImageView
 			android:id="@+id/imageViewCover"
@@ -29,7 +29,7 @@
 			app:allowRgb565="true"
 			app:aspectRationHeight="18"
 			app:aspectRationWidth="13"
-			app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Kototoro.Cover"
+			app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Novara.Cover"
 			tools:src="@tools:sample/backgrounds/scenic" />
 
 		<LinearLayout

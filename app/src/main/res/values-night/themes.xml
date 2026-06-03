@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-	<style name="ThemeOverlay.Kototoro" parent="ThemeOverlay.Material3.Dark">
+	<style name="ThemeOverlay.Novara" parent="ThemeOverlay.Material3.Dark">
 		<item name="android:navigationBarColor">@android:color/transparent</item>
 		<item name="android:windowBackground">?android:colorBackground</item>
 	</style>
 
-	<style name="ThemeOverlay.Kototoro.Amoled" parent="">
+	<style name="ThemeOverlay.Novara.Amoled" parent="">
 		<item name="colorSurface">@color/background_amoled</item>
 		<item name="android:colorBackground">@color/background_amoled</item>
 		<item name="android:windowBackground">@color/background_amoled</item>
@@ -19,6 +19,6 @@
 	</style>
 
 	<!-- Monet theme only support S+ -->
-	<style name="ThemeOverlay.Kototoro.Monet" parent="ThemeOverlay.Material3.DynamicColors.Dark" />
+	<style name="ThemeOverlay.Novara.Monet" parent="ThemeOverlay.Material3.DynamicColors.Dark" />
 
 </resources>

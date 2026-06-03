@@ -718,6 +718,7 @@ class ReaderActivity :
             uiState.incognito -> getString(R.string.incognito_mode)
             else -> chapterTitle
         }
+        viewBinding.actionsView.setChapterTitle(chapterTitle)
         if (
             settings.isReaderChapterToastEnabled &&
             chapterTitle != previous?.getChapterTitle(resources) &&
@@ -730,8 +731,10 @@ class ReaderActivity :
                 value = uiState.currentPage,
                 max = uiState.totalPages - 1,
             )
+            viewBinding.actionsView.setPageLabel(uiState.currentPage + 1, uiState.totalPages)
         } else {
             viewBinding.actionsView.setSliderValue(0, 1)
+            viewBinding.actionsView.setPageLabel(0, 0)
         }
         viewBinding.actionsView.isSliderEnabled = uiState.isSliderAvailable()
         viewBinding.actionsView.isNextEnabled = uiState.hasNextChapter()

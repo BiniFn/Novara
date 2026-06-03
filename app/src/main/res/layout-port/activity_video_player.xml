@@ -73,9 +73,9 @@
             app:contentInsetStart="8dp"
             app:contentInsetEnd="8dp"
             app:contentInsetStartWithNavigation="8dp"
-            app:theme="@style/ThemeOverlay.Kototoro.VideoControls"
+            app:theme="@style/ThemeOverlay.Novara.VideoControls"
             app:layout_scrollFlags="scroll|enterAlways"
-            app:popupTheme="@style/ThemeOverlay.Kototoro"
+            app:popupTheme="@style/ThemeOverlay.Novara"
             app:titleTextAppearance="?textAppearanceTitleSmall"
             app:titleTextColor="?attr/colorOnSurface"
             app:subtitleTextColor="?attr/colorOnSurfaceVariant">
@@ -103,8 +103,8 @@
             android:visibility="gone"
             app:contentInsetStart="8dp"
             app:contentInsetEnd="8dp"
-            app:theme="@style/ThemeOverlay.Kototoro.VideoControls"
-            app:popupTheme="@style/ThemeOverlay.Kototoro" />
+            app:theme="@style/ThemeOverlay.Novara.VideoControls"
+            app:popupTheme="@style/ThemeOverlay.Novara" />
             
     </LinearLayout>
 
