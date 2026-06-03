@@ -57,5 +57,6 @@ jobs:
         name: "Novara debug APKs (run #${{ github.run_number }})"
         artifacts: Novara-App-debug-apks
         replacesArtifacts: true
+        update: true
         draft: false
         prerelease: false
