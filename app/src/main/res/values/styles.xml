@@ -399,4 +399,18 @@
 		<item name="android:paddingEnd">2dp</item>
 	</style>
 
+	<!-- Novara style aliases - map Novara names to Kototoro implementations -->
+
+	<style name="Widget.Novara.Chip.Filter" parent="Widget.Kototoro.Chip.Filter" />
+
+	<style name="Widget.Novara.Chip.Dropdown" parent="Widget.Kototoro.Chip.Dropdown" />
+
+	<style name="ThemeOverlay.Novara.VideoControls" parent="ThemeOverlay.Kototoro.VideoControls" />
+
+	<style name="Widget.Novara.TextView.Indicator" parent="Widget.Kototoro.TextView.Indicator" />
+
+	<style name="Widget.Novara.Chip.Assist" parent="Widget.Kototoro.Chip.Assist" />
+
+	<style name="Widget.Novara.Button.More.Small" parent="Widget.Kototoro.Button.More.Small" />
+
 </resources>
