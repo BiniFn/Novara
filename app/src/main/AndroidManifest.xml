@@ -97,7 +97,7 @@
 		android:requestLegacyExternalStorage="true"
 		android:roundIcon="@mipmap/ic_launcher_round"
 		android:supportsRtl="true"
-		android:theme="@style/Theme.Kototoro"
+		android:theme="@style/Theme.Novara"
 		tools:ignore="UnusedAttribute">
 
 		<activity
@@ -254,7 +254,7 @@
 		<activity
 			android:name="org.skepsun.kototoro.browser.OpenUrlConfirmActivity"
 			android:exported="false"
-			android:theme="@style/Theme.Kototoro" />
+			android:theme="@style/Theme.Novara" />
 		<activity
 			android:name="org.skepsun.kototoro.browser.cloudflare.CloudFlareActivity"
 			android:autoRemoveFromRecents="true"
