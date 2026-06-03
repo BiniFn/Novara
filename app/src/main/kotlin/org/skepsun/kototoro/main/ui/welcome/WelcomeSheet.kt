@@ -65,9 +65,14 @@ class WelcomeSheet : BaseAdaptiveSheet<SheetWelcomeBinding>(), ChipsView.OnChipC
 			android.util.Log.d("KototoroInit", "Button clicked! Mirror selected: ${binding.autoCompleteMirror.text}")
 			val selectedMirrorsPosition = mirrors.indexOf(binding.autoCompleteMirror.text.toString()).coerceAtLeast(0)
 			val repoUrls = mutableListOf<String>()
-			if (binding.chipRepoKototoro.isChecked) repoUrls.add("https://raw.githubusercontent.com/skepsun/kototoro-parsers/repo/index.min.json")
-			if (binding.chipRepoYakateam.isChecked) repoUrls.add("https://raw.githubusercontent.com/skepsun/k-parsers-y/repo/index.min.json")
-			if (binding.chipRepoRedo.isChecked) repoUrls.add("https://raw.githubusercontent.com/skepsun/k-parsers-r/repo/index.min.json")
+			if (binding.chipRepoNovara.isChecked)
+				repoUrls.add("https://raw.githubusercontent.com/skepsun/kototoro-parsers/repo/index.min.json")
+
+			if (binding.chipRepoYakateam.isChecked)
+				repoUrls.add("https://raw.githubusercontent.com/skepsun/k-parsers-y/repo/index.min.json")
+
+			if (binding.chipRepoRedo.isChecked)
+				repoUrls.add("https://raw.githubusercontent.com/skepsun/k-parsers-r/repo/index.min.json")
 			android.util.Log.d("KototoroInit", "Dispatching initializePlugins with urls: $repoUrls")
 			viewModel.initializePlugins(selectedMirrorsPosition, repoUrls)
 		}
@@ -121,9 +126,9 @@ class WelcomeSheet : BaseAdaptiveSheet<SheetWelcomeBinding>(), ChipsView.OnChipC
 				am.addAccount(accountType, accountType, null, null, requireActivity(), null, null)
 			}
 
-            R.id.chip_directories -> {
-                router.openDirectoriesSettings()
-            }
+			    R.id.chip_directories -> {
+			        router.openDirectoriesSettings()
+			    }
 		}
 	}
 
