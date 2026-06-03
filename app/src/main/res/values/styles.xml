@@ -413,4 +413,12 @@
 
 	<style name="Widget.Novara.Button.More.Small" parent="Widget.Kototoro.Button.More.Small" />
 
+	<style name="Widget.Novara.ToggleButton.Vertical" parent="Widget.Kototoro.ToggleButton.Vertical" />
+
+	<style name="TextAppearance.Novara.GridTitle" parent="TextAppearance.Kototoro.GridTitle" />
+
+	<style name="Widget.Novara.IconButton.Transparent" parent="Widget.Kototoro.IconButton.Transparent" />
+
+	<style name="Widget.Novara.TextButton.Transparent" parent="Widget.Kototoro.TextButton.Transparent" />
+
 </resources>
