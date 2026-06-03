@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ "main", "master" ]
 
+# Grant workflow permission to create releases and upload assets
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -47,8 +51,9 @@ jobs:
     - name: Create draft GitHub Release and upload APKs
       uses: ncipollo/release-action@v1
       with:
+        token: ${{ secrets.GITHUB_TOKEN }}
         tag: "apk-${{ github.run_number }}"
         name: "Novara debug APKs (run #${{ github.run_number }})"
-        files: app/build/outputs/apk/debug/*.apk
+        artifacts: Novara-App-debug-apks
         draft: true
         prerelease: false
