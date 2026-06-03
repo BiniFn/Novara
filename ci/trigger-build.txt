@@ -1,0 +1,3 @@
+Trigger CI run for fixed Android build
+
+This file was added to trigger GitHub Actions build after applying fixes for unresolved resources.
