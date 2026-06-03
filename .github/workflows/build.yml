@@ -43,3 +43,12 @@ jobs:
       with:
         name: Novara-App-debug-apks
         path: app/build/outputs/apk/debug/*.apk
+
+    - name: Create draft GitHub Release and upload APKs
+      uses: ncipollo/release-action@v1
+      with:
+        tag: "apk-${{ github.run_number }}"
+        name: "Novara debug APKs (run #${{ github.run_number }})"
+        files: app/build/outputs/apk/debug/*.apk
+        draft: true
+        prerelease: false
